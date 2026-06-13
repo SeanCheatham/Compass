@@ -9,7 +9,7 @@ import Foundation
 /// set (minus `delegate`)". A non-nil array filters the parent's tools
 /// by name; unknown names are silently dropped so a typoed request
 /// doesn't fail the whole turn.
-protocol AgentDelegateRunner: Sendable {
+package protocol AgentDelegateRunner: Sendable {
   func delegate(
     task: String,
     toolNames: [String]?,
@@ -26,39 +26,39 @@ protocol AgentDelegateRunner: Sendable {
 /// invariant (the runner itself, the captured tools, the event sink)
 /// is fine to share across levels because tools are stateless and the
 /// executor's transient state lives on the stack of `run`.
-struct AgentExecutorDelegateRunner: AgentDelegateRunner {
-  let settings: AgentRuntimeSettings
-  let parentPhase: AgentPhase
-  let parentModelOverride: String
-  let workingDirectory: URL
-  let filesystem: AgentFilesystem
-  let bashRunner: AgentBashRunner
+package struct AgentExecutorDelegateRunner: AgentDelegateRunner {
+  package let settings: AgentRuntimeSettings
+  package let parentPhase: AgentPhase
+  package let parentModelOverride: String
+  package let workingDirectory: URL
+  package let filesystem: AgentFilesystem
+  package let bashRunner: AgentBashRunner
   /// Host-side codemap directory inherited from the parent run. Nil
   /// means the sub-agent falls back to `<workingDirectory>/.compass/codemap`,
   /// which is wrong for container routes — top-level callers should
   /// always supply this.
-  let codemapStoreDirectory: URL?
+  package let codemapStoreDirectory: URL?
   /// Host-side assumptions ledger inherited from the parent so sub-agents
   /// can record assumptions made during focused investigations.
-  let assumptionsURL: URL?
-  let sessionNumber: Int?
+  package let assumptionsURL: URL?
+  package let sessionNumber: Int?
   /// Snapshot of the parent's tool list. `delegate(toolNames:)` filters
   /// this; `AgentDelegateTool` is always excluded from the child's
   /// effective tool list so sub-agents cannot recurse.
-  let parentTools: [AgentTool]
-  let parentMaxIterations: Int
-  let parentWallClockTimeout: TimeInterval
+  package let parentTools: [AgentTool]
+  package let parentMaxIterations: Int
+  package let parentWallClockTimeout: TimeInterval
   /// Live-log sink so sub-agent activity surfaces under the parent run.
-  let onEvent: @Sendable (LiveEvent) -> Void
+  package let onEvent: @Sendable (LiveEvent) -> Void
 
   /// Hard cap on sub-agent iterations even when the parent has a higher
   /// budget. Sub-agents should produce focused investigations, not
   /// open-ended phase work.
-  static let maxSubAgentIterations = 96
+  package static let maxSubAgentIterations = 96
   /// Wall-clock cap for a single sub-agent invocation.
-  static let maxSubAgentWallClock: TimeInterval = 15 * 60
+  package static let maxSubAgentWallClock: TimeInterval = 15 * 60
 
-  func delegate(
+  package func delegate(
     task: String,
     toolNames: [String]?,
     profile: String?,
@@ -119,7 +119,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   /// variants as top-level tool dispatch. Unknown names are silently dropped
   /// so a misspelled tool name doesn't blow up the whole turn — the sub-agent
   /// will simply find that name absent from its system prompt.
-  static func filterTools(parentTools: [AgentTool], requested: [String]?) -> [AgentTool] {
+  package static func filterTools(parentTools: [AgentTool], requested: [String]?) -> [AgentTool] {
     let withoutDelegate = parentTools.filter { $0.spec.name != AgentDelegateTool.toolName }
     guard let requested else { return withoutDelegate }
     let availableNames = Set(withoutDelegate.map(\.spec.name))
@@ -130,7 +130,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
     return withoutDelegate.filter { allowed.contains($0.spec.name) }
   }
 
-  static func toolNames(forProfile rawProfile: String?) -> [String]? {
+  package static func toolNames(forProfile rawProfile: String?) -> [String]? {
     guard let profile = rawProfile?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
       !profile.isEmpty
     else { return nil }
@@ -151,15 +151,15 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   }
 }
 
-struct SubAgentResult: Decodable {
-  let findings: String
+package struct SubAgentResult: Decodable {
+  package let findings: String
 }
 
-enum AgentDelegateRunnerError: LocalizedError, Equatable {
+package enum AgentDelegateRunnerError: LocalizedError, Equatable {
   case emptyTask
   case malformedFindings(detail: String)
 
-  var errorDescription: String? {
+  package var errorDescription: String? {
     switch self {
     case .emptyTask: return "delegate task is empty"
     case .malformedFindings(let detail):

@@ -1,13 +1,13 @@
 import Foundation
 
-extension AgentExecutor {
-  struct InvalidToolArgumentsNudge: Equatable {
+package extension AgentExecutor {
+  package struct InvalidToolArgumentsNudge: Equatable {
     var eventText: String
     var eventDetail: String
     var userMessage: String
   }
 
-  static func submitResultValidationNudge(
+  package static func submitResultValidationNudge(
     for error: Error,
     phase: AgentPhase? = nil
   ) -> InvalidToolArgumentsNudge {
@@ -199,7 +199,7 @@ extension AgentExecutor {
     )
   }
 
-  static func decodingErrorMessage(_ error: Error) -> String {
+  package static func decodingErrorMessage(_ error: Error) -> String {
     guard let decoding = error as? DecodingError else {
       return error.localizedDescription
     }
@@ -223,7 +223,7 @@ extension AgentExecutor {
     }
   }
 
-  static func invalidSubmitResultDecodeNudge(
+  package static func invalidSubmitResultDecodeNudge(
     errorMessage: String,
     phase: AgentPhase? = nil
   ) -> InvalidToolArgumentsNudge {
@@ -284,7 +284,7 @@ extension AgentExecutor {
     return ""
   }
 
-  static func missingSubmitResultNudge(
+  package static func missingSubmitResultNudge(
     finishReason: String?,
     maxCompletionTokens: Int,
     phase: AgentPhase? = nil
@@ -308,7 +308,7 @@ extension AgentExecutor {
     )
   }
 
-  static func submitResultDecodeRetryShape(for phase: AgentPhase?) -> String {
+  package static func submitResultDecodeRetryShape(for phase: AgentPhase?) -> String {
     switch phase {
     case .plan:
       return """

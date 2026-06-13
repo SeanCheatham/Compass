@@ -1,22 +1,22 @@
 import Foundation
 
-struct CodemapRefresher: Sendable {
-  struct Result: Sendable, Equatable {
-    var indexed: Int
-    var unchanged: Int
-    var pruned: Int
-    var indexerSkipped: Int
-    var indexerFailed: Int
-    var summariesGenerated: Int
-    var summariesSkipped: Int
-    var summariesFailed: Int
+package struct CodemapRefresher: Sendable {
+  package struct Result: Sendable, Equatable {
+    package var indexed: Int
+    package var unchanged: Int
+    package var pruned: Int
+    package var indexerSkipped: Int
+    package var indexerFailed: Int
+    package var summariesGenerated: Int
+    package var summariesSkipped: Int
+    package var summariesFailed: Int
   }
 
-  let indexer: CodemapIndexer
-  let summarizer: RepoSummarizer
-  let summariesEnabled: Bool
+  package let indexer: CodemapIndexer
+  package let summarizer: RepoSummarizer
+  package let summariesEnabled: Bool
 
-  static func make(
+  package static func make(
     workspace: CompassWorkspace,
     settings: AgentRuntimeSettings,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
@@ -42,7 +42,7 @@ struct CodemapRefresher: Sendable {
     )
   }
 
-  func refresh() async throws -> Result {
+  package func refresh() async throws -> Result {
     let indexResult = try await indexer.indexAll()
     let summary =
       summariesEnabled

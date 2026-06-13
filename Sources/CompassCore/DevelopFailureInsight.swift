@@ -1,22 +1,22 @@
 import Foundation
 
-struct DevelopFailureInsight: Equatable {
-  enum Kind: Equatable {
+package struct DevelopFailureInsight: Equatable {
+  package enum Kind: Equatable {
     case missingResult
     case malformedToolCall
     case providerFailure
     case generic
   }
 
-  var kind: Kind
-  var guideTitle: String
-  var inspectTitle: String
-  var inspectDetail: String
-  var repairTitle: String
-  var repairDetail: String
-  var retryDetail: String
+  package var kind: Kind
+  package var guideTitle: String
+  package var inspectTitle: String
+  package var inspectDetail: String
+  package var repairTitle: String
+  package var repairDetail: String
+  package var retryDetail: String
 
-  init(detail: String) {
+  package init(detail: String) {
     let detail = Self.normalized(detail)
     let searchable = detail.lowercased()
     kind = Self.kind(for: searchable)

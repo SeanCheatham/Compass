@@ -1,7 +1,7 @@
 import Foundation
 
-extension Prompts {
-  static func planPrompt(
+package extension Prompts {
+  package static func planPrompt(
     state: PlanProposal,
     completedCount: Int,
     drafts: String,
@@ -28,8 +28,10 @@ extension Prompts {
       - New generated projects use `tessera.json`, `src/*.tes`, `contexts/*.json`,
         and `tests/*.json`.
       - Prefer `\(standardVerify)` as the verify command for generated work.
-        For focused entrypoint checks use `tessera app <entrypoint> --json`;
-        for docs-only slices use a simple `grep -q` content check.
+        For focused entrypoint checks, use the `tessera` tool with
+        `{"action":"run_entrypoint","entrypoint":"<name>"}` while keeping
+        human-readable verify fields as shell-style commands. For docs-only slices use
+        a simple `grep -q` content check.
       - Prefer dependency-free implementation packets. If the next slice needs a new
         host capability or manifest field, the handoff must explicitly name the
         `tessera.json` update and tests.
@@ -124,7 +126,7 @@ extension Prompts {
       """
   }
 
-  static func compactPromptBlock(
+  package static func compactPromptBlock(
     _ text: String,
     maxLines: Int,
     maxCharacters: Int

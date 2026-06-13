@@ -1,24 +1,24 @@
 import Foundation
 
-struct SessionAuditEvent: Codable, Equatable {
-  static let schemaVersion = 1
+package struct SessionAuditEvent: Codable, Equatable {
+  package static let schemaVersion = 1
 
-  var schemaVersion: Int = Self.schemaVersion
-  var session: Int
-  var sequence: Int
-  var timestamp: Double
-  var phase: String?
-  var kind: String
-  var level: String?
-  var liveKind: String?
-  var status: String?
-  var correlationID: String?
-  var text: String?
-  var detail: String?
-  var artifactPath: String?
-  var metadata: [String: String]?
+  package var schemaVersion: Int = Self.schemaVersion
+  package var session: Int
+  package var sequence: Int
+  package var timestamp: Double
+  package var phase: String?
+  package var kind: String
+  package var level: String?
+  package var liveKind: String?
+  package var status: String?
+  package var correlationID: String?
+  package var text: String?
+  package var detail: String?
+  package var artifactPath: String?
+  package var metadata: [String: String]?
 
-  init(
+  package init(
     session: Int,
     sequence: Int,
     timestamp: Date = Date(),
@@ -67,15 +67,15 @@ struct SessionAuditEvent: Codable, Equatable {
   }
 }
 
-struct SessionAuditArtifact: Codable, Equatable, Identifiable {
-  var id: String { path }
-  var path: String
-  var kind: String
-  var createdAt: Double
-  var byteCount: UInt64
-  var note: String?
+package struct SessionAuditArtifact: Codable, Equatable, Identifiable {
+  package var id: String { path }
+  package var path: String
+  package var kind: String
+  package var createdAt: Double
+  package var byteCount: UInt64
+  package var note: String?
 
-  init(
+  package init(
     path: String,
     kind: String,
     byteCount: UInt64,
@@ -91,19 +91,19 @@ struct SessionAuditArtifact: Codable, Equatable, Identifiable {
   }
 }
 
-struct SessionAuditManifest: Codable, Equatable {
-  static let schemaVersion = 1
+package struct SessionAuditManifest: Codable, Equatable {
+  package static let schemaVersion = 1
 
-  var schemaVersion: Int = Self.schemaVersion
-  var session: Int
-  var createdAt: Double
-  var updatedAt: Double
-  var status: SessionStatus?
-  var startedAt: Double?
-  var endedAt: Double?
-  var artifacts: [SessionAuditArtifact]
+  package var schemaVersion: Int = Self.schemaVersion
+  package var session: Int
+  package var createdAt: Double
+  package var updatedAt: Double
+  package var status: SessionStatus?
+  package var startedAt: Double?
+  package var endedAt: Double?
+  package var artifacts: [SessionAuditArtifact]
 
-  init(
+  package init(
     session: Int,
     createdAt: Date = Date(),
     status: SessionStatus? = nil,

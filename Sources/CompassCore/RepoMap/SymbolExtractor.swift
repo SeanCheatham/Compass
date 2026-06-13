@@ -5,8 +5,8 @@ import SwiftTreeSitter
 /// reduces the matches into normalized `CodemapSymbol` / `CodemapImport`
 /// records. Construct once per language at startup via `LanguageRegistry`;
 /// `extract(source:language:)` is safe to call from any task.
-struct SymbolExtractor: Sendable {
-  enum ExtractorError: Error, Equatable {
+package struct SymbolExtractor: Sendable {
+  package enum ExtractorError: Error, Equatable {
     /// The file is in a language with no `LanguageRegistry` entry — caller
     /// should treat as "skip this file" rather than surface to the user.
     case unsupportedLanguage(CodemapLanguage)
@@ -15,16 +15,16 @@ struct SymbolExtractor: Sendable {
     case parseFailed
   }
 
-  let registry: LanguageRegistry
+  package let registry: LanguageRegistry
 
-  init(registry: LanguageRegistry = .shared) {
+  package init(registry: LanguageRegistry = .shared) {
     self.registry = registry
   }
 
   /// Parse `source` and return symbols + imports. Allocates a fresh tree-
   /// sitter `Parser` per call so the extractor itself stays Sendable and the
   /// caller can fan parse work out across a task group.
-  func extract(source: String, language: CodemapLanguage) throws -> CodemapExtraction {
+  package func extract(source: String, language: CodemapLanguage) throws -> CodemapExtraction {
     if language == .tessera {
       return Self.extractTessera(source: source)
     }
@@ -162,7 +162,7 @@ struct SymbolExtractor: Sendable {
   }
 }
 
-extension SymbolExtractor {
+package extension SymbolExtractor {
   fileprivate struct SymbolKey: Hashable {
     let kind: CodemapSymbolKind
     let name: String

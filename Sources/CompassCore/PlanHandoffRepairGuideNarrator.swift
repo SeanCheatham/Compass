@@ -1,14 +1,14 @@
 import Foundation
 
-struct PlanHandoffRepairGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+package struct PlanHandoffRepairGuideNarration: Equatable, Sendable {
+  package var guideIdentifier: String
+  package var text: String
 }
 
-enum PlanHandoffRepairGuideNarrator {
-  static let maxCharacters = 340
+package enum PlanHandoffRepairGuideNarrator {
+  package static let maxCharacters = 340
 
-  static func narrate(
+  package static func narrate(
     guide: PlanHandoffRepairGuide
   ) async -> PlanHandoffRepairGuideNarration? {
     guard guide.allowsNarration else { return nil }
@@ -33,7 +33,7 @@ enum PlanHandoffRepairGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: PlanHandoffRepairGuide) -> String {
+  package static func prompt(for guide: PlanHandoffRepairGuide) -> String {
     """
     You are Compass explaining how Plan should repair an Immediate Work handoff for a non-engineer.
     Use only the facts below. Do not invent files, commands, credentials, outcomes, timing, or next steps.

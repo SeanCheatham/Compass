@@ -1,44 +1,44 @@
 import Foundation
 
-struct ProjectVisionGuide: Equatable, Sendable {
-  static let detailLimit = 220
-  static let visionPreviewLimit = 1_200
-  static let identifierLimit = 1_200
+package struct ProjectVisionGuide: Equatable, Sendable {
+  package static let detailLimit = 220
+  package static let visionPreviewLimit = 1_200
+  package static let identifierLimit = 1_200
 
-  var status: Status
-  var title: String
-  var detail: String
-  var scoreLabel: String
-  var nextAction: NextAction
-  var cues: [Cue]
-  var visionPreview: String
-  var narrationIdentifier: String
+  package var status: Status
+  package var title: String
+  package var detail: String
+  package var scoreLabel: String
+  package var nextAction: NextAction
+  package var cues: [Cue]
+  package var visionPreview: String
+  package var narrationIdentifier: String
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     status == .empty
   }
 
-  var allowsNarration: Bool {
+  package var allowsNarration: Bool {
     status != .empty
   }
 
-  var satisfiedSignalTitles: [String] {
+  package var satisfiedSignalTitles: [String] {
     cues.filter(\.isSatisfied).map(\.title)
   }
 
-  var missingSignalTitles: [String] {
+  package var missingSignalTitles: [String] {
     cues.filter { !$0.isSatisfied }.map(\.title)
   }
 
-  var satisfiedSignalText: String {
+  package var satisfiedSignalText: String {
     satisfiedSignalTitles.isEmpty ? "none" : satisfiedSignalTitles.joined(separator: ", ")
   }
 
-  var missingSignalText: String {
+  package var missingSignalText: String {
     missingSignalTitles.isEmpty ? "none" : missingSignalTitles.joined(separator: ", ")
   }
 
-  init(vision rawVision: String) {
+  package init(vision rawVision: String) {
     let vision = Self.normalizedVision(rawVision)
     visionPreview = StringUtils.boundedText(vision, limit: Self.visionPreviewLimit)
 
@@ -129,36 +129,36 @@ struct ProjectVisionGuide: Equatable, Sendable {
     )
   }
 
-  enum Status: Equatable, Sendable {
+  package enum Status: Equatable, Sendable {
     case empty
     case needsFocus
     case grounded
     case ready
   }
 
-  struct Cue: Identifiable, Equatable, Sendable {
-    var kind: Kind
-    var isSatisfied: Bool
-    var detail: String
+  package struct Cue: Identifiable, Equatable, Sendable {
+    package var kind: Kind
+    package var isSatisfied: Bool
+    package var detail: String
 
-    var id: Kind { kind }
+    package var id: Kind { kind }
 
-    var title: String {
+    package var title: String {
       kind.title
     }
 
-    var systemImage: String {
+    package var systemImage: String {
       isSatisfied ? "checkmark.circle.fill" : kind.systemImage
     }
   }
 
-  struct NextAction: Equatable, Sendable {
-    var title: String
-    var detail: String
-    var systemImage: String
+  package struct NextAction: Equatable, Sendable {
+    package var title: String
+    package var detail: String
+    package var systemImage: String
   }
 
-  enum Kind: CaseIterable, Equatable, Sendable {
+  package enum Kind: CaseIterable, Equatable, Sendable {
     case audience
     case problem
     case success
@@ -328,12 +328,12 @@ struct ProjectVisionGuide: Equatable, Sendable {
   }
 }
 
-struct ProjectVisionClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_500
+package struct ProjectVisionClipboardPayload: Equatable, Sendable {
+  package static let textLimit = 3_500
 
-  var text: String
+  package var text: String
 
-  init(guide: ProjectVisionGuide) {
+  package init(guide: ProjectVisionGuide) {
     guard !guide.isEmpty else {
       text = ""
       return
@@ -376,13 +376,13 @@ struct ProjectVisionClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum ProjectVisionClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  package static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

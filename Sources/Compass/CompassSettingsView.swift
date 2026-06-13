@@ -1,4 +1,5 @@
 import SwiftUI
+import CompassCore
 
 struct CompassSettingsView: View {
   @EnvironmentObject var model: AppModel
@@ -14,7 +15,7 @@ private struct AgentSettingsTab: View {
   @EnvironmentObject var model: AppModel
   @ObservedObject private var localModelManager = LocalModelManager.shared
   @State private var settingsNarration: AgentSettingsGuideNarration?
-  @AppStorage(AgentSettingsStore.Key.contextWindowTokens.rawValue)
+  @AppStorage(AgentSettingsStore.Key.contextWindowTokens.storageKey)
   private var contextWindowTokens = "\(AgentRuntimeSettings.defaultContextWindowTokens)"
 
   var body: some View {

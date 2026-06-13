@@ -1,7 +1,7 @@
 import Foundation
 
-extension Prompts {
-  static func pendingChangesCommitSystemPrompt(workingDirectoryPath: String) -> String {
+package extension Prompts {
+  package static func pendingChangesCommitSystemPrompt(workingDirectoryPath: String) -> String {
     """
     You are the Compass preflight commit agent. Compass is about to run its
     normal factory loop, but the host Git worktree already has pending
@@ -51,7 +51,7 @@ extension Prompts {
     """
   }
 
-  static func pendingChangesCommitPrompt(status: String) -> String {
+  package static func pendingChangesCommitPrompt(status: String) -> String {
     let renderedStatus = status.trimmingCharacters(in: .newlines)
     return """
       The host checkout is dirty before Compass can start the next containerized Linux phase.

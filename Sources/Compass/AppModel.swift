@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import CompassCore
 
 /// Top-level workspace selection driven by the sidebar.
 ///

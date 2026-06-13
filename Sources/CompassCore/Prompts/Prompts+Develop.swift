@@ -1,7 +1,7 @@
 import Foundation
 
-extension Prompts {
-  static func developPrompt(
+package extension Prompts {
+  package static func developPrompt(
     next: PlanNext,
     lessons: String,
     assumptions: String = "",
@@ -33,6 +33,9 @@ extension Prompts {
       - Do not push or use destructive git operations.
       - Run the verify command before finishing unless the command itself is wrong or out
         of scope.
+      - For generated Tessera projects, use the Compass `tessera` tool with
+        `{"action":"verify"}` or `{"action":"run_entrypoint","entrypoint":"<name>"}`
+        instead of depending on a `tessera` binary in shell PATH.
       - Leave the working tree clean, or explain why you are blocked.
       - Do not commit generated outputs or caches: `target/`, `node_modules/`, `dist/`,
         `coverage/`, `.build/`, `build/`, or editor artifacts.

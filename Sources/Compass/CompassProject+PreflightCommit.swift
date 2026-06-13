@@ -1,4 +1,5 @@
 import Foundation
+import CompassCore
 
 @MainActor
 extension CompassProject {

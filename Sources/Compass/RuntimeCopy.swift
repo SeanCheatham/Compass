@@ -1,4 +1,5 @@
 import Foundation
+import CompassCore
 
 enum RuntimeCopy {
   static func containsImplementationTerm(_ text: String) -> Bool {

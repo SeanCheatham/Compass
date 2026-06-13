@@ -1,7 +1,7 @@
 import Foundation
 
-extension AgentExecutor {
-  func run(_ configuration: AgentExecutionConfiguration) async throws -> AgentExecutionResult {
+package extension AgentExecutor {
+  package func run(_ configuration: AgentExecutionConfiguration) async throws -> AgentExecutionResult {
     try AgentExecutor.ensureUniqueToolNames(configuration.tools)
 
     let startedAt = Date()
@@ -613,7 +613,7 @@ extension AgentExecutor {
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
   }
 
-  static func ensureUniqueToolNames(_ tools: [AgentTool]) throws {
+  package static func ensureUniqueToolNames(_ tools: [AgentTool]) throws {
     var names = Set<String>()
     for tool in tools {
       let name = tool.spec.name
@@ -623,7 +623,7 @@ extension AgentExecutor {
     }
   }
 
-  static func canonicalToolName(_ raw: String, availableToolNames: Set<String>) -> String? {
+  package static func canonicalToolName(_ raw: String, availableToolNames: Set<String>) -> String? {
     let normalized =
       raw
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -637,7 +637,7 @@ extension AgentExecutor {
     }
   }
 
-  static func makeDelegateRunner(
+  package static func makeDelegateRunner(
     configuration: AgentExecutionConfiguration,
     onEvent: @escaping @Sendable (LiveEvent) -> Void
   ) -> AgentDelegateRunner? {
@@ -661,7 +661,7 @@ extension AgentExecutor {
     )
   }
 
-  static func stripThinkBlocks(_ text: String) -> (String, String) {
+  package static func stripThinkBlocks(_ text: String) -> (String, String) {
     var cleaned = text
     var extracted: [String] = []
     while let start = cleaned.range(of: "<think>", options: .caseInsensitive),

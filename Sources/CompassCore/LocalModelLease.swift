@@ -1,18 +1,18 @@
 import Foundation
 
-struct LocalModelLeaseSnapshot: Equatable, Sendable {
-  var loadedModelID: String?
-  var activeRunCount: Int
-  var isUnloading: Bool
+package struct LocalModelLeaseSnapshot: Equatable, Sendable {
+  package var loadedModelID: String?
+  package var activeRunCount: Int
+  package var isUnloading: Bool
 }
 
-enum LocalModelRuntimeError: LocalizedError, Equatable {
+package enum LocalModelRuntimeError: LocalizedError, Equatable {
   case modelMissing(String)
   case unavailable(String)
   case incompatibleModel(active: String, requested: String)
   case generationFailed(String)
 
-  var errorDescription: String? {
+  package var errorDescription: String? {
     switch self {
     case .modelMissing(let detail):
       return detail
@@ -26,9 +26,9 @@ enum LocalModelRuntimeError: LocalizedError, Equatable {
   }
 }
 
-actor LocalModelLease {
-  static let shared = LocalModelLease()
-  static let defaultIdleTimeoutNanoseconds: UInt64 =
+package actor LocalModelLease {
+  package static let shared = LocalModelLease()
+  package static let defaultIdleTimeoutNanoseconds: UInt64 =
     UInt64(LocalModelCatalog.idleUnloadDelaySeconds * 1_000_000_000)
 
   private var loadedModelID: String?
@@ -37,7 +37,7 @@ actor LocalModelLease {
   private var idleTimeoutNanoseconds = defaultIdleTimeoutNanoseconds
   private var unloading = false
 
-  func beginRun(modelID: String) throws {
+  package func beginRun(modelID: String) throws {
     if let loadedModelID, loadedModelID != modelID {
       throw LocalModelRuntimeError.incompatibleModel(active: loadedModelID, requested: modelID)
     }
@@ -48,14 +48,14 @@ actor LocalModelLease {
     activeRunCount += 1
   }
 
-  func endRun(modelID: String) {
+  package func endRun(modelID: String) {
     guard loadedModelID == modelID else { return }
     activeRunCount = max(0, activeRunCount - 1)
     guard activeRunCount == 0 else { return }
     scheduleIdleUnload(modelID: modelID)
   }
 
-  func unloadNow() {
+  package func unloadNow() {
     idleTask?.cancel()
     idleTask = nil
     loadedModelID = nil
@@ -66,7 +66,7 @@ actor LocalModelLease {
     }
   }
 
-  func snapshot() -> LocalModelLeaseSnapshot {
+  package func snapshot() -> LocalModelLeaseSnapshot {
     LocalModelLeaseSnapshot(
       loadedModelID: loadedModelID,
       activeRunCount: activeRunCount,
@@ -74,15 +74,15 @@ actor LocalModelLease {
     )
   }
 
-  func idleTimeoutForRuntime() -> UInt64 {
+  package func idleTimeoutForRuntime() -> UInt64 {
     idleTimeoutNanoseconds
   }
 
-  func setIdleTimeoutForTesting(seconds: TimeInterval) {
+  package func setIdleTimeoutForTesting(seconds: TimeInterval) {
     idleTimeoutNanoseconds = UInt64(max(0, seconds) * 1_000_000_000)
   }
 
-  func resetForTesting() {
+  package func resetForTesting() {
     idleTask?.cancel()
     idleTask = nil
     loadedModelID = nil

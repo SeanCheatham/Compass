@@ -1,3 +1,3 @@
 import Foundation
 
-enum Prompts {}
+package enum Prompts {}

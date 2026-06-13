@@ -1,7 +1,7 @@
 import Foundation
 
-enum ToolRegistry {
-  static func readOnlyTools() -> [AgentTool] {
+package enum ToolRegistry {
+  package static func readOnlyTools() -> [AgentTool] {
     [
       AgentReadFileTool(),
       AgentLsTool(),
@@ -12,13 +12,14 @@ enum ToolRegistry {
       AgentSummaryTool(),
       AgentListFilesTool(),
       AgentImportersOfTool(),
+      AgentTesseraTool(),
       AgentDelegateTool(),
       AgentRecordAssumptionTool(),
       AgentRemoveAssumptionTool(),
     ]
   }
 
-  static func developTools() -> [AgentTool] {
+  package static func developTools() -> [AgentTool] {
     readOnlyTools() + [
       AgentWriteFileTool(),
       AgentEditFileTool(),
@@ -26,11 +27,11 @@ enum ToolRegistry {
     ]
   }
 
-  static func inspectionTools() -> [AgentTool] {
+  package static func inspectionTools() -> [AgentTool] {
     readOnlyTools() + [AgentBashTool()]
   }
 
-  static func tools(
+  package static func tools(
     for phase: AgentPhase,
     settings: AgentRuntimeSettings
   ) -> [AgentTool] {
@@ -47,7 +48,7 @@ enum ToolRegistry {
     return tools
   }
 
-  static func tools(for phase: AgentPhase) -> [AgentTool] {
+  package static func tools(for phase: AgentPhase) -> [AgentTool] {
     tools(for: phase, settings: AgentRuntimeSettings())
   }
 }

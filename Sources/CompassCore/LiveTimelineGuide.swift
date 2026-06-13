@@ -1,10 +1,10 @@
 import Foundation
 
-struct LiveTimelineGuide: Equatable, Sendable {
-  static let detailLimit = 240
-  static let identifierLimit = 1_200
+package struct LiveTimelineGuide: Equatable, Sendable {
+  package static let detailLimit = 240
+  package static let identifierLimit = 1_200
 
-  enum Tone: String, Equatable, Sendable {
+  package enum Tone: String, Equatable, Sendable {
     case idle
     case running
     case paused
@@ -12,55 +12,55 @@ struct LiveTimelineGuide: Equatable, Sendable {
     case attention
   }
 
-  struct Checkpoint: Identifiable, Equatable, Sendable {
-    var id: String
-    var label: String
-    var detail: String
-    var systemImageName: String
+  package struct Checkpoint: Identifiable, Equatable, Sendable {
+    package var id: String
+    package var label: String
+    package var detail: String
+    package var systemImageName: String
   }
 
-  struct EventSummary: Identifiable, Equatable, Sendable {
-    var id: String
-    var level: String
-    var kind: String
-    var status: String
-    var text: String
-    var detail: String?
+  package struct EventSummary: Identifiable, Equatable, Sendable {
+    package var id: String
+    package var level: String
+    package var kind: String
+    package var status: String
+    package var text: String
+    package var detail: String?
   }
 
-  struct EvidenceCoverage: Equatable, Sendable {
-    var coveredCount: Int
-    var totalCount: Int
-    var fraction: Double
-    var label: String
-    var detail: String
-    var missingLabels: [String]
+  package struct EvidenceCoverage: Equatable, Sendable {
+    package var coveredCount: Int
+    package var totalCount: Int
+    package var fraction: Double
+    package var label: String
+    package var detail: String
+    package var missingLabels: [String]
   }
 
-  static let latestEventLimit = 5
-  static let eventTextLimit = 140
-  static let eventDetailLimit = 220
+  package static let latestEventLimit = 5
+  package static let eventTextLimit = 140
+  package static let eventDetailLimit = 220
 
-  var shouldShow: Bool
-  var title: String
-  var detail: String
-  var statusLabel: String
-  var tone: Tone
-  var systemImageName: String
-  var checkpoints: [Checkpoint]
-  var phaseLabel: String
-  var eventCount: Int
-  var runningEventCount: Int
-  var failedEventCount: Int
-  var latestEvents: [EventSummary]
-  var evidenceCoverage: EvidenceCoverage
-  var narrationIdentifier: String
+  package var shouldShow: Bool
+  package var title: String
+  package var detail: String
+  package var statusLabel: String
+  package var tone: Tone
+  package var systemImageName: String
+  package var checkpoints: [Checkpoint]
+  package var phaseLabel: String
+  package var eventCount: Int
+  package var runningEventCount: Int
+  package var failedEventCount: Int
+  package var latestEvents: [EventSummary]
+  package var evidenceCoverage: EvidenceCoverage
+  package var narrationIdentifier: String
 
-  var allowsNarration: Bool {
+  package var allowsNarration: Bool {
     shouldShow && tone != .running
   }
 
-  init(
+  package init(
     phase: LoopPhase,
     isRunning: Bool,
     isAutoPlaying: Bool,
@@ -495,12 +495,12 @@ struct LiveTimelineGuide: Equatable, Sendable {
   }
 }
 
-struct LiveTimelineClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_200
+package struct LiveTimelineClipboardPayload: Equatable, Sendable {
+  package static let textLimit = 3_200
 
-  var text: String
+  package var text: String
 
-  init(guide: LiveTimelineGuide) {
+  package init(guide: LiveTimelineGuide) {
     guard guide.shouldShow else {
       text = ""
       return
@@ -546,7 +546,7 @@ struct LiveTimelineClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -562,7 +562,7 @@ struct LiveTimelineClipboardPayload: Equatable, Sendable {
 }
 
 private enum LiveTimelineClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  package static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

@@ -1,4 +1,5 @@
 import Foundation
+import CompassCore
 
 struct ProjectActivitySourceStatus: Equatable {
   static let labelLimit = 38

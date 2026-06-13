@@ -1,41 +1,41 @@
 import Foundation
 
-struct DraftReadinessGuide: Equatable, Sendable {
-  static let detailLimit = 160
-  static let draftPreviewLimit = 220
-  static let identifierLimit = 1_000
-  static let entryPlaceholder = "Describe the change, why it matters, and how success should look"
+package struct DraftReadinessGuide: Equatable, Sendable {
+  package static let detailLimit = 160
+  package static let draftPreviewLimit = 220
+  package static let identifierLimit = 1_000
+  package static let entryPlaceholder = "Describe the change, why it matters, and how success should look"
 
-  var status: Status
-  var title: String
-  var detail: String
-  var scoreLabel: String
-  var cues: [Cue]
-  var coachingPrompts: [CoachingPrompt]
-  var draftPreview: String
-  var narrationIdentifier: String
+  package var status: Status
+  package var title: String
+  package var detail: String
+  package var scoreLabel: String
+  package var cues: [Cue]
+  package var coachingPrompts: [CoachingPrompt]
+  package var draftPreview: String
+  package var narrationIdentifier: String
 
-  var allowsNarration: Bool {
+  package var allowsNarration: Bool {
     status != .ready && !draftPreview.isEmpty
   }
 
-  var missingSignalTitles: [String] {
+  package var missingSignalTitles: [String] {
     cues.filter { !$0.isSatisfied }.map(\.title)
   }
 
-  var satisfiedSignalTitles: [String] {
+  package var satisfiedSignalTitles: [String] {
     cues.filter(\.isSatisfied).map(\.title)
   }
 
-  var missingSignalText: String {
+  package var missingSignalText: String {
     missingSignalTitles.isEmpty ? "none" : missingSignalTitles.joined(separator: ", ")
   }
 
-  var satisfiedSignalText: String {
+  package var satisfiedSignalText: String {
     satisfiedSignalTitles.isEmpty ? "none" : satisfiedSignalTitles.joined(separator: ", ")
   }
 
-  init(draft rawDraft: String) {
+  package init(draft rawDraft: String) {
     let draft = DraftRefinementService.normalizeDraft(rawDraft)
     draftPreview = StringUtils.boundedText(draft, limit: Self.draftPreviewLimit)
     let outcome = Self.hasOutcomeSignal(in: draft)
@@ -95,18 +95,18 @@ struct DraftReadinessGuide: Equatable, Sendable {
     )
   }
 
-  enum Status: Equatable, Sendable {
+  package enum Status: Equatable, Sendable {
     case empty
     case needsDetail
     case ready
   }
 
-  struct Cue: Identifiable, Equatable, Sendable {
+  package struct Cue: Identifiable, Equatable, Sendable {
     var kind: Kind
     var isSatisfied: Bool
     var detail: String
 
-    var id: Kind { kind }
+    package var id: Kind { kind }
 
     var title: String {
       kind.title
@@ -117,10 +117,10 @@ struct DraftReadinessGuide: Equatable, Sendable {
     }
   }
 
-  struct CoachingPrompt: Identifiable, Equatable, Sendable {
+  package struct CoachingPrompt: Identifiable, Equatable, Sendable {
     var kind: Kind
 
-    var id: Kind { kind }
+    package var id: Kind { kind }
 
     var question: String {
       switch kind {
@@ -149,7 +149,7 @@ struct DraftReadinessGuide: Equatable, Sendable {
     }
   }
 
-  enum Kind: CaseIterable, Equatable, Sendable {
+  package enum Kind: CaseIterable, Equatable, Sendable {
     case outcome
     case why
     case success
@@ -294,36 +294,36 @@ struct DraftReadinessGuide: Equatable, Sendable {
   }
 }
 
-struct DraftIntakeGuide: Equatable, Sendable {
-  static let maxEntries = 6
-  static let draftTextLimit = 220
-  static let identifierLimit = 1_200
-  static let planScopeDetailLimit = 260
+package struct DraftIntakeGuide: Equatable, Sendable {
+  package static let maxEntries = 6
+  package static let draftTextLimit = 220
+  package static let identifierLimit = 1_200
+  package static let planScopeDetailLimit = 260
 
   private var allEntries: [Entry]
-  var entries: [Entry]
+  package var entries: [Entry]
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     allEntries.isEmpty
   }
 
-  var allowsNarration: Bool {
+  package var allowsNarration: Bool {
     !allEntries.isEmpty
   }
 
-  var totalEntryCount: Int {
+  package var totalEntryCount: Int {
     allEntries.count
   }
 
-  var hiddenEntryCount: Int {
+  package var hiddenEntryCount: Int {
     max(0, totalEntryCount - entries.count)
   }
 
-  var isCapped: Bool {
+  package var isCapped: Bool {
     hiddenEntryCount > 0
   }
 
-  var narrationIdentifier: String {
+  package var narrationIdentifier: String {
     let raw = [
       "title:\(title)",
       "detail:\(detail)",
@@ -337,12 +337,12 @@ struct DraftIntakeGuide: Equatable, Sendable {
     return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 
-  var status: Status {
+  package var status: Status {
     guard !allEntries.isEmpty else { return .empty }
     return readyCount == totalEntryCount ? .ready : .needsDetail
   }
 
-  var title: String {
+  package var title: String {
     switch status {
     case .empty:
       return "No queued drafts"
@@ -353,7 +353,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  var detail: String {
+  package var detail: String {
     switch status {
     case .empty:
       return "Add one clear direction above when you are ready."
@@ -377,27 +377,27 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  var scoreLabel: String {
+  package var scoreLabel: String {
     guard !allEntries.isEmpty else { return "0 queued" }
     return "\(readyCount) of \(totalEntryCount) ready"
   }
 
-  var entryCountLabel: String {
+  package var entryCountLabel: String {
     Self.countLabel(totalEntryCount, singular: "queued draft", plural: "queued drafts")
   }
 
-  var hiddenCountSentence: String {
+  package var hiddenCountSentence: String {
     hiddenEntryCount == 1 ? "1 more draft remains" : "\(hiddenEntryCount) more drafts remain"
   }
 
-  var planScope: PlanScope {
+  package var planScope: PlanScope {
     PlanScope(
       entries: allEntries,
       visibleEntryNumbers: Set(entries.map(\.number))
     )
   }
 
-  var nextAction: NextAction {
+  package var nextAction: NextAction {
     switch status {
     case .empty:
       return NextAction(
@@ -433,11 +433,11 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  var readyCount: Int {
+  package var readyCount: Int {
     planScope.readyCount
   }
 
-  var missingSignalTitles: [String] {
+  package var missingSignalTitles: [String] {
     DraftReadinessGuide.Kind.allCases.compactMap { kind in
       let isMissing = allEntries.contains { entry in
         entry.readiness.cues.contains { $0.kind == kind && !$0.isSatisfied }
@@ -446,7 +446,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  init(drafts: String) {
+  package init(drafts: String) {
     allEntries = Self.extractDraftEntries(from: drafts)
       .enumerated()
       .map { offset, text in
@@ -455,7 +455,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
     entries = Array(allEntries.prefix(Self.maxEntries))
   }
 
-  var promptText: String {
+  package var promptText: String {
     guard !allEntries.isEmpty else {
       return "_(no draft readiness signals)_"
     }
@@ -471,32 +471,32 @@ struct DraftIntakeGuide: Equatable, Sendable {
     return sections.joined(separator: "\n\n")
   }
 
-  enum Status: Equatable, Sendable {
+  package enum Status: Equatable, Sendable {
     case empty
     case needsDetail
     case ready
   }
 
-  struct NextAction: Equatable, Sendable {
+  package struct NextAction: Equatable, Sendable {
     var kind: NextActionKind
     var title: String
     var detail: String
     var systemImage: String
   }
 
-  enum NextActionKind: Equatable, Sendable {
+  package enum NextActionKind: Equatable, Sendable {
     case startDraft
     case clarifyDrafts
     case planReadyDrafts
     case sendToPlan
   }
 
-  struct Entry: Identifiable, Equatable, Sendable {
+  package struct Entry: Identifiable, Equatable, Sendable {
     var number: Int
     var draft: String
     var readiness: DraftReadinessGuide
 
-    var id: Int { number }
+    package var id: Int { number }
 
     init(number: Int, draft: String) {
       self.number = number
@@ -557,7 +557,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  struct PlanScope: Equatable, Sendable {
+  package struct PlanScope: Equatable, Sendable {
     var readyEntryNumbers: [Int]
     var waitingEntries: [WaitingEntry]
     var summary: String
@@ -766,12 +766,12 @@ struct DraftIntakeGuide: Equatable, Sendable {
   }
 }
 
-struct DraftIntakeClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_500
+package struct DraftIntakeClipboardPayload: Equatable, Sendable {
+  package static let textLimit = 3_500
 
-  var text: String
+  package var text: String
 
-  init(guide: DraftIntakeGuide) {
+  package init(guide: DraftIntakeGuide) {
     guard !guide.isEmpty else {
       text = ""
       return
@@ -829,13 +829,13 @@ struct DraftIntakeClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum DraftIntakeClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  package static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

@@ -4,14 +4,14 @@ import Foundation
 ///
 /// The original case name is kept for persistence/UI compatibility while
 /// generated narration is paused during the MLX runtime migration.
-enum ExplainUnavailableReason: Sendable, CaseIterable {
+package enum ExplainUnavailableReason: Sendable, CaseIterable {
   case foundationModelsUnavailable
   case noDiff
   case emptyDiff
   case emptyResponse
   case unavailable
 
-  var message: String {
+  package var message: String {
     switch self {
     case .foundationModelsUnavailable:
       return "Generated explanation is unavailable until local MLX narration is migrated."
@@ -32,11 +32,11 @@ enum ExplainUnavailableReason: Sendable, CaseIterable {
 /// Agent execution no longer uses this path. Lightweight explanatory helpers
 /// either receive an explicit test override or return unavailable until they
 /// are moved onto the MLX text runtime.
-enum FoundationModelsAvailability {
-  static let generatedExploreUnavailableMessage =
+package enum FoundationModelsAvailability {
+  package static let generatedExploreUnavailableMessage =
     "Generated Explore insight is unavailable until local MLX narration is migrated. Deterministic change details remain available."
 
-  struct TextProvider: Sendable {
+  package struct TextProvider: Sendable {
     var isAvailable: @Sendable () -> Bool
     var streamText: @Sendable (_ prompt: String) async -> String?
 
@@ -51,7 +51,7 @@ enum FoundationModelsAvailability {
 
   @TaskLocal private static var textProviderOverride: TextProvider?
 
-  static func withTextProvider<T>(
+  package static func withTextProvider<T>(
     _ provider: TextProvider,
     operation: () async throws -> T
   ) async rethrows -> T {
@@ -60,11 +60,11 @@ enum FoundationModelsAvailability {
     }
   }
 
-  static var isAvailable: Bool {
+  package static var isAvailable: Bool {
     textProviderOverride?.isAvailable() ?? false
   }
 
-  static func _streamText(prompt: String) async -> String? {
+  package static func _streamText(prompt: String) async -> String? {
     if let textProviderOverride {
       return await textProviderOverride.streamText(prompt)
     }

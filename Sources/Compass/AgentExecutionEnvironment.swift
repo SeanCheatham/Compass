@@ -1,4 +1,5 @@
 import Foundation
+import CompassCore
 
 enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
   case containerizedLinux = "containerized_linux"

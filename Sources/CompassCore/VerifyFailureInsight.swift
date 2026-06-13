@@ -1,7 +1,7 @@
 import Foundation
 
-struct VerifyFailureInsight: Equatable {
-  enum Kind: Equatable {
+package struct VerifyFailureInsight: Equatable {
+  package enum Kind: Equatable {
     case testFailure
     case buildFailure
     case packageManagerBootstrap
@@ -11,14 +11,14 @@ struct VerifyFailureInsight: Equatable {
     case generic
   }
 
-  var kind: Kind
-  var inspectTitle: String
-  var inspectDetail: String
-  var repairTitle: String
-  var repairDetail: String
-  var retryDetail: String
+  package var kind: Kind
+  package var inspectTitle: String
+  package var inspectDetail: String
+  package var repairTitle: String
+  package var repairDetail: String
+  package var retryDetail: String
 
-  init(detail: String, metadata: String?) {
+  package init(detail: String, metadata: String?) {
     let detail = Self.normalized(detail)
     let searchable = [detail, metadata.map(Self.normalized)]
       .compactMap { $0 }

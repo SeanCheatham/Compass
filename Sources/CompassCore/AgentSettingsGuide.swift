@@ -1,51 +1,51 @@
 import Foundation
 
-struct AgentSettingsGuide: Equatable, Sendable {
-  static let detailLimit = 280
-  static let rowDetailLimit = 190
-  static let identifierLimit = 1_600
+package struct AgentSettingsGuide: Equatable, Sendable {
+  package static let detailLimit = 280
+  package static let rowDetailLimit = 190
+  package static let identifierLimit = 1_600
 
-  enum Tone: String, Equatable, Sendable {
+  package enum Tone: String, Equatable, Sendable {
     case ready
     case blocked
     case optionalAttention
   }
 
-  enum RowStatus: String, Equatable, Sendable {
+  package enum RowStatus: String, Equatable, Sendable {
     case ready
     case blocked
     case off
     case attention
   }
 
-  struct Row: Identifiable, Equatable, Sendable {
-    var id: String
-    var label: String
-    var detail: String
-    var status: RowStatus
+  package struct Row: Identifiable, Equatable, Sendable {
+    package var id: String
+    package var label: String
+    package var detail: String
+    package var status: RowStatus
   }
 
-  struct RuntimeCoverage: Equatable, Sendable {
-    static let labelLimit = 52
-    static let detailLimit = 190
+  package struct RuntimeCoverage: Equatable, Sendable {
+    package static let labelLimit = 52
+    package static let detailLimit = 190
 
-    var readyCount: Int
-    var selectedCount: Int
-    var fraction: Double
-    var label: String
-    var detail: String
+    package var readyCount: Int
+    package var selectedCount: Int
+    package var fraction: Double
+    package var label: String
+    package var detail: String
   }
 
-  var title: String
-  var detail: String
-  var actionLabel: String
-  var tone: Tone
-  var systemImageName: String
-  var runtimeCoverage: RuntimeCoverage
-  var rows: [Row]
-  var narrationIdentifier: String
+  package var title: String
+  package var detail: String
+  package var actionLabel: String
+  package var tone: Tone
+  package var systemImageName: String
+  package var runtimeCoverage: RuntimeCoverage
+  package var rows: [Row]
+  package var narrationIdentifier: String
 
-  init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
+  package init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
     let textReady = settings.isTextCapabilityRunnable(
       localModelReady: modelSnapshot.isRunnable
     )
@@ -172,12 +172,12 @@ struct AgentSettingsGuide: Equatable, Sendable {
   }
 }
 
-struct AgentSettingsClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_800
+package struct AgentSettingsClipboardPayload: Equatable, Sendable {
+  package static let textLimit = 3_800
 
-  var text: String
+  package var text: String
 
-  init(
+  package init(
     settings: AgentRuntimeSettings,
     guide: AgentSettingsGuide,
     modelSnapshot: LocalModelSnapshot
@@ -220,7 +220,7 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -230,7 +230,7 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
 }
 
 private enum AgentSettingsClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  package static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

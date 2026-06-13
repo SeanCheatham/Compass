@@ -1,19 +1,21 @@
 import Foundation
 
-enum AgentPhase: String, Sendable, CaseIterable {
+package enum AgentPhase: String, Sendable, CaseIterable {
   case plan
   case develop
   case critic
+
+  package var identifier: String { rawValue }
 }
 
-struct AgentRuntimeSettings: Equatable, Sendable {
-  static let defaultTextProvider: AgentProviderKind = .mlx
-  static let defaultContextWindowTokens = LocalModelCatalog.defaultContextWindowTokens
+package struct AgentRuntimeSettings: Equatable, Sendable {
+  package static let defaultTextProvider: AgentProviderKind = .mlx
+  package static let defaultContextWindowTokens = LocalModelCatalog.defaultContextWindowTokens
 
-  var textProvider: AgentProviderKind
-  var contextWindowTokens: Int
+  package var textProvider: AgentProviderKind
+  package var contextWindowTokens: Int
 
-  init(
+  package init(
     textProvider: AgentProviderKind = AgentRuntimeSettings.defaultTextProvider,
     contextWindowTokens: Int = AgentRuntimeSettings.defaultContextWindowTokens
   ) {
@@ -21,7 +23,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     self.contextWindowTokens = max(0, contextWindowTokens)
   }
 
-  static func defaultFromEnvironment(
+  package static func defaultFromEnvironment(
     _ environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> Self {
     let contextWindow =
@@ -32,27 +34,27 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     )
   }
 
-  var codemapModel: String {
+  package var codemapModel: String {
     LocalModelCatalog.blessedModelID
   }
 
-  var isTextCapabilityReady: Bool {
+  package var isTextCapabilityReady: Bool {
     isTextCapabilityRunnable(localModelReady: LocalModelCatalog.isBlessedModelReady())
   }
 
-  func isTextCapabilityRunnable(localModelReady: Bool) -> Bool {
+  package func isTextCapabilityRunnable(localModelReady: Bool) -> Bool {
     localModelReady
   }
 
-  func model(for phase: AgentPhase, sidebarOverride: String = "") -> String {
+  package func model(for phase: AgentPhase, sidebarOverride: String = "") -> String {
     _ = phase
     _ = sidebarOverride
     return LocalModelCatalog.blessedModelID
   }
 }
 
-extension Dictionary where Key == String, Value == String {
-  func trimmedValue(_ key: String) -> String? {
+package extension Dictionary where Key == String, Value == String {
+  package func trimmedValue(_ key: String) -> String? {
     let trimmed = self[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return trimmed.isEmpty ? nil : trimmed
   }

@@ -90,7 +90,7 @@ public struct HeadlessVerifyOptions: Equatable, Sendable {
 }
 
 public struct HeadlessCompassRunner: Sendable {
-  typealias BashRunnerFactory = @Sendable (URL, String) -> any AgentBashRunner
+  package typealias BashRunnerFactory = @Sendable (URL, String) -> any AgentBashRunner
 
   private let bashRunnerFactory: BashRunnerFactory
 
@@ -100,7 +100,7 @@ public struct HeadlessCompassRunner: Sendable {
     }
   }
 
-  init(bashRunnerFactory: @escaping BashRunnerFactory) {
+  package init(bashRunnerFactory: @escaping BashRunnerFactory) {
     self.bashRunnerFactory = bashRunnerFactory
   }
 
@@ -840,7 +840,7 @@ public struct HeadlessCompassRunner: Sendable {
     try workspace.writeState(seeded)
   }
 
-  static func stateBySeedingHeadlessBrief(_ state: PlanState, brief: String) -> PlanState {
+  package static func stateBySeedingHeadlessBrief(_ state: PlanState, brief: String) -> PlanState {
     let rawSummary = Self.compactBriefSummary(brief)
     guard !rawSummary.isEmpty else { return state }
 
@@ -1194,21 +1194,37 @@ public struct HeadlessCompassRunner: Sendable {
     timeoutSeconds: TimeInterval,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) async throws -> ProcessResult {
+    let workspace = CompassWorkspace(repoURL: repoURL)
+    let forgeProfile = ForgeProfileService.resolve(repoURL: repoURL, workspace: workspace)
+    let useEmbeddedTessera = CompassEngineProcess.shouldUseEmbeddedTessera(
+      command: command,
+      forgeProfile: forgeProfile
+    )
     onEvent(
       HeadlessCompassEvent(
         kind: "verify_start",
         status: "running",
         phase: "verify",
-        message: "Running verify command in containerized Linux runtime.",
-        metadata: ["command": command, "runtime": "containerized_linux"]
+        message: useEmbeddedTessera
+          ? "Running Tessera verify with embedded Compass engine."
+          : "Running verify command in containerized Linux runtime.",
+        metadata: [
+          "command": command,
+          "runtime": useEmbeddedTessera ? "embedded_tessera" : "containerized_linux",
+        ]
       )
     )
     let started = Date()
-    let result = try await bashRunnerFactory(repoURL, "verify").run(
-      command: command,
-      workingDirectory: repoURL,
-      timeout: timeoutSeconds
-    )
+    let result: ProcessResult
+    if useEmbeddedTessera {
+      result = try await CompassEngineProcess.verifyProject(root: repoURL)
+    } else {
+      result = try await bashRunnerFactory(repoURL, "verify").run(
+        command: command,
+        workingDirectory: repoURL,
+        timeout: timeoutSeconds
+      )
+    }
     let combined = result.stdout + result.stderr
     onEvent(
       HeadlessCompassEvent(
@@ -2181,7 +2197,7 @@ private func tail(_ text: String, max: Int) -> String {
   return String(trimmed.suffix(max))
 }
 
-extension String {
+package extension String {
   fileprivate var nilIfBlank: String? {
     let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed

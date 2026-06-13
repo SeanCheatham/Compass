@@ -1,21 +1,21 @@
 import Foundation
 
-struct AssumptionDraft: Codable, Equatable, Sendable {
-  var text: String
-  var rationale: String?
-  var evidence: [String]?
-  var impact: String?
-  var invalidation: String?
-  var scope: AssumptionRecord.Scope?
+package struct AssumptionDraft: Codable, Equatable, Sendable {
+  package var text: String
+  package var rationale: String?
+  package var evidence: [String]?
+  package var impact: String?
+  package var invalidation: String?
+  package var scope: AssumptionRecord.Scope?
 }
 
-struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
-  static let textLimit = 420
-  static let detailLimit = 360
-  static let commentLimit = 520
-  static let evidenceLimit = 5
+package struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
+  package static let textLimit = 420
+  package static let detailLimit = 360
+  package static let commentLimit = 520
+  package static let evidenceLimit = 5
 
-  enum Status: String, Codable, CaseIterable, Sendable {
+  package enum Status: String, Codable, CaseIterable, Sendable {
     case implicit
     case affirmed
     case denied
@@ -44,7 +44,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     }
   }
 
-  enum Scope: String, Codable, CaseIterable, Sendable {
+  package enum Scope: String, Codable, CaseIterable, Sendable {
     case project
     case feature
     case session
@@ -54,22 +54,22 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     }
   }
 
-  var id: String
-  var text: String
-  var rationale: String
-  var evidence: [String]
-  var impact: String
-  var invalidation: String
-  var scope: Scope
-  var status: Status
-  var createdByPhase: String
-  var createdInSession: Int?
-  var createdAt: Double
-  var updatedAt: Double
-  var userComment: String?
-  var supersededBy: String?
+  package var id: String
+  package var text: String
+  package var rationale: String
+  package var evidence: [String]
+  package var impact: String
+  package var invalidation: String
+  package var scope: Scope
+  package var status: Status
+  package var createdByPhase: String
+  package var createdInSession: Int?
+  package var createdAt: Double
+  package var updatedAt: Double
+  package var userComment: String?
+  package var supersededBy: String?
 
-  init(
+  package init(
     id: String = UUID().uuidString,
     text: String,
     rationale: String = "",
@@ -101,7 +101,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     self.supersededBy = Self.optionalSanitized(supersededBy, limit: 80)
   }
 
-  init(draft: AssumptionDraft, phase: AgentPhase, sessionNumber: Int?, now: Date = Date()) throws {
+  package init(draft: AssumptionDraft, phase: AgentPhase, sessionNumber: Int?, now: Date = Date()) throws {
     let text = Self.sanitized(draft.text, limit: Self.textLimit)
     guard !text.isEmpty else {
       throw AssumptionLedgerError.emptyAssumption
@@ -130,15 +130,15 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     )
   }
 
-  var normalizedTextKey: String {
+  package var normalizedTextKey: String {
     Self.normalizedKey(text)
   }
 
-  var createdAtDate: Date {
+  package var createdAtDate: Date {
     Date(timeIntervalSince1970: createdAt)
   }
 
-  var updatedAtDate: Date {
+  package var updatedAtDate: Date {
     Date(timeIntervalSince1970: updatedAt)
   }
 
@@ -163,7 +163,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     updatedAt = now.timeIntervalSince1970
   }
 
-  func reviewed(
+  package func reviewed(
     status: Status,
     comment: String?,
     now: Date = Date()
@@ -178,7 +178,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     return copy
   }
 
-  func removed(
+  package func removed(
     comment: String?,
     now: Date = Date()
   ) -> AssumptionRecord {
@@ -189,14 +189,14 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     return copy
   }
 
-  static func normalizedKey(_ text: String) -> String {
+  package static func normalizedKey(_ text: String) -> String {
     sanitized(text, limit: textLimit)
       .lowercased()
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  static func sanitized(_ value: String, limit: Int) -> String {
+  package static func sanitized(_ value: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     let normalized =
       value
@@ -208,7 +208,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 
-  static func optionalSanitized(_ value: String?, limit: Int) -> String? {
+  package static func optionalSanitized(_ value: String?, limit: Int) -> String? {
     let sanitized = sanitized(value ?? "", limit: limit)
     return sanitized.isEmpty ? nil : sanitized
   }
@@ -228,34 +228,34 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
   }
 }
 
-struct AssumptionLedger: Codable, Equatable, Sendable {
-  static let empty = AssumptionLedger()
-  static let emptyJSON = "{\n  \"assumptions\" : []\n}\n"
-  static let promptBucketLimit = 10
+package struct AssumptionLedger: Codable, Equatable, Sendable {
+  package static let empty = AssumptionLedger()
+  package static let emptyJSON = "{\n  \"assumptions\" : []\n}\n"
+  package static let promptBucketLimit = 10
 
-  var assumptions: [AssumptionRecord]
+  package var assumptions: [AssumptionRecord]
 
-  init(assumptions: [AssumptionRecord] = []) {
+  package init(assumptions: [AssumptionRecord] = []) {
     self.assumptions = assumptions
   }
 
-  var activeAssumptions: [AssumptionRecord] {
+  package var activeAssumptions: [AssumptionRecord] {
     assumptions.filter { $0.status != .superseded }
   }
 
-  var archivedCount: Int {
+  package var archivedCount: Int {
     assumptions.filter { $0.status == .superseded }.count
   }
 
-  var implicitCount: Int {
+  package var implicitCount: Int {
     activeAssumptions.filter { $0.status == .implicit }.count
   }
 
-  var affirmedCount: Int {
+  package var affirmedCount: Int {
     activeAssumptions.filter { $0.status == .affirmed }.count
   }
 
-  var deniedCount: Int {
+  package var deniedCount: Int {
     activeAssumptions.filter { $0.status == .denied }.count
   }
 
@@ -308,7 +308,7 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
     return removed
   }
 
-  func formattedForPrompt() -> String {
+  package func formattedForPrompt() -> String {
     let affirmed = promptRecords(status: .affirmed)
     let implicit = promptRecords(status: .implicit)
     let denied = promptRecords(status: .denied)
@@ -376,10 +376,10 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
   }
 }
 
-struct AssumptionLedgerStore: Sendable {
-  var url: URL
+package struct AssumptionLedgerStore: Sendable {
+  package var url: URL
 
-  func read() throws -> AssumptionLedger {
+  package func read() throws -> AssumptionLedger {
     guard FileManager.default.fileExists(atPath: url.path) else {
       return .empty
     }
@@ -393,7 +393,7 @@ struct AssumptionLedgerStore: Sendable {
     return AssumptionLedger(assumptions: legacyRecords)
   }
 
-  func write(_ ledger: AssumptionLedger) throws {
+  package func write(_ ledger: AssumptionLedger) throws {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(ledger)
@@ -404,7 +404,7 @@ struct AssumptionLedgerStore: Sendable {
     try data.write(to: url, options: .atomic)
   }
 
-  func record(
+  package func record(
     draft: AssumptionDraft,
     phase: AgentPhase,
     sessionNumber: Int?,
@@ -421,7 +421,7 @@ struct AssumptionLedgerStore: Sendable {
     return record
   }
 
-  func review(
+  package func review(
     id: String,
     status: AssumptionRecord.Status,
     comment: String?,
@@ -433,7 +433,7 @@ struct AssumptionLedgerStore: Sendable {
     return record
   }
 
-  func remove(
+  package func remove(
     id: String,
     comment: String?,
     now: Date = Date()
@@ -445,14 +445,14 @@ struct AssumptionLedgerStore: Sendable {
   }
 }
 
-enum AssumptionLedgerError: LocalizedError, Equatable {
+package enum AssumptionLedgerError: LocalizedError, Equatable {
   case emptyAssumption
   case emptyRationale
   case emptyImpact
   case assumptionNotFound(String)
   case unsupportedReviewStatus(String)
 
-  var errorDescription: String? {
+  package var errorDescription: String? {
     switch self {
     case .emptyAssumption:
       return "Assumption text cannot be empty."
@@ -468,16 +468,16 @@ enum AssumptionLedgerError: LocalizedError, Equatable {
   }
 }
 
-extension CompassWorkspace {
-  func readAssumptionLedger() throws -> AssumptionLedger {
+package extension CompassWorkspace {
+  package func readAssumptionLedger() throws -> AssumptionLedger {
     try AssumptionLedgerStore(url: assumptionsURL).read()
   }
 
-  func writeAssumptionLedger(_ ledger: AssumptionLedger) throws {
+  package func writeAssumptionLedger(_ ledger: AssumptionLedger) throws {
     try AssumptionLedgerStore(url: assumptionsURL).write(ledger)
   }
 
-  func recordAssumption(
+  package func recordAssumption(
     _ draft: AssumptionDraft,
     phase: AgentPhase,
     sessionNumber: Int?
@@ -489,7 +489,7 @@ extension CompassWorkspace {
     )
   }
 
-  func reviewAssumption(
+  package func reviewAssumption(
     id: String,
     status: AssumptionRecord.Status,
     comment: String?
@@ -501,7 +501,7 @@ extension CompassWorkspace {
     )
   }
 
-  func removeAssumption(
+  package func removeAssumption(
     id: String,
     comment: String?
   ) throws -> AssumptionRecord {

@@ -1,18 +1,18 @@
 import Foundation
 
-struct PlanSessionHistoryItem: Identifiable, Equatable {
-  struct FailedVerify: Equatable {
+package struct PlanSessionHistoryItem: Identifiable, Equatable {
+  package struct FailedVerify: Equatable {
     var command: String
     var exitCodeText: String
     var tail: String
   }
 
-  struct AuditArtifact: Identifiable, Equatable, Sendable {
+  package struct AuditArtifact: Identifiable, Equatable, Sendable {
     static let labelLimit = 120
     static let detailLimit = 260
     static let pathLimit = 180
 
-    var id: String { path }
+    package var id: String { path }
 
     var path: String
     var kind: String
@@ -99,7 +99,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     }
   }
 
-  struct RuntimeRouteDescriptor: Equatable {
+  package struct RuntimeRouteDescriptor: Equatable {
     static let badgeTextLimit = 120
     static let helpTextLimit = 260
     static let identifierLimit = 64
@@ -469,12 +469,12 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     }
   }
 
-  var id: Int { sessionNumber }
+  package var id: Int { sessionNumber }
 
   /// Returns a placeholder item suitable for SwiftUI preview and test contexts
   /// where only the item identity matters (popover title, etc.) and no real session
   /// data is accessed.
-  static let placeholder = PlanSessionHistoryItem(
+  package static let placeholder = PlanSessionHistoryItem(
     sessionNumber: 0,
     status: .succeeded,
     statusText: "Success",
@@ -489,23 +489,23 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     runtimeRouteSummary: nil
   )
 
-  var sessionNumber: Int
-  var status: SessionStatus
-  var statusText: String
-  var startedAt: Date
-  var planExcerpt: String?
-  var handoffDigest: PlanHandoffDigest
-  var verifyCommand: String?
-  var feedback: String?
-  var notes: [String]
-  var commits: [SessionCommit]
-  var failedVerify: FailedVerify?
-  var runtimeRouteSummary: String?
-  var runtimeRouteDescriptor: RuntimeRouteDescriptor
-  var auditArtifacts: [AuditArtifact]
-  var tokenSummary: SessionTokenSummary
+  package var sessionNumber: Int
+  package var status: SessionStatus
+  package var statusText: String
+  package var startedAt: Date
+  package var planExcerpt: String?
+  package var handoffDigest: PlanHandoffDigest
+  package var verifyCommand: String?
+  package var feedback: String?
+  package var notes: [String]
+  package var commits: [SessionCommit]
+  package var failedVerify: FailedVerify?
+  package var runtimeRouteSummary: String?
+  package var runtimeRouteDescriptor: RuntimeRouteDescriptor
+  package var auditArtifacts: [AuditArtifact]
+  package var tokenSummary: SessionTokenSummary
 
-  init(
+  package init(
     sessionNumber: Int,
     status: SessionStatus,
     statusText: String,
@@ -540,12 +540,12 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
   }
 }
 
-struct PlanSessionHistoryClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_500
+package struct PlanSessionHistoryClipboardPayload: Equatable, Sendable {
+  package static let textLimit = 3_500
 
-  var text: String
+  package var text: String
 
-  init(
+  package init(
     item: PlanSessionHistoryItem,
     reliabilityCue: PlanReliabilityFeedback.RunCue? = nil
   ) {
@@ -681,13 +681,13 @@ struct PlanSessionHistoryClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum PlanSessionHistoryClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  package static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }
@@ -697,7 +697,7 @@ private enum PlanSessionHistoryClipboardText {
   }
 }
 
-enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Hashable {
+package enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Hashable {
   case all
   case attention
   case activePaused
@@ -706,20 +706,20 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
   case containerizedLinux = "containerized_linux"
   case nativeRuntime
 
-  struct Option: Identifiable, Equatable {
-    var filter: PlanSessionHistoryFilter
-    var count: Int
+  package struct Option: Identifiable, Equatable {
+    package var filter: PlanSessionHistoryFilter
+    package var count: Int
 
-    var id: PlanSessionHistoryFilter.ID {
+    package var id: PlanSessionHistoryFilter.ID {
       filter.id
     }
   }
 
-  var id: String {
+  package var id: String {
     rawValue
   }
 
-  var title: String {
+  package var title: String {
     switch self {
     case .all:
       return "All"
@@ -738,7 +738,7 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
     }
   }
 
-  var emptyStateName: String {
+  package var emptyStateName: String {
     switch self {
     case .all:
       return "runs"
@@ -757,7 +757,7 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
     }
   }
 
-  var systemImage: String {
+  package var systemImage: String {
     switch self {
     case .all:
       return "line.3.horizontal.decrease.circle"
@@ -776,7 +776,7 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
     }
   }
 
-  static func options(
+  package static func options(
     for items: [PlanSessionHistoryItem],
     runCues: [Int: PlanReliabilityFeedback.RunCue] = [:]
   ) -> [Option] {
@@ -790,7 +790,7 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
     }
   }
 
-  func matches(
+  package func matches(
     _ item: PlanSessionHistoryItem,
     runCue: PlanReliabilityFeedback.RunCue? = nil
   ) -> Bool {
@@ -824,31 +824,31 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
   }
 }
 
-struct PlanSessionHistoryDisplay: Equatable {
-  enum Mode: Equatable {
+package struct PlanSessionHistoryDisplay: Equatable {
+  package enum Mode: Equatable {
     case recent
     case all
   }
 
-  static let defaultRecentLimit = 8
+  package static let defaultRecentLimit = 8
 
-  var mode: Mode
-  var filter: PlanSessionHistoryFilter
-  var recentLimit: Int
-  var filterOptions: [PlanSessionHistoryFilter.Option]
-  var visibleItems: [PlanSessionHistoryItem]
-  var unfilteredTotalCount: Int
-  var totalCount: Int
-  var hiddenCount: Int
-  var hiddenStatusSummary: String?
-  var shouldOfferModeToggle: Bool
-  var countSummary: String
+  package var mode: Mode
+  package var filter: PlanSessionHistoryFilter
+  package var recentLimit: Int
+  package var filterOptions: [PlanSessionHistoryFilter.Option]
+  package var visibleItems: [PlanSessionHistoryItem]
+  package var unfilteredTotalCount: Int
+  package var totalCount: Int
+  package var hiddenCount: Int
+  package var hiddenStatusSummary: String?
+  package var shouldOfferModeToggle: Bool
+  package var countSummary: String
 
-  var visibleCount: Int {
+  package var visibleCount: Int {
     visibleItems.count
   }
 
-  init(
+  package init(
     items: [PlanSessionHistoryItem],
     mode: Mode = .recent,
     recentLimit: Int = Self.defaultRecentLimit,
@@ -945,15 +945,15 @@ struct PlanSessionHistoryDisplay: Equatable {
     .joined(separator: ", ")
   }
 
-  static func runWord(for count: Int) -> String {
+  package static func runWord(for count: Int) -> String {
     count == 1 ? "run" : "runs"
   }
 }
 
-enum PlanSessionHistory {
-  static let defaultPlanExcerptLimit = 280
+package enum PlanSessionHistory {
+  package static let defaultPlanExcerptLimit = 280
 
-  static func displayItems(
+  package static func displayItems(
     for sessions: [SessionRecord],
     planExcerptLimit: Int = defaultPlanExcerptLimit,
     auditManifests: [Int: SessionAuditManifest] = [:]

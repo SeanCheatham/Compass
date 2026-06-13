@@ -1,12 +1,12 @@
 import CompassSandbox
 import Foundation
 
-struct AgentContainerBashRunner: AgentBashRunner {
-  var sandbox: ContainerizedLinuxSandbox
-  var repoRoot: URL
-  var label: String
+package struct AgentContainerBashRunner: AgentBashRunner {
+  package var sandbox: ContainerizedLinuxSandbox
+  package var repoRoot: URL
+  package var label: String
 
-  init(
+  package init(
     sandbox: ContainerizedLinuxSandbox = .shared,
     repoRoot: URL,
     label: String = "agent"
@@ -16,7 +16,7 @@ struct AgentContainerBashRunner: AgentBashRunner {
     self.label = label
   }
 
-  func run(
+  package func run(
     command: String,
     workingDirectory: URL,
     timeout: TimeInterval

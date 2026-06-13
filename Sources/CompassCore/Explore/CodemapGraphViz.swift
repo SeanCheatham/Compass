@@ -21,12 +21,12 @@ import Foundation
 ///                   atomically: true, encoding: .utf8)
 /// }
 /// ```
-struct CodemapGraphViz {
+package struct CodemapGraphViz {
   /// The repository root to generate the graph for.
-  let repoURL: URL
+  package let repoURL: URL
 
   /// The codemap directory that holds indexed file entries.
-  let codemapDirectory: URL
+  package let codemapDirectory: URL
 
   /// Generates the SVG graph and writes it to `codemap-overview.svg` in the
   /// repo root. Returns the written URL on success, or `nil` if the codemap
@@ -34,7 +34,7 @@ struct CodemapGraphViz {
   ///
   /// If the file already exists it is overwritten atomically.
   @discardableResult
-  func writeOverviewSVG() throws -> URL? {
+  package func writeOverviewSVG() throws -> URL? {
     guard let svg = ArchitectureGraph.exportSVG(from: codemapDirectory) else {
       return nil
     }

@@ -1,14 +1,14 @@
 import Foundation
 
-struct DraftIdeaTemplate: Identifiable, Equatable, Sendable {
-  var id: String
-  var title: String
-  var systemImage: String
-  var text: String
+package struct DraftIdeaTemplate: Identifiable, Equatable, Sendable {
+  package var id: String
+  package var title: String
+  package var systemImage: String
+  package var text: String
 }
 
-enum DraftIdeaLibrary {
-  static func ideas(for profile: RepositoryLanguageProfile) -> [DraftIdeaTemplate] {
+package enum DraftIdeaLibrary {
+  package static func ideas(for profile: RepositoryLanguageProfile) -> [DraftIdeaTemplate] {
     [
       tesseraFactoryIdea,
       feedbackIdea,

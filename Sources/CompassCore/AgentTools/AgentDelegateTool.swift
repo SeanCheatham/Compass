@@ -8,11 +8,11 @@ import Foundation
 /// Nesting is disabled: the runner unconditionally excludes
 /// `AgentDelegateTool` from the child's tool list, so sub-agents have
 /// no `delegate` to call.
-struct AgentDelegateTool: AgentTool {
-  static let toolName = "delegate"
-  static let maxTaskLength = 8_000
+package struct AgentDelegateTool: AgentTool {
+  package static let toolName = "delegate"
+  package static let maxTaskLength = 8_000
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let task: String
     let tools: [String]?
     let profile: String?
@@ -38,7 +38,7 @@ struct AgentDelegateTool: AgentTool {
       case modelOverrideSnake = "model_override"
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       task = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -101,9 +101,9 @@ struct AgentDelegateTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -141,7 +141,7 @@ struct AgentDelegateTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

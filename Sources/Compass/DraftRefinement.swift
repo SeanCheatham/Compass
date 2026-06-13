@@ -1,4 +1,5 @@
 import Foundation
+import CompassCore
 
 struct DraftRefinement: Equatable, Sendable {
   enum Source: String, Equatable, Sendable {

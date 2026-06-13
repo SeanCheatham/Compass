@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import CompassCore
 
 typealias CompassWorkspaceStorageMigrationAction = (CompassWorkspaceStorageMigrationPlan) throws ->
   CompassWorkspaceStorageMigrationResult

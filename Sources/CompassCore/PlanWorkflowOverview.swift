@@ -1,11 +1,11 @@
 import Foundation
 
-struct PlanVerifyMetadata: Equatable {
-  static let defaultTimeoutMs = 10 * 60 * 1000
+package struct PlanVerifyMetadata: Equatable {
+  package static let defaultTimeoutMs = 10 * 60 * 1000
 
-  var timeoutMs: Int?
+  package var timeoutMs: Int?
 
-  var label: String {
+  package var label: String {
     let explicitTimeoutMs = timeoutMs.flatMap { $0 > 0 ? $0 : nil }
     let displayTimeoutMs = explicitTimeoutMs ?? Self.defaultTimeoutMs
     let prefix = explicitTimeoutMs == nil ? "Default timeout" : "Timeout"
@@ -24,16 +24,16 @@ struct PlanVerifyMetadata: Equatable {
   }
 }
 
-struct PlanVerifyCommandSummary: Equatable, Sendable {
-  static let commandLimit = 180
-  static let detailLimit = 220
+package struct PlanVerifyCommandSummary: Equatable, Sendable {
+  package static let commandLimit = 180
+  package static let detailLimit = 220
 
-  var command: String?
-  var title: String
-  var detail: String
-  var systemImage: String
+  package var command: String?
+  package var title: String
+  package var detail: String
+  package var systemImage: String
 
-  init(command rawCommand: String?) {
+  package init(command rawCommand: String?) {
     command = StringUtils.boundedText(rawCommand ?? "", limit: Self.commandLimit).nilIfEmpty
 
     guard let command else {
@@ -190,22 +190,22 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
   }
 }
 
-struct PlanHandoffDigest: Equatable, Sendable {
-  static let textLimit = 180
-  static let checkLimit = 3
+package struct PlanHandoffDigest: Equatable, Sendable {
+  package static let textLimit = 180
+  package static let checkLimit = 3
 
-  var status: Status
-  var title: String
-  var detail: String
-  var systemImage: String
-  var outcome: String?
-  var whyItMatters: String?
-  var acceptanceChecks: [String]
-  var commandOnlyAcceptanceChecks: [String]
-  var vagueAcceptanceChecks: [String]
-  var missingPieces: [MissingPiece]
+  package var status: Status
+  package var title: String
+  package var detail: String
+  package var systemImage: String
+  package var outcome: String?
+  package var whyItMatters: String?
+  package var acceptanceChecks: [String]
+  package var commandOnlyAcceptanceChecks: [String]
+  package var vagueAcceptanceChecks: [String]
+  package var missingPieces: [MissingPiece]
 
-  init(plan rawPlan: String?) {
+  package init(plan rawPlan: String?) {
     let plan = Self.normalizedBody(rawPlan ?? "")
     guard !plan.isEmpty else {
       status = .missingPlan
@@ -276,13 +276,13 @@ struct PlanHandoffDigest: Equatable, Sendable {
     }
   }
 
-  enum Status: String, Equatable, Sendable {
+  package enum Status: String, Equatable, Sendable {
     case ready
     case needsDetail
     case missingPlan
   }
 
-  enum MissingPiece: String, Equatable, Sendable {
+  package enum MissingPiece: String, Equatable, Sendable {
     case outcome
     case whyItMatters
     case acceptanceChecks
@@ -568,25 +568,25 @@ struct PlanHandoffDigest: Equatable, Sendable {
   )
 }
 
-extension Array where Element == PlanHandoffDigest.MissingPiece {
+package extension Array where Element == PlanHandoffDigest.MissingPiece {
   fileprivate var requiredLabels: [String] {
     filter { $0.isRequired }.map(\.label)
   }
 }
 
-struct PlanWorkflowOverview: Equatable {
-  static let defaultExcerptLimit = 220
+package struct PlanWorkflowOverview: Equatable {
+  package static let defaultExcerptLimit = 220
 
-  var completedCount: Int
-  var immediate: Section
-  var candidates: Section
-  var strategicContext: Section
+  package var completedCount: Int
+  package var immediate: Section
+  package var candidates: Section
+  package var strategicContext: Section
 
-  var sections: [Section] {
+  package var sections: [Section] {
     [immediate, candidates, strategicContext]
   }
 
-  init(
+  package init(
     state: PlanState,
     languageProfile: RepositoryLanguageProfile? = nil,
     launchPlan: AgentExecutionLaunchPlan? = nil,
@@ -633,7 +633,7 @@ struct PlanWorkflowOverview: Equatable {
     )
   }
 
-  struct Section: Identifiable, Equatable {
+  package struct Section: Identifiable, Equatable {
     var kind: Kind
     var title: String
     var label: String
@@ -646,7 +646,7 @@ struct PlanWorkflowOverview: Equatable {
     var estimatedDifficulty: PlanNext.Difficulty?
     var completedCount: Int
 
-    var id: Kind { kind }
+    package var id: Kind { kind }
 
     var isEmpty: Bool {
       body.isEmpty
@@ -684,13 +684,13 @@ struct PlanWorkflowOverview: Equatable {
     }
   }
 
-  enum Kind: String, Equatable {
+  package enum Kind: String, Equatable {
     case immediate
     case candidates
     case strategicContext
   }
 
-  enum TimelineDestination: String, CaseIterable, Equatable {
+  package enum TimelineDestination: String, CaseIterable, Equatable {
     case immediate = "plan-immediate"
     case candidates = "plan-candidates"
     case strategicContext = "plan-strategic-context"
@@ -791,23 +791,23 @@ struct PlanWorkflowOverview: Equatable {
   }
 }
 
-struct PlanFactoryBrief: Equatable, Sendable {
-  static let detailLimit = 260
-  static let labelLimit = 90
+package struct PlanFactoryBrief: Equatable, Sendable {
+  package static let detailLimit = 260
+  package static let labelLimit = 90
 
-  var status: Status
-  var title: String
-  var detail: String
-  var primaryActionLabel: String
-  var proofLabel: String
-  var proofDetail: String
-  var proofCommand: String?
-  var handoffDigest: PlanHandoffDigest
-  var routeLabel: String
-  var routeDetail: String
-  var chips: [Chip]
+  package var status: Status
+  package var title: String
+  package var detail: String
+  package var primaryActionLabel: String
+  package var proofLabel: String
+  package var proofDetail: String
+  package var proofCommand: String?
+  package var handoffDigest: PlanHandoffDigest
+  package var routeLabel: String
+  package var routeDetail: String
+  package var chips: [Chip]
 
-  var narrationIdentifier: String {
+  package var narrationIdentifier: String {
     [
       status.rawValue,
       title,
@@ -826,7 +826,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
     ].joined(separator: "\n")
   }
 
-  init(
+  package init(
     state: PlanState,
     reliabilityFeedback: PlanReliabilityFeedback,
     launchPlan: AgentExecutionLaunchPlan,
@@ -903,7 +903,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
     )
   }
 
-  enum Status: String, Equatable, Sendable {
+  package enum Status: String, Equatable, Sendable {
     case ready
     case paused
     case needsAttention
@@ -911,7 +911,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
     case idle
   }
 
-  struct Chip: Equatable, Sendable {
+  package struct Chip: Equatable, Sendable {
     var label: String
     var systemImage: String
   }
@@ -1029,12 +1029,12 @@ struct PlanFactoryBrief: Equatable, Sendable {
   }
 }
 
-struct PlanFactoryBriefClipboardPayload: Equatable, Sendable {
-  static let textLimit = 2_800
+package struct PlanFactoryBriefClipboardPayload: Equatable, Sendable {
+  package static let textLimit = 2_800
 
-  var text: String
+  package var text: String
 
-  init(brief: PlanFactoryBrief) {
+  package init(brief: PlanFactoryBrief) {
     var sections: [String] = [
       "Compass Factory Brief Handoff",
       "",
@@ -1086,13 +1086,13 @@ struct PlanFactoryBriefClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum PlanFactoryBriefClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  package static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }
@@ -1102,15 +1102,15 @@ private enum PlanFactoryBriefClipboardText {
   }
 }
 
-struct PlanFactoryBriefNarration: Equatable, Sendable {
-  var briefIdentifier: String
-  var text: String
+package struct PlanFactoryBriefNarration: Equatable, Sendable {
+  package var briefIdentifier: String
+  package var text: String
 }
 
-enum PlanFactoryBriefNarrator {
-  static let maxCharacters = 320
+package enum PlanFactoryBriefNarrator {
+  package static let maxCharacters = 320
 
-  static func narrate(brief: PlanFactoryBrief) async -> PlanFactoryBriefNarration? {
+  package static func narrate(brief: PlanFactoryBrief) async -> PlanFactoryBriefNarration? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     if #available(macOS 26.0, *) {
@@ -1132,7 +1132,7 @@ enum PlanFactoryBriefNarrator {
     return nil
   }
 
-  static func prompt(for brief: PlanFactoryBrief) -> String {
+  package static func prompt(for brief: PlanFactoryBrief) -> String {
     """
     You write a calm plain-language status brief for a non-engineer using Compass.
     Use only the facts below. Do not invent files, commands, outcomes, deadlines, or
@@ -1167,8 +1167,8 @@ enum PlanFactoryBriefNarrator {
   }
 }
 
-extension PlanWorkflowOverview.Kind {
-  var timelineDestination: PlanWorkflowOverview.TimelineDestination {
+package extension PlanWorkflowOverview.Kind {
+  package var timelineDestination: PlanWorkflowOverview.TimelineDestination {
     switch self {
     case .immediate:
       return .immediate
@@ -1179,11 +1179,11 @@ extension PlanWorkflowOverview.Kind {
     }
   }
 
-  var timelineItemID: String {
+  package var timelineItemID: String {
     timelineDestination.itemID
   }
 
-  init?(timelineItemID: String) {
+  package init?(timelineItemID: String) {
     guard let destination = PlanWorkflowOverview.TimelineDestination(rawValue: timelineItemID)
     else {
       return nil
@@ -1193,17 +1193,17 @@ extension PlanWorkflowOverview.Kind {
   }
 }
 
-extension PlanWorkflowOverview.Section {
-  var timelineDestination: PlanWorkflowOverview.TimelineDestination {
+package extension PlanWorkflowOverview.Section {
+  package var timelineDestination: PlanWorkflowOverview.TimelineDestination {
     kind.timelineDestination
   }
 
-  var timelineItemID: String {
+  package var timelineItemID: String {
     kind.timelineItemID
   }
 }
 
-extension String {
+package extension String {
   fileprivate var nilIfEmpty: String? {
     isEmpty ? nil : self
   }

@@ -1,10 +1,10 @@
 import Foundation
 
-enum TesseraProjectScaffold {
-  struct Options: Equatable, Sendable {
-    var projectName: String
+package enum TesseraProjectScaffold {
+  package struct Options: Equatable, Sendable {
+    package var projectName: String
 
-    init(projectName: String) {
+    package init(projectName: String) {
       self.projectName = Self.packageName(projectName)
     }
 
@@ -18,12 +18,12 @@ enum TesseraProjectScaffold {
     }
   }
 
-  struct ScaffoldFile: Equatable, Sendable {
-    var path: String
-    var contents: String
+  package struct ScaffoldFile: Equatable, Sendable {
+    package var path: String
+    package var contents: String
   }
 
-  static func files(options: Options) -> [ScaffoldFile] {
+  package static func files(options: Options) -> [ScaffoldFile] {
     let name = options.projectName
     return [
       ScaffoldFile(path: "tessera.json", contents: manifest(projectName: name)),
@@ -35,7 +35,7 @@ enum TesseraProjectScaffold {
     ]
   }
 
-  static func write(to url: URL, options: Options) throws {
+  package static func write(to url: URL, options: Options) throws {
     let fm = FileManager.default
     for file in files(options: options) {
       let destination = url.appending(path: file.path)
@@ -48,7 +48,7 @@ enum TesseraProjectScaffold {
     }
   }
 
-  static func isGeneratedWorkspace(at url: URL) -> Bool {
+  package static func isGeneratedWorkspace(at url: URL) -> Bool {
     let fm = FileManager.default
     return fm.fileExists(atPath: url.appending(path: "tessera.json").path)
       && fm.fileExists(atPath: url.appending(path: "src/display-name.tes").path)

@@ -1,4 +1,5 @@
 import Foundation
+import CompassCore
 
 struct CompassWorkspaceStorageActivationPlan: Equatable {
   static let labelLimit = 34

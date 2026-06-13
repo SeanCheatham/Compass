@@ -3,11 +3,11 @@ import Foundation
 /// Locate every codemap entry that defines a symbol with a matching name.
 /// Faster than greping for "func foo" / "class Foo" — the codemap already
 /// knows what's a declaration vs. a reference.
-struct AgentFindSymbolTool: AgentTool {
-  static let toolName = "find_symbol"
-  static let maxResults = 100
+package struct AgentFindSymbolTool: AgentTool {
+  package static let toolName = "find_symbol"
+  package static let maxResults = 100
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let name: String
     let kind: String?
 
@@ -23,7 +23,7 @@ struct AgentFindSymbolTool: AgentTool {
       case type
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       name = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -39,9 +39,9 @@ struct AgentFindSymbolTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let kindValues = CodemapSymbolKind.allRawValues
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
@@ -69,7 +69,7 @@ struct AgentFindSymbolTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -126,11 +126,11 @@ struct AgentFindSymbolTool: AgentTool {
   }
 }
 
-extension CodemapSymbolKind {
+package extension CodemapSymbolKind {
   /// JSON-Schema-friendly list of allowed `kind` values for tool input
   /// validation. Stable order so the schema diff stays minimal across
   /// builds.
-  static var allRawValues: [String] {
+  package static var allRawValues: [String] {
     [
       "function", "method", "class", "interface", "struct", "enum",
       "trait", "module", "type", "property", "macro", "impl",

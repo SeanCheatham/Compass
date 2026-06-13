@@ -1,4 +1,5 @@
 import Foundation
+import CompassCore
 
 struct RepositoryActivitySourceSnapshot: Equatable {
   static let maxSessionsFileBytes = SessionRecordStore.maxSegmentBytes
@@ -94,7 +95,7 @@ struct RepositoryActivitySourceSnapshot: Equatable {
       fileManager: fileManager
     )
     let repoLocalSessionsRecordURL = repoLocalSessionStore.activeRecordURL
-    let sourceAvailability = sessionStore.activeSegmentAvailability()
+    let sourceAvailability = Self.sourceAvailability(from: sessionStore.activeSegmentAvailability())
     let repoLocalSessionsState = Self.repoLocalSessionsState(
       activeStorage: activeStorage,
       sessionStore: repoLocalSessionStore
@@ -128,6 +129,27 @@ struct RepositoryActivitySourceSnapshot: Equatable {
       .noRepository,
       .notScanned:
       return .ignoredMissing
+    }
+  }
+
+  private static func sourceAvailability(
+    from availability: CompassCore.RepositoryActivitySourceSnapshot.SourceAvailability
+  ) -> SourceAvailability {
+    switch availability {
+    case .available:
+      return .available
+    case .noRepository:
+      return .noRepository
+    case .notScanned:
+      return .notScanned
+    case .storageRootMissing:
+      return .storageRootMissing
+    case .sessionsRecordMissing:
+      return .sessionsRecordMissing
+    case .sessionsRecordOversized:
+      return .sessionsRecordOversized
+    case .sessionsRecordUnreadable:
+      return .sessionsRecordUnreadable
     }
   }
 }

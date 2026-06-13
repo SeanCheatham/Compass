@@ -1,40 +1,40 @@
 import Foundation
 
-enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
+package enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
   case mlx
 
-  var displayName: String { "MLX" }
-  var requiresCredentials: Bool { false }
-  var supportedCapabilities: [AgentCapability] { [.text] }
+  package var displayName: String { "MLX" }
+  package var requiresCredentials: Bool { false }
+  package var supportedCapabilities: [AgentCapability] { [.text] }
 
-  func supports(_ capability: AgentCapability) -> Bool {
+  package func supports(_ capability: AgentCapability) -> Bool {
     capability == .text
   }
 
-  func defaultModel(for capability: AgentCapability) -> String? {
+  package func defaultModel(for capability: AgentCapability) -> String? {
     supports(capability) ? LocalModelCatalog.blessedModelID : nil
   }
 
-  func usesModelField(for capability: AgentCapability) -> Bool {
+  package func usesModelField(for capability: AgentCapability) -> Bool {
     false
   }
 
-  func textContextWindowTokens(for modelIdentifier: String?) -> Int {
+  package func textContextWindowTokens(for modelIdentifier: String?) -> Int {
     defaultTextContextWindowTokens
   }
 
-  func defaultModel(for phase: AgentPhase, baseModel: String) -> String? {
+  package func defaultModel(for phase: AgentPhase, baseModel: String) -> String? {
     nil
   }
 
-  var defaultTextContextWindowTokens: Int { 4_096 }
+  package var defaultTextContextWindowTokens: Int { 4_096 }
 }
 
-enum AgentCapability: String, Sendable, CaseIterable, Codable {
+package enum AgentCapability: String, Sendable, CaseIterable, Codable {
   case text
 
-  var displayName: String { "Text" }
-  var systemImageName: String { "text.bubble" }
-  var isRequired: Bool { true }
-  var availableProviders: [AgentProviderKind] { [.mlx] }
+  package var displayName: String { "Text" }
+  package var systemImageName: String { "text.bubble" }
+  package var isRequired: Bool { true }
+  package var availableProviders: [AgentProviderKind] { [.mlx] }
 }

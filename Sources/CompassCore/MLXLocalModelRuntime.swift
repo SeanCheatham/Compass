@@ -6,14 +6,14 @@ import Foundation
   import Tokenizers
 #endif
 
-struct LocalModelGenerationRequest: Sendable, Equatable {
-  var modelID: String
-  var systemPrompt: String
-  var prompt: String
-  var maxOutputTokens: Int
-  var logLabel: String?
+package struct LocalModelGenerationRequest: Sendable, Equatable {
+  package var modelID: String
+  package var systemPrompt: String
+  package var prompt: String
+  package var maxOutputTokens: Int
+  package var logLabel: String?
 
-  init(
+  package init(
     modelID: String = LocalModelCatalog.blessedModelID,
     systemPrompt: String,
     prompt: String,
@@ -28,17 +28,17 @@ struct LocalModelGenerationRequest: Sendable, Equatable {
   }
 }
 
-struct LocalModelGenerationResult: Sendable, Equatable {
-  var text: String
-  var tokenUsage: AgentRunTokenUsage
+package struct LocalModelGenerationResult: Sendable, Equatable {
+  package var text: String
+  package var tokenUsage: AgentRunTokenUsage
 }
 
-protocol LocalModelGenerating: Sendable {
+package protocol LocalModelGenerating: Sendable {
   func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult
 }
 
-actor MLXLocalModelRuntime: LocalModelGenerating {
-  static let shared = MLXLocalModelRuntime()
+package actor MLXLocalModelRuntime: LocalModelGenerating {
+  package static let shared = MLXLocalModelRuntime()
 
   private var loadedModelID: String?
   private var unloadTask: Task<Void, Never>?
@@ -47,7 +47,7 @@ actor MLXLocalModelRuntime: LocalModelGenerating {
     private var loadedModel: ModelContainer?
   #endif
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  package func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
     guard request.modelID == LocalModelCatalog.blessedModelID else {
       throw LocalModelRuntimeError.incompatibleModel(
         active: LocalModelCatalog.blessedModelID,
@@ -93,7 +93,7 @@ actor MLXLocalModelRuntime: LocalModelGenerating {
     #endif
   }
 
-  func unloadNow() async {
+  package func unloadNow() async {
     unloadTask?.cancel()
     unloadTask = nil
     loadedModelID = nil

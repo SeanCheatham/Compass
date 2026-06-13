@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import CompassCore
 
 enum LiveTabLayout: Equatable {
   case standalone

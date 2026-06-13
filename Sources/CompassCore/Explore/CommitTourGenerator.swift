@@ -44,14 +44,14 @@ import Foundation
 /// and is used when the user wants a high-level tour rather than per-file
 /// details.
 @available(macOS 26.0, *)
-enum CommitTourGenerator {
+package enum CommitTourGenerator {
   /// Produces a guided-tour narrative for the given git diff text.
   /// The narrative is 3–5 sentences and caps output at approximately 800 tokens
   /// to keep responses navigable.
   ///
   /// Returns `nil` when generated narration is unavailable, the input is empty
   /// or whitespace-only, or when the model produces no content.
-  static func generate(diff: String) async -> String? {
+  package static func generate(diff: String) async -> String? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -79,7 +79,7 @@ enum CommitTourGenerator {
   /// Computes the appropriate git diff range internally and delegates to
   /// ``generate(diff:)``. Returns `nil` when generated narration is unavailable
   /// or when the diff is empty.
-  static func generateTour(commits: [SessionCommit], repoURL: URL) async -> String? {
+  package static func generateTour(commits: [SessionCommit], repoURL: URL) async -> String? {
     guard let firstCommit = commits.first, let oldestCommit = commits.last else { return nil }
     let diff: String
     if commits.count == 1 {

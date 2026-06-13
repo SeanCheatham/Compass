@@ -4,10 +4,10 @@ import Foundation
 /// created automatically. The model uses this for net-new files; existing file
 /// edits should go through `AgentEditFileTool`, which preserves the rest of
 /// the file and uses line ranges from `read_file`.
-struct AgentWriteFileTool: AgentTool {
-  static let toolName = "write_file"
+package struct AgentWriteFileTool: AgentTool {
+  package static let toolName = "write_file"
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let path: String
     let content: String
 
@@ -22,7 +22,7 @@ struct AgentWriteFileTool: AgentTool {
       case body
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -50,9 +50,9 @@ struct AgentWriteFileTool: AgentTool {
     let content: String
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -78,7 +78,7 @@ struct AgentWriteFileTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

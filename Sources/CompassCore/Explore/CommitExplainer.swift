@@ -44,7 +44,7 @@ import Foundation
 /// `nil`, the UI surfaces the associated reason to explain why the feature
 /// did not activate.
 @available(macOS 26.0, *)
-enum CommitExplainer {
+package enum CommitExplainer {
   /// Produces a plain-English summary of the given git diff text.
   /// The summary is kept to roughly three sentences and caps output
   /// at approximately 600 tokens.
@@ -52,7 +52,7 @@ enum CommitExplainer {
   /// Returns `(nil, reason)` when generated narration is unavailable or
   /// produces no content; `reason` carries a user-facing message explaining
   /// why the feature did not activate.
-  static func summarize(diff: String) async -> (String?, ExplainUnavailableReason?) {
+  package static func summarize(diff: String) async -> (String?, ExplainUnavailableReason?) {
     return await summarize(diff: diff, prompt: whatChangedPrompt(diff: diff))
   }
 
@@ -62,7 +62,7 @@ enum CommitExplainer {
   ///
   /// Returns `(nil, reason)` when generated narration is unavailable or produces
   /// no content; `reason` carries a user-facing message.
-  static func summarizeWhyGenerated(diff: String) async -> (String?, ExplainUnavailableReason?) {
+  package static func summarizeWhyGenerated(diff: String) async -> (String?, ExplainUnavailableReason?) {
     return await summarize(
       diff: diff,
       prompt: """
@@ -164,7 +164,7 @@ enum CommitExplainer {
 
   /// Fetches the diff for a single commit against its first parent.
   /// Root commits are diffed against git's empty tree so their changes are visible.
-  static func gitDiff(sha: String, repoURL: URL, relativePath: String? = nil) async -> String {
+  package static func gitDiff(sha: String, repoURL: URL, relativePath: String? = nil) async -> String {
     let trimmedSHA = sha.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let base = await baseRevisionBefore(sha: trimmedSHA, repoURL: repoURL) else {
       return ""
@@ -183,7 +183,7 @@ enum CommitExplainer {
   }
 
   /// Fetches an inclusive diff for a commit range, including changes from the oldest commit.
-  static func gitDiffRange(
+  package static func gitDiffRange(
     newest: String,
     oldest: String,
     repoURL: URL,
@@ -227,7 +227,7 @@ enum CommitExplainer {
   ///
   /// - Returns: `nil` when commits is empty; otherwise the diff text (may be empty
   ///   if git produced no output).
-  static func commitDiffRange(
+  package static func commitDiffRange(
     commits: [SessionCommit],
     repoURL: URL,
     relativePath: String? = nil
@@ -255,7 +255,7 @@ enum CommitExplainer {
   ///
   /// Returns `nil` when the diff is empty, git fails, or generated narration
   /// is unavailable.
-  static func explain(commit: SessionCommit, repoURL: URL) async -> (
+  package static func explain(commit: SessionCommit, repoURL: URL) async -> (
     String?, ExplainUnavailableReason?
   ) {
     let diff = await gitDiff(sha: commit.sha, repoURL: repoURL)

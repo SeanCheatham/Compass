@@ -6,32 +6,32 @@ import Foundation
 /// matches `contentHash`, the summarizer reads the file via
 /// `AgentFilesystem`, builds a deterministic summary, and persists it back
 /// into the store entry.
-struct RepoSummarizer: Sendable {
+package struct RepoSummarizer: Sendable {
   /// Hard cap on in-flight chat calls. Tuned so a 500-file repo on a
   /// home connection finishes in ~minutes without saturating any
   /// upstream rate limit Compass has been pointed at.
-  static let defaultMaxInFlight = 8
+  package static let defaultMaxInFlight = 8
   /// Files past this size get truncated before being sent. The model
   /// rarely produces a meaningfully different summary past ~60 kB.
-  static let defaultMaxCharsPerCall = 60_000
+  package static let defaultMaxCharsPerCall = 60_000
   /// Cap on the model's reply token budget. Three sentences fit easily.
-  static let maxSummaryTokens = 256
+  package static let maxSummaryTokens = 256
   /// Skip files smaller than this when picking targets — almost always
   /// trivial re-exports / stubs whose symbol list says enough.
-  static let defaultMinSourceChars = 80
+  package static let defaultMinSourceChars = 80
 
-  struct Result: Sendable, Equatable {
+  package struct Result: Sendable, Equatable {
     var generated: Int
     var skipped: Int
     var failed: Int
     var unchanged: Int
   }
 
-  enum SummarizerError: Error, LocalizedError, Equatable {
+  package enum SummarizerError: Error, LocalizedError, Equatable {
     case emptyResponse
     case readFailure(String)
 
-    var errorDescription: String? {
+    package var errorDescription: String? {
       switch self {
       case .emptyResponse: return "Codemap model returned an empty summary."
       case .readFailure(let detail): return "Could not read file: \(detail)"
@@ -41,18 +41,18 @@ struct RepoSummarizer: Sendable {
 
   /// Given a prompt and model name, return the summary string. Kept injectable
   /// so tests can override the deterministic default.
-  typealias ChatRequest = @Sendable (_ prompt: String, _ model: String) async throws -> String
+  package typealias ChatRequest = @Sendable (_ prompt: String, _ model: String) async throws -> String
 
-  let workingDirectory: URL
-  let store: CodemapStore
-  let filesystem: AgentFilesystem
-  let settings: AgentRuntimeSettings
-  let maxInFlight: Int
-  let maxCharsPerCall: Int
-  let minSourceChars: Int
-  let chatRequest: ChatRequest
+  package let workingDirectory: URL
+  package let store: CodemapStore
+  package let filesystem: AgentFilesystem
+  package let settings: AgentRuntimeSettings
+  package let maxInFlight: Int
+  package let maxCharsPerCall: Int
+  package let minSourceChars: Int
+  package let chatRequest: ChatRequest
 
-  init(
+  package init(
     workingDirectory: URL,
     store: CodemapStore,
     settings: AgentRuntimeSettings,
@@ -72,7 +72,7 @@ struct RepoSummarizer: Sendable {
     self.chatRequest = chatRequest ?? RepoSummarizer.makeDefaultChatRequest(settings: settings)
   }
 
-  static func makeDefaultChatRequest(settings: AgentRuntimeSettings) -> ChatRequest {
+  package static func makeDefaultChatRequest(settings: AgentRuntimeSettings) -> ChatRequest {
     _ = settings
     return { @Sendable prompt, _ in
       let lines =
@@ -96,7 +96,7 @@ struct RepoSummarizer: Sendable {
   /// counts so callers can render a `42 generated, 3 failed` status row.
   /// `progress` fires after each call (success or failure) with running
   /// (done, total) totals.
-  func summarizeMissing(
+  package func summarizeMissing(
     progress: @Sendable @escaping (_ done: Int, _ total: Int) -> Void = { _, _ in }
   ) async -> Result {
     let targets = pickTargets()
@@ -139,7 +139,7 @@ struct RepoSummarizer: Sendable {
 
   /// Generate the summary for a single relative path. Exposed so the
   /// `summary` agent tool can prime a missing entry on first request.
-  func ensureSummary(forRelativePath relativePath: String) async throws -> String? {
+  package func ensureSummary(forRelativePath relativePath: String) async throws -> String? {
     guard let entry = store.loadEntry(forRelativePath: relativePath) else {
       return nil
     }
@@ -156,7 +156,7 @@ struct RepoSummarizer: Sendable {
 
   /// Strip `<think>` blocks reasoning models may embed in
   /// `content` when the endpoint does not split reasoning out.
-  static func cleanedSummaryText(_ text: String) -> String {
+  package static func cleanedSummaryText(_ text: String) -> String {
     let (cleaned, _) = AgentExecutor.stripThinkBlocks(text)
     return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
   }
@@ -248,7 +248,7 @@ struct RepoSummarizer: Sendable {
 /// summarizer can build a `Result` without sharing mutable state across
 /// task boundaries.
 private actor SummaryCounters {
-  struct Snapshot {
+  package struct Snapshot {
     var generated: Int
     var skipped: Int
     var failed: Int
@@ -260,13 +260,13 @@ private actor SummaryCounters {
   private var failed = 0
   private var unchanged = 0
 
-  func recordGenerated() { generated += 1 }
-  func recordSkipped() { skipped += 1 }
-  func recordFailed() { failed += 1 }
-  func recordUnchanged() { unchanged += 1 }
+  package func recordGenerated() { generated += 1 }
+  package func recordSkipped() { skipped += 1 }
+  package func recordFailed() { failed += 1 }
+  package func recordUnchanged() { unchanged += 1 }
 
-  func totalSeen() -> Int { generated + skipped + failed + unchanged }
-  func snapshot() -> Snapshot {
+  package func totalSeen() -> Int { generated + skipped + failed + unchanged }
+  package func snapshot() -> Snapshot {
     Snapshot(generated: generated, skipped: skipped, failed: failed, unchanged: unchanged)
   }
 }

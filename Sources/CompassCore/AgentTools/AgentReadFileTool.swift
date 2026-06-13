@@ -3,12 +3,12 @@ import Foundation
 /// Read a UTF-8 text file from the working directory with optional line
 /// offset/limit. Mirrors the line-numbered output the model is used to from
 /// other agent Read tools so prompt fragments stay consistent across runtimes.
-struct AgentReadFileTool: AgentTool {
-  static let toolName = "read_file"
-  static let defaultLineCount = 2_000
-  static let maxLineLength = 2_000
+package struct AgentReadFileTool: AgentTool {
+  package static let toolName = "read_file"
+  package static let defaultLineCount = 2_000
+  package static let maxLineLength = 2_000
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let path: String
     let offset: Int?
     let limit: Int?
@@ -30,7 +30,7 @@ struct AgentReadFileTool: AgentTool {
       case maxLinesSnake = "max_lines"
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -76,9 +76,9 @@ struct AgentReadFileTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -109,7 +109,7 @@ struct AgentReadFileTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

@@ -3,19 +3,19 @@ import Foundation
 /// A single declaration extracted from a source file. The kind is the
 /// normalized symbol kind (`function`, `class`, …) — distinct grammars use
 /// different node names so this layer collapses them.
-struct CodemapSymbol: Sendable, Codable, Equatable {
-  var kind: CodemapSymbolKind
-  var name: String
+package struct CodemapSymbol: Sendable, Codable, Equatable {
+  package var kind: CodemapSymbolKind
+  package var name: String
   /// 1-based line of the declaration's first character.
-  var line: Int
+  package var line: Int
   /// 1-based line of the declaration's last character. Equals `line` for
   /// single-line decls.
-  var endLine: Int
+  package var endLine: Int
 }
 
 /// Normalized symbol kinds. Picked to cover the union of what the supported
 /// grammars expose — not every kind applies to every language.
-enum CodemapSymbolKind: String, Sendable, Codable, Equatable, CaseIterable {
+package enum CodemapSymbolKind: String, Sendable, Codable, Equatable, CaseIterable {
   case function
   case method
   case `class`
@@ -35,16 +35,16 @@ enum CodemapSymbolKind: String, Sendable, Codable, Equatable, CaseIterable {
 /// A module/path reference pulled out of an `import` (or equivalent)
 /// statement. `raw` is the literal string from source. Resolution to a
 /// repo-relative path is handled later by the indexer.
-struct CodemapImport: Sendable, Codable, Equatable {
-  var raw: String
+package struct CodemapImport: Sendable, Codable, Equatable {
+  package var raw: String
   /// 1-based line of the import statement.
-  var line: Int
+  package var line: Int
 }
 
 /// What `SymbolExtractor` returns for a single file.
-struct CodemapExtraction: Sendable, Equatable {
-  var symbols: [CodemapSymbol]
-  var imports: [CodemapImport]
+package struct CodemapExtraction: Sendable, Equatable {
+  package var symbols: [CodemapSymbol]
+  package var imports: [CodemapImport]
 
-  static let empty = CodemapExtraction(symbols: [], imports: [])
+  package static let empty = CodemapExtraction(symbols: [], imports: [])
 }

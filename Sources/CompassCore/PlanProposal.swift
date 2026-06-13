@@ -2,21 +2,21 @@ import Foundation
 
 /// Active planning fields agents may propose. Completed history is owned
 /// by Compass and is not part of the Plan submit payload contract.
-struct PlanProposal: Codable, Equatable {
-  var immediate: PlanNext?
-  var candidates: [PlanCandidate]
-  var strategicContext: PlanStrategicContext
-  var openQuestions: [PlanQuestion]
+package struct PlanProposal: Codable, Equatable {
+  package var immediate: PlanNext?
+  package var candidates: [PlanCandidate]
+  package var strategicContext: PlanStrategicContext
+  package var openQuestions: [PlanQuestion]
 
-  var candidatesMarkdown: String {
+  package var candidatesMarkdown: String {
     candidates.map { "- \($0.title)" }.joined(separator: "\n")
   }
 
-  var strategicContextMarkdown: String {
+  package var strategicContextMarkdown: String {
     strategicContext.markdownSummary
   }
 
-  enum CodingKeys: String, CodingKey {
+  package enum CodingKeys: String, CodingKey {
     case immediate
     case queue
     case candidates
@@ -25,7 +25,7 @@ struct PlanProposal: Codable, Equatable {
     case openQuestions
   }
 
-  init(
+  package init(
     immediate: PlanNext?,
     candidates: [PlanCandidate],
     strategicContext: PlanStrategicContext,
@@ -37,21 +37,21 @@ struct PlanProposal: Codable, Equatable {
     self.openQuestions = openQuestions
   }
 
-  init(from state: PlanState) {
+  package init(from state: PlanState) {
     immediate = state.immediate
     candidates = state.candidates
     strategicContext = state.strategicContext
     openQuestions = state.openQuestions
   }
 
-  static let empty = PlanProposal(
+  package static let empty = PlanProposal(
     immediate: nil,
     candidates: [],
     strategicContext: .empty,
     openQuestions: []
   )
 
-  init(from decoder: Decoder) throws {
+  package init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     immediate = try Self.decodeRequiredOptionalPlanNext(
       from: container,
@@ -67,7 +67,7 @@ struct PlanProposal: Codable, Equatable {
     openQuestions = try container.decode([PlanQuestion].self, forKey: .openQuestions)
   }
 
-  func encode(to encoder: Encoder) throws {
+  package func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encodeIfPresent(immediate, forKey: .immediate)
     if immediate == nil {
@@ -78,7 +78,7 @@ struct PlanProposal: Codable, Equatable {
     try container.encode(openQuestions, forKey: .openQuestions)
   }
 
-  func applying(to state: PlanState) -> PlanState {
+  package func applying(to state: PlanState) -> PlanState {
     let mergedContext = strategicContext.preservingMissingFields(from: state.strategicContext)
     return PlanState(
       completed: state.completed,
@@ -89,7 +89,7 @@ struct PlanProposal: Codable, Equatable {
     )
   }
 
-  func removingHostXcodeRequirement() -> PlanProposal {
+  package func removingHostXcodeRequirement() -> PlanProposal {
     guard var immediate else { return self }
     immediate.requiresHostXcode = false
     return PlanProposal(
@@ -100,7 +100,7 @@ struct PlanProposal: Codable, Equatable {
     )
   }
 
-  func promptDigest(
+  package func promptDigest(
     maxCandidates: Int = 6,
     maxStrategicBullets: Int = 5,
     maxOpenQuestions: Int = 4
@@ -195,7 +195,7 @@ struct PlanProposal: Codable, Equatable {
   }
 }
 
-extension PlanStrategicContext {
+package extension PlanStrategicContext {
   fileprivate func preservingMissingFields(
     from current: PlanStrategicContext
   ) -> PlanStrategicContext {
@@ -209,7 +209,7 @@ extension PlanStrategicContext {
   }
 }
 
-enum PlanCompletionRecorder {
+package enum PlanCompletionRecorder {
   private static let completionSummaryLimit = 180
   private static let genericSectionHeadings: Set<String> = [
     "acceptance checks",
@@ -228,7 +228,7 @@ enum PlanCompletionRecorder {
     "why it matters",
   ]
 
-  static func recordingShippedIterations(
+  package static func recordingShippedIterations(
     into state: PlanState,
     sessions: [SessionRecord]
   ) -> PlanState {
@@ -247,7 +247,7 @@ enum PlanCompletionRecorder {
     return updated
   }
 
-  static func completionSummary(for session: SessionRecord) -> String {
+  package static func completionSummary(for session: SessionRecord) -> String {
     if let planLine = firstMeaningfulLine(session.plan) {
       return planLine
     }
@@ -321,23 +321,23 @@ enum PlanCompletionRecorder {
   }
 }
 
-struct PlanHistoryPage: Equatable {
-  struct Entry: Equatable {
+package struct PlanHistoryPage: Equatable {
+  package struct Entry: Equatable {
     /// One-based iteration number matching state.completed indices.
     var iteration: Int
     var summary: String
   }
 
-  var totalCount: Int
-  var offset: Int
-  var limit: Int
-  var entries: [Entry]
+  package var totalCount: Int
+  package var offset: Int
+  package var limit: Int
+  package var entries: [Entry]
 
-  static let defaultLimit = 10
-  static let maxLimit = 50
+  package static let defaultLimit = 10
+  package static let maxLimit = 50
   private static let summaryDisplayLimit = 220
 
-  static func read(
+  package static func read(
     entries: [String],
     offset: Int = 0,
     limit: Int = defaultLimit
@@ -357,7 +357,7 @@ struct PlanHistoryPage: Equatable {
     )
   }
 
-  func formatted() -> String {
+  package func formatted() -> String {
     if totalCount == 0 {
       return "plan history: empty"
     }

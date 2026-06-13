@@ -6,7 +6,7 @@ import Foundation
   import HuggingFace
 #endif
 
-enum LocalModelStatus: String, Equatable, Sendable {
+package enum LocalModelStatus: String, Equatable, Sendable {
   case missing
   case downloading
   case ready
@@ -15,15 +15,15 @@ enum LocalModelStatus: String, Equatable, Sendable {
   case error
 }
 
-struct LocalModelSnapshot: Equatable, Sendable {
-  var runtimeName: String
-  var modelID: String
-  var status: LocalModelStatus
-  var progressFraction: Double?
-  var errorMessage: String?
-  var directory: URL
+package struct LocalModelSnapshot: Equatable, Sendable {
+  package var runtimeName: String
+  package var modelID: String
+  package var status: LocalModelStatus
+  package var progressFraction: Double?
+  package var errorMessage: String?
+  package var directory: URL
 
-  var isRunnable: Bool {
+  package var isRunnable: Bool {
     switch status {
     case .ready, .loaded:
       return true
@@ -32,7 +32,7 @@ struct LocalModelSnapshot: Equatable, Sendable {
     }
   }
 
-  var statusLabel: String {
+  package var statusLabel: String {
     switch status {
     case .missing:
       return "Missing"
@@ -53,11 +53,11 @@ struct LocalModelSnapshot: Equatable, Sendable {
   }
 }
 
-enum LocalModelCatalog {
-  static let runtimeName = "MLX"
-  static let blessedModelID = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
-  static let defaultContextWindowTokens = 32_768
-  static let idleUnloadDelaySeconds: TimeInterval = 5 * 60
+package enum LocalModelCatalog {
+  package static let runtimeName = "MLX"
+  package static let blessedModelID = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+  package static let defaultContextWindowTokens = 32_768
+  package static let idleUnloadDelaySeconds: TimeInterval = 5 * 60
 
   #if DEBUG
     nonisolated(unsafe) private static var testingModelDirectoryOverride: URL?
@@ -73,18 +73,18 @@ enum LocalModelCatalog {
     }
   #endif
 
-  static var applicationSupportDirectory: URL {
+  package static var applicationSupportDirectory: URL {
     let base =
       FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
       ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support")
     return base.appending(path: "Compass", directoryHint: .isDirectory)
   }
 
-  static var modelsDirectory: URL {
+  package static var modelsDirectory: URL {
     applicationSupportDirectory.appending(path: "Models", directoryHint: .isDirectory)
   }
 
-  static var blessedModelDirectory: URL {
+  package static var blessedModelDirectory: URL {
     #if DEBUG
       if let testingModelDirectoryOverride {
         return testingModelDirectoryOverride
@@ -95,12 +95,12 @@ enum LocalModelCatalog {
       .appending(path: "Qwen2.5-Coder-7B-Instruct-4bit", directoryHint: .isDirectory)
   }
 
-  static var hubCacheDirectory: URL {
+  package static var hubCacheDirectory: URL {
     applicationSupportDirectory
       .appending(path: "HuggingFaceHub", directoryHint: .isDirectory)
   }
 
-  static func snapshot() -> LocalModelSnapshot {
+  package static func snapshot() -> LocalModelSnapshot {
     LocalModelSnapshot(
       runtimeName: runtimeName,
       modelID: blessedModelID,
@@ -111,7 +111,7 @@ enum LocalModelCatalog {
     )
   }
 
-  static func isBlessedModelReady(fileManager: FileManager = .default) -> Bool {
+  package static func isBlessedModelReady(fileManager: FileManager = .default) -> Bool {
     let directory = blessedModelDirectory
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory),
@@ -145,7 +145,7 @@ enum LocalModelCatalog {
     return false
   }
 
-  static func ensureStorageRootExists() throws {
+  package static func ensureStorageRootExists() throws {
     try FileManager.default.createDirectory(
       at: modelsDirectory,
       withIntermediateDirectories: true
@@ -158,24 +158,24 @@ enum LocalModelCatalog {
 }
 
 @MainActor
-final class LocalModelManager: ObservableObject {
-  static let shared = LocalModelManager()
+package final class LocalModelManager: ObservableObject {
+  package static let shared = LocalModelManager()
 
-  @Published private(set) var snapshot: LocalModelSnapshot
-  @Published private(set) var isDownloadActive = false
+  @Published package private(set) var snapshot: LocalModelSnapshot
+  @Published package private(set) var isDownloadActive = false
 
   private var downloadTask: Task<Void, Never>?
 
-  init(snapshot: LocalModelSnapshot = LocalModelCatalog.snapshot()) {
+  package init(snapshot: LocalModelSnapshot = LocalModelCatalog.snapshot()) {
     self.snapshot = snapshot
   }
 
-  func refresh() {
+  package func refresh() {
     guard snapshot.status != .downloading else { return }
     snapshot = LocalModelCatalog.snapshot()
   }
 
-  func markLoaded() {
+  package func markLoaded() {
     snapshot = LocalModelSnapshot(
       runtimeName: LocalModelCatalog.runtimeName,
       modelID: LocalModelCatalog.blessedModelID,
@@ -186,7 +186,7 @@ final class LocalModelManager: ObservableObject {
     )
   }
 
-  func markUnloading() {
+  package func markUnloading() {
     snapshot = LocalModelSnapshot(
       runtimeName: LocalModelCatalog.runtimeName,
       modelID: LocalModelCatalog.blessedModelID,
@@ -197,11 +197,11 @@ final class LocalModelManager: ObservableObject {
     )
   }
 
-  func markUnloaded() {
+  package func markUnloaded() {
     snapshot = LocalModelCatalog.snapshot()
   }
 
-  func downloadBlessedModel() {
+  package func downloadBlessedModel() {
     guard downloadTask == nil else { return }
     isDownloadActive = true
     snapshot = LocalModelSnapshot(
@@ -247,14 +247,14 @@ final class LocalModelManager: ObservableObject {
     }
   }
 
-  func cancelDownload() {
+  package func cancelDownload() {
     downloadTask?.cancel()
     downloadTask = nil
     isDownloadActive = false
     snapshot = LocalModelCatalog.snapshot()
   }
 
-  func deleteBlessedModel() {
+  package func deleteBlessedModel() {
     cancelDownload()
     snapshot = LocalModelSnapshot(
       runtimeName: LocalModelCatalog.runtimeName,
@@ -273,7 +273,7 @@ final class LocalModelManager: ObservableObject {
     }
   }
 
-  func openModelFolder() {
+  package func openModelFolder() {
     try? LocalModelCatalog.ensureStorageRootExists()
     NSWorkspace.shared.open(LocalModelCatalog.blessedModelDirectory)
   }

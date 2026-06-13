@@ -24,14 +24,14 @@ import Foundation
 ///
 /// Returns `nil` when generated narration is unavailable or produces no content.
 @available(macOS 26.0, *)
-enum CommitNarrator {
+package enum CommitNarrator {
   /// Narrates a single commit as one plain-English sentence.
   ///
   /// The returned string is a single concise sentence suitable for use in
   /// notification banners, inline commit-list labels, or tour step headers.
   ///
   /// Returns `nil` when generated narration is unavailable or produces no content.
-  static func narrate(commit: SessionCommit, diff: String) async -> String? {
+  package static func narrate(commit: SessionCommit, diff: String) async -> String? {
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
 

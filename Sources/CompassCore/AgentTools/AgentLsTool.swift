@@ -2,11 +2,11 @@ import Foundation
 
 /// List directory entries (one per line). Directories carry a trailing `/`
 /// so the model can tell apart entries without a second call.
-struct AgentLsTool: AgentTool {
-  static let toolName = "ls"
-  static let maxEntries = 1_000
+package struct AgentLsTool: AgentTool {
+  package static let toolName = "ls"
+  package static let maxEntries = 1_000
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let path: String?
 
     enum CodingKeys: String, CodingKey {
@@ -16,7 +16,7 @@ struct AgentLsTool: AgentTool {
       case root
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeStringIfPresent(
         from: container,
@@ -26,9 +26,9 @@ struct AgentLsTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -47,7 +47,7 @@ struct AgentLsTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

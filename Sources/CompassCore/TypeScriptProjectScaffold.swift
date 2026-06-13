@@ -1,7 +1,7 @@
 import Foundation
 
-enum TypeScriptProjectScaffold {
-  struct Options: Equatable, Sendable {
+package enum TypeScriptProjectScaffold {
+  package struct Options: Equatable, Sendable {
     var projectName: String
 
     init(projectName: String) {
@@ -18,12 +18,12 @@ enum TypeScriptProjectScaffold {
     }
   }
 
-  struct ScaffoldFile: Equatable, Sendable {
+  package struct ScaffoldFile: Equatable, Sendable {
     var path: String
     var contents: String
   }
 
-  static func files(options: Options) -> [ScaffoldFile] {
+  package static func files(options: Options) -> [ScaffoldFile] {
     let name = options.projectName
     return [
       ScaffoldFile(path: "pnpm-workspace.yaml", contents: pnpmWorkspace),
@@ -49,7 +49,7 @@ enum TypeScriptProjectScaffold {
     ]
   }
 
-  static func write(to url: URL, options: Options) throws {
+  package static func write(to url: URL, options: Options) throws {
     let fm = FileManager.default
     for file in files(options: options) {
       let destination = url.appending(path: file.path)
@@ -62,7 +62,7 @@ enum TypeScriptProjectScaffold {
     }
   }
 
-  static func isGeneratedWorkspace(at url: URL) -> Bool {
+  package static func isGeneratedWorkspace(at url: URL) -> Bool {
     let fm = FileManager.default
     return fm.fileExists(atPath: url.appending(path: "pnpm-workspace.yaml").path)
       && fm.fileExists(atPath: url.appending(path: "packages/core/package.json").path)

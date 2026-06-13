@@ -1,6 +1,6 @@
 import Foundation
 
-func agentToolDecodingErrorDescription(_ error: Error) -> String {
+package func agentToolDecodingErrorDescription(_ error: Error) -> String {
   guard let decodingError = error as? DecodingError else {
     return error.localizedDescription
   }

@@ -1,30 +1,30 @@
 import Foundation
 
-struct LiveActivitySummary: Equatable, Sendable {
-  var clusterKey: String
-  var text: String
-  var source: Source
+package struct LiveActivitySummary: Equatable, Sendable {
+  package var clusterKey: String
+  package var text: String
+  package var source: Source
 
-  enum Source: String, Equatable, Sendable {
+  package enum Source: String, Equatable, Sendable {
     case deterministic
     case generated
   }
 
-  init(clusterKey: String, text: String, source: Source) {
+  package init(clusterKey: String, text: String, source: Source) {
     self.clusterKey = clusterKey
     self.text = LiveActivitySummaryService.fittedSummary(text)
     self.source = source
   }
 }
 
-struct LiveActivityTakeaway: Equatable, Sendable {
-  struct Badge: Equatable, Identifiable, Sendable {
-    var label: String
+package struct LiveActivityTakeaway: Equatable, Sendable {
+  package struct Badge: Equatable, Identifiable, Sendable {
+    package var label: String
 
-    var id: String { label }
+    package var id: String { label }
   }
 
-  enum Tone: String, Equatable, Sendable {
+  package enum Tone: String, Equatable, Sendable {
     case neutral
     case progress
     case changed
@@ -33,13 +33,13 @@ struct LiveActivityTakeaway: Equatable, Sendable {
     case complete
   }
 
-  var label: String
-  var detail: String
-  var badges: [Badge]
-  var tone: Tone
-  var systemImageName: String
+  package var label: String
+  package var detail: String
+  package var badges: [Badge]
+  package var tone: Tone
+  package var systemImageName: String
 
-  init(cluster: LiveActivityCluster) {
+  package init(cluster: LiveActivityCluster) {
     let commandCount = cluster.lines.filter { $0.kind == .command }.count
     let fileChangeCount = cluster.lines.filter { $0.kind == .fileChange }.count
     let agentMessageCount = cluster.lines.filter { $0.kind == .agentMessage }.count
@@ -136,34 +136,34 @@ struct LiveActivityTakeaway: Equatable, Sendable {
   }
 }
 
-struct LiveActivityCluster: Equatable, Identifiable {
-  var key: String
-  var lines: [LiveLine]
-  var freezeReason: FreezeReason
+package struct LiveActivityCluster: Equatable, Identifiable {
+  package var key: String
+  package var lines: [LiveLine]
+  package var freezeReason: FreezeReason
 
-  var id: String { key }
+  package var id: String { key }
 
-  enum FreezeReason: String, Equatable {
+  package enum FreezeReason: String, Equatable {
     case lifecycleBoundary
     case quietGap
     case elapsedSinceStart
   }
 
-  init(lines: [LiveLine], freezeReason: FreezeReason) {
+  package init(lines: [LiveLine], freezeReason: FreezeReason) {
     self.lines = lines
     self.freezeReason = freezeReason
     key = Self.key(for: lines)
   }
 
-  var startDate: Date? {
+  package var startDate: Date? {
     lines.first?.date
   }
 
-  var endDate: Date? {
+  package var endDate: Date? {
     lines.last?.completedAt ?? lines.last?.date
   }
 
-  static func key(for lines: [LiveLine]) -> String {
+  package static func key(for lines: [LiveLine]) -> String {
     var hasher = StableLiveActivityHasher()
     for line in lines {
       hasher.combine(line.id.uuidString)
@@ -172,7 +172,7 @@ struct LiveActivityCluster: Equatable, Identifiable {
     return "live-summary-v1-\(hasher.hexDigest)"
   }
 
-  static func eventFingerprint(for line: LiveLine) -> String {
+  package static func eventFingerprint(for line: LiveLine) -> String {
     [
       line.status.summaryName,
       line.kind.summaryName,
@@ -190,11 +190,11 @@ struct LiveActivityCluster: Equatable, Identifiable {
   }
 }
 
-enum LiveActivitySummaryItem: Equatable, Identifiable {
+package enum LiveActivitySummaryItem: Equatable, Identifiable {
   case frozenCluster(LiveActivityCluster)
   case line(LiveLine)
 
-  var id: String {
+  package var id: String {
     switch self {
     case .frozenCluster(let cluster):
       return "cluster-\(cluster.key)"
@@ -204,17 +204,17 @@ enum LiveActivitySummaryItem: Equatable, Identifiable {
   }
 }
 
-struct LiveActivitySummaryPlan: Equatable {
-  var items: [LiveActivitySummaryItem]
-  var frozenClusters: [LiveActivityCluster]
+package struct LiveActivitySummaryPlan: Equatable {
+  package var items: [LiveActivitySummaryItem]
+  package var frozenClusters: [LiveActivityCluster]
 }
 
-enum LiveActivitySummaryPlanner {
-  static let quietGap: TimeInterval = 30.0
-  static let maximumClusterAge: TimeInterval = 30.0
-  static let minimumFrozenRowCount = 3
+package enum LiveActivitySummaryPlanner {
+  package static let quietGap: TimeInterval = 30.0
+  package static let maximumClusterAge: TimeInterval = 30.0
+  package static let minimumFrozenRowCount = 3
 
-  static func plan(
+  package static func plan(
     lines: [LiveLine],
     now: Date = Date(),
     quietGap: TimeInterval = Self.quietGap,
@@ -267,7 +267,7 @@ enum LiveActivitySummaryPlanner {
     return LiveActivitySummaryPlan(items: items, frozenClusters: frozenClusters)
   }
 
-  static func inputIdentifier(for lines: [LiveLine]) -> String {
+  package static func inputIdentifier(for lines: [LiveLine]) -> String {
     var hasher = StableLiveActivityHasher()
     for line in lines {
       hasher.combine(line.id.uuidString)
@@ -315,14 +315,14 @@ enum LiveActivitySummaryPlanner {
   }
 }
 
-struct LiveActivitySummaryCachePlan: Equatable {
-  var requestedClusters: [LiveActivityCluster]
-  var staleCacheKeys: Set<String>
-  var staleInFlightKeys: Set<String>
+package struct LiveActivitySummaryCachePlan: Equatable {
+  package var requestedClusters: [LiveActivityCluster]
+  package var staleCacheKeys: Set<String>
+  package var staleInFlightKeys: Set<String>
 }
 
-enum LiveActivitySummaryCachePlanner {
-  static func plan(
+package enum LiveActivitySummaryCachePlanner {
+  package static func plan(
     clusters: [LiveActivityCluster],
     cachedKeys: Set<String>,
     inFlightKeys: Set<String>
@@ -340,16 +340,16 @@ enum LiveActivitySummaryCachePlanner {
   }
 }
 
-enum LiveActivitySummaryService {
-  static let summaryMaxCharacters = 400
-  static let modelPromptMaxEvents = 32
-  static let modelPromptEventMaxCharacters = 180
+package enum LiveActivitySummaryService {
+  package static let summaryMaxCharacters = 400
+  package static let modelPromptMaxEvents = 32
+  package static let modelPromptEventMaxCharacters = 180
 
-  static func makeSummary(for cluster: LiveActivityCluster) async -> LiveActivitySummary {
+  package static func makeSummary(for cluster: LiveActivityCluster) async -> LiveActivitySummary {
     return deterministicSummary(for: cluster)
   }
 
-  static func deterministicSummary(for cluster: LiveActivityCluster) -> LiveActivitySummary {
+  package static func deterministicSummary(for cluster: LiveActivityCluster) -> LiveActivitySummary {
     let commandCount = cluster.lines.filter { $0.kind == .command }.count
     let fileChangeCount = cluster.lines.filter { $0.kind == .fileChange }.count
     let agentMessageCount = cluster.lines.filter { $0.kind == .agentMessage }.count
@@ -407,7 +407,7 @@ enum LiveActivitySummaryService {
     )
   }
 
-  static func parseGeneratedSummary(
+  package static func parseGeneratedSummary(
     _ raw: String,
     cluster: LiveActivityCluster
   ) -> LiveActivitySummary? {
@@ -435,11 +435,11 @@ enum LiveActivitySummaryService {
     )
   }
 
-  static func fittedSummary(_ text: String) -> String {
+  package static func fittedSummary(_ text: String) -> String {
     fittedPlainText(normalizedPlainText(text), maxCharacters: summaryMaxCharacters)
   }
 
-  static func normalizedPlainText(_ text: String) -> String {
+  package static func normalizedPlainText(_ text: String) -> String {
     text
       .replacingOccurrences(of: "\r", with: " ")
       .replacingOccurrences(of: "\n", with: " ")
@@ -447,7 +447,7 @@ enum LiveActivitySummaryService {
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  static func modelPromptLines(for cluster: LiveActivityCluster) -> [String] {
+  package static func modelPromptLines(for cluster: LiveActivityCluster) -> [String] {
     boundedModelLines(cluster.lines).enumerated().map { index, line in
       let promptText = fittedPlainText(
         promptText(for: line),
@@ -590,7 +590,7 @@ enum LiveActivitySummaryService {
 private struct StableLiveActivityHasher {
   private var value: UInt64 = 14_695_981_039_346_656_037
 
-  var hexDigest: String {
+  package var hexDigest: String {
     String(value, radix: 16)
   }
 
@@ -611,7 +611,7 @@ private func firstLine(_ text: String?) -> String? {
     .map(String.init)
 }
 
-extension LiveLine.Level {
+package extension LiveLine.Level {
   fileprivate var summaryName: String {
     switch self {
     case .info: return "info"
@@ -623,7 +623,7 @@ extension LiveLine.Level {
   }
 }
 
-extension LiveLine.Kind {
+package extension LiveLine.Kind {
   fileprivate var summaryName: String {
     switch self {
     case .message: return "message"
@@ -635,7 +635,7 @@ extension LiveLine.Kind {
   }
 }
 
-extension LiveLine.Status {
+package extension LiveLine.Status {
   fileprivate var summaryName: String {
     switch self {
     case .none: return "noted"

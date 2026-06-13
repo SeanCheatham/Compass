@@ -1,42 +1,42 @@
 import Foundation
 
-struct SessionRecordStore: Equatable {
-  static let maxSegmentBytes: UInt64 = 2 * 1024 * 1024
-  static let activeFileName = "sessions.jsonl"
-  static let archiveDirectoryName = "sessions-archive"
-  static let archiveSegmentPrefix = "sessions-"
-  static let archiveSegmentSuffix = ".jsonl"
+package struct SessionRecordStore: Equatable {
+  package static let maxSegmentBytes: UInt64 = 2 * 1024 * 1024
+  package static let activeFileName = "sessions.jsonl"
+  package static let archiveDirectoryName = "sessions-archive"
+  package static let archiveSegmentPrefix = "sessions-"
+  package static let archiveSegmentSuffix = ".jsonl"
 
-  var compassURL: URL
-  var fileManager: FileManager
+  package var compassURL: URL
+  package var fileManager: FileManager
 
-  init(compassURL: URL, fileManager: FileManager = .default) {
+  package init(compassURL: URL, fileManager: FileManager = .default) {
     self.compassURL = compassURL.standardizedFileURL
     self.fileManager = fileManager
   }
 
-  var activeRecordURL: URL {
+  package var activeRecordURL: URL {
     compassURL.appending(path: Self.activeFileName)
   }
 
-  var archiveDirectoryURL: URL {
+  package var archiveDirectoryURL: URL {
     compassURL.appending(path: Self.archiveDirectoryName, directoryHint: .isDirectory)
   }
 
-  func hasSessionsRecord() -> Bool {
+  package func hasSessionsRecord() -> Bool {
     fileExists(activeRecordURL)
   }
 
-  func hasArchivedSessions() -> Bool {
+  package func hasArchivedSessions() -> Bool {
     !archiveSegmentURLs().isEmpty
   }
 
-  func readActiveSessions() -> [SessionRecord] {
+  package func readActiveSessions() -> [SessionRecord] {
     guard fileExists(activeRecordURL) else { return [] }
     return (try? decodeJSONLFile(at: activeRecordURL)) ?? []
   }
 
-  func readArchivedSessions() -> [SessionRecord] {
+  package func readArchivedSessions() -> [SessionRecord] {
     var merged: [SessionRecord] = []
     for url in archiveSegmentURLs() {
       _ = try? streamDecodeJSONLFile(at: url, into: &merged)
@@ -44,11 +44,11 @@ struct SessionRecordStore: Equatable {
     return deduplicatedSortedRecords(merged)
   }
 
-  func readAllSessions() -> [SessionRecord] {
+  package func readAllSessions() -> [SessionRecord] {
     deduplicatedSortedRecords(readArchivedSessions() + readActiveSessions())
   }
 
-  func writeActiveSessions(_ records: [SessionRecord]) throws {
+  package func writeActiveSessions(_ records: [SessionRecord]) throws {
     try fileManager.createDirectory(at: compassURL, withIntermediateDirectories: true)
     var remaining = deduplicatedSortedRecords(records)
     while remaining.count > 1,
@@ -63,7 +63,7 @@ struct SessionRecordStore: Equatable {
     try writeJSONL(remaining, to: activeRecordURL)
   }
 
-  func maxSessionNumber() -> Int {
+  package func maxSessionNumber() -> Int {
     var maxNumber = 0
     if fileExists(activeRecordURL) {
       maxNumber = max(maxNumber, (try? maxSessionNumber(inJSONLFile: activeRecordURL)) ?? 0)
@@ -74,7 +74,7 @@ struct SessionRecordStore: Equatable {
     return maxNumber
   }
 
-  func previousFeedback(excluding session: Int, activeSessions: [SessionRecord]) -> String {
+  package func previousFeedback(excluding session: Int, activeSessions: [SessionRecord]) -> String {
     if let feedback = newestFeedback(in: activeSessions, excluding: session) {
       return feedback
     }
@@ -100,11 +100,11 @@ struct SessionRecordStore: Equatable {
     return ""
   }
 
-  func activeSegmentAvailability() -> RepositoryActivitySourceSnapshot.SourceAvailability {
+  package func activeSegmentAvailability() -> RepositoryActivitySourceSnapshot.SourceAvailability {
     availability(forPrimaryRecordAt: activeRecordURL)
   }
 
-  func validatePrimaryRecord() throws {
+  package func validatePrimaryRecord() throws {
     let availability = activeSegmentAvailability()
     switch availability {
     case .available:
@@ -327,7 +327,7 @@ struct SessionRecordStore: Equatable {
   }
 }
 
-enum SessionRecordStoreError: Error, Equatable {
+package enum SessionRecordStoreError: Error, Equatable {
   case missingRecord
   case oversizedRecord
   case unreadableRecord

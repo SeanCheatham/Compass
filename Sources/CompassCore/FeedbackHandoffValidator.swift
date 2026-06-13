@@ -1,36 +1,36 @@
 import Foundation
 
-enum FeedbackHandoffValidationReason: Equatable {
+package enum FeedbackHandoffValidationReason: Equatable {
   case empty
   case placeholder
   case tooShort
   case unfinishedSuccess
 }
 
-struct DevelopFeedbackValidationError: LocalizedError, Equatable {
-  typealias Reason = FeedbackHandoffValidationReason
+package struct DevelopFeedbackValidationError: LocalizedError, Equatable {
+  package typealias Reason = FeedbackHandoffValidationReason
 
-  var message: String
-  var reason: Reason
-  var feedback: String?
+  package var message: String
+  package var reason: Reason
+  package var feedback: String?
 
-  var errorDescription: String? { message }
+  package var errorDescription: String? { message }
 }
 
-struct DevelopVerifyBypassValidationError: LocalizedError, Equatable {
-  enum Reason: Equatable {
+package struct DevelopVerifyBypassValidationError: LocalizedError, Equatable {
+  package enum Reason: Equatable {
     case missingReason
     case genericReason
   }
 
-  var message: String
-  var reason: Reason
+  package var message: String
+  package var reason: Reason
 
-  var errorDescription: String? { message }
+  package var errorDescription: String? { message }
 }
 
-enum DevelopFeedbackValidator {
-  static func validate(_ summary: DevelopSummary) throws {
+package enum DevelopFeedbackValidator {
+  package static func validate(_ summary: DevelopSummary) throws {
     if summary.status == .succeeded,
       let unfinished = UnfinishedSuccessFeedback.detect(in: summary.feedback)
     {
@@ -79,7 +79,7 @@ enum DevelopFeedbackValidator {
   }
 }
 
-enum DevelopVerifyBypassValidator {
+package enum DevelopVerifyBypassValidator {
   private static let concreteReasonTokens: Set<String> = [
     "cannot",
     "cant",
@@ -127,7 +127,7 @@ enum DevelopVerifyBypassValidator {
     "xcodeproj",
   ]
 
-  static func validate(_ summary: DevelopSummary) throws {
+  package static func validate(_ summary: DevelopSummary) throws {
     guard summary.bypassVerify == true else { return }
 
     let combined = [summary.feedback, summary.summary]
@@ -174,18 +174,18 @@ enum DevelopVerifyBypassValidator {
   }
 }
 
-struct CriticFeedbackValidationError: LocalizedError, Equatable {
-  typealias Reason = FeedbackHandoffValidationReason
+package struct CriticFeedbackValidationError: LocalizedError, Equatable {
+  package typealias Reason = FeedbackHandoffValidationReason
 
-  var message: String
-  var reason: Reason
-  var feedback: String?
+  package var message: String
+  package var reason: Reason
+  package var feedback: String?
 
-  var errorDescription: String? { message }
+  package var errorDescription: String? { message }
 }
 
-enum CriticFeedbackValidator {
-  static func validate(_ verdict: CriticVerdict) throws {
+package enum CriticFeedbackValidator {
+  package static func validate(_ verdict: CriticVerdict) throws {
     guard verdict.verdict == .requestChanges,
       let rejection = FeedbackHandoffTextQuality.rejection(for: verdict.feedback)
     else {
@@ -226,19 +226,19 @@ enum CriticFeedbackValidator {
 }
 
 private struct FeedbackHandoffRejection: Equatable {
-  var reason: FeedbackHandoffValidationReason
-  var feedback: String?
+  package var reason: FeedbackHandoffValidationReason
+  package var feedback: String?
 }
 
 private enum HandoffText {
-  static func normalizedWhitespace(_ text: String) -> String {
+  package static func normalizedWhitespace(_ text: String) -> String {
     text
       .components(separatedBy: .whitespacesAndNewlines)
       .filter { !$0.isEmpty }
       .joined(separator: " ")
   }
 
-  static func wordTokens(in text: String) -> [String] {
+  package static func wordTokens(in text: String) -> [String] {
     var tokens: [String] = []
     var current = String.UnicodeScalarView()
 
@@ -312,7 +312,7 @@ private enum FeedbackHandoffTextQuality {
     "works",
   ]
 
-  static func rejection(for text: String) -> FeedbackHandoffRejection? {
+  package static func rejection(for text: String) -> FeedbackHandoffRejection? {
     let feedback = HandoffText.normalizedWhitespace(text)
     guard !feedback.isEmpty else {
       return FeedbackHandoffRejection(reason: .empty, feedback: nil)
@@ -386,7 +386,7 @@ private enum UnfinishedSuccessFeedback {
     "wire",
   ]
 
-  static func detect(in feedback: String) -> String? {
+  package static func detect(in feedback: String) -> String? {
     let normalized = HandoffText.normalizedWhitespace(feedback)
     guard !normalized.isEmpty else { return nil }
     let lowercased = normalized.lowercased()

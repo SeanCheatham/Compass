@@ -1,7 +1,7 @@
 import Foundation
 
-extension Prompts {
-  static func subAgentSystemPrompt(
+package extension Prompts {
+  package static func subAgentSystemPrompt(
     parentPhase: AgentPhase,
     workingDirectoryPath: String,
     toolNames: [String],
@@ -27,12 +27,12 @@ extension Prompts {
     """
   }
 
-  enum ExecutionEnvironmentDescriptor {
+  package enum ExecutionEnvironmentDescriptor {
     case host
     case containerizedLinux
   }
 
-  static func agentSystemPrompt(
+  package static func agentSystemPrompt(
     phase: AgentPhase,
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
@@ -41,6 +41,7 @@ extension Prompts {
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
+    let tesseraTool = "tessera for embedded Tessera verify and entrypoint execution"
     let assumptionTools = "record_assumption, remove_assumption"
     let delegateTool = "delegate"
     let toolList: String
@@ -49,6 +50,7 @@ extension Prompts {
       toolList = """
       - Codemap: \(codemapTools)
       - Files: \(fileTools)
+      - Tessera: \(tesseraTool)
       - Shell: bash for read-only probes; do not mutate tracked files or commit
       - History: plan_history
       - Sub-agent: \(delegateTool)
@@ -58,6 +60,7 @@ extension Prompts {
       toolList = """
       - Codemap: \(codemapTools)
       - Files: \(fileTools)
+      - Tessera: \(tesseraTool)
       - Mutation: write_file, edit_file, bash
       - Sub-agent: \(delegateTool)
       - Assumptions: \(assumptionTools)
@@ -66,6 +69,7 @@ extension Prompts {
       toolList = """
       - Codemap: \(codemapTools)
       - Files: \(fileTools)
+      - Tessera: \(tesseraTool)
       - Shell: bash for read-only probes; do not mutate tracked files or commit
       - Sub-agent: \(delegateTool)
       - Assumptions: \(assumptionTools)
@@ -108,7 +112,7 @@ extension Prompts {
     """
   }
 
-  static func compassOverviewSection() -> String {
+  package static func compassOverviewSection() -> String {
     """
     Compass is a macOS host app that runs one Git repository as a local software factory.
     The loop is Brief -> decomposed queue -> immediate packet -> Develop -> Verify -> Critic.
@@ -119,7 +123,7 @@ extension Prompts {
     """
   }
 
-  static func workLoopSection(phase: AgentPhase) -> String {
+  package static func workLoopSection(phase: AgentPhase) -> String {
     switch phase {
     case .plan:
       return "Current role: Plan. Decompose or revise the queue, then select one immediate packet."
@@ -130,15 +134,15 @@ extension Prompts {
     }
   }
 
-  static func phaseContinuationKind(_ phase: AgentPhase) -> String {
+  package static func phaseContinuationKind(_ phase: AgentPhase) -> String {
     AgentContinuationPhase(agentPhase: phase).continueKind
   }
 
-  static func phaseSubmitKind(_ phase: AgentPhase) -> String {
+  package static func phaseSubmitKind(_ phase: AgentPhase) -> String {
     AgentContinuationPhase(agentPhase: phase).submitKind
   }
 
-  static func lessonEditsGuidance() -> String {
+  package static func lessonEditsGuidance() -> String {
     """
     Persistent lessons:
     Use `lessonEdits` for durable technical facts future agents should not rediscover.
@@ -147,7 +151,7 @@ extension Prompts {
     """
   }
 
-  static func assumptionGuidance() -> String {
+  package static func assumptionGuidance() -> String {
     """
     Assumptions:
     Record consequential guesses about user intent, environment, or acceptance criteria with
@@ -155,7 +159,7 @@ extension Prompts {
     """
   }
 
-  static func executionEnvironmentSection(
+  package static func executionEnvironmentSection(
     _ env: ExecutionEnvironmentDescriptor,
     hostXcodeBuildTestEnabled: Bool = false
   ) -> String {
@@ -168,9 +172,10 @@ extension Prompts {
       Execution environment: containerized Linux runtime.
       File tools read and write repo-relative paths on the Compass-owned host worktree.
       Bash commands run inside Linux with the repo mounted at `/workspace`; use relative
-      paths or `/workspace/...` in shell commands. Expected tools include git, Node.js,
-      `tessera` on PATH for generated Tessera verification when installed, and
-      npm/Corepack with pinned pnpm for legacy TypeScript repos.
+      paths or `/workspace/...` in shell commands. Use the Compass `tessera` tool for
+      generated Tessera verification and entrypoint probes; the Tessera CLI does not need
+      to be on PATH for Compass-owned Tessera workflows. Expected shell tools include git,
+      Node.js, and npm/Corepack with pinned pnpm for legacy TypeScript repos.
       Docker, Xcode, and Homebrew are unavailable.
       """
     }

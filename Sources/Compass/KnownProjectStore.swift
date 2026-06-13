@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import CompassCore
 
 enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiable {
   case repoLocal = "repo_local"

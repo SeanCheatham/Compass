@@ -3,10 +3,10 @@ import Foundation
 /// Read-only access to Compass-managed completed plan history. The history
 /// lives in host-side state and is injected into the tool context — agents
 /// cannot mutate it through Plan submit.
-struct AgentPlanHistoryTool: AgentTool {
-  static let toolName = "plan_history"
+package struct AgentPlanHistoryTool: AgentTool {
+  package static let toolName = "plan_history"
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let offset: Int?
     let limit: Int?
 
@@ -22,7 +22,7 @@ struct AgentPlanHistoryTool: AgentTool {
       case maxResultsSnake = "max_results"
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       offset = try FlexibleModelDecoder.decodeIntIfPresent(
         from: container,
@@ -37,9 +37,9 @@ struct AgentPlanHistoryTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -67,7 +67,7 @@ struct AgentPlanHistoryTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

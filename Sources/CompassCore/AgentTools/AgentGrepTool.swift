@@ -4,12 +4,12 @@ import Foundation
 /// `AgentFilesystem.grep`, so the host backend (rg / BSD grep) and any
 /// future Shared-VM backend share this tool unchanged. The model does not
 /// get a generic shell through this tool — only this narrow filter.
-struct AgentGrepTool: AgentTool {
-  static let toolName = "grep"
-  static let maxBytes = 50_000
-  static let timeoutSeconds: TimeInterval = 30
+package struct AgentGrepTool: AgentTool {
+  package static let toolName = "grep"
+  package static let maxBytes = 50_000
+  package static let timeoutSeconds: TimeInterval = 30
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let pattern: String
     let path: String?
     let glob: String?
@@ -36,7 +36,7 @@ struct AgentGrepTool: AgentTool {
       case ignoreCaseSnake = "ignore_case"
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       pattern = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -62,9 +62,9 @@ struct AgentGrepTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -96,7 +96,7 @@ struct AgentGrepTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -173,6 +173,6 @@ struct AgentGrepTool: AgentTool {
   }
 }
 
-extension String {
+package extension String {
   fileprivate var nilIfEmpty: String? { isEmpty ? nil : self }
 }

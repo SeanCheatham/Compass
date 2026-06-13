@@ -5,12 +5,12 @@ import Foundation
 /// narrowed by a substring or glob-like filter on the relative path. The
 /// output is one path per line with the detected language so the model can
 /// quickly find candidates without paging through `glob`.
-struct AgentListFilesTool: AgentTool {
-  static let toolName = "list_files"
-  static let maxResults = 500
-  static let liveWalkCap = 20_000
+package struct AgentListFilesTool: AgentTool {
+  package static let toolName = "list_files"
+  package static let maxResults = 500
+  package static let liveWalkCap = 20_000
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let filter: String?
 
     enum CodingKeys: String, CodingKey {
@@ -28,7 +28,7 @@ struct AgentListFilesTool: AgentTool {
       case fileNameSnake = "file_name"
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       filter = try FlexibleModelDecoder.decodeStringIfPresent(
         from: container,
@@ -41,9 +41,9 @@ struct AgentListFilesTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -63,7 +63,7 @@ struct AgentListFilesTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

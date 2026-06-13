@@ -1,14 +1,14 @@
 import Foundation
 
-struct DraftIntakeGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+package struct DraftIntakeGuideNarration: Equatable, Sendable {
+  package var guideIdentifier: String
+  package var text: String
 }
 
-enum DraftIntakeGuideNarrator {
-  static let maxCharacters = 340
+package enum DraftIntakeGuideNarrator {
+  package static let maxCharacters = 340
 
-  static func narrate(guide: DraftIntakeGuide) async -> DraftIntakeGuideNarration? {
+  package static func narrate(guide: DraftIntakeGuide) async -> DraftIntakeGuideNarration? {
     guard guide.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -32,7 +32,7 @@ enum DraftIntakeGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: DraftIntakeGuide) -> String {
+  package static func prompt(for guide: DraftIntakeGuide) -> String {
     """
     You are Compass explaining queued planning drafts to a non-engineer.
     Use only the facts below. Do not invent files, commands, timing, outcomes, or success criteria.

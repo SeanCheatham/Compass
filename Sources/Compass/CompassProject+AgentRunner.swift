@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import CompassCore
 
 @MainActor
 extension CompassProject {
@@ -292,6 +293,13 @@ extension CompassProject {
     _ = hostXcodeBuildTestEnabled
     _ = hostXcodeMirrorRoot
     _ = hostRunner
+    if CompassEngineProcess.shouldUseEmbeddedTessera(command: command, forgeProfile: forgeProfile) {
+      log(
+        "Verify: running embedded Tessera engine (timeout \(Int(timeoutSeconds * 1000))ms).",
+        level: .info
+      )
+      return try await CompassEngineProcess.verifyProject(root: hostWorkingDirectory)
+    }
     log(
       "Verify: running inside containerized Linux runtime at /workspace (timeout \(Int(timeoutSeconds * 1000))ms).",
       level: .info

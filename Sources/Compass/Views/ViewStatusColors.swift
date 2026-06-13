@@ -1,4 +1,5 @@
 import SwiftUI
+import CompassCore
 
 func reliabilityColor(for severity: PlanReliabilityFeedback.Severity) -> Color {
   switch severity {

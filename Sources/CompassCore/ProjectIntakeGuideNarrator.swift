@@ -1,14 +1,14 @@
 import Foundation
 
-struct ProjectIntakeGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+package struct ProjectIntakeGuideNarration: Equatable, Sendable {
+  package var guideIdentifier: String
+  package var text: String
 }
 
-enum ProjectIntakeGuideNarrator {
-  static let maxCharacters = 320
+package enum ProjectIntakeGuideNarrator {
+  package static let maxCharacters = 320
 
-  static func narrate(guide: ProjectIntakeGuide) async -> ProjectIntakeGuideNarration? {
+  package static func narrate(guide: ProjectIntakeGuide) async -> ProjectIntakeGuideNarration? {
     guard guide.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -32,7 +32,7 @@ enum ProjectIntakeGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: ProjectIntakeGuide) -> String {
+  package static func prompt(for guide: ProjectIntakeGuide) -> String {
     """
     You are Compass helping a non-engineer start with project intake.
     Use only the facts below. Do not invent repository paths, commands, files, accounts, setup results, timing, or outcomes.

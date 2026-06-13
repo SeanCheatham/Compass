@@ -1,30 +1,30 @@
 import Foundation
 
-struct ProjectRunControlGuide: Equatable {
-  static let identifierLimit = 1_200
-  static let previewDetailLimit = 180
+package struct ProjectRunControlGuide: Equatable {
+  package static let identifierLimit = 1_200
+  package static let previewDetailLimit = 180
 
-  var primaryHelp: String
-  var primaryKind: Kind
-  var readiness: Readiness
-  var decisionBadge: DecisionBadge
-  var options: [Option]
-  var previewSteps: [PreviewStep]
-  var narrationIdentifier: String
+  package var primaryHelp: String
+  package var primaryKind: Kind
+  package var readiness: Readiness
+  package var decisionBadge: DecisionBadge
+  package var options: [Option]
+  package var previewSteps: [PreviewStep]
+  package var narrationIdentifier: String
 
-  var allowsNarration: Bool {
+  package var allowsNarration: Bool {
     !narrationIdentifier.isEmpty && readiness.title != "Run in progress"
   }
 
-  var primaryOption: Option {
+  package var primaryOption: Option {
     options.first { $0.kind == primaryKind } ?? options[0]
   }
 
-  var alternativeOptions: [Option] {
+  package var alternativeOptions: [Option] {
     options.filter { $0.kind != primaryOption.kind }
   }
 
-  init(
+  package init(
     state: PlanState,
     reliabilityStatus: ProjectReliabilityStatus,
     hasRepository: Bool,
@@ -166,12 +166,12 @@ struct ProjectRunControlGuide: Equatable {
     )
   }
 
-  enum Kind: Hashable {
+  package enum Kind: Hashable {
     case loop
     case planOnly
     case developOnly
 
-    var narrationKey: String {
+    package var narrationKey: String {
       switch self {
       case .loop:
         return "loop"
@@ -183,22 +183,22 @@ struct ProjectRunControlGuide: Equatable {
     }
   }
 
-  struct Readiness: Equatable {
-    var title: String
-    var detail: String
-    var systemImage: String
+  package struct Readiness: Equatable {
+    package var title: String
+    package var detail: String
+    package var systemImage: String
   }
 
-  struct DecisionBadge: Equatable {
-    static let labelLimit = 32
-    static let detailLimit = 150
+  package struct DecisionBadge: Equatable {
+    package static let labelLimit = 32
+    package static let detailLimit = 150
 
-    var label: String
-    var detail: String
-    var systemImage: String
-    var tone: Tone
+    package var label: String
+    package var detail: String
+    package var systemImage: String
+    package var tone: Tone
 
-    enum Tone: String, Equatable {
+    package enum Tone: String, Equatable {
       case ready
       case info
       case warning
@@ -207,21 +207,21 @@ struct ProjectRunControlGuide: Equatable {
     }
   }
 
-  struct Option: Identifiable, Equatable {
-    var kind: Kind
-    var title: String
-    var detail: String
-    var systemImage: String
-    var isEnabled: Bool
+  package struct Option: Identifiable, Equatable {
+    package var kind: Kind
+    package var title: String
+    package var detail: String
+    package var systemImage: String
+    package var isEnabled: Bool
 
-    var id: Kind { kind }
+    package var id: Kind { kind }
   }
 
-  struct PreviewStep: Identifiable, Equatable {
-    var id: String
-    var title: String
-    var detail: String
-    var systemImage: String
+  package struct PreviewStep: Identifiable, Equatable {
+    package var id: String
+    package var title: String
+    package var detail: String
+    package var systemImage: String
   }
 
   private static func primaryKind(
@@ -922,12 +922,12 @@ struct ProjectRunControlGuide: Equatable {
   }
 }
 
-struct ProjectRunControlClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_200
+package struct ProjectRunControlClipboardPayload: Equatable, Sendable {
+  package static let textLimit = 3_200
 
-  var text: String
+  package var text: String
 
-  init(guide: ProjectRunControlGuide) {
+  package init(guide: ProjectRunControlGuide) {
     var sections: [String] = [
       "Compass Run Controls Handoff",
       "",
@@ -968,7 +968,7 @@ struct ProjectRunControlClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -988,8 +988,8 @@ struct ProjectRunControlClipboardPayload: Equatable, Sendable {
   }
 }
 
-enum ProjectRunControlClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+package enum ProjectRunControlClipboardText {
+  package static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

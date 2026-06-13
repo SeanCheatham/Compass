@@ -1,41 +1,41 @@
 import Foundation
 
-struct ProjectIntakeGuide: Equatable, Sendable {
-  static let detailLimit = 260
-  static let stepDetailLimit = 190
-  static let handoffLimit = 2_800
-  static let identifierLimit = 1_200
+package struct ProjectIntakeGuide: Equatable, Sendable {
+  package static let detailLimit = 260
+  package static let stepDetailLimit = 190
+  package static let handoffLimit = 2_800
+  package static let identifierLimit = 1_200
 
-  struct Step: Identifiable, Equatable, Sendable {
-    var id: String
-    var title: String
-    var detail: String
-    var systemImage: String
-    var isPrimary: Bool
+  package struct Step: Identifiable, Equatable, Sendable {
+    package var id: String
+    package var title: String
+    package var detail: String
+    package var systemImage: String
+    package var isPrimary: Bool
   }
 
-  struct Signal: Identifiable, Equatable, Sendable {
-    var id: String
-    var label: String
-    var detail: String
-    var systemImage: String
+  package struct Signal: Identifiable, Equatable, Sendable {
+    package var id: String
+    package var label: String
+    package var detail: String
+    package var systemImage: String
   }
 
-  var projectCount: Int
-  var title: String
-  var statusLabel: String
-  var detail: String
-  var actionLabel: String
-  var systemImageName: String
-  var steps: [Step]
-  var signals: [Signal]
-  var narrationIdentifier: String
+  package var projectCount: Int
+  package var title: String
+  package var statusLabel: String
+  package var detail: String
+  package var actionLabel: String
+  package var systemImageName: String
+  package var steps: [Step]
+  package var signals: [Signal]
+  package var narrationIdentifier: String
 
-  var allowsNarration: Bool {
+  package var allowsNarration: Bool {
     !narrationIdentifier.isEmpty
   }
 
-  init(projectCount rawProjectCount: Int) {
+  package init(projectCount rawProjectCount: Int) {
     projectCount = max(0, rawProjectCount)
 
     if projectCount == 0 {
@@ -191,10 +191,10 @@ struct ProjectIntakeGuide: Equatable, Sendable {
   }
 }
 
-struct ProjectIntakeClipboardPayload: Equatable, Sendable {
-  var text: String
+package struct ProjectIntakeClipboardPayload: Equatable, Sendable {
+  package var text: String
 
-  init(guide: ProjectIntakeGuide) {
+  package init(guide: ProjectIntakeGuide) {
     var sections: [String] = [
       "Compass Project Intake Handoff",
       "",
@@ -232,7 +232,7 @@ struct ProjectIntakeClipboardPayload: Equatable, Sendable {
 }
 
 private enum ProjectIntakeClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  package static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     let normalized =
       text

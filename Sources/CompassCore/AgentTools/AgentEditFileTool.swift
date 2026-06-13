@@ -6,10 +6,10 @@ import Foundation
 /// `endLine == startLine - 1`). All edits succeed atomically — if any one
 /// fails, the file is not written. A prior `read_file` for the path is
 /// required so line numbers come from content the model has actually seen.
-struct AgentEditFileTool: AgentTool {
-  static let toolName = "edit_file"
+package struct AgentEditFileTool: AgentTool {
+  package static let toolName = "edit_file"
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let path: String
     let edits: [EditOperation]
 
@@ -41,7 +41,7 @@ struct AgentEditFileTool: AgentTool {
       case insertion
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -125,7 +125,7 @@ struct AgentEditFileTool: AgentTool {
     }
   }
 
-  struct EditOperation: Decodable {
+  package struct EditOperation: Decodable {
     let startLine: Int
     let endLine: Int
     let replacementLines: [String]
@@ -152,7 +152,7 @@ struct AgentEditFileTool: AgentTool {
       case insertion
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       startLine = try Self.decodeRequiredLine(
         from: container,
@@ -300,9 +300,9 @@ struct AgentEditFileTool: AgentTool {
     let insert: String
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -354,7 +354,7 @@ struct AgentEditFileTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

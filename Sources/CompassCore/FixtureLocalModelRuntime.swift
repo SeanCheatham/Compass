@@ -1,7 +1,7 @@
 import Foundation
 
-actor FixtureLocalModelRuntime: LocalModelGenerating {
-  struct Line: Decodable {
+package actor FixtureLocalModelRuntime: LocalModelGenerating {
+  package struct Line: Decodable {
     var text: String
   }
 
@@ -9,12 +9,12 @@ actor FixtureLocalModelRuntime: LocalModelGenerating {
   private var cursor = 0
   private let promptLogDirectory: URL?
 
-  init(outputs: [String], promptLogDirectory: URL? = nil) {
+  package init(outputs: [String], promptLogDirectory: URL? = nil) {
     self.outputs = outputs
     self.promptLogDirectory = promptLogDirectory
   }
 
-  init(jsonlURL: URL, promptLogDirectory: URL? = nil) throws {
+  package init(jsonlURL: URL, promptLogDirectory: URL? = nil) throws {
     let text = try String(contentsOf: jsonlURL, encoding: .utf8)
     var outputs: [String] = []
     let decoder = JSONDecoder()
@@ -34,7 +34,7 @@ actor FixtureLocalModelRuntime: LocalModelGenerating {
     self.promptLogDirectory = promptLogDirectory
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  package func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
     let artifacts = try promptLogDirectory.map {
       try PromptLogWriter.writePromptLog(request: request, turn: cursor + 1, in: $0)
     }

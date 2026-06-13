@@ -9,7 +9,7 @@ public enum CompassCLI {
     exit(Int32(code))
   }
 
-  static func run(arguments: [String]) async -> Int {
+  package static func run(arguments: [String]) async -> Int {
     var selectedFormat = CompassCLIOutputFormat.json
     do {
       let command = try CompassCLICommand.parse(arguments)
@@ -103,12 +103,12 @@ public enum CompassCLI {
   }
 }
 
-enum CompassCLIOutputFormat: String, Equatable {
+package enum CompassCLIOutputFormat: String, Equatable {
   case json
   case text
 }
 
-enum CompassCLICommand: Equatable {
+package enum CompassCLICommand: Equatable {
   case doctor(repo: URL, format: CompassCLIOutputFormat)
   case scaffoldTypeScript(path: URL, name: String?, format: CompassCLIOutputFormat)
   case scaffoldTessera(path: URL, name: String?, format: CompassCLIOutputFormat)
@@ -124,7 +124,7 @@ enum CompassCLICommand: Equatable {
   )
   case verify(repo: URL, command: String?, format: CompassCLIOutputFormat)
 
-  var format: CompassCLIOutputFormat {
+  package var format: CompassCLIOutputFormat {
     switch self {
     case .doctor(_, let format),
       .scaffoldTypeScript(_, _, let format),
@@ -136,7 +136,7 @@ enum CompassCLICommand: Equatable {
     }
   }
 
-  static func parse(_ arguments: [String]) throws -> CompassCLICommand {
+  package static func parse(_ arguments: [String]) throws -> CompassCLICommand {
     var parser = CompassCLIParser(arguments)
     let command = try parser.requireCommand()
     switch command {
@@ -222,10 +222,10 @@ enum CompassCLICommand: Equatable {
   }
 }
 
-struct CompassCLIParser {
+package struct CompassCLIParser {
   private var arguments: [String]
 
-  init(_ arguments: [String]) {
+  package init(_ arguments: [String]) {
     self.arguments = arguments
   }
 
@@ -327,7 +327,7 @@ struct CompassCLIParser {
     return mode
   }
 
-  func briefText(from raw: String) throws -> String {
+  package func briefText(from raw: String) throws -> String {
     let url = try normalizeURL(raw)
     if FileManager.default.fileExists(atPath: url.path) {
       return try String(contentsOf: url, encoding: .utf8)
@@ -335,7 +335,7 @@ struct CompassCLIParser {
     return raw
   }
 
-  func rejectRemaining() throws {
+  package func rejectRemaining() throws {
     guard arguments.isEmpty else {
       throw CompassCLIError.usage("Unexpected argument(s): \(arguments.joined(separator: " ")).")
     }
@@ -349,10 +349,10 @@ struct CompassCLIParser {
   }
 }
 
-struct CompassCLIOutput: Sendable {
-  var format: CompassCLIOutputFormat
+package struct CompassCLIOutput: Sendable {
+  package var format: CompassCLIOutputFormat
 
-  func emit(_ event: HeadlessCompassEvent) {
+  package func emit(_ event: HeadlessCompassEvent) {
     switch format {
     case .json:
       let encoder = JSONEncoder()
@@ -378,16 +378,16 @@ struct CompassCLIOutput: Sendable {
   }
 }
 
-enum CompassCLIError: LocalizedError, Equatable {
+package enum CompassCLIError: LocalizedError, Equatable {
   case usage(String)
 
-  var errorDescription: String? {
+  package var errorDescription: String? {
     switch self {
     case .usage(let message): return message
     }
   }
 
-  var usage: String {
+  package var usage: String {
     """
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
@@ -401,10 +401,10 @@ enum CompassCLIError: LocalizedError, Equatable {
     """
   }
 
-  var exitCode: Int { 64 }
+  package var exitCode: Int { 64 }
 }
 
-extension String {
+package extension String {
   fileprivate var nilIfBlank: String? {
     let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed

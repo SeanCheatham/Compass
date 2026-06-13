@@ -1,17 +1,17 @@
 import Foundation
 
-struct AgentRuntimeSidebarSummary: Equatable, Sendable {
-  static let valueLimit = 160
+package struct AgentRuntimeSidebarSummary: Equatable, Sendable {
+  package static let valueLimit = 160
 
-  struct Line: Identifiable, Equatable, Sendable {
-    var id: String
-    var label: String
-    var value: String
+  package struct Line: Identifiable, Equatable, Sendable {
+    package var id: String
+    package var label: String
+    package var value: String
   }
 
-  var lines: [Line]
+  package var lines: [Line]
 
-  init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
+  package init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
     let rawLines = [
       Line(id: "runtime", label: "Runtime", value: modelSnapshot.runtimeName),
       Line(

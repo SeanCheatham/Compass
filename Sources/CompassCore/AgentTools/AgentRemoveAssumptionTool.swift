@@ -3,12 +3,12 @@ import Foundation
 /// Remove an assumption from active guidance when new evidence makes it stale.
 /// The ledger keeps the record as `superseded` so the user can still inspect
 /// the history, but active prompts no longer include it.
-struct AgentRemoveAssumptionTool: AgentTool {
-  static let toolName = "remove_assumption"
+package struct AgentRemoveAssumptionTool: AgentTool {
+  package static let toolName = "remove_assumption"
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -34,7 +34,7 @@ struct AgentRemoveAssumptionTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -69,10 +69,10 @@ struct AgentRemoveAssumptionTool: AgentTool {
 }
 
 private struct Arguments: Decodable {
-  var id: String
-  var reason: String?
+  package var id: String
+  package var reason: String?
 
-  enum CodingKeys: String, CodingKey {
+  package enum CodingKeys: String, CodingKey {
     case id
     case assumptionID
     case assumptionIDSnake = "assumption_id"
@@ -82,7 +82,7 @@ private struct Arguments: Decodable {
     case comment
   }
 
-  init(from decoder: Decoder) throws {
+  package init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try FlexibleModelDecoder.decodeRequiredString(
       from: container,

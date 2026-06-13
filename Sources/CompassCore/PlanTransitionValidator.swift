@@ -1,7 +1,7 @@
 import Foundation
 
-struct PlanTransitionValidationError: LocalizedError, Equatable {
-  enum Reason: Equatable, Sendable {
+package struct PlanTransitionValidationError: LocalizedError, Equatable {
+  package enum Reason: Equatable, Sendable {
     case unknown
     case invalidStateMutation
     case noImmediateWork
@@ -12,14 +12,14 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
     case weakVerifyCoverage
   }
 
-  var message: String
-  var reason: Reason
-  var missingLabels: [String]
-  var rejectedVerify: String?
-  var rejectedAcceptanceChecks: [String]
-  var vagueAcceptanceChecks: [String]
+  package var message: String
+  package var reason: Reason
+  package var missingLabels: [String]
+  package var rejectedVerify: String?
+  package var rejectedAcceptanceChecks: [String]
+  package var vagueAcceptanceChecks: [String]
 
-  init(
+  package init(
     message: String,
     reason: Reason = .unknown,
     missingLabels: [String] = [],
@@ -35,13 +35,13 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
     self.vagueAcceptanceChecks = vagueAcceptanceChecks
   }
 
-  var errorDescription: String? {
+  package var errorDescription: String? {
     message
   }
 }
 
-enum PlanTransitionValidator {
-  static func validate(
+package enum PlanTransitionValidator {
+  package static func validate(
     from current: PlanState,
     to next: PlanState,
     forgeProfile: ForgeProfile? = nil,

@@ -1,11 +1,11 @@
 import Foundation
 
-struct GeneratedArtifactHygieneIssue: Equatable {
-  var path: String
-  var reason: String
+package struct GeneratedArtifactHygieneIssue: Equatable {
+  package var path: String
+  package var reason: String
 }
 
-enum GeneratedArtifactHygiene {
+package enum GeneratedArtifactHygiene {
   private static let generatedRootDirectories: Set<String> = [
     ".build",
     ".dart_tool",
@@ -49,19 +49,19 @@ enum GeneratedArtifactHygiene {
     "swiftmodule",
   ]
 
-  static func issues(fromGitNameStatus output: String) -> [GeneratedArtifactHygieneIssue] {
+  package static func issues(fromGitNameStatus output: String) -> [GeneratedArtifactHygieneIssue] {
     let paths = changedPaths(fromGitNameStatus: output)
     return issues(forChangedPaths: paths)
   }
 
-  static func issues(forChangedPaths paths: [String]) -> [GeneratedArtifactHygieneIssue] {
+  package static func issues(forChangedPaths paths: [String]) -> [GeneratedArtifactHygieneIssue] {
     paths.compactMap { path in
       guard let reason = generatedArtifactReason(for: path) else { return nil }
       return GeneratedArtifactHygieneIssue(path: path, reason: reason)
     }
   }
 
-  static func formattedIssue(from issues: [GeneratedArtifactHygieneIssue], limit: Int = 12)
+  package static func formattedIssue(from issues: [GeneratedArtifactHygieneIssue], limit: Int = 12)
     -> String?
   {
     guard !issues.isEmpty else { return nil }

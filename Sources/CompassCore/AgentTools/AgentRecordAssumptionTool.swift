@@ -3,12 +3,12 @@ import Foundation
 /// Record an assumption the current agent is relying on. This writes to the
 /// host-side Compass assumptions ledger, not the agent worktree, so it works
 /// consistently for both host and containerized Linux runtime routes.
-struct AgentRecordAssumptionTool: AgentTool {
-  static let toolName = "record_assumption"
+package struct AgentRecordAssumptionTool: AgentTool {
+  package static let toolName = "record_assumption"
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -55,7 +55,7 @@ struct AgentRecordAssumptionTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let draft: AssumptionDraft
     do {
@@ -92,9 +92,9 @@ struct AgentRecordAssumptionTool: AgentTool {
 }
 
 private struct Arguments: Decodable {
-  var draft: AssumptionDraft
+  package var draft: AssumptionDraft
 
-  enum CodingKeys: String, CodingKey {
+  package enum CodingKeys: String, CodingKey {
     case text
     case assumption
     case claim
@@ -126,7 +126,7 @@ private struct Arguments: Decodable {
     case scope
   }
 
-  init(from decoder: Decoder) throws {
+  package init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let text = try Self.firstString(
       in: container,

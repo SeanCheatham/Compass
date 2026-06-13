@@ -2,14 +2,14 @@ import Foundation
 
 /// JSON schema for tool parameters, stored as JSON-encoded bytes so it can
 /// safely cross actor boundaries without round-tripping through `[String: Any]`.
-struct AgentToolParametersSchema: Sendable, Equatable {
-  let json: Data
+package struct AgentToolParametersSchema: Sendable, Equatable {
+  package let json: Data
 
-  init(json: Data) {
+  package init(json: Data) {
     self.json = json
   }
 
-  init(_ object: Any) throws {
+  package init(_ object: Any) throws {
     self.json = try JSONSerialization.data(
       withJSONObject: object,
       options: [.sortedKeys, .withoutEscapingSlashes]
@@ -18,7 +18,7 @@ struct AgentToolParametersSchema: Sendable, Equatable {
 
   /// Builds a schema from a static JSON object literal. Invalid literals
   /// are a programmer error and trap at initialization time.
-  init(literal object: Any) {
+  package init(literal object: Any) {
     guard
       let data = try? JSONSerialization.data(
         withJSONObject: object,
@@ -31,10 +31,10 @@ struct AgentToolParametersSchema: Sendable, Equatable {
   }
 }
 
-struct AgentToolSpec: Sendable, Equatable {
-  let name: String
-  let description: String
-  let parameters: AgentToolParametersSchema
+package struct AgentToolSpec: Sendable, Equatable {
+  package let name: String
+  package let description: String
+  package let parameters: AgentToolParametersSchema
 }
 
 /// Categorical bucket for tool failures. Surfaced alongside the
@@ -46,7 +46,7 @@ struct AgentToolSpec: Sendable, Equatable {
 /// defaults to `nil`. New code should prefer the typed
 /// `.failure(AgentToolError)` overload, which derives the kind for
 /// free.
-enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
+package enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
   /// Tool arguments JSON missing required fields or wrong types.
   case invalidArguments
   /// Path resolution escaped the working directory.
@@ -76,26 +76,26 @@ enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
   case unknown
 }
 
-struct AgentToolInvocationResult: Sendable, Equatable {
-  var content: String
-  var isError: Bool
+package struct AgentToolInvocationResult: Sendable, Equatable {
+  package var content: String
+  package var isError: Bool
   /// Optional categorical kind for failure results. Always `nil` for
   /// success results. Pre-existing string-based failure sites keep
   /// returning `nil` until migrated; new sites should use the typed
   /// `.failure(AgentToolError)` overload.
-  var errorKind: AgentToolErrorKind?
+  package var errorKind: AgentToolErrorKind?
 
-  static func ok(_ content: String) -> Self {
+  package static func ok(_ content: String) -> Self {
     .init(content: content, isError: false, errorKind: nil)
   }
 
-  static func failure(_ message: String, kind: AgentToolErrorKind? = nil) -> Self {
+  package static func failure(_ message: String, kind: AgentToolErrorKind? = nil) -> Self {
     .init(content: message, isError: true, errorKind: kind)
   }
 
   /// Typed failure: maps the tool-level error to its categorical
   /// kind and uses the localized description as the message.
-  static func failure(_ error: AgentToolError) -> Self {
+  package static func failure(_ error: AgentToolError) -> Self {
     .init(
       content: error.errorDescription ?? "Tool error",
       isError: true,
@@ -109,11 +109,11 @@ struct AgentToolInvocationResult: Sendable, Equatable {
 /// actually seen — so edits against
 /// stale or hallucinated line numbers get caught early instead of silently
 /// corrupting state.
-actor AgentReadTracker {
+package actor AgentReadTracker {
   private var readPaths: Set<String> = []
   private var lineCounts: [String: Int] = [:]
 
-  func markRead(_ url: URL, lineCount: Int? = nil) {
+  package func markRead(_ url: URL, lineCount: Int? = nil) {
     let path = url.standardizedFileURL.path
     readPaths.insert(path)
     if let lineCount {
@@ -121,11 +121,11 @@ actor AgentReadTracker {
     }
   }
 
-  func wasRead(_ url: URL) -> Bool {
+  package func wasRead(_ url: URL) -> Bool {
     readPaths.contains(url.standardizedFileURL.path)
   }
 
-  func lineCount(for url: URL) -> Int? {
+  package func lineCount(for url: URL) -> Int? {
     lineCounts[url.standardizedFileURL.path]
   }
 }
@@ -137,11 +137,11 @@ actor AgentReadTracker {
 /// how shell commands are dispatched. The read tracker
 /// is shared across every tool call in one execution so the mutation tools
 /// can require a prior `read_file`.
-struct AgentToolContext: Sendable {
-  var workingDirectory: URL
-  var filesystem: AgentFilesystem
-  var bashRunner: AgentBashRunner
-  var readTracker: AgentReadTracker
+package struct AgentToolContext: Sendable {
+  package var workingDirectory: URL
+  package var filesystem: AgentFilesystem
+  package var bashRunner: AgentBashRunner
+  package var readTracker: AgentReadTracker
   /// Sub-agent runner used by `AgentDelegateTool`. Nil when the host
   /// doesn't expose delegation (sub-agents themselves, or unit tests
   /// that don't need the feature). The tool surfaces this as a clean
@@ -156,18 +156,18 @@ struct AgentToolContext: Sendable {
   /// `importers_of` keep finding entries regardless of route. Defaults
   /// to `<workingDirectory>/.compass/codemap` so on-host tests and
   /// stand-alone tool invocations work without configuration.
-  var codemapStoreDirectory: URL
+  package var codemapStoreDirectory: URL
   /// Completed plan summaries from host-side state.json. Plan agents read
   /// these through `plan_history`; they are not writable via Plan submit.
-  var planHistoryEntries: [String]
+  package var planHistoryEntries: [String]
   /// Host-side assumptions ledger. The agent may run inside a containerized Linux runtime
   /// copy, but assumptions are durable Compass state and are always written
   /// through this host URL when present.
-  var assumptionsURL: URL?
+  package var assumptionsURL: URL?
   /// Phase/session metadata attached to assumptions recorded by tools.
-  var phase: AgentPhase
-  var sessionNumber: Int?
-  init(
+  package var phase: AgentPhase
+  package var sessionNumber: Int?
+  package init(
     workingDirectory: URL,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
@@ -194,7 +194,7 @@ struct AgentToolContext: Sendable {
     self.sessionNumber = sessionNumber.flatMap { $0 > 0 ? $0 : nil }
   }
 
-  static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {
+  package static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {
     workingDirectory
       .appending(path: ".compass", directoryHint: .isDirectory)
       .appending(path: "codemap", directoryHint: .isDirectory)
@@ -202,12 +202,12 @@ struct AgentToolContext: Sendable {
   }
 }
 
-protocol AgentTool: Sendable {
+package protocol AgentTool: Sendable {
   var spec: AgentToolSpec { get }
   func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
 }
 
-enum AgentToolError: LocalizedError, Equatable {
+package enum AgentToolError: LocalizedError, Equatable {
   case invalidArguments(String)
   case pathEscapesWorkingDirectory(String)
   case fileNotFound(String)
@@ -227,7 +227,7 @@ enum AgentToolError: LocalizedError, Equatable {
   /// Sub-agent delegation could not complete (no runner, sub-agent threw).
   case delegateFailure(String)
 
-  var errorDescription: String? {
+  package var errorDescription: String? {
     switch self {
     case .invalidArguments(let detail): return "Invalid arguments: \(detail)"
     case .pathEscapesWorkingDirectory(let path):
@@ -246,7 +246,7 @@ enum AgentToolError: LocalizedError, Equatable {
   }
 
   /// The categorical kind this error maps to on the result side.
-  var kind: AgentToolErrorKind {
+  package var kind: AgentToolErrorKind {
     switch self {
     case .invalidArguments: return .invalidArguments
     case .pathEscapesWorkingDirectory: return .pathEscape
@@ -264,12 +264,12 @@ enum AgentToolError: LocalizedError, Equatable {
   }
 }
 
-extension AgentToolContext {
+package extension AgentToolContext {
   /// Resolve a possibly-relative path against the working directory. Paths
   /// that resolve outside the working directory are rejected so a buggy or
   /// adversarial tool call can't read `/etc/passwd` from a sandbox-style
   /// read-only planning or review pass.
-  func resolvePath(_ raw: String) throws -> URL {
+  package func resolvePath(_ raw: String) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       throw AgentToolError.invalidArguments("path is empty")
@@ -292,7 +292,7 @@ extension AgentToolContext {
   /// Convert an absolute URL back to a path relative to the working
   /// directory. Used by tools that report match results so the model sees
   /// short paths instead of `/Users/...` prefixes that change per machine.
-  func relativize(_ url: URL) -> String {
+  package func relativize(_ url: URL) -> String {
     let workingPath = workingDirectory.standardizedFileURL.path
     let absolutePath = url.standardizedFileURL.path
     if absolutePath == workingPath { return "." }
@@ -306,7 +306,7 @@ extension AgentToolContext {
   /// re-deriving the path so the executor can point them at the
   /// host-side store even when `workingDirectory` is a remote (e.g.
   /// containerized Linux runtime) container path.
-  func codemapStore() -> CodemapStore {
+  package func codemapStore() -> CodemapStore {
     CodemapStore(directory: codemapStoreDirectory)
   }
 }

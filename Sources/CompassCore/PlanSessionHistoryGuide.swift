@@ -1,24 +1,24 @@
 import Foundation
 
-struct PlanSessionHistoryGuide: Equatable, Sendable {
-  static let detailLimit = 260
-  static let identifierLimit = 1_400
+package struct PlanSessionHistoryGuide: Equatable, Sendable {
+  package static let detailLimit = 260
+  package static let identifierLimit = 1_400
 
-  enum Tone: String, Equatable, Sendable {
+  package enum Tone: String, Equatable, Sendable {
     case empty
     case steady
     case active
     case attention
   }
 
-  struct Fact: Identifiable, Equatable, Sendable {
-    var id: String
+  package struct Fact: Identifiable, Equatable, Sendable {
+    package var id: String
     var label: String
     var detail: String
     var systemImageName: String
   }
 
-  struct AuditCoverage: Equatable, Sendable {
+  package struct AuditCoverage: Equatable, Sendable {
     var coveredCount: Int
     var totalCount: Int
     var fraction: Double
@@ -27,20 +27,20 @@ struct PlanSessionHistoryGuide: Equatable, Sendable {
     var missingLabels: [String]
   }
 
-  var title: String
-  var detail: String
-  var statusLabel: String
-  var tone: Tone
-  var systemImageName: String
-  var facts: [Fact]
-  var auditCoverage: AuditCoverage
-  var narrationIdentifier: String
+  package var title: String
+  package var detail: String
+  package var statusLabel: String
+  package var tone: Tone
+  package var systemImageName: String
+  package var facts: [Fact]
+  package var auditCoverage: AuditCoverage
+  package var narrationIdentifier: String
 
-  var allowsNarration: Bool {
+  package var allowsNarration: Bool {
     tone != .empty && !facts.isEmpty
   }
 
-  init(
+  package init(
     display: PlanSessionHistoryDisplay,
     runCues: [Int: PlanReliabilityFeedback.RunCue] = [:]
   ) {
@@ -372,15 +372,15 @@ struct PlanSessionHistoryGuide: Equatable, Sendable {
   }
 }
 
-struct PlanSessionHistoryGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+package struct PlanSessionHistoryGuideNarration: Equatable, Sendable {
+  package var guideIdentifier: String
+  package var text: String
 }
 
-enum PlanSessionHistoryGuideNarrator {
-  static let maxCharacters = 360
+package enum PlanSessionHistoryGuideNarrator {
+  package static let maxCharacters = 360
 
-  static func narrate(
+  package static func narrate(
     guide: PlanSessionHistoryGuide
   ) async -> PlanSessionHistoryGuideNarration? {
     guard guide.allowsNarration else { return nil }
@@ -405,7 +405,7 @@ enum PlanSessionHistoryGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: PlanSessionHistoryGuide) -> String {
+  package static func prompt(for guide: PlanSessionHistoryGuide) -> String {
     """
     You are Compass explaining Run History to a non-engineer.
     Use only the facts below. Do not invent files, commands, outcomes, errors, or next steps.

@@ -1,14 +1,14 @@
 import Foundation
 
-enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
+package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   case swiftSPM = "swift-spm"
   case typeScriptPnpmVite = "typescript-pnpm-vite"
   case tesseraApp = "tessera-app"
 
-  static let generatedProjectDefault: ForgeProfile = .tesseraApp
-  static let generatedProjectTargets: [ForgeProfile] = [.tesseraApp]
+  package static let generatedProjectDefault: ForgeProfile = .tesseraApp
+  package static let generatedProjectTargets: [ForgeProfile] = [.tesseraApp]
 
-  var displayName: String {
+  package var displayName: String {
     switch self {
     case .swiftSPM: return "Imported Swift (SwiftPM)"
     case .typeScriptPnpmVite: return "TypeScript (pnpm + Vite + Vitest)"
@@ -16,11 +16,11 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  var isGeneratedProjectTarget: Bool {
+  package var isGeneratedProjectTarget: Bool {
     Self.generatedProjectTargets.contains(self)
   }
 
-  var generationStatusDescription: String {
+  package var generationStatusDescription: String {
     switch self {
     case .swiftSPM:
       return "imported-repo profile; Compass-generated output is Tessera"
@@ -31,7 +31,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  var planningGuidance: String {
+  package var planningGuidance: String {
     switch self {
     case .swiftSPM:
       return """
@@ -67,7 +67,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  var coverageRequirementHint: String {
+  package var coverageRequirementHint: String {
     switch self {
     case .swiftSPM:
       return "test verify should declare SwiftPM coverage, e.g. `swift test --enable-code-coverage`."
@@ -78,7 +78,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  var standardVerifyCommand: String {
+  package var standardVerifyCommand: String {
     switch self {
     case .swiftSPM:
       return "swift test --enable-code-coverage"
@@ -89,7 +89,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  func coverageCollectCommand() -> String {
+  package func coverageCollectCommand() -> String {
     switch self {
     case .swiftSPM:
       return """
@@ -120,7 +120,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  func isCompileOnlyVerify(_ verify: String) -> Bool {
+  package func isCompileOnlyVerify(_ verify: String) -> Bool {
     let normalized = verify.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     guard !normalized.isEmpty else { return false }
     if normalized.contains(" test") || normalized.hasPrefix("test ")
@@ -142,7 +142,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  func verifyDeclaresCoverage(_ verify: String) -> Bool {
+  package func verifyDeclaresCoverage(_ verify: String) -> Bool {
     let normalized = verify.lowercased()
     switch self {
     case .swiftSPM:
@@ -156,7 +156,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  func parseCoverageReport(output: String, workingDirectory: URL) -> CoverageSnapshot {
+  package func parseCoverageReport(output: String, workingDirectory: URL) -> CoverageSnapshot {
     switch self {
     case .swiftSPM:
       return CoverageSnapshotParser.parseLLVMCovReport(output, profile: self)
@@ -173,22 +173,27 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   }
 }
 
-struct ForgeProfileRecord: Codable, Equatable, Sendable {
-  var profile: ForgeProfile
-  var version: Int
+package struct ForgeProfileRecord: Codable, Equatable, Sendable {
+  package var profile: ForgeProfile
+  package var version: Int
 
-  static let currentVersion = 1
+  package static let currentVersion = 1
+
+  package init(profile: ForgeProfile, version: Int) {
+    self.profile = profile
+    self.version = version
+  }
 }
 
-struct CoverageSnapshot: Codable, Equatable, Sendable {
-  var profile: ForgeProfile
-  var collectedAt: Date
-  var sessionNumber: Int?
-  var overallLineCoveragePercent: Double?
-  var files: [CoverageFileEntry]
-  var rawSummary: String?
+package struct CoverageSnapshot: Codable, Equatable, Sendable {
+  package var profile: ForgeProfile
+  package var collectedAt: Date
+  package var sessionNumber: Int?
+  package var overallLineCoveragePercent: Double?
+  package var files: [CoverageFileEntry]
+  package var rawSummary: String?
 
-  func formattedForPrompt(maxFiles: Int = 12) -> String {
+  package func formattedForPrompt(maxFiles: Int = 12) -> String {
     guard !files.isEmpty || overallLineCoveragePercent != nil else {
       return "_(no coverage data collected yet - ensure verify enables coverage)_"
     }
@@ -213,41 +218,41 @@ struct CoverageSnapshot: Codable, Equatable, Sendable {
   }
 }
 
-struct CoverageFileEntry: Codable, Equatable, Sendable {
-  var path: String
-  var lineCoveragePercent: Double?
+package struct CoverageFileEntry: Codable, Equatable, Sendable {
+  package var path: String
+  package var lineCoveragePercent: Double?
 }
 
-enum ForgeProfileService {
-  static func forgeProfileURL(in workspace: CompassWorkspace) -> URL {
+package enum ForgeProfileService {
+  package static func forgeProfileURL(in workspace: CompassWorkspace) -> URL {
     workspace.compassURL.appending(path: "forge-profile.json")
   }
 
-  static func coverageSnapshotURL(in workspace: CompassWorkspace) -> URL {
+  package static func coverageSnapshotURL(in workspace: CompassWorkspace) -> URL {
     workspace.compassURL.appending(path: "coverage-snapshot.json")
   }
 
-  static func resolve(repoURL: URL, workspace: CompassWorkspace?) -> ForgeProfile? {
+  package static func resolve(repoURL: URL, workspace: CompassWorkspace?) -> ForgeProfile? {
     if let workspace, let record = readRecord(from: workspace) {
       return record.profile
     }
     return detect(in: repoURL)
   }
 
-  static func readRecord(from workspace: CompassWorkspace) -> ForgeProfileRecord? {
+  package static func readRecord(from workspace: CompassWorkspace) -> ForgeProfileRecord? {
     let url = forgeProfileURL(in: workspace)
     guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
     return try? JSONDecoder().decode(ForgeProfileRecord.self, from: data)
   }
 
-  static func writeRecord(_ record: ForgeProfileRecord, workspace: CompassWorkspace) throws {
+  package static func writeRecord(_ record: ForgeProfileRecord, workspace: CompassWorkspace) throws {
     let url = forgeProfileURL(in: workspace)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     try encoder.encode(record).write(to: url, options: .atomic)
   }
 
-  static func detectAndPersist(repoURL: URL, workspace: CompassWorkspace) throws -> ForgeProfile? {
+  package static func detectAndPersist(repoURL: URL, workspace: CompassWorkspace) throws -> ForgeProfile? {
     if let existing = readRecord(from: workspace) {
       return existing.profile
     }
@@ -259,7 +264,7 @@ enum ForgeProfileService {
     return detected
   }
 
-  static func detect(in repoURL: URL) -> ForgeProfile? {
+  package static func detect(in repoURL: URL) -> ForgeProfile? {
     let root = repoURL.standardizedFileURL
     let fm = FileManager.default
     if TesseraProjectScaffold.isGeneratedWorkspace(at: root)
@@ -279,7 +284,7 @@ enum ForgeProfileService {
     return nil
   }
 
-  static func readCoverageSnapshot(from workspace: CompassWorkspace) -> CoverageSnapshot? {
+  package static func readCoverageSnapshot(from workspace: CompassWorkspace) -> CoverageSnapshot? {
     let url = coverageSnapshotURL(in: workspace)
     guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
     let decoder = JSONDecoder()
@@ -287,7 +292,7 @@ enum ForgeProfileService {
     return try? decoder.decode(CoverageSnapshot.self, from: data)
   }
 
-  static func writeCoverageSnapshot(_ snapshot: CoverageSnapshot, workspace: CompassWorkspace)
+  package static func writeCoverageSnapshot(_ snapshot: CoverageSnapshot, workspace: CompassWorkspace)
     throws
   {
     let url = coverageSnapshotURL(in: workspace)
@@ -298,8 +303,8 @@ enum ForgeProfileService {
   }
 }
 
-enum CoverageSnapshotParser {
-  static func parseLLVMCovReport(_ output: String, profile: ForgeProfile) -> CoverageSnapshot {
+package enum CoverageSnapshotParser {
+  package static func parseLLVMCovReport(_ output: String, profile: ForgeProfile) -> CoverageSnapshot {
     var files: [CoverageFileEntry] = []
     var totalPercent: Double?
     for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -326,7 +331,7 @@ enum CoverageSnapshotParser {
     )
   }
 
-  static func parseVitestSummaryJSON(_ input: String, profile: ForgeProfile) -> CoverageSnapshot {
+  package static func parseVitestSummaryJSON(_ input: String, profile: ForgeProfile) -> CoverageSnapshot {
     guard let data = input.data(using: .utf8),
       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     else {
@@ -342,7 +347,7 @@ enum CoverageSnapshotParser {
     return parseVitestSummaryJSONObject(json, profile: profile)
   }
 
-  static func parseVitestSummaryJSONObject(
+  package static func parseVitestSummaryJSONObject(
     _ json: [String: Any],
     profile: ForgeProfile
   ) -> CoverageSnapshot {
@@ -372,7 +377,7 @@ enum CoverageSnapshotParser {
     )
   }
 
-  static func parseTesseraTraceJSON(_ input: String, profile: ForgeProfile) -> CoverageSnapshot {
+  package static func parseTesseraTraceJSON(_ input: String, profile: ForgeProfile) -> CoverageSnapshot {
     guard let data = input.data(using: .utf8),
       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       let trace = json["trace"] as? [String: Any]
@@ -408,7 +413,7 @@ enum CoverageSnapshotParser {
     )
   }
 
-  static func readJSONFile(_ url: URL) -> String? {
+  package static func readJSONFile(_ url: URL) -> String? {
     guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
     return String(decoding: data, as: UTF8.self)
   }
@@ -427,8 +432,8 @@ enum CoverageSnapshotParser {
   }
 }
 
-enum ForgeVerifyValidator {
-  static func coverageViolation(verify: String, profile: ForgeProfile?) -> String? {
+package enum ForgeVerifyValidator {
+  package static func coverageViolation(verify: String, profile: ForgeProfile?) -> String? {
     guard let profile else { return nil }
     let trimmed = verify.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }

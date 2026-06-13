@@ -1,14 +1,14 @@
 import Foundation
 
-struct ProjectRunControlGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+package struct ProjectRunControlGuideNarration: Equatable, Sendable {
+  package var guideIdentifier: String
+  package var text: String
 }
 
-enum ProjectRunControlGuideNarrator {
-  static let maxCharacters = 320
+package enum ProjectRunControlGuideNarrator {
+  package static let maxCharacters = 320
 
-  static func narrate(guide: ProjectRunControlGuide) async -> ProjectRunControlGuideNarration? {
+  package static func narrate(guide: ProjectRunControlGuide) async -> ProjectRunControlGuideNarration? {
     guard guide.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -31,7 +31,7 @@ enum ProjectRunControlGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: ProjectRunControlGuide) -> String {
+  package static func prompt(for guide: ProjectRunControlGuide) -> String {
     """
     You are Compass explaining run controls to a non-engineer.
     Use only the facts below. Do not invent files, commands, credentials, timing, outcomes, or next steps.

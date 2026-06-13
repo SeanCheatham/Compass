@@ -1,16 +1,16 @@
 import Foundation
 
-actor PromptLoggingLocalModelRuntime: LocalModelGenerating {
+package actor PromptLoggingLocalModelRuntime: LocalModelGenerating {
   private let base: any LocalModelGenerating
   private let promptLogDirectory: URL
   private var turn = 0
 
-  init(base: any LocalModelGenerating, promptLogDirectory: URL) {
+  package init(base: any LocalModelGenerating, promptLogDirectory: URL) {
     self.base = base
     self.promptLogDirectory = promptLogDirectory
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  package func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
     turn += 1
     let currentTurn = turn
     let artifacts = try PromptLogWriter.writePromptLog(
@@ -42,16 +42,16 @@ actor PromptLoggingLocalModelRuntime: LocalModelGenerating {
   }
 }
 
-struct PromptLogArtifacts: Equatable, Sendable {
-  var turn: Int
-  var label: String?
-  var systemFilename: String
-  var promptFilename: String
-  var outputFilename: String
+package struct PromptLogArtifacts: Equatable, Sendable {
+  package var turn: Int
+  package var label: String?
+  package var systemFilename: String
+  package var promptFilename: String
+  package var outputFilename: String
 }
 
-enum PromptLogWriter {
-  static func writePromptLog(
+package enum PromptLogWriter {
+  package static func writePromptLog(
     request: LocalModelGenerationRequest,
     turn: Int,
     in promptLogDirectory: URL
@@ -82,7 +82,7 @@ enum PromptLogWriter {
     return artifacts
   }
 
-  static func writeOutputLog(
+  package static func writeOutputLog(
     _ output: String,
     request: LocalModelGenerationRequest,
     artifacts: PromptLogArtifacts,
@@ -156,15 +156,15 @@ enum PromptLogWriter {
 }
 
 private struct PromptLogIndexEntry: Encodable {
-  var turn: Int
-  var label: String?
-  var status: String
-  var modelID: String
-  var systemFilename: String
-  var promptFilename: String
-  var outputFilename: String
-  var inputCharacters: Int
-  var outputCharacters: Int
-  var maxOutputTokens: Int
-  var error: String?
+  package var turn: Int
+  package var label: String?
+  package var status: String
+  package var modelID: String
+  package var systemFilename: String
+  package var promptFilename: String
+  package var outputFilename: String
+  package var inputCharacters: Int
+  package var outputCharacters: Int
+  package var maxOutputTokens: Int
+  package var error: String?
 }

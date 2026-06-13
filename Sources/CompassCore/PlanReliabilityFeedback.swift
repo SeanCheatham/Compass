@@ -1,18 +1,18 @@
 import Foundation
 
-struct PlanReliabilityFeedback: Equatable {
-  static let defaultNoticeLimit = 3
-  static let defaultDetailLimit = 220
-  static let defaultTailLimit = 260
+package struct PlanReliabilityFeedback: Equatable {
+  package static let defaultNoticeLimit = 3
+  package static let defaultDetailLimit = 220
+  package static let defaultTailLimit = 260
 
-  var notices: [Notice]
-  var recentRunCues: [Int: RunCue]
+  package var notices: [Notice]
+  package var recentRunCues: [Int: RunCue]
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     notices.isEmpty
   }
 
-  init(
+  package init(
     state: PlanState,
     sessions: [SessionRecord],
     historyItems: [PlanSessionHistoryItem]? = nil,
@@ -65,24 +65,24 @@ struct PlanReliabilityFeedback: Equatable {
     recentRunCues = cueNotices.mapValues { RunCue(notice: $0) }
   }
 
-  struct Notice: Identifiable, Equatable {
-    var id: String
-    var kind: Kind
-    var severity: Severity
-    var sessionNumber: Int
-    var title: String
-    var detail: String
-    var actionLabel: String
-    var metadata: String?
-    var systemImage: String
+  package struct Notice: Identifiable, Equatable {
+    package var id: String
+    package var kind: Kind
+    package var severity: Severity
+    package var sessionNumber: Int
+    package var title: String
+    package var detail: String
+    package var actionLabel: String
+    package var metadata: String?
+    package var systemImage: String
   }
 
-  struct RunCue: Equatable {
-    var kind: Kind
-    var severity: Severity
-    var label: String
-    var detail: String
-    var systemImage: String
+  package struct RunCue: Equatable {
+    package var kind: Kind
+    package var severity: Severity
+    package var label: String
+    package var detail: String
+    package var systemImage: String
 
     init(notice: Notice) {
       kind = notice.kind
@@ -93,7 +93,7 @@ struct PlanReliabilityFeedback: Equatable {
     }
   }
 
-  enum Kind: String, Equatable {
+  package enum Kind: String, Equatable {
     case rejectedPlan
     case developBlocked
     case developFailed
@@ -103,7 +103,7 @@ struct PlanReliabilityFeedback: Equatable {
     case resumeDevelop
   }
 
-  enum Severity: String, Equatable {
+  package enum Severity: String, Equatable {
     case warning
     case failure
     case paused
@@ -241,7 +241,7 @@ struct PlanReliabilityFeedback: Equatable {
     return lhs.startedAt < rhs.startedAt
   }
 
-  static func priority(for kind: Kind) -> Int {
+  package static func priority(for kind: Kind) -> Int {
     switch kind {
     case .rejectedPlan:
       return 0
@@ -555,24 +555,24 @@ struct PlanReliabilityFeedback: Equatable {
   }
 }
 
-struct ProjectReliabilityStatus: Equatable {
-  static let defaultDetailLimit = 180
+package struct ProjectReliabilityStatus: Equatable {
+  package static let defaultDetailLimit = 180
 
-  var primaryCue: String
-  var severity: PlanReliabilityFeedback.Severity
-  var countLabel: String
-  var actionLabel: String
-  var metadata: String?
-  var detail: String
-  var systemImage: String
-  var noticeCount: Int
-  var primaryKind: PlanReliabilityFeedback.Kind?
+  package var primaryCue: String
+  package var severity: PlanReliabilityFeedback.Severity
+  package var countLabel: String
+  package var actionLabel: String
+  package var metadata: String?
+  package var detail: String
+  package var systemImage: String
+  package var noticeCount: Int
+  package var primaryKind: PlanReliabilityFeedback.Kind?
 
-  var isEmpty: Bool {
+  package var isEmpty: Bool {
     noticeCount == 0
   }
 
-  init(
+  package init(
     feedback: PlanReliabilityFeedback,
     detailLimit: Int = Self.defaultDetailLimit
   ) {
@@ -627,29 +627,29 @@ struct ProjectReliabilityStatus: Equatable {
   }
 }
 
-struct ProjectSidebarStatus: Equatable {
-  static let defaultSubtitleLimit = 86
+package struct ProjectSidebarStatus: Equatable {
+  package static let defaultSubtitleLimit = 86
 
-  var title: String
-  var subtitle: String
-  var badgeLabel: String
-  var countLabel: String
-  var actionLabel: String
-  var metadata: String?
-  var systemImage: String
-  var severity: PlanReliabilityFeedback.Severity
-  var cueCount: Int
-  var phaseLabel: String
-  var showsProgress: Bool
-  var helpText: String
-  var accessibilityLabel: String
-  var accessibilityHint: String
+  package var title: String
+  package var subtitle: String
+  package var badgeLabel: String
+  package var countLabel: String
+  package var actionLabel: String
+  package var metadata: String?
+  package var systemImage: String
+  package var severity: PlanReliabilityFeedback.Severity
+  package var cueCount: Int
+  package var phaseLabel: String
+  package var showsProgress: Bool
+  package var helpText: String
+  package var accessibilityLabel: String
+  package var accessibilityHint: String
 
-  var hasReliabilityCue: Bool {
+  package var hasReliabilityCue: Bool {
     cueCount > 0
   }
 
-  init(
+  package init(
     reliabilityStatus: ProjectReliabilityStatus,
     immediateTitle: String,
     phase: LoopPhase,

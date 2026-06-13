@@ -4,12 +4,12 @@ import Foundation
 /// Supports `**` (any number of path components), `*` (any chars within a
 /// component), and `?` (single char within a component). Results are
 /// returned newest-first by modification time.
-struct AgentGlobTool: AgentTool {
-  static let toolName = "glob"
-  static let maxResults = 200
-  static let walkCap = 10_000
+package struct AgentGlobTool: AgentTool {
+  package static let toolName = "glob"
+  package static let maxResults = 200
+  package static let walkCap = 10_000
 
-  struct Arguments: Decodable {
+  package struct Arguments: Decodable {
     let pattern: String
     let path: String?
 
@@ -23,7 +23,7 @@ struct AgentGlobTool: AgentTool {
       case root
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       pattern = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -39,9 +39,9 @@ struct AgentGlobTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  package let spec: AgentToolSpec
 
-  init() {
+  package init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -67,7 +67,7 @@ struct AgentGlobTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  package func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

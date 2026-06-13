@@ -1,4 +1,5 @@
 import SwiftUI
+import CompassCore
 
 struct ActivityTab: View {
   @ObservedObject var project: CompassProject

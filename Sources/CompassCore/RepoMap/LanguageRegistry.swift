@@ -8,18 +8,18 @@ import TreeSitterTypeScript
 /// Loads tree-sitter `Language`s and pre-compiles the symbol/import query
 /// for each supported source language. Construction is eager so a malformed
 /// query trips the first instantiation, not the first parse.
-final class LanguageRegistry: @unchecked Sendable {
-  struct Entry: @unchecked Sendable {
+package final class LanguageRegistry: @unchecked Sendable {
+  package struct Entry: @unchecked Sendable {
     let language: CodemapLanguage
     let tsLanguage: Language
     let symbolQuery: Query
   }
 
-  static let shared = LanguageRegistry()
+  package static let shared = LanguageRegistry()
 
   private let entries: [CodemapLanguage: Entry]
 
-  init() {
+  package init() {
     var map: [CodemapLanguage: Entry] = [:]
     for codemapLanguage in CodemapLanguage.allCases where codemapLanguage != .tessera {
       let lang = Self.makeLanguage(for: codemapLanguage)
@@ -42,16 +42,16 @@ final class LanguageRegistry: @unchecked Sendable {
     self.entries = map
   }
 
-  func entry(for language: CodemapLanguage) -> Entry? {
+  package func entry(for language: CodemapLanguage) -> Entry? {
     entries[language]
   }
 
-  func entry(forPath path: String) -> Entry? {
+  package func entry(forPath path: String) -> Entry? {
     guard let language = CodemapLanguage.forFile(at: path) else { return nil }
     return entries[language]
   }
 
-  struct RuntimeNodeKinds: Sendable, Equatable {
+  package struct RuntimeNodeKinds: Sendable, Equatable {
     var branchTypes: Set<String>
     var loopTypes: Set<String>
     var switchTypes: Set<String>
@@ -62,7 +62,7 @@ final class LanguageRegistry: @unchecked Sendable {
   /// Tree-sitter node names used by static control-flow analysis. Kept beside
   /// the grammar registry so adding a language has one obvious place to define
   /// both symbol indexing and flow scanning.
-  static func runtimeNodeKinds(for language: CodemapLanguage) -> RuntimeNodeKinds {
+  package static func runtimeNodeKinds(for language: CodemapLanguage) -> RuntimeNodeKinds {
     switch language {
     case .swift:
       return RuntimeNodeKinds(
@@ -112,7 +112,7 @@ final class LanguageRegistry: @unchecked Sendable {
   ///   `CodemapSymbolKind` rawValue.
   /// - `@import.source` — the literal module/path string in an import.
   /// - `@import` — the wrapping import statement (used for line number).
-  static func symbolQuerySource(for language: CodemapLanguage) -> String {
+  package static func symbolQuerySource(for language: CodemapLanguage) -> String {
     switch language {
     case .swift: return swiftQuery
     case .typescript: return typeScriptQuery

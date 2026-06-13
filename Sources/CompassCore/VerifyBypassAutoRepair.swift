@@ -1,15 +1,15 @@
 import Foundation
 
-struct VerifyBypassAutoRepair: Equatable, Sendable {
-  enum Reason: String, Equatable, Sendable {
+package struct VerifyBypassAutoRepair: Equatable, Sendable {
+  package enum Reason: String, Equatable, Sendable {
     case sortedDiffFileList = "sorted-diff-file-list"
   }
 
-  var command: String
-  var reason: Reason
-  var note: String
+  package var command: String
+  package var reason: Reason
+  package var note: String
 
-  static func repair(
+  package static func repair(
     plannedCommand: String,
     developSummary: DevelopSummary,
     forgeProfile: ForgeProfile?

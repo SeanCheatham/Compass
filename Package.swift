@@ -92,19 +92,8 @@ let package = Package(
     .executableTarget(
       name: "Compass",
       dependencies: [
+        "CompassCore",
         "CompassSandbox",
-        "TreeSitterScanners",
-        .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
-        .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
-        .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
-        .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
-        .product(name: "MLXLLM", package: "mlx-swift-lm"),
-        .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
-        .product(name: "HuggingFace", package: "swift-huggingface"),
-        .product(name: "Tokenizers", package: "swift-transformers"),
-      ],
-      resources: [
-        .process("Resources")
       ]
     ),
     .testTarget(

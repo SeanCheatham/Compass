@@ -1,18 +1,18 @@
 import Foundation
 
-extension Prompts {
+package extension Prompts {
   /// Phase output schemas live as standalone `.json` files under
   /// `Resources/Schemas/`. They are loaded once on first access and
   /// cached for the lifetime of the process. If a schema is missing or
   /// malformed, this trips a `fatalError` at first read rather than
   /// silently shipping a broken phase. Schemas are validated as JSON at
   /// load time so a hand-edit that breaks syntax is caught immediately.
-  static let planSchema = loadSchema("plan")
-  static let developSchema = loadSchema("develop")
-  static let criticSchema = loadSchema("critic")
-  static let subAgentSchema = loadSchema("subAgent")
+  package static let planSchema = loadSchema("plan")
+  package static let developSchema = loadSchema("develop")
+  package static let criticSchema = loadSchema("critic")
+  package static let subAgentSchema = loadSchema("subAgent")
 
-  static func planSchema(hostXcodeBuildTestEnabled: Bool) -> String {
+  package static func planSchema(hostXcodeBuildTestEnabled: Bool) -> String {
     planSchema
   }
 

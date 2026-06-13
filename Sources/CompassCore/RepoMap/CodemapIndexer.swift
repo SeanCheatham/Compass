@@ -5,42 +5,42 @@ import Foundation
 /// is delegated to `AgentFilesystem` so the same indexer works on the host
 /// and (eventually) over the containerized Linux runtime SSH route. Parsing itself runs
 /// in-process — tree-sitter is fast enough that the IO dominates.
-struct CodemapIndexer: Sendable {
+package struct CodemapIndexer: Sendable {
   /// Max file size to index. Anything larger almost always indicates a
   /// generated artifact, vendored bundle, or binary blob and isn't worth
   /// the parse time.
-  static let defaultMaxFileBytes = 1 * 1024 * 1024
+  package static let defaultMaxFileBytes = 1 * 1024 * 1024
   /// Files smaller than this are usually trivial stubs (`export * from`,
   /// `init.py` style re-exports). Skipped to keep the index focused.
-  static let defaultMinFileBytes = 80
+  package static let defaultMinFileBytes = 80
   /// Cap on entries `AgentFilesystem.glob` walks before giving up. Picked
   /// generously so well-sized repos go through in one pass.
-  static let defaultWalkCap = 200_000
+  package static let defaultWalkCap = 200_000
   /// Parallelism cap for the parse fan-out. Tree-sitter releases the GIL
   /// equivalent on every grammar boundary so more workers just push memory.
-  static let defaultParallelism = 8
+  package static let defaultParallelism = 8
 
   /// Summary returned from `indexAll(...)`. Counts mirror what the UI's
   /// status row needs to render; per-file detail is on disk in the store.
-  struct Result: Sendable, Equatable {
-    var indexed: Int
-    var unchanged: Int
-    var pruned: Int
-    var skipped: Int
-    var failed: Int
+  package struct Result: Sendable, Equatable {
+    package var indexed: Int
+    package var unchanged: Int
+    package var pruned: Int
+    package var skipped: Int
+    package var failed: Int
   }
 
-  let workingDirectory: URL
-  let filesystem: AgentFilesystem
-  let bashRunner: AgentBashRunner
-  let store: CodemapStore
-  let extractor: SymbolExtractor
-  let maxFileBytes: Int
-  let minFileBytes: Int
-  let walkCap: Int
-  let parallelism: Int
+  package let workingDirectory: URL
+  package let filesystem: AgentFilesystem
+  package let bashRunner: AgentBashRunner
+  package let store: CodemapStore
+  package let extractor: SymbolExtractor
+  package let maxFileBytes: Int
+  package let minFileBytes: Int
+  package let walkCap: Int
+  package let parallelism: Int
 
-  init(
+  package init(
     workingDirectory: URL,
     store: CodemapStore,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
@@ -66,7 +66,7 @@ struct CodemapIndexer: Sendable {
   /// Files whose content hash matches the cached entry are left alone;
   /// changed files are re-parsed; entries with no remaining source file
   /// are pruned.
-  func indexAll() async throws -> Result {
+  package func indexAll() async throws -> Result {
     let candidates = try await listCandidateFiles()
     let candidateSet = Set(candidates)
 
@@ -112,7 +112,7 @@ struct CodemapIndexer: Sendable {
   /// Read a single file, hash it, and re-parse / save when the hash
   /// differs from what's on disk. Exposed for the incremental refresher
   /// (Phase 4) and for tests; the bulk indexer fans out across this.
-  func indexOne(relativePath: String) async -> PerFileOutcome {
+  package func indexOne(relativePath: String) async -> PerFileOutcome {
     guard let language = CodemapLanguage.forRelativePath(relativePath) else {
       return .skipped(.unsupportedExtension)
     }
@@ -177,7 +177,7 @@ struct CodemapIndexer: Sendable {
   /// Remove on-disk entries whose `relativePath` no longer appears in the
   /// candidate set. Returns the number of files removed so the caller can
   /// surface it in a status row.
-  func pruneEntries(notIn keep: Set<String>) -> Int {
+  package func pruneEntries(notIn keep: Set<String>) -> Int {
     var pruned = 0
     for entry in store.loadAllEntries() {
       if !keep.contains(entry.relativePath) {
@@ -198,7 +198,7 @@ struct CodemapIndexer: Sendable {
   /// `git ls-files --cached --others --exclude-standard` so the index
   /// respects `.gitignore` exactly the same way developers expect. Falls
   /// back to a recursive `glob("**/*")` when git isn't available.
-  func listCandidateFiles() async throws -> [String] {
+  package func listCandidateFiles() async throws -> [String] {
     let gitListing = try? await runGitLsFiles()
     let allRelativePaths: [String]
     if let gitListing, !gitListing.isEmpty {
@@ -261,25 +261,25 @@ struct CodemapIndexer: Sendable {
   }
 }
 
-extension CodemapIndexer {
-  enum PerFileOutcome: Sendable, Equatable {
+package extension CodemapIndexer {
+  package enum PerFileOutcome: Sendable, Equatable {
     case indexed
     case unchanged
     case skipped(SkipReason)
     case failed(String)
   }
 
-  enum SkipReason: Sendable, Equatable {
+  package enum SkipReason: Sendable, Equatable {
     case unsupportedExtension
     case tooSmall
     case tooLarge
     case binary
   }
 
-  enum GitListingError: Error, LocalizedError {
+  package enum GitListingError: Error, LocalizedError {
     case gitFailed(String)
 
-    var errorDescription: String? {
+    package var errorDescription: String? {
       switch self {
       case .gitFailed(let stderr): return "git ls-files failed: \(stderr)"
       }
