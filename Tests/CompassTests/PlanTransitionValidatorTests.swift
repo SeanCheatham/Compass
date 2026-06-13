@@ -11,11 +11,11 @@ struct PlanTransitionValidatorTests {
       completed: [],
       immediate: nil,
       brief: PlanStrategicContext(
-        summary: "Build a tiny activity-ledger feature.",
+        summary: "Build a tiny display-name Tessera app.",
         targetUsers: ["Solo builders"],
-        desiredOutcomes: ["Core logic summarizes done and pending activity counts."],
+        desiredOutcomes: ["The app renders a friendly display label."],
         constraints: ["Keep the slice dependency-free."],
-        acceptanceSignals: ["Core and CLI tests cover the ledger summary."]
+        acceptanceSignals: ["Tessera tests cover the display label."]
       )
     )
     let next = PlanState(
@@ -23,19 +23,19 @@ struct PlanTransitionValidatorTests {
       immediate: PlanNext(
         plan: """
           ## Outcome
-          Update `packages/cli/src/main.ts` and `packages/cli/src/main.test.ts` so the CLI prints a useful one-line ledger summary.
+          Update `src/display-name.tes` and `tests/display-name.json` so the app renders a useful display label.
 
           ## Acceptance checks
-          - The CLI test asserts the one-line ledger summary from sample entries.
+          - The Tessera test asserts the display label from a sample context.
           """,
-        verify: "pnpm verify",
+        verify: "tessera verify . --json",
         verifyTimeoutMs: 600_000,
         estimatedDifficulty: .low,
-        selectedBecause: "This is a focused test packet.",
+        selectedBecause: "This is a focused Tessera test packet.",
         source: .repository
       ),
       brief: PlanStrategicContext(
-        summary: "Build a tiny activity-ledger feature.",
+        summary: "Build a tiny display-name Tessera app.",
         targetUsers: [],
         desiredOutcomes: [],
         constraints: [],
@@ -44,7 +44,7 @@ struct PlanTransitionValidatorTests {
     )
 
     do {
-      try PlanTransitionValidator.validate(from: current, to: next)
+      try PlanTransitionValidator.validate(from: current, to: next, forgeProfile: .tesseraApp)
       Issue.record("Expected brief preservation rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .invalidStateMutation)
@@ -56,7 +56,7 @@ struct PlanTransitionValidatorTests {
       #expect(error.message.contains("Set `state.brief` exactly"))
       #expect(
         error.message.contains(
-          #""acceptanceSignals":["Core and CLI tests cover the ledger summary."]"#))
+          #""acceptanceSignals":["Tessera tests cover the display label."]"#))
     }
   }
 
@@ -64,62 +64,48 @@ struct PlanTransitionValidatorTests {
   func rejectsMissingExplicitPathsUnlessMarkedAsNewFile() throws {
     let tempURL = try makePlanValidatorTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    let cliSrc = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
-    try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
-    try "export const main = true;\n".write(
-      to: cliSrc.appending(path: "main.ts"),
+    let src = tempURL.appending(path: "src", directoryHint: .isDirectory)
+    let tests = tempURL.appending(path: "tests", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: tests, withIntermediateDirectories: true)
+    try "(def display ((name Text)) (concat name \"!\"))\n(display user.name)\n".write(
+      to: src.appending(path: "display-name.tes"),
       atomically: true,
       encoding: .utf8
     )
-    try "import './main';\n".write(
-      to: cliSrc.appending(path: "main.test.ts"),
-      atomically: true,
-      encoding: .utf8
-    )
-    try """
-    {
-      "name": "@compass-test/cli",
-      "type": "module",
-      "bin": {
-        "compass-test": "./src/main.ts"
-      }
-    }
-    """.write(
-      to: tempURL.appending(path: "packages/cli/package.json"),
-      atomically: true,
-      encoding: .utf8
-    )
+    try #"{"name":"display-name","source":"display-name","context":"user","expect":"Ada!"}"#
+      .write(
+        to: tests.appending(path: "display-name.json"),
+        atomically: true,
+        encoding: .utf8
+      )
 
     let invalid = planState(
       """
       ## Outcome
-      Update `packages/cli/src/cli.ts` so the CLI prints a queue summary.
+      Update `src/title.tes` so the app prints a queue summary.
 
       ## Acceptance checks
-      - CLI output includes the queue summary.
+      - `tests/title.json` covers the new display output.
       """
     )
-
-    #expect(throws: PlanTransitionValidationError.self) {
-      try PlanTransitionValidator.validate(from: .empty, to: invalid, repoURL: tempURL)
-    }
 
     do {
       try PlanTransitionValidator.validate(from: .empty, to: invalid, repoURL: tempURL)
       Issue.record("Expected missing path rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .ungroundedPaths)
-      #expect(error.message.contains("packages/cli/src/cli.ts"))
-      #expect(error.message.contains("main.ts"))
+      #expect(error.message.contains("src/title.tes"))
+      #expect(error.message.contains("display-name.tes"))
     }
 
     let wrongTestPath = planState(
       """
       ## Outcome
-      Update `packages/cli/test/main.test.ts` to cover loud CLI output.
+      Update `src/display-name.tes` to render a loud label.
 
       ## Acceptance checks
-      - `packages/cli/test/main.test.ts` covers loud CLI output.
+      - `specs/display-name.json` covers loud display output.
       """
     )
 
@@ -128,214 +114,76 @@ struct PlanTransitionValidatorTests {
       Issue.record("Expected missing test path rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .ungroundedPaths)
-      #expect(error.message.contains("packages/cli/test/main.test.ts"))
-      #expect(error.message.contains("same filename exists at: packages/cli/src/main.test.ts"))
+      #expect(error.message.contains("specs/display-name.json"))
+      #expect(error.message.contains("same filename exists at: tests/display-name.json"))
     }
 
-    let duplicateEntryPoint = planState(
+    let explicitNewFile = planState(
       """
       ## Outcome
-      Create new file `packages/cli/src/cli.ts` as a tiny wrapper around main.
+      Create new file `src/format-label.tes` for reusable label formatting.
 
       ## Acceptance checks
-      - The new wrapper file exists.
-      """
-    )
-
-    do {
-      try PlanTransitionValidator.validate(from: .empty, to: duplicateEntryPoint, repoURL: tempURL)
-      Issue.record("Expected duplicate entry point rejection.")
-    } catch let error as PlanTransitionValidationError {
-      #expect(error.reason == .ungroundedPaths)
-      #expect(error.message.contains("duplicate package entry points"))
-      #expect(error.message.contains("packages/cli/package.json"))
-      #expect(error.message.contains("bin.compass-test"))
-      #expect(error.message.contains("packages/cli/src/main.ts"))
-      #expect(
-        error.message.contains(
-          "Replace `packages/cli/src/cli.ts` with `packages/cli/src/main.ts`"
-        ))
-      #expect(error.message.contains("Do not resubmit the same new-file path"))
-    }
-
-    let explicitEntrypointMove = planState(
-      """
-      ## Outcome
-      Change `bin.compass-test` from `packages/cli/src/main.ts` to `packages/cli/src/cli.ts`, then create new file `packages/cli/src/cli.ts` as the replacement CLI entry point.
-
-      ## Acceptance checks
-      - The package bin routes compass-test through the replacement entry point.
+      - The new format-label source file exists.
       """
     )
 
     try PlanTransitionValidator.validate(
       from: .empty,
-      to: explicitEntrypointMove,
-      repoURL: tempURL
-    )
-
-    let explicitNewUtilityFile = planState(
-      """
-      ## Outcome
-      Create new file `packages/core/src/utils/activity.ts` for reusable activity helpers.
-
-      ## Acceptance checks
-      - The new activity helper file exists.
-      """
-    )
-
-    try PlanTransitionValidator.validate(
-      from: .empty,
-      to: explicitNewUtilityFile,
+      to: explicitNewFile,
       repoURL: tempURL
     )
   }
 
   @Test
-  func rejectsGenericVerifyForCLIBehaviorWithoutTestProof() throws {
-    let weak = planState(
+  func rejectsRetiredPackageTermsForTesseraHandoffs() throws {
+    let legacyVerify = planState(
       """
       ## Outcome
-      Update the CLI so it prints a useful one-line ledger summary.
+      Update `src/display-name.tes` so the app renders a useful display label.
 
       ## Acceptance checks
-      - The CLI can print a useful one-line ledger summary from sample entries.
-      """
-    )
-
-    do {
-      try PlanTransitionValidator.validate(
-        from: .empty,
-        to: weak,
-        forgeProfile: .typeScriptPnpmVite
-      )
-      Issue.record("Expected weak verify rejection.")
-    } catch let error as PlanTransitionValidationError {
-      #expect(error.reason == .weakVerifyCoverage)
-      #expect(error.message.contains("does not include a CLI test"))
-      #expect(error.message.contains("packages/cli/src/main.test.ts"))
-    }
-
-    let grounded = planState(
-      """
-      ## Outcome
-      Update the CLI and `packages/cli/src/main.test.ts` so it prints a useful one-line ledger summary.
-
-      ## Acceptance checks
-      - The CLI test asserts the one-line ledger summary from sample entries.
-      """
-    )
-
-    try PlanTransitionValidator.validate(
-      from: .empty,
-      to: grounded,
-      forgeProfile: .typeScriptPnpmVite
-    )
-  }
-
-  @Test
-  func rejectsGenericCLITestWordingWithoutConcreteTestFile() throws {
-    let weak = planState(
-      """
-      ## Outcome
-      Implement a CLI habit streak summary feature.
-
-      ## Acceptance checks
-      - Add or update core tests for the streak helper.
-      - Add or update CLI tests for split argv usage of `--streak`.
-      - `pnpm verify` passes.
-      """
-    )
-
-    do {
-      try PlanTransitionValidator.validate(
-        from: .empty,
-        to: weak,
-        forgeProfile: .typeScriptPnpmVite
-      )
-      Issue.record("Expected weak CLI test proof rejection.")
-    } catch let error as PlanTransitionValidationError {
-      #expect(error.reason == .weakVerifyCoverage)
-      #expect(error.message.contains("does not include a CLI test or direct proof"))
-      #expect(error.message.contains("packages/cli/src/main.test.ts"))
-      #expect(error.message.contains(#"main(["--streak", "value"])"#))
-    }
-  }
-
-  @Test
-  func jsonFormatCLIProofGuidanceNamesSplitArgvTest() throws {
-    let weak = planState(
-      """
-      ## Outcome
-      Add support for `--format json` to the CLI.
-
-      ## Acceptance checks
-      - Running `main(["--format", "json", "Ship", "it"])` returns JSON output.
-      """
-    )
-
-    do {
-      try PlanTransitionValidator.validate(
-        from: .empty,
-        to: weak,
-        forgeProfile: .typeScriptPnpmVite
-      )
-      Issue.record("Expected weak verify rejection.")
-    } catch let error as PlanTransitionValidationError {
-      #expect(error.reason == .weakVerifyCoverage)
-      #expect(error.message.contains("packages/cli/src/main.test.ts"))
-      #expect(error.message.contains(#"main(["--format", "json", "Ship", "it"])"#))
-      #expect(error.message.contains("parsed JSON title is `Ship it`"))
-    }
-  }
-
-  @Test
-  func rejectsTestOnlyVerifyForCLIImplementationWork() throws {
-    let implementation = planState(
-      """
-      ## Outcome
-      Implement a split-argv `--limit <number>` option in the CLI.
-
-      ## Acceptance checks
-      - `main(["--limit", "4", "Ship", "it"])` parses the real split argv entries and returns `4 open / 4 total`.
-      - Update `packages/cli/src/main.test.ts` with the split argv assertion.
+      - `tests/display-name.json` covers the display label.
       """,
-      verify: "pnpm test -- --coverage"
+      verify: "pnpm verify"
     )
 
     do {
       try PlanTransitionValidator.validate(
         from: .empty,
-        to: implementation,
-        forgeProfile: .typeScriptPnpmVite
+        to: legacyVerify,
+        forgeProfile: .tesseraApp
       )
-      Issue.record("Expected test-only verify rejection.")
+      Issue.record("Expected legacy verify rejection.")
     } catch let error as PlanTransitionValidationError {
-      #expect(error.reason == .weakVerifyCoverage)
-      #expect(error.rejectedVerify == "pnpm test -- --coverage")
-      #expect(error.message.contains("test-only verify command"))
-      #expect(error.message.contains("use `pnpm verify`"))
+      #expect(error.reason == .coverageRequirement)
+      #expect(error.rejectedVerify == "pnpm verify")
+      #expect(error.message.contains("tessera verify . --json"))
     }
-  }
 
-  @Test
-  func acceptsCoverageVerifyForTestOnlyCLISlice() throws {
-    let testOnly = planState(
+    let legacyPlan = planState(
       """
       ## Outcome
-      Add regression coverage in `packages/cli/src/main.test.ts` for the existing CLI split argv behavior.
+      Update `packages/cli/src/main.ts` so the CLI prints a useful one-line ledger summary.
 
       ## Acceptance checks
-      - The CLI test calls `main(["--format", "json", "Ship", "it"])` and asserts the parsed title is `Ship it`.
-      """,
-      verify: "pnpm test -- --coverage"
+      - `packages/cli/src/main.test.ts` covers the new CLI behavior.
+      """
     )
 
-    try PlanTransitionValidator.validate(
-      from: .empty,
-      to: testOnly,
-      forgeProfile: .typeScriptPnpmVite
-    )
+    do {
+      try PlanTransitionValidator.validate(
+        from: .empty,
+        to: legacyPlan,
+        forgeProfile: .tesseraApp
+      )
+      Issue.record("Expected legacy handoff rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .weakHandoff)
+      #expect(error.message.contains("Tessera files"))
+      #expect(error.message.contains("src/*.tes"))
+      #expect(error.message.contains("tests/*.json"))
+    }
   }
 
   @Test
@@ -354,39 +202,39 @@ struct PlanTransitionValidatorTests {
     try PlanTransitionValidator.validate(
       from: .empty,
       to: docsOnly,
-      forgeProfile: .typeScriptPnpmVite
+      forgeProfile: .tesseraApp
     )
   }
 
   @Test
-  func rejectsGrepVerifyForCLIImplementationWork() throws {
+  func rejectsGrepVerifyForTesseraImplementationWork() throws {
     let implementation = planState(
       """
       ## Outcome
-      Implement a split-argv `--limit <number>` option in the CLI.
+      Update `src/display-name.tes` to render a useful display label.
 
       ## Acceptance checks
-      - The CLI can parse `main(["--limit", "4", "Ship", "it"])`.
+      - `tests/display-name.json` covers the new display output.
       """,
-      verify: #"grep -q "--limit" README.md"#
+      verify: #"grep -q "display" src/display-name.tes"#
     )
 
     do {
       try PlanTransitionValidator.validate(
         from: .empty,
         to: implementation,
-        forgeProfile: .typeScriptPnpmVite
+        forgeProfile: .tesseraApp
       )
       Issue.record("Expected coverage verify rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .coverageRequirement)
-      #expect(error.rejectedVerify == #"grep -q "--limit" README.md"#)
-      #expect(error.message.contains("pnpm verify"))
+      #expect(error.rejectedVerify == #"grep -q "display" src/display-name.tes"#)
+      #expect(error.message.contains("tessera verify . --json"))
     }
   }
 }
 
-private func planState(_ plan: String, verify: String = "pnpm verify") -> PlanState {
+private func planState(_ plan: String, verify: String = "tessera verify . --json") -> PlanState {
   PlanState(
     completed: [],
     immediate: PlanNext(
@@ -394,7 +242,7 @@ private func planState(_ plan: String, verify: String = "pnpm verify") -> PlanSt
       verify: verify,
       verifyTimeoutMs: 600_000,
       estimatedDifficulty: .low,
-      selectedBecause: "This is a focused test packet.",
+      selectedBecause: "This is a focused Tessera test packet.",
       source: .repository
     )
   )

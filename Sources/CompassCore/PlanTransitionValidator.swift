@@ -269,43 +269,6 @@ package enum PlanTransitionValidator {
 
   private static func validateGroundedPaths(in plan: String, repoURL: URL) throws {
     let explicitPaths = explicitFilePaths(in: plan)
-    let suspiciousNewPaths = explicitPaths.compactMap { path -> String? in
-      guard isExplicitNewFilePath(path, in: plan),
-        !FileManager.default.fileExists(atPath: repoURL.appending(path: path).path),
-        let conflict = packageEntryPointConflict(forNewPath: path, repoURL: repoURL),
-        !planExplicitlyMovesEntryPoint(to: path, conflict: conflict, in: plan)
-      else {
-        return nil
-      }
-      return suspiciousNewFileDetail(path, conflict: conflict)
-    }
-    guard suspiciousNewPaths.isEmpty else {
-      let details = suspiciousNewPaths.prefix(4).joined(separator: "\n")
-      let repairs = explicitPaths.compactMap { path -> String? in
-        guard isExplicitNewFilePath(path, in: plan),
-          !FileManager.default.fileExists(atPath: repoURL.appending(path: path).path),
-          let conflict = packageEntryPointConflict(forNewPath: path, repoURL: repoURL),
-          !planExplicitlyMovesEntryPoint(to: path, conflict: conflict, in: plan)
-        else {
-          return nil
-        }
-        return
-          "- Replace `\(path)` with `\(conflict.declaredPath)` in the Outcome and Acceptance checks."
-      }.prefix(4).joined(separator: "\n")
-      throw PlanTransitionValidationError(
-        message: """
-          Plan marked new file paths that look like duplicate package entry points:
-          \(details)
-
-          Repair the handoff by targeting the existing entry point:
-          \(repairs)
-
-          Do not resubmit the same new-file path. Do not add a second package.json entry for the same CLI. If the new file truly must replace the existing entry point, explicitly say to change the listed package.json field from the existing path to the new path and explain why.
-          """,
-        reason: .ungroundedPaths
-      )
-    }
-
     let missingPaths = explicitPaths.filter { path in
       guard !isExplicitNewFilePath(path, in: plan) else { return false }
       return !FileManager.default.fileExists(atPath: repoURL.appending(path: path).path)
@@ -331,48 +294,60 @@ package enum PlanTransitionValidator {
     handoffDigest: PlanHandoffDigest,
     forgeProfile: ForgeProfile?
   ) throws {
-    guard forgeProfile == .typeScriptPnpmVite else { return }
+    _ = handoffDigest
+    guard forgeProfile == .tesseraApp else { return }
     let normalizedVerify =
       immediate.verify
       .lowercased()
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
-    let plan = immediate.plan.lowercased()
-    let acceptanceText = ([handoffDigest.outcome ?? ""] + handoffDigest.acceptanceChecks)
-      .joined(separator: "\n")
-      .lowercased()
-    if isFocusedCoverageVerify(normalizedVerify),
-      claimsNewCLIBehavior(acceptanceText),
-      claimsCLIImplementationWork(plan + "\n" + acceptanceText)
-    {
+    if containsRetiredGeneratedProjectTerm(normalizedVerify) {
       throw PlanTransitionValidationError(
         message: """
-          Plan selected test-only verify command `\(immediate.verify)` for new CLI implementation work.
+          Plan selected a retired package-based verify command for a Tessera project:
+          `\(immediate.verify)`
 
-          `pnpm test -- --coverage` is only acceptable for focused test-only slices. This handoff asks Develop to implement CLI behavior, so use `pnpm verify` and keep the CLI test update in the acceptance checks.
+          Use `tessera verify . --json` for generated Compass work, or an embedded
+          `tessera` tool proof for focused source, test, or entrypoint checks.
           """,
         reason: .weakVerifyCoverage,
         rejectedVerify: immediate.verify
       )
     }
-    guard normalizedVerify == "pnpm verify" || normalizedVerify == "pnpm run verify" else {
-      return
-    }
-    guard claimsNewCLIBehavior(acceptanceText), !mentionsTestProof(plan) else {
-      return
-    }
 
+    let plan = immediate.plan.lowercased()
+    guard containsRetiredGeneratedProjectTerm(plan) else { return }
     throw PlanTransitionValidationError(
       message: """
-        Plan selected generic `\(immediate.verify)` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
+        Plan used retired package-based paths for a Tessera project.
 
-        `pnpm verify` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `packages/cli/src/main.test.ts`. Add the test file/update to the handoff, or choose a focused verify command that directly exercises the CLI output.
-
-        \(cliTestProofGuidance(for: plan + "\n" + acceptanceText))
+        Repair the handoff around Tessera files: `tessera.json`, `src/*.tes`,
+        `contexts/*.json`, and `tests/*.json`. Do not target retired manifest,
+        package workspace, or old source-file paths for generated Compass work.
         """,
-      reason: .weakVerifyCoverage,
-      rejectedVerify: immediate.verify
+      reason: .weakHandoff
     )
+  }
+
+  private static func containsRetiredGeneratedProjectTerm(_ text: String) -> Bool {
+    [
+      "package.json",
+      "packages/",
+      "pnpm",
+      "npm ",
+      "npm-run",
+      "node ",
+      "nodejs",
+      "corepack",
+      "tsc",
+      "typescript",
+      "javascript",
+      "vitest",
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+    ].contains { text.contains($0) }
   }
 
   private static func explicitFilePaths(in text: String) -> [String] {
@@ -496,10 +471,9 @@ package enum PlanTransitionValidator {
     let skippedDirectories: Set<String> = [
       ".compass",
       ".git",
-      ".turbo",
-      "coverage",
-      "dist",
-      "node_modules",
+      ".build",
+      "build",
+      "target",
     ]
     var matches: [String] = []
     for case let url as URL in enumerator {
@@ -514,141 +488,6 @@ package enum PlanTransitionValidator {
       if matches.count >= limit { break }
     }
     return matches.sorted()
-  }
-
-  private struct PackageEntryPointConflict {
-    let manifestPath: String
-    let declaredPath: String
-    let field: String
-  }
-
-  private static func packageEntryPointConflict(forNewPath path: String, repoURL: URL)
-    -> PackageEntryPointConflict?
-  {
-    guard isEntryPointAlias(path) else { return nil }
-    let targetURL = repoURL.appending(path: path).standardizedFileURL
-    guard
-      let packageDirectory = nearestPackageDirectory(
-        from: targetURL.deletingLastPathComponent(),
-        repoURL: repoURL
-      ),
-      let entryPoints = packageEntryPoints(in: packageDirectory)
-    else {
-      return nil
-    }
-
-    for entryPoint in entryPoints {
-      let entryURL = packageDirectory.appending(path: entryPoint.path).standardizedFileURL
-      guard entryURL.path != targetURL.path,
-        FileManager.default.fileExists(atPath: entryURL.path)
-      else {
-        continue
-      }
-      return PackageEntryPointConflict(
-        manifestPath: relativePath(
-          packageDirectory.appending(path: "package.json"), repoURL: repoURL),
-        declaredPath: relativePath(entryURL, repoURL: repoURL),
-        field: entryPoint.field
-      )
-    }
-    return nil
-  }
-
-  private static func suspiciousNewFileDetail(
-    _ path: String,
-    conflict: PackageEntryPointConflict
-  ) -> String {
-    "- \(path) (\(conflict.manifestPath) \(conflict.field) already points at \(conflict.declaredPath))"
-  }
-
-  private static func planExplicitlyMovesEntryPoint(
-    to path: String,
-    conflict: PackageEntryPointConflict,
-    in plan: String
-  ) -> Bool {
-    let loweredPlan = plan.lowercased()
-    let loweredPath = path.lowercased()
-    let loweredDeclaredPath = conflict.declaredPath.lowercased()
-    let loweredField = conflict.field.lowercased()
-    guard loweredPlan.contains(loweredPath),
-      loweredPlan.contains(loweredDeclaredPath),
-      loweredPlan.contains(loweredField)
-    else {
-      return false
-    }
-    return [
-      "change",
-      "replace",
-      "move",
-      "point",
-      "route",
-      "reroute",
-    ].contains { loweredPlan.contains($0) }
-  }
-
-  private static func isEntryPointAlias(_ path: String) -> Bool {
-    let stem = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent.lowercased()
-    return ["app", "cli", "index", "main", "server"].contains(stem)
-  }
-
-  private static func nearestPackageDirectory(from url: URL, repoURL: URL) -> URL? {
-    let repoPath = repoURL.standardizedFileURL.path
-    var candidate = url.standardizedFileURL
-    while candidate.path.hasPrefix(repoPath) {
-      let manifestURL = candidate.appending(path: "package.json")
-      if FileManager.default.fileExists(atPath: manifestURL.path) {
-        return candidate
-      }
-      let parent = candidate.deletingLastPathComponent().standardizedFileURL
-      if parent.path == candidate.path { break }
-      candidate = parent
-    }
-    return nil
-  }
-
-  private static func packageEntryPoints(in packageDirectory: URL) -> [(
-    field: String, path: String
-  )]? {
-    let manifestURL = packageDirectory.appending(path: "package.json")
-    guard let data = try? Data(contentsOf: manifestURL),
-      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else {
-      return nil
-    }
-
-    var entryPoints: [(field: String, path: String)] = []
-    for field in ["main", "module", "browser", "types", "typings"] {
-      if let raw = object[field] as? String,
-        let normalized = normalizedPackageEntryPoint(raw)
-      {
-        entryPoints.append((field, normalized))
-      }
-    }
-    if let raw = object["bin"] as? String,
-      let normalized = normalizedPackageEntryPoint(raw)
-    {
-      entryPoints.append(("bin", normalized))
-    } else if let bin = object["bin"] as? [String: Any] {
-      for key in bin.keys.sorted() {
-        if let raw = bin[key] as? String,
-          let normalized = normalizedPackageEntryPoint(raw)
-        {
-          entryPoints.append(("bin.\(key)", normalized))
-        }
-      }
-    }
-    return entryPoints
-  }
-
-  private static func normalizedPackageEntryPoint(_ raw: String) -> String? {
-    var path = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !path.isEmpty, !path.hasPrefix("#"), !path.contains("://") else { return nil }
-    while path.hasPrefix("./") {
-      path.removeFirst(2)
-    }
-    path = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    guard !path.isEmpty, !path.hasPrefix("../") else { return nil }
-    return path
   }
 
   private static func nearestExistingDirectory(from url: URL, repoURL: URL) -> URL? {
@@ -677,75 +516,6 @@ package enum PlanTransitionValidator {
     return suffix.isEmpty ? "." : String(suffix)
   }
 
-  private static func claimsNewCLIBehavior(_ text: String) -> Bool {
-    guard text.contains("cli") || text.contains("command") else { return false }
-    return [
-      "print",
-      "prints",
-      "output",
-      "one-line",
-      "summary",
-      "argument",
-      "argv",
-      "command",
-    ].contains { text.contains($0) }
-  }
-
-  private static func cliTestProofGuidance(for text: String) -> String {
-    let flags = mentionedCLIFlags(in: text)
-    guard let flag = flags.first else {
-      return
-        """
-        Required acceptance check to append:
-        - `packages/cli/src/main.test.ts` exercises the new CLI path with split argv and asserts the output.
-        """
-    }
-
-    let repeated = text.contains("repeated") || text.contains("multiple")
-    if repeated {
-      return
-        """
-        Required acceptance check to append:
-        - `packages/cli/src/main.test.ts` calls `main([\"\(flag)\", \"api:green\", \"\(flag)\", \"db:red\"])` and asserts the formatted output.
-        """
-    }
-    if flag == "--format", text.contains("json") {
-      return
-        """
-        Required acceptance check to append:
-        - `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])` and asserts the parsed JSON title is `Ship it`.
-        """
-    }
-    return
-      """
-      Required acceptance check to append:
-      - `packages/cli/src/main.test.ts` calls `main([\"\(flag)\", \"value\"])` and asserts the output.
-      """
-  }
-
-  private static func mentionedCLIFlags(in text: String) -> [String] {
-    guard let regex = try? NSRegularExpression(pattern: #"--[A-Za-z][A-Za-z0-9-]*"#) else {
-      return []
-    }
-    let nsText = text as NSString
-    let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
-    var seen = Set<String>()
-    var flags: [String] = []
-    for match in matches {
-      let flag = nsText.substring(with: match.range)
-      guard seen.insert(flag).inserted else { continue }
-      flags.append(flag)
-    }
-    return flags
-  }
-
-  private static func isFocusedCoverageVerify(_ normalizedVerify: String) -> Bool {
-    normalizedVerify.contains("pnpm test")
-      && normalizedVerify.contains("--coverage")
-      && !normalizedVerify.contains("typecheck")
-      && !normalizedVerify.contains("build")
-  }
-
   private static func isDocumentationOnlyContentVerify(
     _ verify: String,
     handoffDigest: PlanHandoffDigest
@@ -762,12 +532,11 @@ package enum PlanTransitionValidator {
       || text.contains("documentation")
     guard mentionsDocs else { return false }
     return ![
-      "packages/",
-      ".ts",
-      ".tsx",
-      "cli behavior",
-      "vitest",
+      "contexts/",
+      "src/",
+      "tessera.json",
       "test file",
+      "tests/",
       "source file",
     ].contains { text.contains($0) }
   }
@@ -779,29 +548,6 @@ package enum PlanTransitionValidator {
     let pattern =
       #"^(?:/usr/bin/)?grep\s+-[A-Za-z]*q[A-Za-z]*\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s+[\w./-]+\.(?:md|markdown|txt|rst)$"#
     return normalized.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
-  }
-
-  private static func claimsCLIImplementationWork(_ text: String) -> Bool {
-    [
-      "implement",
-      "add support",
-      "support for",
-      "packages/cli/src/main.ts",
-      "main.ts",
-      "entrypoint",
-      "source",
-    ].contains { text.contains($0) }
-  }
-
-  private static func mentionsTestProof(_ plan: String) -> Bool {
-    [
-      ".test.",
-      "packages/cli/src/main.test.ts",
-      "vitest",
-      "coverage",
-      "assert",
-      "expect(",
-    ].contains { plan.contains($0) }
   }
 
 }

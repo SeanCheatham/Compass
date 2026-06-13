@@ -30,16 +30,10 @@ cd "${ROOT}"
 
 "${CLI}" doctor --repo "${TEST_REPO}" --format text
 
-if [[ "${COMPASS_PREPARE_CONTAINER_DEPS:-1}" == "1" ]]; then
-  install_flag="--frozen-lockfile"
-  if [[ ! -f "${TEST_REPO}/pnpm-lock.yaml" ]]; then
-    install_flag="--no-frozen-lockfile"
-    echo "No pnpm-lock.yaml found; preparing fresh scaffold with ${install_flag}."
-  fi
-
+if [[ "${COMPASS_VERIFY_TESSERA:-1}" == "1" ]]; then
   "${CLI}" verify \
     --repo "${TEST_REPO}" \
-    --command "rm -rf node_modules packages/*/node_modules && CI=true pnpm install ${install_flag} && pnpm verify" \
+    --command "tessera verify . --json" \
     --format text
 fi
 

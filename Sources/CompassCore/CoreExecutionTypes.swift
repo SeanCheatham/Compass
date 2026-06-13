@@ -1,3 +1,4 @@
+import CompassSandbox
 import Foundation
 
 package enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
@@ -109,7 +110,7 @@ package struct AgentExecutionLaunchPlan: Equatable {
   package var imageLabel: String {
     switch effectiveRoute {
     case .host: return "none"
-    case .containerizedLinux: return "docker.io/library/node:22-bookworm"
+    case .containerizedLinux: return ContainerSandboxConfiguration.defaultRuntimeImage
     }
   }
 

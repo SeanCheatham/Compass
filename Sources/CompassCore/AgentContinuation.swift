@@ -193,7 +193,7 @@ package enum AgentContinuationParser {
     var detail = underlying
     if containsBacktickStringSyntax(in: text) {
       detail +=
-        " JSON strings must use double quotes; JavaScript backtick/template-literal strings are invalid here. For multiline edit_file content, pass replacementLines as an array with one source line per string or use a normal JSON string with \\n escapes. Do not wrap content in backticks."
+        " JSON strings must use double quotes; backtick/template-literal-style strings are invalid here. For multiline edit_file content, pass replacementLines as an array with one source line per string or use a normal JSON string with \\n escapes. Do not wrap content in backticks."
     }
     return detail
   }

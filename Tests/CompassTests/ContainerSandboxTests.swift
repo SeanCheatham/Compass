@@ -21,8 +21,8 @@ struct ContainerSandboxTests {
 
     #expect(try mapper.containerPath(for: URL(fileURLWithPath: "/tmp/repo")) == "/workspace")
     #expect(
-      try mapper.containerPath(for: URL(fileURLWithPath: "/tmp/repo/src/index.ts"))
-        == "/workspace/src/index.ts"
+      try mapper.containerPath(for: URL(fileURLWithPath: "/tmp/repo/src/display-name.tes"))
+        == "/workspace/src/display-name.tes"
     )
   }
 

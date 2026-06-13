@@ -51,17 +51,6 @@ package enum DraftIdeaLibrary {
           Done when: the affected view uses clear controls, accessible labels, and existing Swift tests pass
           """
       )
-    case .typeScriptJavaScript:
-      return DraftIdeaTemplate(
-        id: "legacy-web-state-clarity",
-        title: "Legacy Web",
-        systemImage: "rectangle.3.group",
-        text: """
-          Change: repair or clarify the imported TS/JS repo without creating new generated web output
-          Because: legacy web repos are still inspectable, while new Compass-generated projects use the Tessera scaffold
-          Done when: the active view shows ready, blocked, and in-progress states clearly
-          """
-      )
     case .markdown:
       return DraftIdeaTemplate(
         id: "docs-setup-guide",

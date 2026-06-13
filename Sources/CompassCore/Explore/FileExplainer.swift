@@ -141,7 +141,7 @@ package enum FileChangeCategory: String, CaseIterable {
       return .config
     }
     let configFiles = [
-      "package.json", "tsconfig.json", "build.gradle", "Makefile", "Dockerfile",
+      "tessera.json", "build.gradle", "Makefile", "Dockerfile",
       ".gitignore", ".gitattributes", ".env", ".env.local", ".env.development",
       "podfile", "cartfile", "module.modulemap", "Sources/Compass/Compass.entitlements",
       ".swift-format", ".swiftlint.yml", "dangerfile", "mint.yml", "Package.swift",

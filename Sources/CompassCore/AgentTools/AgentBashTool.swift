@@ -186,15 +186,9 @@ package struct AgentBashTool: AgentTool {
       .filter { !$0.isEmpty }
       .joined(separator: " ")
 
-    return normalized == "pnpm verify"
-      || normalized == "pnpm run verify"
-      || normalized == "tessera verify . --json"
+    return normalized == "tessera verify . --json"
       || normalized.hasPrefix("tessera verify ")
-      || normalized.contains(" pnpm verify")
-      || normalized.contains(" pnpm run verify")
       || normalized.contains(" tessera verify ")
-      || normalized.hasSuffix(" pnpm verify")
-      || normalized.hasSuffix(" pnpm run verify")
   }
 
   private func successfulVerificationGuidance(for command: String) -> String? {

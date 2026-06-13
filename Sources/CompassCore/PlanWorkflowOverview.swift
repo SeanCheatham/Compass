@@ -94,38 +94,6 @@ package struct PlanVerifyCommandSummary: Equatable, Sendable {
         detail = "Compass will run the Python unittest suite."
       }
       systemImage = "checkmark.seal"
-    } else if Self.containsAny(
-      lowercased,
-      [
-        "vitest",
-        "npm test",
-        "npm run test",
-        "pnpm test",
-        "pnpm run test",
-        "yarn test",
-        "yarn run test",
-      ])
-    {
-      let collectsCoverage = lowercased.contains("coverage")
-      title = collectsCoverage ? "Runs TypeScript coverage" : "Runs TypeScript tests"
-      detail =
-        collectsCoverage
-        ? "Compass will run the project's TypeScript tests with coverage enabled."
-        : "Compass will run the project's TypeScript test command."
-      systemImage = "checkmark.seal"
-    } else if Self.containsAny(
-      lowercased,
-      [
-        "npm run build",
-        "pnpm build",
-        "pnpm run build",
-        "yarn build",
-        "yarn run build",
-      ])
-    {
-      title = "Builds the web project"
-      detail = "Compass will run the project's build script and fail on compile or bundling errors."
-      systemImage = "hammer"
     } else if Self.containsAny(lowercased, ["lint", "clippy", "swiftlint"]) {
       title = "Runs quality checks"
       detail = "Compass will run the project's lint or static-analysis command."
@@ -509,14 +477,6 @@ package struct PlanHandoffDigest: Equatable, Sendable {
   }
 
   private static let commandOnlyVerifyPhrases: Set<String> = [
-    "bun test",
-    "npm run build",
-    "npm run test",
-    "npm test",
-    "pnpm build",
-    "pnpm run build",
-    "pnpm run test",
-    "pnpm test",
     "pytest",
     "python -m pytest",
     "python -m unittest",
@@ -524,8 +484,6 @@ package struct PlanHandoffDigest: Equatable, Sendable {
     "python3 -m unittest",
     "swift build",
     "swift test",
-    "vitest",
-    "vitest run",
     "xcodebuild",
     "yarn build",
     "yarn run build",

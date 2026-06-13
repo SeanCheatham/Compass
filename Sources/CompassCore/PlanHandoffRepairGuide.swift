@@ -232,8 +232,6 @@ package struct PlanHandoffRepairGuide: Equatable, Sendable {
 
     if let hint = profile.manifestHints.first {
       switch hint {
-      case .packageJSON:
-        return coverageReadyVerifyCommand(for: .typeScriptPnpmVite)
       case .packageSwift:
         return "swift test"
       }
@@ -242,8 +240,6 @@ package struct PlanHandoffRepairGuide: Equatable, Sendable {
     switch profile.primaryLanguage {
     case .swift:
       return "swift test"
-    case .typeScriptJavaScript:
-      return coverageReadyVerifyCommand(for: .typeScriptPnpmVite)
     case .markdown, .other, .unknown:
       return coverageReadyVerifyCommand(for: ForgeProfile.generatedProjectDefault)
     }
@@ -253,8 +249,6 @@ package struct PlanHandoffRepairGuide: Equatable, Sendable {
     switch forgeProfile {
     case .swiftSPM:
       return "swift test --enable-code-coverage"
-    case .typeScriptPnpmVite:
-      return "pnpm verify"
     case .tesseraApp:
       return "tessera verify . --json"
     }

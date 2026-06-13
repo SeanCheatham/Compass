@@ -129,30 +129,12 @@ package struct AgentWriteFileTool: AgentTool {
         ))
     }
     if existing == nil,
-      let conflict = await packageEntryPointConflict(forNewURL: url, context: context)
-    {
-      return .failure(
-        .invalidArguments(
-          "write_file refused to create \(context.relativize(url)) because \(conflict.manifestPath) \(conflict.field) already points at existing entry point \(conflict.declaredPath). Edit \(conflict.declaredPath) instead, or update the manifest to point at \(context.relativize(url)) before creating a replacement entry point."
-        ))
-    }
-    if existing == nil,
       let selfReference = Self.selfRelativeModuleReference(in: args.content, sourceURL: url)
     {
       let relative = context.relativize(url)
       return .failure(
         .invalidArguments(
           "write_file refused to create \(relative) because its content imports or exports self-referential relative module \(selfReference.specifier). A file cannot import or export from itself; define the symbol directly in \(relative), or import it from a different existing module."
-        ))
-    }
-    if existing == nil,
-      Self.isSourceFile(url),
-      let unsupportedVitestImport = Self.unsupportedVitestJestImport(in: args.content)
-    {
-      let relative = context.relativize(url)
-      return .failure(
-        .invalidArguments(
-          "write_file refused to create \(relative) because \(unsupportedVitestImport) is not a Vitest package import. Use `import { describe, expect, it } from \"vitest\"` or `import { describe, expect, test } from \"vitest\"` instead."
         ))
     }
     if existing == nil,
@@ -225,82 +207,6 @@ package struct AgentWriteFileTool: AgentTool {
     return .ok(message)
   }
 
-  private struct PackageEntryPointConflict {
-    let manifestPath: String
-    let declaredPath: String
-    let field: String
-  }
-
-  private func packageEntryPointConflict(forNewURL url: URL, context: AgentToolContext) async
-    -> PackageEntryPointConflict?
-  {
-    guard isEntryPointAlias(url) else { return nil }
-    let workingDirectory = context.workingDirectory.standardizedFileURL
-    let workingPath = workingDirectory.path
-    var candidate = url.deletingLastPathComponent().standardizedFileURL
-
-    while candidate.path.hasPrefix(workingPath) {
-      let manifestURL = candidate.appending(path: "package.json")
-      if let data = try? await context.filesystem.readFile(at: manifestURL),
-        let entryPoints = packageEntryPoints(from: data)
-      {
-        for entryPoint in entryPoints {
-          let entryURL = candidate.appending(path: entryPoint.path).standardizedFileURL
-          guard entryURL.path != url.standardizedFileURL.path,
-            let metadata = try? await context.filesystem.metadata(of: entryURL),
-            metadata.isRegularFile
-          else {
-            continue
-          }
-          return PackageEntryPointConflict(
-            manifestPath: context.relativize(manifestURL),
-            declaredPath: context.relativize(entryURL),
-            field: entryPoint.field
-          )
-        }
-      }
-
-      let parent = candidate.deletingLastPathComponent().standardizedFileURL
-      if parent.path == candidate.path { break }
-      candidate = parent
-    }
-    return nil
-  }
-
-  private func isEntryPointAlias(_ url: URL) -> Bool {
-    let stem = url.deletingPathExtension().lastPathComponent.lowercased()
-    return ["app", "cli", "index", "main", "server"].contains(stem)
-  }
-
-  private func packageEntryPoints(from data: Data) -> [(field: String, path: String)]? {
-    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-      return nil
-    }
-
-    var entryPoints: [(field: String, path: String)] = []
-    for field in ["main", "module", "browser", "types", "typings"] {
-      if let raw = object[field] as? String,
-        let normalized = normalizedPackageEntryPoint(raw)
-      {
-        entryPoints.append((field, normalized))
-      }
-    }
-    if let raw = object["bin"] as? String,
-      let normalized = normalizedPackageEntryPoint(raw)
-    {
-      entryPoints.append(("bin", normalized))
-    } else if let bin = object["bin"] as? [String: Any] {
-      for key in bin.keys.sorted() {
-        if let raw = bin[key] as? String,
-          let normalized = normalizedPackageEntryPoint(raw)
-        {
-          entryPoints.append(("bin.\(key)", normalized))
-        }
-      }
-    }
-    return entryPoints
-  }
-
   private static func editFileRepairHint(
     relativePath: String,
     lineCount: Int?,
@@ -335,17 +241,6 @@ package struct AgentWriteFileTool: AgentTool {
       \(json)
       ```
       """
-  }
-
-  private func normalizedPackageEntryPoint(_ raw: String) -> String? {
-    var path = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !path.isEmpty, !path.hasPrefix("#"), !path.contains("://") else { return nil }
-    while path.hasPrefix("./") {
-      path.removeFirst(2)
-    }
-    path = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    guard !path.isEmpty, !path.hasPrefix("../") else { return nil }
-    return path
   }
 
   private struct SelfRelativeModuleReference {
@@ -453,7 +348,7 @@ package struct AgentWriteFileTool: AgentTool {
   }
 
   private static func moduleResolutionCandidates(for baseURL: URL) -> [URL] {
-    let fileExtensions = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json"]
+    let fileExtensions = ["json", "swift", "tes"]
     if !baseURL.pathExtension.isEmpty {
       return [baseURL]
     }
@@ -474,22 +369,6 @@ package struct AgentWriteFileTool: AgentTool {
 
   private struct EmptyOrCommentOnlySourceContent {
     let preview: String
-  }
-
-  private static func unsupportedVitestJestImport(in text: String) -> String? {
-    for line in text.components(separatedBy: "\n") {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      guard trimmed.hasPrefix("import ") else { continue }
-      for pattern in [
-        #"from\s+["'](@?vitest/jest)["']"#,
-        #"^\s*import\s+["'](@?vitest/jest)["']"#,
-      ] {
-        if let specifier = firstCapture(in: trimmed, pattern: pattern) {
-          return "`\(specifier)`"
-        }
-      }
-    }
-    return nil
   }
 
   private static func emptyOrCommentOnlySourceContent(
@@ -527,10 +406,7 @@ package struct AgentWriteFileTool: AgentTool {
         options: [.dotMatchesLineSeparators]
       )
     }
-    if [
-      "c", "cc", "cpp", "css", "go", "h", "hpp", "js", "jsx", "mjs", "mts", "rs", "swift",
-      "ts", "tsx",
-    ].contains(ext) {
+    if ["c", "cc", "cpp", "css", "go", "h", "hpp", "rs", "swift"].contains(ext) {
       stripped = replacingMatches(
         in: stripped,
         pattern: #"/\*.*?\*/"#,
@@ -602,15 +478,10 @@ package struct AgentWriteFileTool: AgentTool {
       "h",
       "hpp",
       "html",
-      "js",
-      "jsx",
-      "mjs",
-      "mts",
       "py",
       "rs",
       "swift",
-      "ts",
-      "tsx",
+      "tes",
     ].contains(url.pathExtension.lowercased())
   }
 

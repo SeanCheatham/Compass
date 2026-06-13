@@ -1,9 +1,6 @@
 import Foundation
 import SwiftTreeSitter
-import TreeSitterJavaScript
 import TreeSitterSwift
-import TreeSitterTSX
-import TreeSitterTypeScript
 
 /// Loads tree-sitter `Language`s and pre-compiles the symbol/import query
 /// for each supported source language. Construction is eager so a malformed
@@ -72,14 +69,6 @@ package final class LanguageRegistry: @unchecked Sendable {
         errorTypes: ["do_statement", "try_expression"],
         callTypes: ["call_expression"]
       )
-    case .typescript, .tsx, .javascript:
-      return RuntimeNodeKinds(
-        branchTypes: ["if_statement"],
-        loopTypes: ["for_statement", "for_in_statement", "while_statement", "do_statement"],
-        switchTypes: ["switch_statement"],
-        errorTypes: ["catch_clause"],
-        callTypes: ["call_expression"]
-      )
     case .tessera:
       return RuntimeNodeKinds(
         branchTypes: ["if"],
@@ -94,9 +83,6 @@ package final class LanguageRegistry: @unchecked Sendable {
   private static func makeLanguage(for codemapLanguage: CodemapLanguage) -> Language {
     switch codemapLanguage {
     case .swift: return Language(language: tree_sitter_swift())
-    case .typescript: return Language(language: tree_sitter_typescript())
-    case .tsx: return Language(language: tree_sitter_tsx())
-    case .javascript: return Language(language: tree_sitter_javascript())
     case .tessera:
       fatalError("Tessera codemap extraction does not use tree-sitter")
     }
@@ -115,9 +101,6 @@ package final class LanguageRegistry: @unchecked Sendable {
   package static func symbolQuerySource(for language: CodemapLanguage) -> String {
     switch language {
     case .swift: return swiftQuery
-    case .typescript: return typeScriptQuery
-    case .tsx: return typeScriptQuery
-    case .javascript: return javaScriptQuery
     case .tessera: return ""
     }
   }
@@ -147,56 +130,6 @@ package final class LanguageRegistry: @unchecked Sendable {
 
     (property_declaration
       (pattern (simple_identifier) @name)) @def.property
-    """#
-
-  private static let typeScriptQuery = #"""
-    (import_statement
-      source: (string) @import.source) @import
-
-    (function_declaration
-      name: (identifier) @name) @def.function
-
-    (class_declaration
-      name: (type_identifier) @name) @def.class
-
-    (abstract_class_declaration
-      name: (type_identifier) @name) @def.class
-
-    (interface_declaration
-      name: (type_identifier) @name) @def.interface
-
-    (type_alias_declaration
-      name: (type_identifier) @name) @def.type
-
-    (enum_declaration
-      name: (identifier) @name) @def.enum
-
-    (method_definition
-      name: (property_identifier) @name) @def.method
-
-    (lexical_declaration
-      (variable_declarator
-        name: (identifier) @name
-        value: [(arrow_function) (function_expression)])) @def.function
-    """#
-
-  private static let javaScriptQuery = #"""
-    (import_statement
-      source: (string) @import.source) @import
-
-    (function_declaration
-      name: (identifier) @name) @def.function
-
-    (class_declaration
-      name: (identifier) @name) @def.class
-
-    (method_definition
-      name: (property_identifier) @name) @def.method
-
-    (lexical_declaration
-      (variable_declarator
-        name: (identifier) @name
-        value: [(arrow_function) (function_expression)])) @def.function
     """#
 
 }

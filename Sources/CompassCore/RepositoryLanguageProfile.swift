@@ -1,7 +1,6 @@
 import Foundation
 
 package enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
-  case typeScriptJavaScript
   case swift
   case markdown
   case other
@@ -9,7 +8,6 @@ package enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hasha
 
   package var displayName: String {
     switch self {
-    case .typeScriptJavaScript: return "TypeScript/JavaScript"
     case .swift: return "Swift"
     case .markdown: return "Markdown"
     case .other: return "Other"
@@ -19,7 +17,6 @@ package enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hasha
 
   package var sourceNoun: String {
     switch self {
-    case .typeScriptJavaScript: return "TS/JS files"
     case .swift: return "Swift files"
     case .markdown: return "Markdown files"
     case .other: return "other files"
@@ -29,19 +26,17 @@ package enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hasha
 }
 
 package struct RepositoryLanguageCounts: Codable, Equatable {
-  package var typeScriptJavaScript = 0
   package var swift = 0
   package var markdown = 0
   package var other = 0
 
   package var total: Int {
-    typeScriptJavaScript + swift + markdown + other
+    swift + markdown + other
   }
 
   package subscript(language: RepositoryLanguage) -> Int {
     get {
       switch language {
-      case .typeScriptJavaScript: return typeScriptJavaScript
       case .swift: return swift
       case .markdown: return markdown
       case .other: return other
@@ -50,8 +45,6 @@ package struct RepositoryLanguageCounts: Codable, Equatable {
     }
     set {
       switch language {
-      case .typeScriptJavaScript:
-        typeScriptJavaScript = newValue
       case .swift:
         swift = newValue
       case .markdown:
@@ -70,13 +63,10 @@ package struct RepositoryLanguageCounts: Codable, Equatable {
 }
 
 package enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable {
-  case packageJSON = "package.json"
   case packageSwift = "Package.swift"
 
   package init?(fileName: String) {
     switch fileName {
-    case Self.packageJSON.rawValue:
-      self = .packageJSON
     case Self.packageSwift.rawValue:
       self = .packageSwift
     default:
@@ -86,14 +76,12 @@ package enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, H
 
   package var language: RepositoryLanguage {
     switch self {
-    case .packageJSON: return .typeScriptJavaScript
     case .packageSwift: return .swift
     }
   }
 
   package var forgeProfile: ForgeProfile {
     switch self {
-    case .packageJSON: return .typeScriptPnpmVite
     case .packageSwift: return .swiftSPM
     }
   }
@@ -138,8 +126,6 @@ package struct RepositoryLanguageProfile: Codable, Equatable {
     switch primaryLanguage {
     case .swift:
       prefix = "Imported Swift profile"
-    case .typeScriptJavaScript:
-      prefix = "TypeScript/JavaScript profile"
     case .markdown:
       prefix = "Markdown-heavy profile"
     case .other:
@@ -165,12 +151,10 @@ package enum RepositoryWalkRules {
     ".svn",
     ".yarn",
     "build",
-    "coverage",
-    "DerivedData",
-    "dist",
-    "env",
-    "node_modules",
-    "target",
+      "coverage",
+      "DerivedData",
+      "env",
+      "target",
   ]
 
   package static func shouldInclude(name: String, isDirectory: Bool, isTopLevel: Bool = false) -> Bool {
@@ -300,8 +284,6 @@ private struct RepositoryLanguageProfileScanner {
 
   private static func language(for fileURL: URL) -> RepositoryLanguage {
     switch fileURL.pathExtension.lowercased() {
-    case "cjs", "cts", "js", "jsx", "mjs", "mts", "ts", "tsx":
-      return .typeScriptJavaScript
     case "rs":
       return .other
     case "swift":
@@ -318,7 +300,6 @@ private struct RepositoryLanguageProfileScanner {
     manifestHints: [RepositoryManifestHint]
   ) -> RepositoryLanguage {
     let codeLanguages: [RepositoryLanguage] = [
-      .typeScriptJavaScript,
       .swift,
       .markdown,
     ]

@@ -993,7 +993,7 @@ package struct AgentEditFileTool: AgentTool {
     }
 
     return
-      "edits[\(editIndex)] would introduce test code into non-test source file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not paste Vitest/Jest `describe`, `it`, `test`, or `expect` blocks into implementation files. Put assertions in a `.test.ts`/`.spec.ts` file, and edit \(relativePath) with implementation code only."
+      "edits[\(editIndex)] would introduce test code into non-test source file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not paste assertion blocks into implementation files. Put behavior checks in `tests/*.json`, and edit \(relativePath) with implementation code only."
   }
 
   private static func implementationCodeInTestFileMessage(
@@ -1105,10 +1105,7 @@ package struct AgentEditFileTool: AgentTool {
         options: [.dotMatchesLineSeparators]
       )
     }
-    if [
-      "c", "cc", "cpp", "css", "go", "h", "hpp", "js", "jsx", "mjs", "mts", "rs", "swift",
-      "ts", "tsx",
-    ].contains(ext) {
+    if ["c", "cc", "cpp", "css", "go", "h", "hpp", "rs", "swift"].contains(ext) {
       stripped = replacingMatches(
         in: stripped,
         pattern: #"/\*.*?\*/"#,
@@ -1742,7 +1739,7 @@ package struct AgentEditFileTool: AgentTool {
   }
 
   private static func moduleResolutionCandidates(for baseURL: URL) -> [URL] {
-    let fileExtensions = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json", "tes"]
+    let fileExtensions = ["json", "swift", "tes"]
     if !baseURL.pathExtension.isEmpty {
       return [baseURL]
     }
@@ -1774,16 +1771,10 @@ package struct AgentEditFileTool: AgentTool {
       "h",
       "hpp",
       "html",
-      "js",
-      "jsx",
-      "mjs",
-      "mts",
       "py",
       "rs",
       "swift",
       "tes",
-      "ts",
-      "tsx",
     ].contains(url.pathExtension.lowercased())
   }
 
@@ -1800,8 +1791,8 @@ package struct AgentEditFileTool: AgentTool {
     """
     \(detail)
     edit_file requires path plus startLine, endLine, and replacement lines. Read the target file first, then use the returned line numbers.
-    Example replace: {"path":"packages/cli/src/main.ts","startLine":4,"endLine":6,"replacementLines":["new line"]}
-    Example insert after line 6: {"path":"packages/cli/src/main.ts","startLine":7,"endLine":6,"insert":["new line"]}
+    Example replace: {"path":"src/display-name.tes","startLine":1,"endLine":2,"replacementLines":["; new line"]}
+    Example insert after line 6: {"path":"src/display-name.tes","startLine":7,"endLine":6,"insert":["; new line"]}
     Use write_file instead only when creating a new file.
     """
   }

@@ -7,26 +7,31 @@ struct VerifyFailureInsightTests {
   @Test
   func compilerErrorsWinOverCoverageMentions() {
     let detail = """
-      > pnpm typecheck && pnpm test -- --coverage && pnpm build
-      packages/core typecheck: src/index.ts(16,1): error TS1005: '}' expected.
+      > tessera verify . --json
+      tessera typecheck: src/display-name.tes:2:1: syntax error: expected expression.
       """
-    let insight = VerifyFailureInsight(detail: detail, metadata: "command=pnpm verify exitCode=2")
+    let insight = VerifyFailureInsight(
+      detail: detail,
+      metadata: "command=tessera verify . --json exitCode=2"
+    )
 
     #expect(insight.kind == .buildFailure)
     #expect(insight.repairDetail.contains("syntax error"))
   }
 
   @Test
-  func corepackFetchErrorsArePackageManagerBootstrapFailures() {
+  func missingTesseraCommandIsMissingToolFailure() {
     let detail = """
-      Preparing pnpm@9.15.4 for immediate activation...
-      Internal Error: Error when performing the request to https://registry.npmjs.org/pnpm/-/pnpm-9.15.4.tgz
+      zsh: command not found: tessera
       """
-    let insight = VerifyFailureInsight(detail: detail, metadata: "command=pnpm verify exitCode=1")
+    let insight = VerifyFailureInsight(
+      detail: detail,
+      metadata: "command=tessera verify . --json exitCode=127"
+    )
 
-    #expect(insight.kind == .packageManagerBootstrap)
-    #expect(insight.inspectDetail.contains("before project tests could run"))
-    #expect(insight.repairDetail.contains("Do not ask Develop to rewrite app code"))
+    #expect(insight.kind == .missingTool)
+    #expect(insight.inspectDetail.contains("could not start cleanly"))
+    #expect(insight.repairDetail.contains("missing tool"))
   }
 
   @Test

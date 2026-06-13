@@ -6,12 +6,10 @@ external-scanner symbols undefined at link time.
 
 Files in this target:
 
-- `javascript_scanner.c` — copied verbatim from
-  `tree-sitter/tree-sitter-javascript` (`src/scanner.c`), MIT licensed.
 - `python_scanner.c` — copied verbatim from
   `tree-sitter/tree-sitter-python` (`src/scanner.c`), MIT licensed.
 - `include/tree_sitter/{parser,array,alloc}.h` — copied verbatim from
-  the same grammars' `src/tree_sitter/` directories. They are the
+  the same grammar's `src/tree_sitter/` directory. They are the
   standard ABI headers shared by all tree-sitter grammars and identical
   across them; we pin one copy here so the vendored scanners build
   without needing each grammar package's private include path.

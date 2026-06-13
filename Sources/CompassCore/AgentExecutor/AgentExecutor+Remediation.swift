@@ -22,8 +22,8 @@ package extension AgentExecutor {
 
             Return `plan_submit` again with the same small work packet if it is still useful, but set
             `state.immediate.verify` to a coverage-ready command such as
-            `tessera verify . --json` for generated Tessera apps, or `pnpm verify` for a
-            legacy TypeScript profile. Do not use placeholder or bare test commands.
+            `tessera verify . --json` for generated Tessera apps. Do not use placeholder
+            or bare test commands.
 
             \(submitResultDecodeRetryShape(for: .plan))
             """
@@ -58,25 +58,17 @@ package extension AgentExecutor {
 
             Do not call another tool to repair this. Return `plan_submit` again and choose
             exactly one repair:
-            - Keep the CLI behavior and add an acceptance check that Develop updates
-              `packages/cli/src/main.test.ts` to execute the new CLI path.
+            - Keep the behavior and add an acceptance check that Develop updates or adds a
+              matching `tests/*.json` case, plus any required `contexts/*.json` fixture.
               If the rejection message includes "Required acceptance check to append",
               copy that bullet into `state.immediate.plan` under Acceptance checks.
-              For flag parsing work, name the exact split argv shape in that check; for
-              repeated flags include the flag token each time, for example:
-              `packages/cli/src/main.test.ts` calls
-              `main(["--signal", "api:green", "--signal", "db:red"])` and asserts the
-              formatted output.
-              For `--format json` work, include a concrete check like:
-              `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])`
-              and asserts the parsed JSON title is `Ship it`.
-            - Or narrow the Outcome to core-only work and remove CLI/list/status-count claims
-              from the Outcome and Acceptance checks.
+            - Or narrow the Outcome to source-only cleanup and remove behavior claims from
+              the Outcome and Acceptance checks.
 
             Do not resubmit the same Acceptance checks unchanged; add the missing
-            `packages/cli/src/main.test.ts` proof line or remove the CLI behavior claim.
+            Tessera test proof line or remove the behavior claim.
 
-            Keep `state.immediate.verify` as `pnpm verify` after adding the CLI test proof.
+            Keep `state.immediate.verify` as `tessera verify . --json` after adding the proof.
 
             \(submitResultDecodeRetryShape(for: .plan))
             """
@@ -375,7 +367,7 @@ package extension AgentExecutor {
         "reason": "Run the missing verification command before submitting success."
       }
       ```
-      Do not call `read_file`, `list_files`, or reread `package.json` just to rediscover this command.
+      Do not call `read_file`, `list_files`, or reread `tessera.json` just to rediscover this command.
       """
   }
 
@@ -387,15 +379,8 @@ package extension AgentExecutor {
       .replacingOccurrences(of: "`", with: " ")
       .replacingOccurrences(of: "\"", with: "")
     let patterns = [
-      #"(?i)\bCI=true\s+pnpm\s+verify\b"#,
-      #"(?i)\bpnpm\s+verify\b"#,
-      #"(?i)\bpnpm\s+test\s+--\s+--coverage\b"#,
-      #"(?i)\bpnpm\s+test\b"#,
-      #"(?i)\bnpm\s+run\s+verify\b"#,
-      #"(?i)\bnpm\s+run\s+test\b"#,
-      #"(?i)\bnpm\s+test\b"#,
-      #"(?i)\byarn\s+verify\b"#,
-      #"(?i)\byarn\s+test\b"#,
+      #"(?i)\btessera\s+verify\s+\.\s+--json\b"#,
+      #"(?i)\btessera\s+verify\b"#,
       #"(?i)\bswift\s+test\b"#,
     ]
     for pattern in patterns {

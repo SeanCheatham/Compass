@@ -40,10 +40,10 @@ package extension Prompts {
         `{"action":"run_entrypoint","entrypoint":"<name>"}` instead of depending on a
         `tessera` binary in shell PATH.
       - Leave the working tree clean, or explain why you are blocked.
-      - Do not commit generated outputs or caches: `target/`, `node_modules/`, `dist/`,
-        `coverage/`, `.build/`, `build/`, or editor artifacts.
+      - Do not commit generated outputs or caches: `target/`, `.build/`, `build/`,
+        logs, or editor artifacts.
       - Generated Tessera workspaces use `src/*.tes`, `contexts/*.json`, `tests/*.json`,
-        and `tessera.json`. Do not invent `packages/...` paths for generated work.
+        and `tessera.json`. Use those paths when creating or editing generated work.
       - Before `edit_file`, read the exact target file in this Develop session. If a path
         is missing, use `list_files` or `glob` to find the existing target; use
         `write_file` only when the plan explicitly requires a new file.
@@ -130,13 +130,10 @@ package extension Prompts {
     return """
       This is Develop attempt \(attempt). First address the prior issue(s), then rerun verify.
       If the prior issue lists Suggested test targets, read and edit one of those exact
-      test files before inspecting unrelated files or running verify again. Do not start
-      a retry by rereading package.json unless the prior issue is about package scripts.
+      test files before inspecting unrelated files or running verify again.
       If the prior issue lists Requested test file(s), make your first write/edit target
       one of those test files. Do not edit source files again until that requested test
       file has changed in this attempt.
-      If a tool says a package manifest already points to an existing entry point, read
-      and edit that existing file instead of creating a duplicate entry point.
       Do not submit success or rerun verify until you have changed a file that directly
       addresses the prior issue.
 

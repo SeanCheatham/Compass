@@ -2,7 +2,6 @@ import Foundation
 
 package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   case swiftSPM = "swift-spm"
-  case typeScriptPnpmVite = "typescript-pnpm-vite"
   case tesseraApp = "tessera-app"
 
   package static let generatedProjectDefault: ForgeProfile = .tesseraApp
@@ -11,7 +10,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   package var displayName: String {
     switch self {
     case .swiftSPM: return "Imported Swift (SwiftPM)"
-    case .typeScriptPnpmVite: return "TypeScript (pnpm + Vite + Vitest)"
     case .tesseraApp: return "Tessera App"
     }
   }
@@ -24,8 +22,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return "imported-repo profile; Compass-generated output is Tessera"
-    case .typeScriptPnpmVite:
-      return "imported/generated legacy TypeScript profile"
     case .tesseraApp:
       return "default generated-project target"
     }
@@ -39,19 +35,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - This is for maintaining the Compass host or user-owned Swift packages.
         - Do not create new generated output in Swift; generated projects use Tessera.
         - Prefer SwiftPM verification with `swift test` for package work.
-        """
-    case .typeScriptPnpmVite:
-      return """
-        Forge profile - TypeScript (pnpm + Vite + Vitest):
-        - Compass-generated project code must be TypeScript.
-        - Use the pnpm workspace layout: root package scripts plus `packages/core`,
-          `packages/cli`, and `packages/web`.
-        - Keep TypeScript strict, use Vitest for tests and coverage, `tsx` for CLI/dev scripts,
-          and Vite + React for web UI.
-        - Standard verify is `pnpm verify`; targeted test work may use
-          `pnpm test -- --coverage`.
-        - Documentation-only README/docs slices may use a simple `grep -q` content
-          check against the edited Markdown/text file instead of pnpm.
         """
     case .tesseraApp:
       return """
@@ -72,8 +55,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return "test verify should declare SwiftPM coverage, e.g. `swift test --enable-code-coverage`."
-    case .typeScriptPnpmVite:
-      return "use `pnpm verify` for standard checks, include Vitest coverage for test-only checks, e.g. `pnpm test -- --coverage`, or use a simple `grep -q` content check for documentation-only README/docs slices."
     case .tesseraApp:
       return "use `tessera verify . --json` so Compass can read the Tessera trace report for exercised `.tes` sources."
     }
@@ -83,8 +64,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return "swift test --enable-code-coverage"
-    case .typeScriptPnpmVite:
-      return "pnpm verify"
     case .tesseraApp:
       return "tessera verify . --json"
     }
@@ -105,17 +84,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
           xcrun llvm-cov report "$BIN" -instr-profile="$PROFDATA" 2>/dev/null || true
         fi
         """
-    case .typeScriptPnpmVite:
-      return """
-        if [ -f coverage/coverage-summary.json ]; then
-          cat coverage/coverage-summary.json
-        elif [ -f coverage/coverage-final.json ]; then
-          cat coverage/coverage-final.json
-        else
-          pnpm test -- --coverage --coverage.reporter=json-summary --run 2>/dev/null || \
-          pnpm exec vitest run --coverage --coverage.reporter=json-summary
-        fi
-        """
     case .tesseraApp:
       return "tessera verify . --json"
     }
@@ -125,8 +93,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     let normalized = verify.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     guard !normalized.isEmpty else { return false }
     if normalized.contains(" test") || normalized.hasPrefix("test ")
-      || normalized.contains("pnpm test")
-      || normalized.contains("vitest")
       || normalized.contains("swift test")
       || (normalized.contains("xcodebuild") && normalized.contains(" test"))
     {
@@ -135,9 +101,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return normalized.contains("swift build") || normalized == "swift build"
-    case .typeScriptPnpmVite:
-      return normalized.contains("pnpm build") || normalized.contains("pnpm typecheck")
-        || normalized.contains("tsc ")
     case .tesseraApp:
       return normalized.contains("tessera validate") || normalized.contains("tessera fmt --check")
     }
@@ -148,10 +111,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return normalized.contains("--enable-code-coverage") || normalized.contains("llvm-cov")
-    case .typeScriptPnpmVite:
-      return normalized.contains("coverage")
-        || normalized.contains("pnpm verify")
-        || normalized.contains("pnpm run verify")
     case .tesseraApp:
       return normalized.contains("tessera verify") && normalized.contains("--json")
     }
@@ -161,13 +120,6 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return CoverageSnapshotParser.parseLLVMCovReport(output, profile: self)
-    case .typeScriptPnpmVite:
-      if let json = CoverageSnapshotParser.readJSONFile(
-        workingDirectory.appending(path: "coverage/coverage-summary.json")
-      ) {
-        return CoverageSnapshotParser.parseVitestSummaryJSON(json, profile: self)
-      }
-      return CoverageSnapshotParser.parseVitestSummaryJSON(output, profile: self)
     case .tesseraApp:
       return CoverageSnapshotParser.parseTesseraTraceJSON(output, profile: self)
     }
@@ -273,12 +225,6 @@ package enum ForgeProfileService {
     {
       return .tesseraApp
     }
-    if TypeScriptProjectScaffold.isGeneratedWorkspace(at: root) {
-      return .typeScriptPnpmVite
-    }
-    if fm.fileExists(atPath: root.appending(path: "package.json").path) {
-      return .typeScriptPnpmVite
-    }
     if fm.fileExists(atPath: root.appending(path: "Package.swift").path) {
       return .swiftSPM
     }
@@ -329,52 +275,6 @@ package enum CoverageSnapshotParser {
       overallLineCoveragePercent: totalPercent ?? averagePercent(files),
       files: files,
       rawSummary: String(output.prefix(4000))
-    )
-  }
-
-  package static func parseVitestSummaryJSON(_ input: String, profile: ForgeProfile) -> CoverageSnapshot {
-    guard let data = input.data(using: .utf8),
-      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else {
-      return CoverageSnapshot(
-        profile: profile,
-        collectedAt: Date(),
-        sessionNumber: nil,
-        overallLineCoveragePercent: nil,
-        files: [],
-        rawSummary: String(input.prefix(2000))
-      )
-    }
-    return parseVitestSummaryJSONObject(json, profile: profile)
-  }
-
-  package static func parseVitestSummaryJSONObject(
-    _ json: [String: Any],
-    profile: ForgeProfile
-  ) -> CoverageSnapshot {
-    var files: [CoverageFileEntry] = []
-    var totalPercent: Double?
-    if let total = json["total"] as? [String: Any],
-      let lines = total["lines"] as? [String: Any],
-      let pct = lines["pct"] as? Double
-    {
-      totalPercent = pct
-    }
-    for (key, value) in json {
-      guard key != "total",
-        let entry = value as? [String: Any],
-        let lines = entry["lines"] as? [String: Any],
-        let pct = lines["pct"] as? Double
-      else { continue }
-      files.append(CoverageFileEntry(path: key, lineCoveragePercent: pct))
-    }
-    return CoverageSnapshot(
-      profile: profile,
-      collectedAt: Date(),
-      sessionNumber: nil,
-      overallLineCoveragePercent: totalPercent ?? averagePercent(files),
-      files: files,
-      rawSummary: nil
     )
   }
 

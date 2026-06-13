@@ -1078,7 +1078,7 @@ package extension AgentExecutor {
     \(error)
 
     Required shape:
-    {"kind":"\(phase.continueKind)","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts.","note":"If package scripts exist, run the relevant verify command next."}
+    {"kind":"\(phase.continueKind)","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current Tessera manifest.","note":"If entrypoints exist, run the relevant Tessera check next."}
     or
     {"kind":"\(phase.submitKind)","payload":{...}}
 
@@ -1304,7 +1304,7 @@ package extension AgentExecutor {
         Compass rejected `\(pendingRepair.submitKind)`. Compass will keep rejecting tools
         until you repair the submit envelope.
 
-        The continuation-contract `read_file package.json` shape is only an example. It is
+        The continuation-contract `read_file tessera.json` shape is only an example. It is
         lower authority than this Compass Repair. Do not copy that example here.
 
         Your next response must be `\(phase.submitKind)`, not `\(phase.continueKind)`.
@@ -1343,7 +1343,7 @@ package extension AgentExecutor {
       ? """
 
         For Plan, read-only tools cannot repair a rejected handoff. Return `\(phase.submitKind)` now.
-        Do not call `read_file`, `list_files`, `bash`, or reread `package.json` just to repair
+        Do not call `read_file`, `list_files`, `bash`, or reread `tessera.json` just to repair
         Plan payload text.
         """
       : ""
@@ -1368,7 +1368,7 @@ package extension AgentExecutor {
     - Apply the latest Compass Repair instruction exactly.
     - If the rejected payload said a verify command still needs to run, call `bash`
       with that command now. Do not call `read_file`, `list_files`, or reread
-      `package.json` merely to rediscover scripts.
+      `tessera.json` merely to rediscover the manifest.
     - Return `\(phase.submitKind)` with a corrected `payload`.
     - Only call a different tool if the repair instruction explicitly requires new evidence.
     \(planInstruction)\(latestRepair)
@@ -1399,7 +1399,7 @@ package extension AgentExecutor {
     Use the latest observations and repair the rejected continuation now:
     - If the rejected response was an `edit_file` with multiline content, return
       `\(phase.continueKind)` using `edit_file` and `replacementLines` as an array of strings.
-    - Do not reread `package.json`, list files, or inspect other files merely to repair JSON syntax.
+    - Do not reread `tessera.json`, list files, or inspect other files merely to repair JSON syntax.
     - Call `bash` only after the needed file edits/tests have been accepted.
     - Return `\(phase.submitKind)` with status=failed or status=blocked only if no concrete
       edit or verify call remains.
@@ -1425,10 +1425,9 @@ package extension AgentExecutor {
         - Do not call another tool. The rejected payload text is what must change.
         - Do not resubmit the same `state.immediate.plan`.
         - Keep `state.immediate.verify` as the planned verify command unless the latest repair says otherwise.
-        - If the rejection is about CLI proof, add an explicit Acceptance check in
-          `state.immediate.plan` naming the CLI test file and invocation, for example:
-          `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])`
-          and asserts the parsed JSON title is `Ship it`.
+        - If the rejection is about missing Tessera proof, add an explicit Acceptance check in
+          `state.immediate.plan` naming the `tests/*.json` case or embedded `tessera`
+          tool action that proves the behavior.
         """
       : ""
     return """
@@ -1660,8 +1659,8 @@ package extension AgentExecutor {
 
         This is not a terminal Develop result. Do not submit failed for malformed continuation JSON.
         Return a valid `develop_continue` with corrected JSON now. If you need multiline
-        `edit_file` content, use `replacementLines` as an array of strings, not JavaScript
-        template literals.
+        `edit_file` content, use `replacementLines` as an array of strings, not an
+        unescaped multiline string literal.
 
         Submit status=failed only for a real project blocker after you have no concrete
         tool call left to try.

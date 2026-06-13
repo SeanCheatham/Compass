@@ -61,15 +61,12 @@ Compass runs model work locally through native Swift MLX with `mlx-community/Qwe
 
 The Shared VM/tooling path expects this generated-project toolchain:
 
-- Xcode Command Line Tools
-- Homebrew
-- ripgrep
-- Node.js and Corepack/pnpm for legacy TypeScript repositories
+- a lightweight Linux shell runtime for agent commands
 - `tessera` CLI on `PATH` only when a user-selected shell command explicitly
   invokes the CLI
 
 Compass-owned Tessera verify and focused probes do not require the Tessera CLI in
-the runtime image.
+the runtime image; they use the embedded Rust engine.
 
 ## Development
 
@@ -104,4 +101,4 @@ Format Swift sources before larger changes:
 ./scripts/format.sh
 ```
 
-Legacy project files in existing user workspaces are ignored rather than deleted. The repository code for the previous product-factory, market, provider, and non-TypeScript generated-output systems has been removed for this pivot.
+Legacy project files in existing user workspaces are ignored rather than deleted. The repository code for the previous product-factory, market, provider, and alternate generated-output systems has been removed for this pivot.

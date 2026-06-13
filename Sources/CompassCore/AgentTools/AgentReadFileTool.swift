@@ -239,22 +239,9 @@ package struct AgentReadFileTool: AgentTool {
       .filter(Self.isUsefulSameFilenameMatch)
       .sorted()
 
-    if let packageRoot = Self.packageRootPrefix(for: requestedPath) {
-      return usefulMatches
-        .filter { $0.hasPrefix(packageRoot + "/") }
-        .prefix(limit)
-        .map { $0 }
-    }
-
     return usefulMatches
       .prefix(limit)
       .map { $0 }
-  }
-
-  private static func packageRootPrefix(for path: String) -> String? {
-    let components = path.split(separator: "/").map(String.init)
-    guard components.count >= 2, components[0] == "packages" else { return nil }
-    return "packages/\(components[1])"
   }
 
   private static func isUsefulDirectoryEntry(_ entry: String) -> Bool {
@@ -266,12 +253,8 @@ package struct AgentReadFileTool: AgentTool {
       ".build",
       ".compass",
       ".git",
-      ".pnpm-store",
-      ".turbo",
       "build",
-      "coverage",
-      "dist",
-      "node_modules",
+      "target",
     ]
     return !path.split(separator: "/").contains { skippedComponents.contains(String($0)) }
   }

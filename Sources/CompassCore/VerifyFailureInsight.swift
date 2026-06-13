@@ -4,7 +4,6 @@ package struct VerifyFailureInsight: Equatable {
   package enum Kind: Equatable {
     case testFailure
     case buildFailure
-    case packageManagerBootstrap
     case missingTool
     case timeout
     case coverage
@@ -41,14 +40,6 @@ package struct VerifyFailureInsight: Equatable {
       repairDetail =
         "Have Develop address the earliest concrete file, symbol, module, or syntax error first."
       retryDetail = "Compass will rerun verification after the build can complete."
-    case .packageManagerBootstrap:
-      inspectTitle = "Inspect package-manager bootstrap"
-      inspectDetail =
-        "Compass found that package-manager bootstrap failed before project tests could run: \(detail)"
-      repairTitle = "Restore Corepack/pnpm"
-      repairDetail =
-        "Repair Corepack, pnpm, or network access in the containerized runtime, then rerun verify. Do not ask Develop to rewrite app code for this environment failure."
-      retryDetail = "Retry after pnpm can be activated in the selected execution environment."
     case .missingTool:
       inspectTitle = "Inspect the missing tool"
       inspectDetail = "Compass found that the verify command could not start cleanly: \(detail)"
@@ -84,9 +75,6 @@ package struct VerifyFailureInsight: Equatable {
     if containsAny(text, ["timed out", "timeout", "time limit", "deadline exceeded"]) {
       return .timeout
     }
-    if isPackageManagerBootstrapFailure(text) {
-      return .packageManagerBootstrap
-    }
     if containsAny(
       text,
       ["tessera: command not found", "could not find command tessera"]
@@ -110,7 +98,7 @@ package struct VerifyFailureInsight: Equatable {
     if containsAny(
       text,
       [
-        "typecheck", "tsc -p", "error ts", "syntax error", "compile error", "compiler error",
+        "typecheck", "syntax error", "compile error", "compiler error",
         "tessera parse", "tessera typecheck", "tessera load", "invalid manifest",
       ]
     ) {
@@ -138,35 +126,6 @@ package struct VerifyFailureInsight: Equatable {
       return .coverage
     }
     return .generic
-  }
-
-  private static func isPackageManagerBootstrapFailure(_ text: String) -> Bool {
-    if containsAny(
-      text,
-      [
-        "pnpm: command not found",
-        "corepack: command not found",
-        "could not find command pnpm",
-        "could not find command corepack",
-        "registry.npmjs.org/pnpm/",
-        "pnpm-9.15.4.tgz",
-      ]
-    ) {
-      return true
-    }
-    guard text.contains("corepack") || text.contains("preparing pnpm@") else {
-      return false
-    }
-    return containsAny(
-      text,
-      [
-        "error when performing the request",
-        "fetch",
-        "network",
-        "registry.npmjs.org",
-        "internal error",
-      ]
-    )
   }
 
   private static func containsAny(_ text: String, _ needles: [String]) -> Bool {

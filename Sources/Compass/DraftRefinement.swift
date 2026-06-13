@@ -353,7 +353,7 @@ enum DraftRefinementService {
         from: refined,
         source: source,
         pattern:
-          #"[A-Za-z0-9_./-]+\.(?:swift|ts|tsx|js|jsx|json|md|txt|yml|yaml|toml|lock|py|rs|sh|zsh|html|css|scss|plist|xcodeproj|xcworkspace|m|mm|h|hpp|cpp|c|sql)"#
+          #"[A-Za-z0-9_./-]+\.(?:swift|tes|json|md|txt|yml|yaml|toml|lock|py|rs|sh|zsh|html|css|scss|plist|xcodeproj|xcworkspace|m|mm|h|hpp|cpp|c|sql)"#
       )
     else {
       return false

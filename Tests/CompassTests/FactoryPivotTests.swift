@@ -69,8 +69,8 @@ struct FactoryPivotTests {
       {
         "state": {
           "immediate": {
-            "plan": "## Outcome\\nAdd loud CLI output.\\n\\n## Acceptance checks\\n- pnpm verify passes",
-            "verify": "pnpm verify",
+            "plan": "## Outcome\\nAdd loud Tessera output.\\n\\n## Acceptance checks\\n- tessera verify . --json passes",
+            "verify": "tessera verify . --json",
             "verifyTimeoutMs": 600000,
             "estimatedDifficulty": "low",
             "selectedBecause": "First useful slice.",
@@ -134,13 +134,13 @@ struct FactoryPivotTests {
         targetUsers: ["Product teams"],
         desiredOutcomes: ["List decision records"],
         constraints: ["No new dependencies"],
-        acceptanceSignals: ["pnpm verify passes"]
+        acceptanceSignals: ["tessera verify . --json passes"]
       )
     )
     let proposal = PlanProposal(
       immediate: PlanNext(
-        plan: "## Outcome\nAdd decision records\n\n## Acceptance checks\n- pnpm verify passes",
-        verify: "pnpm verify"
+        plan: "## Outcome\nAdd decision records\n\n## Acceptance checks\n- tessera verify . --json passes",
+        verify: "tessera verify . --json"
       ),
       candidates: [],
       strategicContext: PlanStrategicContext(summary: "Build decision notes."),
@@ -153,7 +153,7 @@ struct FactoryPivotTests {
     #expect(next.brief.targetUsers == ["Product teams"])
     #expect(next.brief.desiredOutcomes == ["List decision records"])
     #expect(next.brief.constraints == ["No new dependencies"])
-    #expect(next.brief.acceptanceSignals == ["pnpm verify passes"])
+    #expect(next.brief.acceptanceSignals == ["tessera verify . --json passes"])
   }
 
   @Test
@@ -194,14 +194,14 @@ struct FactoryPivotTests {
   func promptsDoNotMentionRemovedDirections() throws {
     let state = PlanProposal(from: FactoryState.empty)
     let next = PlanNext(
-      plan: "## Outcome\nAdd a TypeScript slice\n\n## Acceptance checks\n- pnpm verify passes",
-      verify: "pnpm verify",
+      plan: "## Outcome\nAdd a Tessera display slice\n\n## Acceptance checks\n- tessera verify . --json passes",
+      verify: "tessera verify . --json",
       estimatedDifficulty: .low
     )
     let developSummary = DevelopSummary(
       status: .succeeded,
       summary: "Implemented the slice",
-      feedback: "Verified with pnpm verify",
+      feedback: "Verified with tessera verify . --json",
       bypassVerify: false,
       lessonEdits: []
     )
@@ -214,7 +214,7 @@ struct FactoryPivotTests {
         lessons: "",
         vision: "",
         focus: .feature,
-        forgeProfile: .typeScriptPnpmVite
+        forgeProfile: .tesseraApp
       ),
       Prompts.developPrompt(
         next: next,
@@ -226,14 +226,14 @@ struct FactoryPivotTests {
       Prompts.criticPrompt(
         next: next,
         developSummary: developSummary,
-        verifyCommand: "pnpm verify",
+        verifyCommand: "tessera verify . --json",
         verifyExitCode: 0,
         verifyOutput: "ok",
         gitDiff: "",
         priorCritiques: [],
         lessons: "",
         vision: "",
-        forgeProfile: .typeScriptPnpmVite,
+        forgeProfile: .tesseraApp,
         iteration: 1,
         maxIterations: 2
       ),
@@ -257,9 +257,8 @@ struct FactoryPivotTests {
       #expect(!prompts.contains(removed))
     }
     #expect(prompts.contains("local software factory"))
-    #expect(prompts.contains("TypeScript"))
     #expect(prompts.contains("Tessera"))
-    #expect(prompts.contains("pnpm verify"))
+    #expect(prompts.contains("tessera verify . --json"))
     #expect(prompts.contains("develop_continue"))
     #expect(prompts.contains("develop_submit"))
   }
@@ -269,13 +268,13 @@ struct FactoryPivotTests {
     let next = PlanNext(
       plan: """
         ## Outcome
-        Implement `--streak` in `packages/cli/src/main.ts` with a core helper.
+        Implement display label formatting in `src/display-name.tes` with a reusable helper.
 
         ## Acceptance checks
-        - `packages/core/src/index.test.ts` covers the streak helper.
-        - `packages/cli/src/main.test.ts` calls `main(["--streak", "done", "done"])`.
+        - `tests/display-name.json` covers the display helper.
+        - `contexts/user.json` includes a multi-word sample name.
         """,
-      verify: "pnpm verify",
+      verify: "tessera verify . --json",
       estimatedDifficulty: .low
     )
 
@@ -288,9 +287,9 @@ struct FactoryPivotTests {
     )
 
     #expect(prompt.contains("Inspect the files implied by the Outcome and Acceptance checks"))
-    #expect(prompt.contains("packages/cli/src/main.ts"))
-    #expect(prompt.contains("packages/cli/src/main.test.ts"))
-    #expect(prompt.contains("packages/core/src/index.test.ts"))
+    #expect(prompt.contains("src/display-name.tes"))
+    #expect(prompt.contains("tests/display-name.json"))
+    #expect(prompt.contains("contexts/user.json"))
     #expect(prompt.contains("source-only edit"))
   }
 
@@ -299,12 +298,12 @@ struct FactoryPivotTests {
     let next = PlanNext(
       plan: """
         ## Outcome
-        Add signal board formatting
+        Add display-name formatting
 
         ## Acceptance checks
-        - `packages/cli/src/main.test.ts` calls `main(["--signal", "api:green"])`.
+        - `tests/display-name.json` asserts the formatted display string.
         """,
-      verify: "pnpm verify",
+      verify: "tessera verify . --json",
       estimatedDifficulty: .low
     )
 
@@ -315,21 +314,17 @@ struct FactoryPivotTests {
       attempt: 2,
       priorIssues: [
         """
-        Verify passed for `pnpm verify`, but coverage shows changed source files were not exercised.
+        Verify passed for `tessera verify . --json`, but coverage shows changed source files were not exercised.
 
         Suggested test targets:
-        - `packages/core/src/signalBoard.test.ts` (write_file) should import and execute `packages/core/src/signalBoard.ts`.
+        - `tests/display-name.json` (edit_file) should exercise `src/display-name.tes`.
         """
       ]
     )
 
     #expect(prompt.contains("read and edit one of those exact"))
-    #expect(
-      prompt.contains("Do not start\na retry by rereading package.json")
-        || prompt.contains("Do not start a retry by rereading package.json")
-    )
     #expect(prompt.contains("Do not submit success or rerun verify until you have changed a file"))
-    #expect(prompt.contains("packages/core/src/signalBoard.test.ts"))
+    #expect(prompt.contains("tests/display-name.json"))
   }
 
   @Test
@@ -337,12 +332,12 @@ struct FactoryPivotTests {
     let next = PlanNext(
       plan: """
         ## Outcome
-        Add JSON output support to the CLI.
+        Add JSON display-output coverage to the Tessera app.
 
         ## Acceptance checks
-        - `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])`.
+        - `tests/display-name.json` asserts the formatted display string.
         """,
-      verify: "pnpm verify",
+      verify: "tessera verify . --json",
       estimatedDifficulty: .low
     )
 
@@ -353,10 +348,10 @@ struct FactoryPivotTests {
       attempt: 4,
       priorIssues: [
         """
-        Verify passed for `pnpm verify`, but the accepted plan or brief explicitly requires test changes and no test/spec file changed.
+        Verify passed for `tessera verify . --json`, but the accepted plan or brief explicitly requires test changes and no test/spec file changed.
 
         Requested test file(s):
-        - `packages/cli/src/main.test.ts`
+        - `tests/display-name.json`
         """
       ]
     )
@@ -364,40 +359,7 @@ struct FactoryPivotTests {
     #expect(prompt.contains("If the prior issue lists Requested test file(s)"))
     #expect(prompt.contains("make your first write/edit target"))
     #expect(prompt.contains("Do not edit source files again until that requested test"))
-    #expect(prompt.contains("packages/cli/src/main.test.ts"))
-  }
-
-  @Test
-  func typeScriptScaffoldHasWorkspaceScriptsAndPackages() throws {
-    let files = TypeScriptProjectScaffold.files(
-      options: .init(projectName: "My Factory App")
-    )
-    let byPath = Dictionary(uniqueKeysWithValues: files.map { ($0.path, $0.contents) })
-
-    #expect(byPath.keys.contains("pnpm-workspace.yaml"))
-    #expect(byPath.keys.contains("package.json"))
-    #expect(byPath.keys.contains("tsconfig.base.json"))
-    #expect(byPath.keys.contains("packages/core/package.json"))
-    #expect(byPath.keys.contains("packages/cli/package.json"))
-    #expect(byPath.keys.contains("packages/web/package.json"))
-
-    let rootPackage = try #require(byPath["package.json"])
-    #expect(rootPackage.contains("\"verify\": \"pnpm typecheck && pnpm test -- --coverage && pnpm build\""))
-    #expect(rootPackage.contains("\"test\": \"vitest run\""))
-    #expect(rootPackage.contains("\"build\": \"pnpm -r build\""))
-    #expect(rootPackage.contains("\"typecheck\": \"pnpm -r typecheck\""))
-
-    let workspace = try #require(byPath["pnpm-workspace.yaml"])
-    #expect(workspace.contains("\"packages/*\""))
-
-    let cliPackage = try #require(byPath["packages/cli/package.json"])
-    #expect(cliPackage.contains("\"tsx\""))
-    #expect(cliPackage.contains("\"workspace:*\""))
-
-    let webPackage = try #require(byPath["packages/web/package.json"])
-    #expect(webPackage.contains("\"vite\""))
-    #expect(webPackage.contains("\"react\""))
-    #expect(webPackage.contains("\"@types/jsdom\""))
+    #expect(prompt.contains("tests/display-name.json"))
   }
 
   @Test
@@ -431,7 +393,6 @@ struct FactoryPivotTests {
   func forgeProfileDefaultsToTesseraGeneratedProjects() throws {
     #expect(ForgeProfile.generatedProjectDefault == .tesseraApp)
     #expect(ForgeProfile.generatedProjectTargets == [.tesseraApp])
-    #expect(RepositoryManifestHint.packageJSON.forgeProfile == .typeScriptPnpmVite)
 
     let tempURL = try makeCompassTestDirectory(named: "CompassForgeProfileTests")
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -439,87 +400,64 @@ struct FactoryPivotTests {
 
     #expect(TesseraProjectScaffold.isGeneratedWorkspace(at: tempURL))
     #expect(ForgeProfileService.detect(in: tempURL) == .tesseraApp)
-
-    let legacyURL = try makeCompassTestDirectory(named: "CompassForgeProfileLegacyTests")
-    defer { try? FileManager.default.removeItem(at: legacyURL) }
-    try TypeScriptProjectScaffold.write(to: legacyURL, options: .init(projectName: "Legacy App"))
-
-    #expect(TypeScriptProjectScaffold.isGeneratedWorkspace(at: legacyURL))
-    #expect(ForgeProfileService.detect(in: legacyURL) == .typeScriptPnpmVite)
   }
 
   @Test
-  func typeScriptVerifyGateAcceptsCompassStandardVerify() {
+  func tesseraVerifyGateAcceptsCompassStandardVerify() {
     #expect(
       ForgeVerifyValidator.coverageViolation(
-        verify: "pnpm verify",
-        profile: .typeScriptPnpmVite
+        verify: "tessera verify . --json",
+        profile: .tesseraApp
       ) == nil
     )
     #expect(
       ForgeVerifyValidator.coverageViolation(
-        verify: "pnpm run verify",
-        profile: .typeScriptPnpmVite
-      ) == nil
-    )
-    #expect(
-      ForgeVerifyValidator.coverageViolation(
-        verify: "pnpm typecheck",
-        profile: .typeScriptPnpmVite
-      ) == nil
-    )
-    #expect(
-      ForgeVerifyValidator.coverageViolation(
-        verify: "pnpm test -- --coverage",
-        profile: .typeScriptPnpmVite
+        verify: "tessera validate",
+        profile: .tesseraApp
       ) == nil
     )
 
     let violation = ForgeVerifyValidator.coverageViolation(
-      verify: "pnpm test",
-      profile: .typeScriptPnpmVite
+      verify: "tessera verify .",
+      profile: .tesseraApp
     )
     #expect(violation != nil)
-    #expect(violation?.contains("pnpm verify") == true)
+    #expect(violation?.contains("tessera verify . --json") == true)
   }
 
   @Test
-  func coverageRepairNudgeNamesExactTypeScriptVerifyCommand() {
+  func coverageRepairNudgeNamesExactTesseraVerifyCommand() {
     let error = PlanTransitionValidationError(
       message: "Verify command must collect coverage.",
       reason: .coverageRequirement,
       missingLabels: ["Coverage-ready verify command"],
-      rejectedVerify: "pnpm test"
+      rejectedVerify: "tessera verify ."
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
 
     #expect(nudge.eventText == "plan_submit rejected")
-    #expect(nudge.userMessage.contains("`pnpm test`"))
+    #expect(nudge.userMessage.contains("`tessera verify .`"))
     #expect(nudge.userMessage.contains("`tessera verify . --json`"))
-    #expect(nudge.userMessage.contains("`pnpm verify`"))
-    #expect(nudge.userMessage.contains("Do not use placeholder or bare test commands"))
+    #expect(nudge.userMessage.contains("Do not use placeholder"))
+    #expect(nudge.userMessage.contains("or bare test commands"))
   }
 
   @Test
-  func weakCLIProofNudgeShowsRepeatedSplitArgvShape() {
+  func weakTesseraProofNudgeShowsTestShape() {
     let error = PlanTransitionValidationError(
       message:
-        "Plan selected generic `pnpm verify` for repeated `--signal` CLI behavior without a CLI test.",
+        "Plan claimed new Tessera behavior without naming a matching `tests/*.json` case.",
       reason: .weakVerifyCoverage,
-      rejectedVerify: "pnpm verify"
+      rejectedVerify: "tessera verify . --json"
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
 
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not resubmit the same Acceptance checks unchanged"))
-    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
-    #expect(
-      nudge.userMessage.contains(
-        #"main(["--signal", "api:green", "--signal", "db:red"])"#
-      )
-    )
+    #expect(nudge.userMessage.contains("tests/*.json"))
+    #expect(nudge.userMessage.contains("contexts/*.json"))
   }
 
   @Test
@@ -530,7 +468,7 @@ struct FactoryPivotTests {
 
         Set `state.brief` exactly to this current brief in the next `plan_submit`:
         ```json
-        {"acceptanceSignals":["pnpm verify passes"],"constraints":[],"desiredOutcomes":[],"summary":"Build the slice.","targetUsers":[]}
+        {"acceptanceSignals":["tessera verify . --json passes"],"constraints":[],"desiredOutcomes":[],"summary":"Build the slice.","targetUsers":[]}
         ```
         """,
       reason: .invalidStateMutation,
@@ -542,7 +480,7 @@ struct FactoryPivotTests {
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
     #expect(nudge.userMessage.contains("copy the current `state.brief` exactly"))
-    #expect(nudge.userMessage.contains(#""acceptanceSignals":["pnpm verify passes"]"#))
+    #expect(nudge.userMessage.contains(#""acceptanceSignals":["tessera verify . --json passes"]"#))
   }
 
   @Test
@@ -550,7 +488,7 @@ struct FactoryPivotTests {
     let error = PlanTransitionValidationError(
       message: """
         Plan named file paths that do not exist in the repo:
-        - packages/cli/test/main.test.ts (nearest existing directory: packages/cli; entries: package.json, src/, tsconfig.json; same filename exists at: packages/cli/src/main.test.ts)
+        - specs/display-name.json (nearest existing directory: .; entries: contexts/, src/, tessera.json, tests/; same filename exists at: tests/display-name.json)
 
         Repair the handoff without calling another tool.
         """,
@@ -562,7 +500,7 @@ struct FactoryPivotTests {
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
     #expect(nudge.userMessage.contains("same-filename match"))
-    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
+    #expect(nudge.userMessage.contains("tests/display-name.json"))
     #expect(nudge.userMessage.contains("create new file <path>"))
   }
 
@@ -572,8 +510,8 @@ struct FactoryPivotTests {
       {
         "state": {
           "immediate": {
-            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- pnpm verify passes",
-            "verify": "pnpm verify",
+            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- tessera verify . --json passes",
+            "verify": "tessera verify . --json",
             "verifyTimeoutMs": 600000,
             "estimatedDifficulty": "low",
             "selectedBecause": "First useful slice.",
@@ -617,8 +555,8 @@ struct FactoryPivotTests {
       {
         "state": {
           "immediate": {
-            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- pnpm verify passes",
-            "verify": "pnpm verify",
+            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- tessera verify . --json passes",
+            "verify": "tessera verify . --json",
             "verifyTimeoutMs": 600000,
             "estimatedDifficulty": "low",
             "selectedBecause": "First useful slice.",
@@ -667,26 +605,25 @@ struct FactoryPivotTests {
   }
 
   @Test
-  func weakCLIProofNudgeTellsPlanToRepairWithoutTools() {
+  func weakTesseraProofNudgeTellsPlanToRepairWithoutTools() {
     let error = PlanTransitionValidationError(
       message: """
-        Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
+        Plan claimed new Tessera behavior without naming a matching test file.
 
-        `pnpm verify` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `packages/cli/src/main.test.ts`.
+        `tessera verify . --json` only proves this packet if Develop also adds or updates a test such as `tests/display-name.json`.
         """,
       reason: .weakVerifyCoverage,
-      rejectedVerify: "pnpm verify"
+      rejectedVerify: "tessera verify . --json"
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
 
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
-    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
-    #expect(nudge.userMessage.contains(#"main(["--format", "json", "Ship", "it"])"#))
-    #expect(nudge.userMessage.contains("parsed JSON title is `Ship it`"))
-    #expect(nudge.userMessage.contains("Keep `state.immediate.verify` as `pnpm verify`"))
-    #expect(nudge.userMessage.contains("narrow the Outcome to core-only work"))
+    #expect(nudge.userMessage.contains("tests/*.json"))
+    #expect(nudge.userMessage.contains("contexts/*.json"))
+    #expect(nudge.userMessage.contains("Keep `state.immediate.verify` as `tessera verify . --json`"))
+    #expect(nudge.userMessage.contains("narrow the Outcome to source-only cleanup"))
     #expect(nudge.userMessage.contains("exactly one repair"))
   }
 
@@ -694,9 +631,9 @@ struct FactoryPivotTests {
   func unfinishedDevelopSuccessNudgeTellsAgentToContinueOrFail() {
     let error = DevelopFeedbackValidationError(
       message:
-        "Develop reported status=succeeded, but feedback says planned work remains: `Run pnpm verify`.",
+        "Develop reported status=succeeded, but feedback says planned work remains: `Run tessera verify . --json`.",
       reason: .unfinishedSuccess,
-      feedback: "Run `pnpm verify` to check if the changes pass."
+      feedback: "Run `tessera verify . --json` to check if the changes pass."
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .develop)
@@ -709,12 +646,12 @@ struct FactoryPivotTests {
     #expect(nudge.userMessage.contains("Return status=succeeded only after"))
     #expect(nudge.userMessage.contains("Detected missing verification command"))
     #expect(nudge.userMessage.contains(#""tool": "bash""#))
-    #expect(nudge.userMessage.contains(#""command": "pnpm verify""#))
+    #expect(nudge.userMessage.contains(#""command": "tessera verify . --json""#))
     #expect(nudge.userMessage.contains("Do not call `read_file`"))
   }
 
   @Test
-  func containerRuntimePromptAndToolsAreTypeScriptOnly() {
+  func containerRuntimePromptAndToolsAreTesseraOnly() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
       workingDirectoryPath: "/tmp/workspace"
@@ -736,7 +673,7 @@ struct FactoryPivotTests {
         {
           "kind": "\(phase.continueKind)",
           "tool": "read-file",
-          "arguments": { "path": "package.json" },
+          "arguments": { "path": "tessera.json" },
           "reason": "Need scripts.",
           "note": "  If scripts exist, choose the matching verify command.  "
         }
@@ -751,7 +688,7 @@ struct FactoryPivotTests {
         return
       }
       #expect(toolName == "read_file")
-      #expect(String(decoding: arguments, as: UTF8.self).contains("package.json"))
+      #expect(String(decoding: arguments, as: UTF8.self).contains("tessera.json"))
       #expect(reason == "Need scripts.")
       #expect(note == "If scripts exist, choose the matching verify command.")
     }
@@ -765,7 +702,7 @@ struct FactoryPivotTests {
         "kind": "plan_continue",
         "tool": "read_file",
         "arguments": {
-          "path": "package.json"
+          "path": "tessera.json"
         },
         "reason": "Need current package scripts."
       }
@@ -782,7 +719,7 @@ struct FactoryPivotTests {
       return
     }
     #expect(toolName == "read_file")
-    #expect(String(decoding: arguments, as: UTF8.self).contains("package.json"))
+    #expect(String(decoding: arguments, as: UTF8.self).contains("tessera.json"))
     #expect(reason == "Need current package scripts.")
     #expect(note == nil)
   }
@@ -790,7 +727,7 @@ struct FactoryPivotTests {
   @Test
   func continuationParserSanitizesAndRejectsNotes() throws {
     let emptyNote = try AgentContinuationParser.parse(
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":"   "}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"display-name.tes"},"note":"   "}"#,
       phase: .develop,
       availableToolNames: ["read_file"]
     )
@@ -802,7 +739,7 @@ struct FactoryPivotTests {
 
     let longNote = String(repeating: "x", count: AgentContinuationParser.noteCharacterLimit + 20)
     let longJSON = """
-      {"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":"\(longNote)"}
+      {"kind":"develop_continue","tool":"read_file","arguments":{"path":"display-name.tes"},"note":"\(longNote)"}
       """
     let truncated = try AgentContinuationParser.parse(
       longJSON,
@@ -817,7 +754,7 @@ struct FactoryPivotTests {
 
     #expect(throws: AgentContinuationParseError.noteNotString) {
       try AgentContinuationParser.parse(
-        #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":{"next":"edit"}}"#,
+        #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"display-name.tes"},"note":{"next":"edit"}}"#,
         phase: .develop,
         availableToolNames: ["read_file"]
       )
@@ -828,7 +765,7 @@ struct FactoryPivotTests {
   func continuationParserAcceptsValidSubmitPerPhase() throws {
     let payloads: [AgentContinuationPhase: String] = [
       .plan: #"{"state":{"immediate":null,"queue":[],"brief":{"summary":"","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}"#,
-      .develop: #"{"status":"succeeded","summary":"Done","feedback":"Verified pnpm verify","bypassVerify":false,"lessonEdits":[]}"#,
+      .develop: #"{"status":"succeeded","summary":"Done","feedback":"Verified tessera verify . --json","bypassVerify":false,"lessonEdits":[]}"#,
       .critic: #"{"verdict":"approve","summary":"No blockers","feedback":""}"#,
       .delegate: #"{"findings":"No blockers found."}"#,
     ]
@@ -897,7 +834,7 @@ struct FactoryPivotTests {
           "kind": "develop_continue",
           "tool": "edit_file",
           "arguments": {
-            "path": "packages/cli/src/main.ts",
+            "path": "src/display-name.tes",
             "startLine": 1,
             "endLine": 1,
             "content": `const one = 1;
@@ -911,7 +848,7 @@ struct FactoryPivotTests {
       Issue.record("Expected malformed JSON error")
     } catch let error as AgentContinuationParseError {
       let message = error.errorDescription ?? ""
-      #expect(message.contains("backtick/template-literal strings are invalid"))
+      #expect(message.contains("backtick/template-literal-style strings are invalid"))
       #expect(message.contains("replacementLines as an array with one source line per string"))
       #expect(message.contains("Do not wrap content in backticks"))
     } catch {
@@ -924,14 +861,14 @@ struct FactoryPivotTests {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
     try "export const answer = 42\n".write(
-      to: tempURL.appending(path: "index.ts"),
+      to: tempURL.appending(path: "display-name.tes"),
       atomically: true,
       encoding: .utf8
     )
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports.","note":"after-read-note: edit this file if it exports answer."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Read the file.","feedback":"Verified with pnpm verify.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"display-name.tes"},"reason":"Need current exports.","note":"after-read-note: edit this file if it exports answer."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Read the file.","feedback":"Verified with tessera verify . --json.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
     let result = try await AgentExecutor().run(
       testConfiguration(
@@ -969,8 +906,8 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"missing.ts"},"reason":"Need current contents."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"blocked","summary":"The file is missing.","feedback":"Plan should pick an existing file or create missing.ts explicitly.","bypassVerify":true,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"missing.tes"},"reason":"Need current contents."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"blocked","summary":"The file is missing.","feedback":"Plan should pick an existing file or create missing.tes explicitly.","bypassVerify":true,"lessonEdits":[]}}"#,
     ])
     _ = try await AgentExecutor().run(
       testConfiguration(
@@ -996,15 +933,15 @@ struct FactoryPivotTests {
     export function two() { return 2; }
     export function three() { return 3; }
     """.write(
-      to: tempURL.appending(path: "index.ts"),
+      to: tempURL.appending(path: "display-name.tes"),
       atomically: true,
       encoding: .utf8
     )
     let invalidEdit =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":1,"endLine":1,"content":"import { next } from './next';\n\nexport function replacement() {\n  return next();\n}\n\nexport function extra() {\n  return 42;\n}"},"reason":"Replace the module."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"display-name.tes","startLine":1,"endLine":1,"content":"import { next } from './next';\n\nexport function replacement() {\n  return next();\n}\n\nexport function extra() {\n  return 42;\n}"},"reason":"Replace the module."}"#
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports."}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"display-name.tes"},"reason":"Need current exports."}"#,
       invalidEdit,
       invalidEdit,
       #"{"kind":"develop_submit","payload":{"status":"blocked","summary":"The edit range needs correction.","feedback":"Use a different edit_file range based on read_file output.","bypassVerify":true,"lessonEdits":[]}}"#,
@@ -1030,7 +967,7 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Do not submit"))
     #expect(prompts[3].contains("failed/blocked"))
     #expect(prompts[3].contains("previous edit range was wrong"))
-    #expect(prompts[3].contains(#""path":"index.ts""#))
+    #expect(prompts[3].contains(#""path":"display-name.tes""#))
   }
 
   @Test
@@ -1045,7 +982,7 @@ struct FactoryPivotTests {
     export function four() { return 4; }
     export function five() { return 5; }
     """.write(
-      to: tempURL.appending(path: "index.ts"),
+      to: tempURL.appending(path: "display-name.tes"),
       atomically: true,
       encoding: .utf8
     )
@@ -1061,12 +998,12 @@ struct FactoryPivotTests {
     }
     """
     let partialRewriteAtTop =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(replacement))},"reason":"Rewrite the module."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"display-name.tes","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(replacement))},"reason":"Rewrite the module."}"#
     let partialRewriteShifted =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":2,"endLine":2,"content":\#(jsonStringLiteral(replacement))},"reason":"Try a nearby range."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"display-name.tes","startLine":2,"endLine":2,"content":\#(jsonStringLiteral(replacement))},"reason":"Try a nearby range."}"#
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports."}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"display-name.tes"},"reason":"Need current exports."}"#,
       partialRewriteAtTop,
       partialRewriteShifted,
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not repair the edit shape.","feedback":"The edit kept moving the same partial rewrite to nearby ranges.","bypassVerify":false,"lessonEdits":[]}}"#,
@@ -1091,7 +1028,7 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("use the full file range"))
     #expect(prompts[3].contains("Do not move the same multi-line replacement"))
     #expect(prompts[3].contains("Latest failure"))
-    #expect(prompts[3].contains(#""path":"index.ts""#))
+    #expect(prompts[3].contains(#""path":"display-name.tes""#))
   }
 
   @Test
@@ -1106,7 +1043,7 @@ struct FactoryPivotTests {
 
     console.log(main());
     """.write(
-      to: tempURL.appending(path: "main.ts"),
+      to: tempURL.appending(path: "display-name.tes"),
       atomically: true,
       encoding: .utf8
     )
@@ -1116,12 +1053,12 @@ struct FactoryPivotTests {
       return `${count}: ${title}`;
     """
     let replaceDeclarationOnly =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"main.ts","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Replace main logic."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"display-name.tes","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Replace main logic."}"#
     let replaceDeclarationAndBody =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"main.ts","startLine":1,"endLine":3,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Try a wider range."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"display-name.tes","startLine":1,"endLine":3,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Try a wider range."}"#
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"main.ts"},"reason":"Need current main function."}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"display-name.tes"},"reason":"Need current main function."}"#,
       replaceDeclarationOnly,
       replaceDeclarationAndBody,
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not repair the function edit.","feedback":"The edit kept replacing a declaration with body-only lines.","bypassVerify":false,"lessonEdits":[]}}"#,
@@ -1147,7 +1084,7 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Do not replace a function declaration line"))
     #expect(prompts[3].contains("Concrete repair arguments from the latest Compass Observation"))
     #expect(prompts[3].contains("Use these as the `arguments` for the next `edit_file` call"))
-    #expect(prompts[3].contains(#""path":"main.ts""#))
+    #expect(prompts[3].contains(#""path":"display-name.tes""#))
     #expect(prompts[3].contains(#""startLine":1"#))
     #expect(prompts[3].contains(#""endLine":4"#))
     #expect(prompts[3].contains("export function main(argv = process.argv.slice(2)): string {"))
@@ -1162,13 +1099,13 @@ struct FactoryPivotTests {
       return argv.join(" ");
     }
     """.write(
-      to: tempURL.appending(path: "index.ts"),
+      to: tempURL.appending(path: "display-name.tes"),
       atomically: true,
       encoding: .utf8
     )
 
     let readIndex =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current line numbers before editing."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"display-name.tes"},"reason":"Need current line numbers before editing."}"#
     let runtime = FakeLocalModelRuntime(outputs: [
       readIndex,
       readIndex,
@@ -1194,7 +1131,7 @@ struct FactoryPivotTests {
     #expect(prompts[2].contains("Choose exactly one next action"))
     #expect(prompts[2].contains("Call `edit_file` or `write_file`"))
     #expect(prompts[2].contains("status=failed or status=blocked"))
-    #expect(prompts[2].contains(#""path":"index.ts""#))
+    #expect(prompts[2].contains(#""path":"display-name.tes""#))
   }
 
   @Test
@@ -1203,9 +1140,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let readSource =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.ts"},"reason":"Need current CLI logic before editing."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"src/display-name.tes"},"reason":"Need current CLI logic before editing."}"#
     let readTest =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.test.ts"},"reason":"Need current tests before editing."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"tests/display-name.json"},"reason":"Need current tests before editing."}"#
     let runtime = FakeLocalModelRuntime(outputs: [
       readSource,
       readTest,
@@ -1235,7 +1172,7 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Do not keep calling\n`read_file`")
       || prompts[3].contains("Do not keep calling `read_file`"))
     #expect(prompts[3].contains("Call `edit_file` or `write_file`"))
-    #expect(prompts[3].contains(#""path":"packages/cli/src/main.ts""#))
+    #expect(prompts[3].contains(#""path":"src/display-name.tes""#))
   }
 
   @Test
@@ -1246,7 +1183,7 @@ struct FactoryPivotTests {
     let planSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current scripts."}"#
     let validator = RejectFirstPlanSubmitValidator()
     let runtime = FakeLocalModelRuntime(outputs: [
       planSubmit,
@@ -1291,22 +1228,23 @@ struct FactoryPivotTests {
     #expect(prompts[2].contains(#"{"kind":"plan_submit","payload":{...}}"#))
     #expect(prompts[2].contains("Your previous Plan payload claimed new CLI behavior without proof"))
     #expect(prompts[2].contains("Do not call another tool to repair this"))
-    #expect(prompts[2].contains(#"main(["--format", "json", "Ship", "it"])"#))
-    #expect(prompts[2].contains(#""path":"package.json""#))
+    #expect(prompts[2].contains("tests/*.json"))
+    #expect(prompts[2].contains("contexts/*.json"))
+    #expect(prompts[2].contains(#""path":"tessera.json""#))
   }
 
   @Test
   func executorEscalatesRepeatedToolCallsAfterMalformedContinuationRejection() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
-      to: tempURL.appending(path: "package.json"),
+    try #"{"scripts":{"verify":"tessera verify . --json"}}"#.write(
+      to: tempURL.appending(path: "tessera.json"),
       atomically: true,
       encoding: .utf8
     )
 
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current scripts."}"#
     let planSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -1339,7 +1277,7 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Return `plan_submit` with a corrected `payload`"))
     #expect(prompts[3].contains("Latest continuation repair to apply now"))
     #expect(prompts[3].contains("Invalid response"))
-    #expect(prompts[3].contains(#""path":"package.json""#))
+    #expect(prompts[3].contains(#""path":"tessera.json""#))
   }
 
   @Test
@@ -1378,8 +1316,9 @@ struct FactoryPivotTests {
     #expect(prompts[2].contains("Do not return the same payload again"))
     #expect(prompts[2].contains("Plan repair checklist"))
     #expect(prompts[2].contains("Do not resubmit the same `state.immediate.plan`"))
-    #expect(prompts[2].contains("Keep `state.immediate.verify` as `pnpm verify`"))
-    #expect(prompts[2].contains(#"main(["--format", "json", "Ship", "it"])"#))
+    #expect(prompts[2].contains("Keep `state.immediate.verify` as `tessera verify . --json`"))
+    #expect(prompts[2].contains("tests/*.json"))
+    #expect(prompts[2].contains("embedded `tessera`"))
     #expect(prompts[2].contains("Latest rejected-payload repair to apply now"))
   }
 
@@ -1387,20 +1326,20 @@ struct FactoryPivotTests {
   func executorGivesConcreteVerifyCommandAfterUnfinishedDevelopSuccess() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
-      to: tempURL.appending(path: "package.json"),
+    try #"{"scripts":{"verify":"tessera verify . --json"}}"#.write(
+      to: tempURL.appending(path: "tessera.json"),
       atomically: true,
       encoding: .utf8
     )
 
     let unfinishedSubmit =
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Edited main.ts.","feedback":"Run `pnpm verify` to check if the changes meet the acceptance criteria.","bypassVerify":false,"lessonEdits":[]}}"#
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Edited display-name.tes.","feedback":"Run `tessera verify . --json` to check if the changes meet the acceptance criteria.","bypassVerify":false,"lessonEdits":[]}}"#
     let readPackage =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current package scripts."}"#
     let runVerify =
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run the missing verification command before submitting success."}"#
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"tessera verify . --json"},"reason":"Run the missing verification command before submitting success."}"#
     let finishedSubmit =
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verified the completed packet.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verified the completed packet.","feedback":"Verified with tessera verify . --json; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
       unfinishedSubmit,
       readPackage,
@@ -1432,7 +1371,7 @@ struct FactoryPivotTests {
     #expect(prompts.count == 5)
     #expect(prompts[1].contains("Detected missing verification command"))
     #expect(prompts[1].contains(#""tool": "bash""#))
-    #expect(prompts[1].contains(#""command": "pnpm verify""#))
+    #expect(prompts[1].contains(#""command": "tessera verify . --json""#))
     #expect(prompts[1].contains("Do not call `read_file`"))
     #expect(prompts[3].contains("If the rejected payload said a verify command still needs to run"))
     #expect(prompts[3].contains("Do not call `read_file`, `list_files`, or reread"))
@@ -1444,9 +1383,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"tessera verify . --json"},"reason":"Run verification."}"#,
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Typecheck failed due to a missing summarizeQueue import.","feedback":"Fix the summarizeQueue import before trying again.","bypassVerify":false,"lessonEdits":[]}}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the requested changes.","feedback":"Verified with pnpm verify; the packet is ready for Plan.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the requested changes.","feedback":"Verified with tessera verify . --json; the packet is ready for Plan.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1464,7 +1403,7 @@ struct FactoryPivotTests {
     #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
-    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[1].contains("Compass observed `tessera verify . --json` exit 0"))
     #expect(prompts[2].contains("Compass already observed this verify command pass"))
     #expect(prompts[2].contains("status=failed, bypassVerify=false"))
     #expect(prompts[2].contains("return `develop_submit` again with"))
@@ -1476,9 +1415,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run baseline verification."}"#,
-      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Repair missing acceptance check: generated.ts must exist after verify."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"A later file mutation still needs verification.","feedback":"Run pnpm verify after generated.ts was created.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"tessera verify . --json"},"reason":"Run baseline verification."}"#,
+      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.tes","content":"export const generated = true;\n"},"reason":"Repair missing acceptance check: generated.tes must exist after verify."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"A later file mutation still needs verification.","feedback":"Run tessera verify . --json after generated.tes was created.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1499,10 +1438,10 @@ struct FactoryPivotTests {
     #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("failed"))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
-    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
-    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[1].contains("Compass observed `tessera verify . --json` exit 0"))
+    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `tessera verify . --json` exit 0"))
     #expect(prompts[2].contains("That earlier verify result no longer proves the current worktree"))
-    #expect(prompts[2].contains("call `bash` with `pnpm verify` again"))
+    #expect(prompts[2].contains("call `bash` with `tessera verify . --json` again"))
     #expect(!prompts[2].contains("Compass already observed this verify command pass"))
   }
 
@@ -1512,9 +1451,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
-      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Create the file after verify."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"The packet was already verified.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"tessera verify . --json"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.tes","content":"export const generated = true;\n"},"reason":"Create the file after verify."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"The packet was already verified.","feedback":"Verified with tessera verify . --json; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1532,10 +1471,10 @@ struct FactoryPivotTests {
     )
 
     #expect(result.iterations == 3)
-    #expect(!FileManager.default.fileExists(atPath: tempURL.appending(path: "generated.ts").path))
+    #expect(!FileManager.default.fileExists(atPath: tempURL.appending(path: "generated.tes").path))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
-    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[1].contains("Compass observed `tessera verify . --json` exit 0"))
     #expect(prompts[2].contains("A generic `write_file` call after a"))
     #expect(prompts[2].contains("passing verify would invalidate that proof"))
     #expect(prompts[2].contains("retry `write_file` only with a `reason`"))
@@ -1550,9 +1489,9 @@ struct FactoryPivotTests {
 
     let bashCounter = ToolInvocationCounter()
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run the missing verification command before submitting success."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed for the requested packet.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"tessera verify . --json"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"tessera verify . --json"},"reason":"Run the missing verification command before submitting success."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed for the requested packet.","feedback":"Verified with tessera verify . --json; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1575,8 +1514,8 @@ struct FactoryPivotTests {
     #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
-    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
-    #expect(prompts[2].contains("Compass already observed `pnpm verify` exit 0"))
+    #expect(prompts[1].contains("Compass observed `tessera verify . --json` exit 0"))
+    #expect(prompts[2].contains("Compass already observed `tessera verify . --json` exit 0"))
     #expect(prompts[2].contains("Do not rerun verify against the same worktree"))
     #expect(prompts[2].contains("call `edit_file` or `write_file` now"))
   }
@@ -1588,15 +1527,15 @@ struct FactoryPivotTests {
 
     let bashCounter = ToolInvocationCounter()
     let bashResults = ToolResultQueue([
-      .failure("[stderr]\nTypeScript error before repair.\n\n[exit 1]", kind: .bashFailure),
+      .failure("[stderr]\nTessera error before repair.\n\n[exit 1]", kind: .bashFailure),
       .ok("[stdout]\nAll checks passed after repair.\n\n[exit 0]\n\n[next]\nSubmit success."),
     ])
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
-      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Repair failed verification output."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"TypeScript errors during verification still block the packet.","feedback":"Review TypeScript errors from pnpm verify before trying again.","bypassVerify":false,"lessonEdits":[]}}"#,
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Rerun verification after the accepted repair."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the repair.","feedback":"Verified with pnpm verify after the accepted repair; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"tessera verify . --json"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.tes","content":"export const generated = true;\n"},"reason":"Repair failed verification output."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Tessera errors during verification still block the packet.","feedback":"Review Tessera errors from tessera verify . --json before trying again.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"tessera verify . --json"},"reason":"Rerun verification after the accepted repair."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the repair.","feedback":"Verified with tessera verify . --json after the accepted repair; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1617,11 +1556,11 @@ struct FactoryPivotTests {
     #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 5)
-    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `pnpm verify` fail"))
+    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `tessera verify . --json` fail"))
     #expect(prompts[2].contains("That earlier failure no longer proves the current worktree"))
     #expect(prompts[3].contains("Compass previously observed this verify command fail"))
     #expect(prompts[3].contains("Do not submit status=failed from stale"))
-    #expect(prompts[3].contains("call `bash` with `pnpm verify` again"))
+    #expect(prompts[3].contains("call `bash` with `tessera verify . --json` again"))
   }
 
   @Test
@@ -1630,14 +1569,14 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
     for index in 1...5 {
       try "export const answer\(index) = \(index)\n".write(
-        to: tempURL.appending(path: "file\(index).ts"),
+        to: tempURL.appending(path: "file\(index).tes"),
         atomically: true,
         encoding: .utf8
       )
     }
 
     let continues = (1...5).map { index in
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"file\#(index).ts"},"reason":"Read pass \#(index)."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"file\#(index).tes"},"reason":"Read pass \#(index)."}"#
     }
     let summary = """
       Goal / Current Phase
@@ -1657,7 +1596,7 @@ struct FactoryPivotTests {
       """
     let runtime = FakeLocalModelRuntime(outputs: continues + [
       summary,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Compaction preserved enough context.","feedback":"Verified with pnpm verify.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Compaction preserved enough context.","feedback":"Verified with tessera verify . --json.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1718,8 +1657,8 @@ struct FactoryPivotTests {
   func executorEscalatesRepeatedMalformedSubmitJSONAcrossToolReads() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
-      to: tempURL.appending(path: "package.json"),
+    try #"{"scripts":{"verify":"tessera verify . --json"}}"#.write(
+      to: tempURL.appending(path: "tessera.json"),
       atomically: true,
       encoding: .utf8
     )
@@ -1732,7 +1671,7 @@ struct FactoryPivotTests {
           "state": {
             "immediate": {
               "plan": "## Outcome\\nAdd count support.\\n\\n## Acceptance checks\\n- main(["--count", "3", "Ship", "it"]) returns 3 open / 3 total.",
-              "verify": "pnpm verify"
+              "verify": "tessera verify . --json"
             },
             "queue": [],
             "brief": {
@@ -1750,7 +1689,7 @@ struct FactoryPivotTests {
       ```
       """
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current scripts."}"#
     let validPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -1791,7 +1730,7 @@ struct FactoryPivotTests {
     let malformedPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"main(["--done", "1", "Ship", "it"]) returns 0 open / 1 total."}}}}"#
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need scripts after the rejected submit."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need scripts after the rejected submit."}"#
     let validPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Add separate --done argv support.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -1830,7 +1769,7 @@ struct FactoryPivotTests {
     let malformedPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"main(["--done", "1", "Ship", "it"]) returns 0 open / 1 total."}}}}"#
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need scripts after the rejected submit."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need scripts after the rejected submit."}"#
     let validPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Add separate --done argv support.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -1858,10 +1797,10 @@ struct FactoryPivotTests {
     #expect(prompts.count == 4)
     #expect(prompts[3].contains("tried the same blocked `read_file` call 2 times"))
     #expect(prompts[3].contains("Compass will keep rejecting tools"))
-    #expect(prompts[3].contains("The continuation-contract `read_file package.json` shape is only an example"))
+    #expect(prompts[3].contains("The continuation-contract `read_file tessera.json` shape is only an example"))
     #expect(prompts[3].contains("Your next response must be `plan_submit`, not `plan_continue`"))
     #expect(prompts[3].contains("For Plan, repair `state.immediate.plan` directly"))
-    #expect(prompts[3].contains(#""path":"package.json""#))
+    #expect(prompts[3].contains(#""path":"tessera.json""#))
   }
 
   @Test
@@ -1875,7 +1814,7 @@ struct FactoryPivotTests {
         "kind": "develop_continue",
         "tool": "edit_file",
         "arguments": {
-          "path": "packages/cli/src/main.ts",
+          "path": "src/display-name.tes",
           "startLine": 4,
           "endLine": 15,
           "content": `export function main() {
@@ -1929,7 +1868,7 @@ struct FactoryPivotTests {
         "kind": "develop_continue",
         "tool": "edit_file",
         "arguments": {
-          "path": "packages/cli/src/main.ts",
+          "path": "src/display-name.tes",
           "startLine": 4,
           "endLine": 15,
           "content": `export function main() {
@@ -1941,7 +1880,7 @@ struct FactoryPivotTests {
       ```
       """
     let readPackage =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts after the malformed edit."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current scripts after the malformed edit."}"#
     let terminalFailure =
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not complete the requested CLI change within the iteration budget.","feedback":"The implementation was not completed before the Develop iteration budget ended.","bypassVerify":false,"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -1970,9 +1909,9 @@ struct FactoryPivotTests {
     #expect(prompts[2].contains("reading more files does not repair malformed JSON"))
     #expect(prompts[2].contains("repair the rejected continuation now"))
     #expect(prompts[2].contains("using `edit_file` and `replacementLines` as an array of strings"))
-    #expect(prompts[2].contains("Do not reread `package.json`"))
+    #expect(prompts[2].contains("Do not reread `tessera.json`"))
     #expect(prompts[2].contains("Latest malformed-continuation repair to apply now"))
-    #expect(prompts[2].contains(#""path":"package.json""#))
+    #expect(prompts[2].contains(#""path":"tessera.json""#))
   }
 
   @Test
@@ -2097,9 +2036,9 @@ private final class RejectFirstPlanSubmitValidator: @unchecked Sendable {
     if attempt == 1 {
       throw PlanTransitionValidationError(
         message:
-          "Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
+          "Plan selected generic `tessera verify . --json` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
         reason: .weakVerifyCoverage,
-        rejectedVerify: "pnpm verify"
+        rejectedVerify: "tessera verify . --json"
       )
     }
     _ = try JSONDecoder().decode(PlanRunResult.self, from: data)
@@ -2119,9 +2058,9 @@ private final class RejectFirstTwoPlanSubmitValidator: @unchecked Sendable {
     if attempt <= 2 {
       throw PlanTransitionValidationError(
         message:
-          "Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
+          "Plan selected generic `tessera verify . --json` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
         reason: .weakVerifyCoverage,
-        rejectedVerify: "pnpm verify"
+        rejectedVerify: "tessera verify . --json"
       )
     }
     _ = try JSONDecoder().decode(PlanRunResult.self, from: data)

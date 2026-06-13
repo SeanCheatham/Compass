@@ -51,14 +51,14 @@ package struct AgentListFilesTool: AgentTool {
         "filter": [
           "type": "string",
           "description":
-            "Optional case-insensitive substring or glob-like filter on the relative path. Supports common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)`. Omit to list every known source file.",
+            "Optional case-insensitive substring or glob-like filter on the relative path. Omit to list every known source file.",
         ]
       ],
     ])
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "List repo-relative source paths from the codemap and live filesystem, with each file's detected language. Use a `filter` substring or glob-like pattern to narrow to a subdirectory or filename. Common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)` are accepted. Capped at 500 results.",
+        "List repo-relative source paths from the codemap and live filesystem, with each file's detected language. Use a `filter` substring or glob-like pattern to narrow to a subdirectory or filename. Capped at 500 results.",
       parameters: schema
     )
   }

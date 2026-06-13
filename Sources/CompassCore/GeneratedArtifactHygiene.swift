@@ -14,8 +14,6 @@ package enum GeneratedArtifactHygiene {
     "DerivedData",
     "build",
     "coverage",
-    "dist",
-    "node_modules",
     "target",
   ]
 
@@ -24,7 +22,6 @@ package enum GeneratedArtifactHygiene {
     ".next",
     ".svelte-kit",
     "DerivedData",
-    "node_modules",
     "target",
   ]
 

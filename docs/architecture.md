@@ -37,10 +37,8 @@ Compass-generated projects are Tessera app workspaces by default:
 - `tests/*.json`
 - `cli` and `web-json` manifest entrypoints
 
-The legacy TypeScript pnpm workspace profile remains available for imported or older generated workspaces.
-
 Compass codemap refreshes ask the embedded Tessera engine for a project index, then enrich `.tes` file entries with real Tessera symbols, manifest entrypoints, tests, contexts, and dependency links.
 
 ## Shared VM
 
-The Shared VM provides a deterministic execution surface for local tools. Default provisioning covers Xcode Command Line Tools, Homebrew, ripgrep, and Node.js/Corepack/pnpm for legacy TypeScript work. Compass-owned generated Tessera verification and focused probes use the embedded Rust engine; the Tessera CLI is only required when a user-selected shell command explicitly invokes it.
+The Shared VM provides a deterministic lightweight Linux shell for agent commands. Compass-owned generated Tessera verification and focused probes use the embedded Rust engine; the Tessera CLI is only required when a user-selected shell command explicitly invokes it.

@@ -5,19 +5,13 @@ import Foundation
 /// so the registry stays explicit about what it supports.
 package enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
   case swift
-  case typescript
-  case tsx
-  case javascript
   case tessera
 
   /// Stable display name used in tool output. Distinct from `rawValue` so
-  /// renaming the case (e.g. `typescript` → `ts`) doesn't churn cached files.
+  /// renaming cases doesn't churn cached files.
   package var displayName: String {
     switch self {
     case .swift: return "Swift"
-    case .typescript: return "TypeScript"
-    case .tsx: return "TSX"
-    case .javascript: return "JavaScript"
     case .tessera: return "Tessera"
     }
   }
@@ -40,14 +34,6 @@ package extension CodemapLanguage {
 
   private static let extensionMap: [String: CodemapLanguage] = [
     "swift": .swift,
-    "ts": .typescript,
-    "mts": .typescript,
-    "cts": .typescript,
-    "tsx": .tsx,
-    "js": .javascript,
-    "mjs": .javascript,
-    "cjs": .javascript,
-    "jsx": .javascript,
     "tes": .tessera,
   ]
 }

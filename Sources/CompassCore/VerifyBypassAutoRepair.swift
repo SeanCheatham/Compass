@@ -25,7 +25,7 @@ package struct VerifyBypassAutoRepair: Equatable, Sendable {
     }
 
     switch forgeProfile {
-    case .swiftSPM, .typeScriptPnpmVite, .tesseraApp, nil:
+    case .swiftSPM, .tesseraApp, nil:
       return nil
     }
   }

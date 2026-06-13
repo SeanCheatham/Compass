@@ -9,7 +9,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Updated the core utility.",
-      feedback: "Next step: Update the CLI to use the new utility and print the summary.",
+      feedback: "Next step: Update the Tessera app to use the new utility and print the summary.",
       bypassVerify: false
     )
 
@@ -28,7 +28,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Edited the utility.",
-      feedback: "Run `pnpm verify` to check if the changes pass the verification process.",
+      feedback: "Run `tessera verify . --json` to check if the changes pass the verification process.",
       bypassVerify: false
     )
 
@@ -37,7 +37,7 @@ struct FeedbackHandoffValidatorTests {
       Issue.record("Expected run-verify feedback rejection.")
     } catch let error as DevelopFeedbackValidationError {
       #expect(error.reason == .unfinishedSuccess)
-      #expect(error.feedback?.contains("pnpm verify") == true)
+      #expect(error.feedback?.contains("tessera verify . --json") == true)
     }
   }
 
@@ -45,7 +45,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackThatOnlyAsksToRunVerification() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Implemented the CLI flag.",
+      summary: "Implemented the Tessera app flag.",
       feedback: "Run the verification command to ensure the implementation is correct.",
       bypassVerify: false
     )
@@ -63,7 +63,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithNextRunVerification() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Updated the CLI entrypoint.",
+      summary: "Updated the Tessera app entrypoint.",
       feedback: "Next, run the verification command before reporting success.",
       bypassVerify: false
     )
@@ -82,7 +82,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the summarize helper.",
-      feedback: "Verify the changes with `pnpm verify`.",
+      feedback: "Verify the changes with `tessera verify . --json`.",
       bypassVerify: false
     )
 
@@ -99,8 +99,8 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithFutureWorkPhrase() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Read package.json to understand current scripts.",
-      feedback: "Now I will create the `summarize.ts` file and move the existing logic there.",
+      summary: "Read tessera.json to understand current scripts.",
+      feedback: "Now I will create the `format-label.tes` file and move the existing logic there.",
       bypassVerify: false
     )
 
@@ -118,7 +118,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the utility file.",
-      feedback: "Next action: Update the CLI in packages/cli/src/main.ts to use the summary.",
+      feedback: "Next action: Update the Tessera app in src/display-name.tes to use the summary.",
       bypassVerify: false
     )
 
@@ -131,7 +131,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithProceedWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Moved the existing logic from main.ts to summarize.ts.",
+      summary: "Moved the existing logic from display-name.tes to format-label.tes.",
       feedback: "Proceed to create the test file next.",
       bypassVerify: false
     )
@@ -149,9 +149,9 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithBareNextWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Moved the existing summarizeCLI function to packages/cli/src/summarize.ts.",
+      summary: "Moved the existing summarizeTessera app function to src/format-label.tes.",
       feedback:
-        "Next, create tests for the new `summarizeCLI` function in `packages/cli/src/summarize.test.ts`.",
+        "Next, create tests for the new `summarizeTessera app` function in `tests/display-name.json`.",
       bypassVerify: false
     )
 
@@ -168,8 +168,8 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithNextDiscoveryWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Requested the current package.json to determine the next verification command.",
-      feedback: "Next action: Choose the relevant verify command from the scripts in package.json.",
+      summary: "Requested the current tessera.json to determine the next verification command.",
+      feedback: "Next action: Choose the relevant verify command from the scripts in tessera.json.",
       bypassVerify: false
     )
 
@@ -186,7 +186,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackThatOnlyReadsForNextSteps() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Read the current scripts from package.json to determine the next steps.",
+      summary: "Read the current scripts from tessera.json to determine the next steps.",
       feedback: "Read the current scripts to determine the next steps.",
       bypassVerify: false
     )
@@ -205,7 +205,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the utility file.",
-      feedback: "Update the CLI in packages/cli/src/main.ts and add a test for the summary.",
+      feedback: "Update the Tessera app in src/display-name.tes and add a test for the summary.",
       bypassVerify: false
     )
 
@@ -218,7 +218,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackStartingWithEditAndPrepare() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Moved existing logic to packages/cli/src/summarize.ts.",
+      summary: "Moved existing logic to src/format-label.tes.",
       feedback: "Edit the existing file with the new logic and prepare for adding a test function next.",
       bypassVerify: false
     )
@@ -236,8 +236,8 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackThatReportsVerifyFailure() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Added the CLI JSON flag and touched the tests.",
-      feedback: "pnpm verify now fails due to type errors. Resolve the type errors before proceeding.",
+      summary: "Added the Tessera app JSON flag and touched the tests.",
+      feedback: "tessera verify . --json now fails due to type errors. Resolve the type errors before proceeding.",
       bypassVerify: false
     )
 
@@ -246,7 +246,7 @@ struct FeedbackHandoffValidatorTests {
       Issue.record("Expected verify-failure feedback rejection.")
     } catch let error as DevelopFeedbackValidationError {
       #expect(error.reason == .unfinishedSuccess)
-      #expect(error.feedback?.contains("verify now fails") == true)
+      #expect(error.feedback?.contains("verify . --json now fails") == true)
     }
   }
 
@@ -254,8 +254,8 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackThatReportsSyntaxError() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Updated the CLI entrypoint.",
-      feedback: "Fix the syntax error in packages/cli/src/main.ts and then run pnpm verify again.",
+      summary: "Updated the Tessera app entrypoint.",
+      feedback: "Fix the syntax error in src/display-name.tes and then run tessera verify . --json again.",
       bypassVerify: false
     )
 
@@ -272,8 +272,8 @@ struct FeedbackHandoffValidatorTests {
   func acceptsSucceededDevelopFeedbackAboutFixedFailingTest() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Updated the CLI and tests.",
-      feedback: "Fixed the failing CLI assertion and verified pnpm verify passes.",
+      summary: "Updated the Tessera app and tests.",
+      feedback: "Fixed the failing Tessera app assertion and verified tessera verify . --json passes.",
       bypassVerify: false
     )
 
@@ -284,8 +284,8 @@ struct FeedbackHandoffValidatorTests {
   func acceptsSucceededDevelopFeedbackWithVerifiedResult() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Updated the CLI and tests.",
-      feedback: "Verified pnpm verify passes with the CLI summary assertion in main.test.ts.",
+      summary: "Updated the Tessera app and tests.",
+      feedback: "Verified tessera verify . --json passes with the Tessera app summary assertion in tests/display-name.json.",
       bypassVerify: false
     )
 

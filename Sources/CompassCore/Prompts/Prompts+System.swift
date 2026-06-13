@@ -21,7 +21,7 @@ package extension Prompts {
 
     Response protocol:
     - Emit exactly one JSON object per turn, with no prose or Markdown fences.
-    - Request a tool with `{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, report the relevant verify command."}`.
+    - Request a tool with `{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current Tessera manifest.","note":"If entrypoints exist, report the relevant Tessera check."}`.
     - Finish with `{"kind":"delegate_submit","payload":{"findings":"<grounded findings>"}}`.
     Do not delegate further.
     """
@@ -105,7 +105,7 @@ package extension Prompts {
 
     Response protocol:
     - Emit exactly one JSON object per turn, with no prose or Markdown fences.
-    - Request one Compass tool with `{"kind":"\(phaseContinuationKind(phase))","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, choose the relevant verify command next."}`.
+    - Request one Compass tool with `{"kind":"\(phaseContinuationKind(phase))","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current Tessera manifest.","note":"If entrypoints exist, choose the relevant Tessera check next."}`.
     - Finish the phase with `{"kind":"\(phaseSubmitKind(phase))","payload":{...}}`, where `payload` matches the phase schema in the user message.
     - Use `reason` for why the requested tool is needed now. Use optional `note` only for a short unverified next-step hint after the real tool observation.
 
@@ -176,8 +176,7 @@ package extension Prompts {
       paths or `/workspace/...` in shell commands. Use the Compass `tessera` tool for
       generated Tessera verification, project inspection, source checks, focused test
       runs, and entrypoint probes; the Tessera CLI does not need to be on PATH for
-      Compass-owned Tessera workflows. Expected shell tools include git, Node.js, and
-      npm/Corepack with pinned pnpm for legacy TypeScript repos.
+      Compass-owned Tessera workflows. Probe optional shell tools before relying on them.
       Docker, Xcode, and Homebrew are unavailable.
       """
     }

@@ -14,7 +14,10 @@ struct ContainerRuntimeView: View {
 
       VStack(alignment: .leading, spacing: 12) {
         LabeledContent("Runtime", value: "containerized Linux")
-        LabeledContent("Image", value: status?.runtimeImage ?? "docker.io/library/node:22-bookworm")
+        LabeledContent(
+          "Image",
+          value: status?.runtimeImage ?? ContainerSandboxConfiguration.defaultRuntimeImage
+        )
         LabeledContent("Initfs", value: status?.initfsReference ?? "ghcr.io/apple/containerization/vminit:0.33.4")
         LabeledContent("Cache", value: ContainerizedLinuxSandbox.shared.stateRoot.path)
         if let kernelURL = status?.kernelURL {

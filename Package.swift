@@ -20,14 +20,6 @@ let package = Package(
       revision: "7b7909f2f6b9414be0958275f4c8e5d69c3bca43"
     ),
     .package(
-      url: "https://github.com/tree-sitter/tree-sitter-typescript",
-      revision: "75b3874edb2dc714fb1fd77a32013d0f8699989f"
-    ),
-    .package(
-      url: "https://github.com/tree-sitter/tree-sitter-javascript",
-      revision: "58404d8cf191d69f2674a8fd507bd5776f46cb11"
-    ),
-    .package(
       url: "https://github.com/apple/swift-testing",
       exact: "6.3.2"
     ),
@@ -74,8 +66,6 @@ let package = Package(
         "TreeSitterScanners",
         .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
-        .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
-        .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
         .product(name: "MLXLLM", package: "mlx-swift-lm"),
         .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
         .product(name: "HuggingFace", package: "swift-huggingface"),
