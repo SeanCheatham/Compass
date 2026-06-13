@@ -307,6 +307,16 @@ struct CompassCLITests {
     #expect(
       latest.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         == "README.md now includes the Fixture smoke note near the top of the file.")
+    let sessions = CompassWorkspace(repoURL: projectURL).readSessions()
+    #expect(sessions.count == 1)
+    #expect(sessions[0].beforeSha?.isEmpty == false)
+    #expect(sessions[0].afterSha?.isEmpty == false)
+    #expect(sessions[0].beforeSha != sessions[0].afterSha)
+    #expect(sessions[0].commits.count == 1)
+    #expect(sessions[0].commits[0].sha == sessions[0].afterSha)
+    #expect(
+      sessions[0].commits[0].subject
+        == "README.md now includes the Fixture smoke note near the top of the file.")
     let snapshot = events.snapshot()
     #expect(snapshot.contains { $0.kind == "host_commit_result" && $0.status == "completed" })
   }
@@ -380,6 +390,13 @@ struct CompassCLITests {
     #expect(
       subjects.stdout.contains(
         "Updated the generated Tessera display function and JSON test to produce"))
+    let sessions = CompassWorkspace(repoURL: projectURL).readSessions()
+    #expect(sessions.count == 1)
+    #expect(sessions[0].commits.count == 1)
+    #expect(
+      sessions[0].commits[0].subject
+        .contains("Updated the generated Tessera display function and JSON test to produce"))
+    #expect(sessions[0].commits[0].subject != "Checkpoint pending changes before Compass run")
     let snapshot = events.snapshot()
     #expect(
       snapshot.contains { $0.kind == "preflight_commit_result" && $0.status == "completed" })

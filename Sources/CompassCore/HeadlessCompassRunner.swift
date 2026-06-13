@@ -574,6 +574,11 @@ public struct HeadlessCompassRunner: Sendable {
         )
       }
       session.afterSha = await gitCurrentSHA(repoURL: repoURL)
+      session.commits = await GitSessionCommitLog.commits(
+        in: repoURL,
+        from: session.beforeSha,
+        to: session.afterSha
+      )
       session.status = ok ? .succeeded : .failed
       session.endedAt = Date().timeIntervalSince1970 * 1000
       try persist(session: session, workspace: workspace)
