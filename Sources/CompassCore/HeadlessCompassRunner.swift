@@ -268,6 +268,7 @@ public struct HeadlessCompassRunner: Sendable {
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
   ) async throws -> Bool {
     let repoURL = options.repoURL.standardizedFileURL
+    try await checkpointPendingGitChangesIfNeeded(repoURL: repoURL, onEvent: onEvent)
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
     let sessionNumber = workspace.maxSessionNumber() + 1
@@ -1328,6 +1329,88 @@ public struct HeadlessCompassRunner: Sendable {
       )
     )
     return sha
+  }
+
+  private func checkpointPendingGitChangesIfNeeded(
+    repoURL: URL,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+  ) async throws {
+    guard await gitIsInsideWorkTree(repoURL: repoURL) else { return }
+    let status = try await gitStatus(repoURL: repoURL)
+    guard !status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "preflight_commit_start",
+        status: "running",
+        phase: "preflight",
+        message: "Checkpointing pending Git changes before Compass run.",
+        detail: status
+      )
+    )
+
+    let add = try await ProcessRunner.runEnv(
+      "git",
+      ["add", "-A"],
+      workingDirectory: repoURL,
+      timeout: 30
+    )
+    guard add.exitCode == 0 else {
+      let detail = tail(add.stderr + add.stdout, max: 2000)
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "preflight_commit_result",
+          level: "error",
+          status: "failed",
+          phase: "preflight",
+          message: "Failed to stage pre-existing Git changes.",
+          detail: detail
+        )
+      )
+      throw HeadlessCompassError.gitCommitFailed(
+        "Failed to stage pre-existing Git changes: \(detail)"
+      )
+    }
+
+    let commit = try await ProcessRunner.runEnv(
+      "git",
+      [
+        "-c", "user.name=Compass Preflight",
+        "-c", "user.email=compass-preflight@localhost",
+        "commit", "-m", "Checkpoint pending changes before Compass run",
+      ],
+      workingDirectory: repoURL,
+      timeout: 60
+    )
+    guard commit.exitCode == 0 else {
+      let detail = tail(commit.stderr + commit.stdout, max: 2000)
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "preflight_commit_result",
+          level: "error",
+          status: "failed",
+          phase: "preflight",
+          message: "Failed to commit pre-existing Git changes.",
+          detail: detail
+        )
+      )
+      throw HeadlessCompassError.gitCommitFailed(
+        "Failed to commit pre-existing Git changes: \(detail)"
+      )
+    }
+
+    let sha = await gitCurrentSHA(repoURL: repoURL)
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "preflight_commit_result",
+        level: "success",
+        status: "completed",
+        phase: "preflight",
+        message: "Pending Git changes checkpointed before Compass run.",
+        detail: tail(commit.stdout + commit.stderr, max: 2000),
+        metadata: ["sha": sha ?? ""]
+      )
+    )
   }
 
   private func gitIsInsideWorkTree(repoURL: URL) async -> Bool {

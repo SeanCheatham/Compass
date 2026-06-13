@@ -312,6 +312,81 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureRunnerCheckpointsDirtyWorktreeBeforeRun() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let projectURL = tempURL.appending(path: "project", directoryHint: .isDirectory)
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTessera(at: projectURL, name: "cli-dirty-start-fixture", onEvent: record)
+    try await initializeFixtureGitRepo(at: projectURL)
+
+    let readmeURL = projectURL.appending(path: "README.md")
+    let readme = try String(contentsOf: readmeURL, encoding: .utf8)
+    try (readme + "\nOwner draft note before Compass run.\n")
+      .write(to: readmeURL, atomically: true, encoding: .utf8)
+
+    let fixtureURL = tempURL.appending(path: "dirty-start-fixture.jsonl")
+    try writeFixture(greetingFixtureOutputs(projectName: "cli-dirty-start-fixture"), to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: projectURL,
+        brief: "Exercise dirty-start Compass CLI commit separation",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let status = try await AgentHostBashRunner().run(
+      command: "git status --porcelain --untracked-files=all",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(status.exitCode == 0)
+    #expect(status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+    let latestPaths = try await AgentHostBashRunner().run(
+      command: "git diff-tree --no-commit-id --name-only -r HEAD",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(latestPaths.stdout.contains("src/display-name.tes"))
+    #expect(latestPaths.stdout.contains("tests/display-name.json"))
+    #expect(!latestPaths.stdout.contains("README.md"))
+
+    let preflightPaths = try await AgentHostBashRunner().run(
+      command: "git diff-tree --no-commit-id --name-only -r HEAD^",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(preflightPaths.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "README.md")
+
+    let subjects = try await AgentHostBashRunner().run(
+      command: "git log --format=%s --max-count=3",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(subjects.stdout.contains("Checkpoint pending changes before Compass run"))
+    #expect(
+      subjects.stdout.contains(
+        "Updated the generated Tessera display function and JSON test to produce"))
+    let snapshot = events.snapshot()
+    #expect(
+      snapshot.contains { $0.kind == "preflight_commit_result" && $0.status == "completed" })
+    #expect(snapshot.contains { $0.kind == "host_commit_result" && $0.status == "completed" })
+  }
+
+  @Test
   func fixtureRunnerRetriesDevelopAfterVerifyFailure() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -590,6 +665,32 @@ private func writeFixture(_ outputs: [String], to url: URL) throws {
   }
   .joined(separator: "\n")
   try lines.write(to: url, atomically: true, encoding: .utf8)
+}
+
+private func greetingFixtureOutputs(projectName: String) -> [String] {
+  [
+    #"""
+    {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\nUpdate the generated Tessera display function to greet users with a Hello prefix and update its JSON test expectation.\n\n## Acceptance checks\n- src/display-name.tes prefixes the display label with Hello.\n- tests/display-name.json expects Hello, \#(projectName)!.\n- The embedded Tessera run_test tool passes for tests/display-name.json.\n- tessera verify . --json passes.","verify":"tessera verify . --json","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This deterministic slice exercises dirty-start host commit separation in a generated Tessera app.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise dirty-start Compass CLI behavior on a generated Tessera workspace.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Compass keeps pre-existing dirty work separate from verified agent changes."],"constraints":["Keep the implementation tiny and deterministic."],"acceptanceSignals":["The Tessera test and standard verify command pass after Compass runs."]},"openQuestions":[]},"lessonEdits":[]}}
+    """#,
+    #"""
+    {"kind":"develop_continue","tool":"read_file","arguments":{"path":"src/display-name.tes"},"reason":"Need current source before editing."}
+    """#,
+    #"""
+    {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"src/display-name.tes","startLine":2,"endLine":2,"content":"(def display ((name Text)) (concat \"Hello, \" (concat name \"!\")))"},"reason":"Prefix display labels with Hello."}
+    """#,
+    #"""
+    {"kind":"develop_continue","tool":"read_file","arguments":{"path":"tests/display-name.json"},"reason":"Need current test expectation before editing."}
+    """#,
+    #"""
+    {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"tests/display-name.json","startLine":5,"endLine":5,"content":"  \"expect\": \"Hello, \#(projectName)!\""},"reason":"Align the generated test expectation."}
+    """#,
+    #"""
+    {"kind":"develop_continue","tool":"tessera","arguments":{"action":"run_test","test_path":"tests/display-name.json"},"reason":"Run the focused embedded Tessera test."}
+    """#,
+    #"""
+    {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated the generated Tessera display function and JSON test to produce Hello-prefixed display labels.","feedback":"The embedded Tessera run_test tool passed for tests/display-name.json; Compass can run standard verify and commit verified host changes.","bypassVerify":false,"lessonEdits":[]}}
+    """#,
+  ]
 }
 
 private let retryFixtureOutputs = [

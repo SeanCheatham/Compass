@@ -6,6 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_NAME="${COMPASS_TESSERA_SMOKE_NAME:-local-tessera-smoke}"
 KEEP_WORKSPACE="${COMPASS_KEEP_TESSERA_SMOKE:-0}"
+DIRTY_START="${COMPASS_TESSERA_SMOKE_DIRTY_START:-0}"
 CREATED_WORK_DIR=0
 NORMALIZED_PROJECT_NAME="$(
   printf '%s' "${PROJECT_NAME}" \
@@ -102,6 +103,9 @@ mv "${FIXTURE}.tmp" "${FIXTURE}"
 
 echo "Scaffolding Tessera smoke project at ${PROJECT_DIR}"
 "${CLI}" scaffold tessera "${PROJECT_DIR}" --name "${PROJECT_NAME}" --format text
+if [[ "${DIRTY_START}" == "1" ]]; then
+  printf '\nOwner draft note before Compass run.\n' >>"${PROJECT_DIR}/README.md"
+fi
 
 echo "Running Compass fixture iteration against the Tessera project"
 set +e
@@ -135,6 +139,20 @@ if [[ -n "$(git -C "${PROJECT_DIR}" status --short)" ]]; then
   echo "error: smoke project has uncommitted changes after Compass run" >&2
   git -C "${PROJECT_DIR}" status --short >&2
   exit 1
+fi
+
+if [[ "${DIRTY_START}" == "1" ]]; then
+  latest_paths="$(git -C "${PROJECT_DIR}" diff-tree --no-commit-id --name-only -r HEAD)"
+  preflight_paths="$(git -C "${PROJECT_DIR}" diff-tree --no-commit-id --name-only -r HEAD^)"
+  git -C "${PROJECT_DIR}" log --format=%s --max-count=3 \
+    | grep -Fq "Checkpoint pending changes before Compass run"
+  printf '%s\n' "${latest_paths}" | grep -Fxq "src/display-name.tes"
+  printf '%s\n' "${latest_paths}" | grep -Fxq "tests/display-name.json"
+  if printf '%s\n' "${latest_paths}" | grep -Fxq "README.md"; then
+    echo "error: latest Compass commit included pre-existing README dirt" >&2
+    exit 1
+  fi
+  printf '%s\n' "${preflight_paths}" | grep -Fxq "README.md"
 fi
 
 echo "Compass Tessera smoke passed."
