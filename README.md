@@ -79,6 +79,19 @@ Build and test the macOS host with SwiftPM:
 ./scripts/test-local.sh
 ```
 
+Launch the local SwiftPM-built app bundle from Codex or the shell:
+
+```bash
+./script/build_and_run.sh
+./script/build_and_run.sh --verify
+```
+
+Run a deterministic Compass-to-Tessera local iteration smoke test:
+
+```bash
+./scripts/smoke-tessera-iteration.sh
+```
+
 Run the Rust engine bridge checks with Cargo:
 
 ```bash

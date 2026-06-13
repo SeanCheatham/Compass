@@ -4,6 +4,7 @@
 target/
 DerivedData/
 build/
+dist/
 
 # Xcode user data (window state, breakpoints, schemes private to a user)
 *.xcodeproj/xcuserdata/
