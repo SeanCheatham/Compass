@@ -15,6 +15,7 @@ public enum HeadlessCompassError: LocalizedError, Equatable {
   case missingTool(String)
   case invalidBrief(String)
   case noImmediateWork
+  case gitCommitFailed(String)
 
   public var errorDescription: String? {
     switch self {
@@ -32,6 +33,8 @@ public enum HeadlessCompassError: LocalizedError, Equatable {
       return detail
     case .noImmediateWork:
       return "Plan did not select immediate work."
+    case .gitCommitFailed(let detail):
+      return detail
     }
   }
 }
@@ -250,7 +253,7 @@ public struct HeadlessCompassRunner: Sendable {
       ? command!
       : state.immediate?.verify.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
         ?? (ForgeProfileService.resolve(repoURL: options.repoURL, workspace: workspace)
-          ?? .generatedProjectDefault).standardVerifyCommand
+        ?? .generatedProjectDefault).standardVerifyCommand
     return try await runVerifyCommand(
       verifyCommand,
       repoURL: options.repoURL,
@@ -536,6 +539,13 @@ public struct HeadlessCompassRunner: Sendable {
         }
       }
 
+      if ok, let successfulDevelop {
+        _ = try await commitSuccessfulDevelopChangesIfNeeded(
+          develop: successfulDevelop,
+          repoURL: repoURL,
+          onEvent: onEvent
+        )
+      }
       session.afterSha = await gitCurrentSHA(repoURL: repoURL)
       session.status = ok ? .succeeded : .failed
       session.endedAt = Date().timeIntervalSince1970 * 1000
@@ -607,7 +617,8 @@ public struct HeadlessCompassRunner: Sendable {
   }
 
   private static func compactBriefSummary(_ brief: String, limit: Int = 280) -> String {
-    let compact = brief
+    let compact =
+      brief
       .components(separatedBy: .whitespacesAndNewlines)
       .filter { !$0.isEmpty }
       .joined(separator: " ")
@@ -1204,9 +1215,11 @@ public struct HeadlessCompassRunner: Sendable {
     do {
       try process.run()
       process.waitUntilExit()
-      let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+      let stdout =
+        String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         ?? ""
-      let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+      let stderr =
+        String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         ?? ""
       return ProcessResult(exitCode: process.terminationStatus, stdout: stdout, stderr: stderr)
     } catch {
@@ -1227,6 +1240,138 @@ public struct HeadlessCompassRunner: Sendable {
       return nil
     }
     return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+  }
+
+  private func commitSuccessfulDevelopChangesIfNeeded(
+    develop: DevelopSummary,
+    repoURL: URL,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+  ) async throws -> String? {
+    guard await gitIsInsideWorkTree(repoURL: repoURL) else { return nil }
+    let status = try await gitStatus(repoURL: repoURL)
+    guard !status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "host_commit_start",
+        status: "running",
+        phase: "commit",
+        message: "Committing verified Develop changes on the host.",
+        detail: status
+      )
+    )
+
+    let add = try await ProcessRunner.runEnv(
+      "git",
+      ["add", "-A"],
+      workingDirectory: repoURL,
+      timeout: 30
+    )
+    guard add.exitCode == 0 else {
+      let detail = tail(add.stderr + add.stdout, max: 2000)
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "host_commit_result",
+          level: "error",
+          status: "failed",
+          phase: "commit",
+          message: "Failed to stage verified Develop changes.",
+          detail: detail
+        )
+      )
+      throw HeadlessCompassError.gitCommitFailed("Failed to stage verified changes: \(detail)")
+    }
+
+    var commitArguments = [
+      "-c", "user.name=Compass Agent",
+      "-c", "user.email=compass-agent@localhost",
+      "commit", "-m", Self.commitSubject(for: develop),
+    ]
+    let body = develop.feedback.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !body.isEmpty {
+      commitArguments += ["-m", body]
+    }
+    let commit = try await ProcessRunner.runEnv(
+      "git",
+      commitArguments,
+      workingDirectory: repoURL,
+      timeout: 60
+    )
+    guard commit.exitCode == 0 else {
+      let detail = tail(commit.stderr + commit.stdout, max: 2000)
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "host_commit_result",
+          level: "error",
+          status: "failed",
+          phase: "commit",
+          message: "Failed to commit verified Develop changes.",
+          detail: detail
+        )
+      )
+      throw HeadlessCompassError.gitCommitFailed("Failed to commit verified changes: \(detail)")
+    }
+
+    let sha = await gitCurrentSHA(repoURL: repoURL)
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "host_commit_result",
+        level: "success",
+        status: "completed",
+        phase: "commit",
+        message: "Verified Develop changes committed on the host.",
+        detail: tail(commit.stdout + commit.stderr, max: 2000),
+        metadata: [
+          "sha": sha ?? "",
+          "subject": Self.commitSubject(for: develop),
+        ]
+      )
+    )
+    return sha
+  }
+
+  private func gitIsInsideWorkTree(repoURL: URL) async -> Bool {
+    guard
+      let result = try? await ProcessRunner.runEnv(
+        "git",
+        ["rev-parse", "--is-inside-work-tree"],
+        workingDirectory: repoURL,
+        timeout: 10
+      )
+    else {
+      return false
+    }
+    return result.exitCode == 0
+  }
+
+  private func gitStatus(repoURL: URL) async throws -> String {
+    let result = try await ProcessRunner.runEnv(
+      "git",
+      ["status", "--porcelain", "--untracked-files=all"],
+      workingDirectory: repoURL,
+      timeout: 30
+    )
+    guard result.exitCode == 0 else {
+      let detail = tail(result.stderr + result.stdout, max: 2000)
+      throw HeadlessCompassError.gitCommitFailed("Failed to inspect Git status: \(detail)")
+    }
+    return result.stdout.trimmingCharacters(in: .newlines)
+  }
+
+  private static func commitSubject(for develop: DevelopSummary) -> String {
+    boundedFirstLine(develop.summary, limit: 72)
+  }
+
+  private static func boundedFirstLine(_ text: String, limit: Int) -> String {
+    let firstLine =
+      text
+      .split(whereSeparator: \.isNewline)
+      .first
+      .map(String.init)?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let fallback = firstLine.isEmpty ? "Develop iteration" : firstLine
+    guard fallback.count > limit else { return fallback }
+    return fallback.prefix(limit).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func gitHasChangesSince(_ beforeSha: String?, repoURL: URL) async -> Bool? {
@@ -1337,7 +1482,7 @@ private func tail(_ text: String, max: Int) -> String {
   return String(trimmed.suffix(max))
 }
 
-package extension String {
+extension String {
   fileprivate var nilIfBlank: String? {
     let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed

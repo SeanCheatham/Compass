@@ -61,7 +61,8 @@ struct CompassCLITests {
     }
 
     if case .verify(let repo, let command, let format) = try CompassCLICommand.parse([
-      "verify", "--repo", "/tmp/project", "--command", "tessera verify . --json", "--format", "text",
+      "verify", "--repo", "/tmp/project", "--command", "tessera verify . --json", "--format",
+      "text",
     ]) {
       #expect(repo.path == "/tmp/project")
       #expect(command == "tessera verify . --json")
@@ -122,7 +123,8 @@ struct CompassCLITests {
 
     #expect(exitCode == 0)
     #expect(FileManager.default.fileExists(atPath: tempURL.appending(path: "tessera.json").path))
-    #expect(FileManager.default.fileExists(atPath: tempURL.appending(path: "src/display-name.tes").path))
+    #expect(
+      FileManager.default.fileExists(atPath: tempURL.appending(path: "src/display-name.tes").path))
     let result = try await AgentHostBashRunner().run(
       command: "git rev-parse --verify HEAD && git status --porcelain --untracked-files=all",
       workingDirectory: tempURL,
@@ -213,9 +215,10 @@ struct CompassCLITests {
           .utf8
       )
     )
-    #expect(insertion.edits[0].replacementLines == [
-      "(display user.name)", "",
-    ])
+    #expect(
+      insertion.edits[0].replacementLines == [
+        "(display user.name)", "",
+      ])
   }
 
   @Test
@@ -252,10 +255,60 @@ struct CompassCLITests {
     let snapshot = events.snapshot()
     #expect(snapshot.contains { $0.kind == "assistant_json" && $0.phase == "plan" })
     #expect(snapshot.contains { $0.kind == "tool_end" && $0.metadata?["tool"] == "edit_file" })
-    #expect(snapshot.contains { $0.kind == "tool_end" && $0.metadata?["tool"] == "bash" })
     #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
     #expect(
       FileManager.default.fileExists(atPath: tempURL.appending(path: ".compass/state.json").path))
+  }
+
+  @Test
+  func fixtureRunnerCommitsVerifiedChangesOnHost() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let projectURL = tempURL.appending(path: "project", directoryHint: .isDirectory)
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTessera(at: projectURL, name: "cli-host-commit-fixture", onEvent: record)
+    try await initializeFixtureGitRepo(at: projectURL)
+
+    let fixtureURL = tempURL.appending(path: "fixture.jsonl")
+    try fixtureJSONL.write(to: fixtureURL, atomically: true, encoding: .utf8)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: projectURL,
+        brief: "Add a fixture smoke note to the README",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let status = try await AgentHostBashRunner().run(
+      command: "git status --porcelain --untracked-files=all",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(status.exitCode == 0)
+    #expect(status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+    let latest = try await AgentHostBashRunner().run(
+      command: "git log -1 --format=%s",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(
+      latest.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        == "README.md now includes the Fixture smoke note near the top of the file.")
+    let snapshot = events.snapshot()
+    #expect(snapshot.contains { $0.kind == "host_commit_result" && $0.status == "completed" })
   }
 
   @Test
@@ -300,7 +353,6 @@ struct CompassCLITests {
     #expect(
       FileManager.default.fileExists(atPath: auditDir.appending(path: "verify-attempt-2.log").path))
   }
-
 
   @Test
   func fixtureRunnerRetriesDevelopWhenSuccessHasNoGitChanges() async throws {
@@ -394,7 +446,6 @@ struct CompassCLITests {
       FileManager.default.fileExists(atPath: auditDir.appending(path: "verify-attempt-4.log").path))
   }
 
-
   @Test
   func fixtureRunnerRetriesDevelopAfterIterationBudgetExhaustion() async throws {
     let tempURL = try makeCLITempDirectory()
@@ -483,7 +534,8 @@ private actor StaticLocalModelRuntime: LocalModelGenerating {
     self.output = output
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult
+  {
     LocalModelGenerationResult(
       text: output,
       tokenUsage: .estimated(
@@ -622,6 +674,5 @@ private let fixtureJSONL = """
   {"text":"{\\"kind\\":\\"plan_submit\\",\\"payload\\":{\\"state\\":{\\"immediate\\":{\\"plan\\":\\"## Outcome\\\\nAdd a short README note that says Fixture smoke note.\\\\n\\\\n## Why it matters\\\\nThis proves the CLI fixture loop can plan a small observable documentation edit.\\\\n\\\\n## Acceptance checks\\\\n- README.md contains the sentence Fixture smoke note.\\",\\"verify\\":\\"tessera verify . --json\\",\\"verifyTimeoutMs\\":60000,\\"estimatedDifficulty\\":\\"low\\",\\"selectedBecause\\":\\"This is a tiny deterministic slice for the CLI fixture harness.\\",\\"source\\":\\"repository\\",\\"candidateID\\":null},\\"queue\\":[],\\"brief\\":{\\"summary\\":\\"Smoke test the CompassCLI fixture harness on a generated Tessera workspace.\\",\\"targetUsers\\":[\\"Compass maintainers\\"],\\"desiredOutcomes\\":[\\"A deterministic CLI run edits a file and verifies on host.\\"],\\"constraints\\":[\\"No Tessera dependency for this smoke test.\\"],\\"acceptanceSignals\\":[\\"README.md contains Fixture smoke note.\\"]},\\"openQuestions\\":[]},\\"lessonEdits\\":[]}}"}
   {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"read_file\\",\\"arguments\\":{\\"path\\":\\"README.md\\"},\\"reason\\":\\"Need the current README contents before editing.\\"}"}
   {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"edit_file\\",\\"arguments\\":{\\"path\\":\\"README.md\\",\\"startLine\\":3,\\"endLine\\":2,\\"insert\\":[\\"Fixture smoke note.\\",\\"\\"]},\\"reason\\":\\"Insert the planned smoke-test note near the top of the README.\\"}"}
-  {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"bash\\",\\"arguments\\":{\\"command\\":\\"git add README.md && git -c user.name='Compass Agent' -c user.email='compass-agent@localhost' commit -m 'Add fixture smoke note'\\",\\"timeoutSeconds\\":60},\\"reason\\":\\"Commit the README edit so post-check git status is clean.\\"}"}
   {"text":"{\\"kind\\":\\"develop_submit\\",\\"payload\\":{\\"status\\":\\"succeeded\\",\\"summary\\":\\"README.md now includes the Fixture smoke note near the top of the file.\\",\\"feedback\\":\\"README.md contains the Fixture smoke note; Plan can pick the next small Tessera workspace slice.\\",\\"bypassVerify\\":false,\\"lessonEdits\\":[]}}"}
   """

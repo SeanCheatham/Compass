@@ -137,6 +137,24 @@ struct PlanTransitionValidatorTests {
 
   @Test
   func rejectsRetiredPackageTermsForTesseraHandoffs() throws {
+    let tesseraJSONPlan = planState(
+      """
+      ## Outcome
+      Update the generated Tessera display function in `src/display-name.tes` with a Hello prefix.
+
+      ## Acceptance checks
+      - `src/display-name.tes` prefixes the display label with Hello.
+      - `tests/display-name.json` expects Hello, local-tessera-smoke!.
+      - `tessera.json` keeps the cli and web-json entrypoints wired to the source.
+      """
+    )
+
+    try PlanTransitionValidator.validate(
+      from: .empty,
+      to: tesseraJSONPlan,
+      forgeProfile: .tesseraApp
+    )
+
     let legacyVerify = planState(
       """
       ## Outcome

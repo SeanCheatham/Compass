@@ -7,6 +7,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_NAME="${COMPASS_TESSERA_SMOKE_NAME:-local-tessera-smoke}"
 KEEP_WORKSPACE="${COMPASS_KEEP_TESSERA_SMOKE:-0}"
 CREATED_WORK_DIR=0
+NORMALIZED_PROJECT_NAME="$(
+  printf '%s' "${PROJECT_NAME}" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9._-]+/-/g; s/^[._-]+//; s/[._-]+$//'
+)"
+if [[ -z "${NORMALIZED_PROJECT_NAME}" ]]; then
+  NORMALIZED_PROJECT_NAME="compass-tessera-app"
+fi
 
 if [[ -n "${COMPASS_TESSERA_SMOKE_DIR:-}" ]]; then
   WORK_DIR="${COMPASS_TESSERA_SMOKE_DIR}"
@@ -80,16 +88,17 @@ if [[ ! -x "${CLI}" ]]; then
 fi
 
 cat >"${FIXTURE}" <<'JSONL'
-{"text":"{\"kind\":\"plan_submit\",\"payload\":{\"state\":{\"immediate\":{\"plan\":\"## Outcome\\nUpdate the generated Tessera display function to greet users with a Hello prefix and update its JSON test expectation.\\n\\n## Acceptance checks\\n- src/display-name.tes prefixes the display label with Hello.\\n- tests/display-name.json expects Hello, local-tessera-smoke!.\\n- The embedded Tessera run_test tool passes for tests/display-name.json.\\n- tessera verify . --json passes.\",\"verify\":\"tessera verify . --json\",\"verifyTimeoutMs\":60000,\"estimatedDifficulty\":\"low\",\"selectedBecause\":\"This deterministic slice proves Compass can scaffold a Tessera app, inspect it, edit Tessera source and tests, run a focused embedded Tessera check, and finish with the standard Tessera verify command.\",\"source\":\"repository\",\"candidateID\":null},\"queue\":[],\"brief\":{\"summary\":\"Smoke test Compass local Tessera iteration on a generated workspace.\",\"targetUsers\":[\"Compass maintainers\"],\"desiredOutcomes\":[\"Compass drives a Tessera app through a normal headless factory pass without using MLX output.\"],\"constraints\":[\"Keep the change tiny and deterministic.\"],\"acceptanceSignals\":[\"The Tessera test and standard verify command pass after Compass commits the edit.\"]},\"openQuestions\":[]},\"lessonEdits\":[]}}"}
+{"text":"{\"kind\":\"plan_submit\",\"payload\":{\"state\":{\"immediate\":{\"plan\":\"## Outcome\\nUpdate the generated Tessera display function to greet users with a Hello prefix and update its JSON test expectation.\\n\\n## Acceptance checks\\n- src/display-name.tes prefixes the display label with Hello.\\n- tests/display-name.json expects Hello, __PROJECT_NAME__!.\\n- The embedded Tessera run_test tool passes for tests/display-name.json.\\n- tessera verify . --json passes.\",\"verify\":\"tessera verify . --json\",\"verifyTimeoutMs\":60000,\"estimatedDifficulty\":\"low\",\"selectedBecause\":\"This deterministic slice proves Compass can scaffold a Tessera app, inspect it, edit Tessera source and tests, run a focused embedded Tessera check, and finish with the standard Tessera verify command.\",\"source\":\"repository\",\"candidateID\":null},\"queue\":[],\"brief\":{\"summary\":\"Smoke test Compass local Tessera iteration on a generated workspace.\",\"targetUsers\":[\"Compass maintainers\"],\"desiredOutcomes\":[\"Compass drives a Tessera app through a normal headless factory pass without using MLX output.\"],\"constraints\":[\"Keep the change tiny and deterministic.\"],\"acceptanceSignals\":[\"The Tessera test and standard verify command pass after Compass commits the edit.\"]},\"openQuestions\":[]},\"lessonEdits\":[]}}"}
 {"text":"{\"kind\":\"develop_continue\",\"tool\":\"tessera\",\"arguments\":{\"action\":\"inspect_project\"},\"reason\":\"Ground the generated Tessera workspace through Compass's embedded engine before editing.\"}"}
 {"text":"{\"kind\":\"develop_continue\",\"tool\":\"read_file\",\"arguments\":{\"path\":\"src/display-name.tes\"},\"reason\":\"Need current source line numbers before editing the display function.\"}"}
 {"text":"{\"kind\":\"develop_continue\",\"tool\":\"edit_file\",\"arguments\":{\"path\":\"src/display-name.tes\",\"startLine\":2,\"endLine\":2,\"content\":\"(def display ((name Text)) (concat \\\"Hello, \\\" (concat name \\\"!\\\")))\"},\"reason\":\"Prefix display labels with Hello while preserving the existing exclamation mark.\"}"}
 {"text":"{\"kind\":\"develop_continue\",\"tool\":\"read_file\",\"arguments\":{\"path\":\"tests/display-name.json\"},\"reason\":\"Need current test line numbers before updating the expectation.\"}"}
-{"text":"{\"kind\":\"develop_continue\",\"tool\":\"edit_file\",\"arguments\":{\"path\":\"tests/display-name.json\",\"startLine\":5,\"endLine\":5,\"content\":\"  \\\"expect\\\": \\\"Hello, local-tessera-smoke!\\\"\"},\"reason\":\"Align the generated test expectation with the new greeting output.\"}"}
-{"text":"{\"kind\":\"develop_continue\",\"tool\":\"tessera\",\"arguments\":{\"action\":\"run_test\",\"test_path\":\"tests/display-name.json\"},\"reason\":\"Run the focused embedded Tessera test before committing the iteration.\"}"}
-{"text":"{\"kind\":\"develop_continue\",\"tool\":\"bash\",\"arguments\":{\"command\":\"git add src/display-name.tes tests/display-name.json && git -c user.name='Compass Agent' -c user.email='compass-agent@localhost' commit -m 'Add Tessera greeting smoke'\",\"timeoutSeconds\":60},\"reason\":\"Commit the generated Tessera iteration so Compass sees a completed factory pass.\"}"}
-{"text":"{\"kind\":\"develop_submit\",\"payload\":{\"status\":\"succeeded\",\"summary\":\"Updated the generated Tessera display function and JSON test to produce Hello-prefixed display labels.\",\"feedback\":\"The embedded Tessera run_test tool passed for tests/display-name.json, and the workspace is committed for the standard Tessera verify command.\",\"bypassVerify\":false,\"lessonEdits\":[]}}"}
+{"text":"{\"kind\":\"develop_continue\",\"tool\":\"edit_file\",\"arguments\":{\"path\":\"tests/display-name.json\",\"startLine\":5,\"endLine\":5,\"content\":\"  \\\"expect\\\": \\\"Hello, __PROJECT_NAME__!\\\"\"},\"reason\":\"Align the generated test expectation with the new greeting output.\"}"}
+{"text":"{\"kind\":\"develop_continue\",\"tool\":\"tessera\",\"arguments\":{\"action\":\"run_test\",\"test_path\":\"tests/display-name.json\"},\"reason\":\"Run the focused embedded Tessera test before submitting the iteration.\"}"}
+{"text":"{\"kind\":\"develop_submit\",\"payload\":{\"status\":\"succeeded\",\"summary\":\"Updated the generated Tessera display function and JSON test to produce Hello-prefixed display labels.\",\"feedback\":\"The embedded Tessera run_test tool passed for tests/display-name.json; Compass can run the standard Tessera verify command and commit the verified host changes.\",\"bypassVerify\":false,\"lessonEdits\":[]}}"}
 JSONL
+sed "s/__PROJECT_NAME__/${NORMALIZED_PROJECT_NAME}/g" "${FIXTURE}" >"${FIXTURE}.tmp"
+mv "${FIXTURE}.tmp" "${FIXTURE}"
 
 echo "Scaffolding Tessera smoke project at ${PROJECT_DIR}"
 "${CLI}" scaffold tessera "${PROJECT_DIR}" --name "${PROJECT_NAME}" --format text
@@ -115,7 +124,7 @@ if [[ "${run_status}" -ne 0 ]]; then
 fi
 
 grep -Fq '(concat "Hello, "' "${PROJECT_DIR}/src/display-name.tes"
-grep -Fq '"expect": "Hello, local-tessera-smoke!"' "${PROJECT_DIR}/tests/display-name.json"
+grep -Fq "\"expect\": \"Hello, ${NORMALIZED_PROJECT_NAME}!\"" "${PROJECT_DIR}/tests/display-name.json"
 
 "${CLI}" verify \
   --repo "${PROJECT_DIR}" \

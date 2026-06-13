@@ -1,7 +1,7 @@
 import Foundation
 
-package extension Prompts {
-  static func developPrompt(
+extension Prompts {
+  package static func developPrompt(
     next: PlanNext,
     lessons: String,
     assumptions: String = "",
@@ -16,8 +16,8 @@ package extension Prompts {
       ? ""
       : "\n\n## Critic Feedback\n"
         + criticFeedback.enumerated()
-          .map { "Review \($0.offset + 1):\n\($0.element)" }
-          .joined(separator: "\n\n")
+        .map { "Review \($0.offset + 1):\n\($0.element)" }
+        .joined(separator: "\n\n")
 
     return """
       You are the Develop agent in Compass, a local software factory. Implement exactly the
@@ -30,7 +30,8 @@ package extension Prompts {
       - Prefer expression-oriented Tessera changes over new host capabilities. If you add a
         manifest entrypoint or capability, update `tessera.json` and matching tests/contexts
         in the same change before submitting.
-      - Do not push or use destructive git operations.
+      - Do not push, commit, or use destructive git operations. Compass commits verified
+        Develop changes from the host after this phase succeeds.
       - Run the verify command before finishing unless the command itself is wrong or out
         of scope.
       - For generated Tessera projects, use the Compass `tessera` tool with
@@ -39,7 +40,8 @@ package extension Prompts {
         `{"action":"check_source","path":"src/<name>.tes"}`, or
         `{"action":"run_entrypoint","entrypoint":"<name>"}` instead of depending on a
         `tessera` binary in shell PATH.
-      - Leave the working tree clean, or explain why you are blocked.
+      - Leave only intentional source, test, context, manifest, or documentation changes.
+        Do not use bash for Git commits; the container may not have Git.
       - Do not commit generated outputs or caches: `target/`, `.build/`, `build/`,
         logs, or editor artifacts.
       - Generated Tessera workspaces use `src/*.tes`, `contexts/*.json`, `tests/*.json`,
@@ -126,7 +128,9 @@ package extension Prompts {
         6. Return a concrete summary and feedback.
         """
     }
-    let issues = priorIssues.isEmpty ? "_(no captured prior issue text)_" : priorIssues.joined(separator: "\n\n")
+    let issues =
+      priorIssues.isEmpty
+      ? "_(no captured prior issue text)_" : priorIssues.joined(separator: "\n\n")
     return """
       This is Develop attempt \(attempt). First address the prior issue(s), then rerun verify.
       If the prior issue lists Suggested test targets, read and edit one of those exact

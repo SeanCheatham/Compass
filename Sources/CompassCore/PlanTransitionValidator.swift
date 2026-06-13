@@ -330,24 +330,32 @@ package enum PlanTransitionValidator {
   }
 
   private static func containsRetiredGeneratedProjectTerm(_ text: String) -> Bool {
-    [
+    let text = text.lowercased()
+    if [
       "package.json",
       "packages/",
       "pnpm",
-      "npm ",
       "npm-run",
-      "node ",
       "nodejs",
       "corepack",
-      "tsc",
       "typescript",
       "javascript",
       "vitest",
-      ".ts",
-      ".tsx",
-      ".js",
-      ".jsx",
-    ].contains { text.contains($0) }
+    ].contains(where: { text.contains($0) }) {
+      return true
+    }
+
+    if text.range(
+      of: #"(?:^|[^a-z0-9_-])(?:npm|node|tsc)(?:$|[^a-z0-9_-])"#,
+      options: .regularExpression
+    ) != nil {
+      return true
+    }
+
+    return text.range(
+      of: #"(?:^|[^a-z0-9_-])[\w./*-]+\.(?:ts|tsx|js|jsx)(?:$|[^a-z0-9])"#,
+      options: .regularExpression
+    ) != nil
   }
 
   private static func explicitFilePaths(in text: String) -> [String] {
@@ -542,7 +550,8 @@ package enum PlanTransitionValidator {
   }
 
   private static func isSimpleDocumentationGrepVerify(_ verify: String) -> Bool {
-    let normalized = verify
+    let normalized =
+      verify
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
     let pattern =
