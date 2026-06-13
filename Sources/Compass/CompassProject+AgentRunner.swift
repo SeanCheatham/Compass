@@ -300,6 +300,16 @@ extension CompassProject {
       )
       return try await CompassEngineProcess.verifyProject(root: hostWorkingDirectory)
     }
+    if let documentationGrep = DocumentationGrepVerifyCommand.parse(command) {
+      log(
+        "Verify: running documentation grep on the host (timeout \(Int(timeoutSeconds * 1000))ms).",
+        level: .info
+      )
+      return try await documentationGrep.run(
+        in: hostWorkingDirectory,
+        timeoutSeconds: timeoutSeconds
+      )
+    }
     log(
       "Verify: running inside containerized Linux runtime at /workspace (timeout \(Int(timeoutSeconds * 1000))ms).",
       level: .info

@@ -1028,17 +1028,28 @@ public struct HeadlessCompassRunner: Sendable {
       command: command,
       forgeProfile: forgeProfile
     )
+    let documentationGrep = DocumentationGrepVerifyCommand.parse(command)
+    let runtimeName =
+      useEmbeddedTessera
+      ? "embedded_tessera"
+      : documentationGrep != nil ? "host_documentation_grep" : "containerized_linux"
     onEvent(
       HeadlessCompassEvent(
         kind: "verify_start",
         status: "running",
         phase: "verify",
-        message: useEmbeddedTessera
-          ? "Running Tessera verify with embedded Compass engine."
-          : "Running verify command in containerized Linux runtime.",
+        message: {
+          if useEmbeddedTessera {
+            return "Running Tessera verify with embedded Compass engine."
+          }
+          if documentationGrep != nil {
+            return "Running documentation grep verify on the host."
+          }
+          return "Running verify command in containerized Linux runtime."
+        }(),
         metadata: [
           "command": command,
-          "runtime": useEmbeddedTessera ? "embedded_tessera" : "containerized_linux",
+          "runtime": runtimeName,
         ]
       )
     )
@@ -1046,6 +1057,8 @@ public struct HeadlessCompassRunner: Sendable {
     let result: ProcessResult
     if useEmbeddedTessera {
       result = try await CompassEngineProcess.verifyProject(root: repoURL)
+    } else if let documentationGrep {
+      result = try await documentationGrep.run(in: repoURL, timeoutSeconds: timeoutSeconds)
     } else {
       result = try await bashRunnerFactory(repoURL, "verify").run(
         command: command,

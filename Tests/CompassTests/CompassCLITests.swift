@@ -164,6 +164,24 @@ struct CompassCLITests {
   }
 
   @Test
+  func documentationGrepVerifyCommandParsesOnlySafeDocsChecks() {
+    let parsed = DocumentationGrepVerifyCommand.parse(
+      #"grep -Fq "Host docs verify marker." docs/guide.md"#
+    )
+    #expect(parsed?.pattern == "Host docs verify marker.")
+    #expect(parsed?.path == "docs/guide.md")
+    #expect(parsed?.grepArguments == ["-Fq", "--", "Host docs verify marker.", "docs/guide.md"])
+    #expect(
+      DocumentationGrepVerifyCommand.parse(#"grep -q "two  spaces" README.md"#)?.pattern
+        == "two  spaces")
+
+    #expect(DocumentationGrepVerifyCommand.parse("grep -q marker ../README.md") == nil)
+    #expect(DocumentationGrepVerifyCommand.parse("grep -f patterns.txt README.md") == nil)
+    #expect(DocumentationGrepVerifyCommand.parse("grep -q marker src/display-name.tes") == nil)
+    #expect(DocumentationGrepVerifyCommand.parse("grep -q marker README.md && echo bad") == nil)
+  }
+
+  @Test
   func parserRejectsMissingArguments() {
     #expect(throws: CompassCLIError.self) {
       try CompassCLICommand.parse(["doctor"])
@@ -258,6 +276,46 @@ struct CompassCLITests {
     #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
     #expect(
       FileManager.default.fileExists(atPath: tempURL.appending(path: ".compass/state.json").path))
+  }
+
+  @Test
+  func fixtureRunnerRunsDocumentationGrepVerifyOnHost() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      UnavailableBashRunner()
+    }
+    try runner.scaffoldTessera(at: tempURL, name: "cli-docs-grep-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "docs-grep-fixture.jsonl")
+    try writeFixture(documentationGrepFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a host-verified documentation grep marker",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 6,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let readme = try String(contentsOf: tempURL.appending(path: "README.md"), encoding: .utf8)
+    #expect(readme.contains("Host docs verify marker."))
+    let snapshot = events.snapshot()
+    #expect(
+      snapshot.contains {
+        $0.kind == "verify_start"
+          && $0.metadata?["runtime"] == "host_documentation_grep"
+      })
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
   }
 
   @Test
@@ -785,6 +843,22 @@ private struct FixtureBashRunner: AgentBashRunner {
   }
 }
 
+private enum UnavailableBashRunnerError: Error, Equatable {
+  case unexpectedCommand(String)
+}
+
+private struct UnavailableBashRunner: AgentBashRunner {
+  func run(
+    command: String,
+    workingDirectory: URL,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    _ = workingDirectory
+    _ = timeout
+    throw UnavailableBashRunnerError.unexpectedCommand(command)
+  }
+}
+
 private actor StaticLocalModelRuntime: LocalModelGenerating {
   let output: String
 
@@ -891,6 +965,21 @@ private let retryFixtureOutputs = [
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Retry marker sentence required by verify.","feedback":"Retry marker is present in README.md and grep verification can pass; Plan can choose another small slice.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let documentationGrepFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Host docs verify marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves documentation-only grep verification can run locally without requiring the container runtime.\\n\\n## Acceptance checks\\n- README.md contains Host docs verify marker.","verify":"grep -q 'Host docs verify marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This docs-only slice is intentionally narrow and should verify with a safe host grep.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise host-routed documentation grep verification.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Docs-only verification works without container networking."],"constraints":["Only a safe grep -q docs check should run on the host."],"acceptanceSignals":["README.md contains Host docs verify marker."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before editing."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"README.md","startLine":3,"endLine":2,"insert":["Host docs verify marker.",""]},"reason":"Add the marker required by the documentation grep verify command."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Host docs verify marker sentence required by verify.","feedback":"Host docs verify marker is present in README.md and grep verification can pass on the host.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 

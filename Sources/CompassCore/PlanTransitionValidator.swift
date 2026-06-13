@@ -550,13 +550,7 @@ package enum PlanTransitionValidator {
   }
 
   private static func isSimpleDocumentationGrepVerify(_ verify: String) -> Bool {
-    let normalized =
-      verify
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    let pattern =
-      #"^(?:/usr/bin/)?grep\s+-[A-Za-z]*q[A-Za-z]*\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s+[\w./-]+\.(?:md|markdown|txt|rst)$"#
-    return normalized.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    DocumentationGrepVerifyCommand.parse(verify) != nil
   }
 
 }
