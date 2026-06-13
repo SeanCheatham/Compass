@@ -387,6 +387,78 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureRunnerExcludesHarnessArtifactsInsideRepo() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let projectURL = tempURL.appending(path: "project", directoryHint: .isDirectory)
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTessera(at: projectURL, name: "cli-harness-artifacts", onEvent: record)
+    try await initializeFixtureGitRepo(at: projectURL)
+
+    let fixtureURL = projectURL.appending(path: "fixture.jsonl")
+    try writeFixture(greetingFixtureOutputs(projectName: "cli-harness-artifacts"), to: fixtureURL)
+    let promptLogURL = projectURL.appending(path: "prompt-logs", directoryHint: .isDirectory)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: projectURL,
+        brief: "Exercise harness artifact hygiene",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        promptLogDirectory: promptLogURL,
+        maxIterations: 8,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    #expect(FileManager.default.fileExists(atPath: promptLogURL.appending(path: "index.jsonl").path))
+
+    let status = try await AgentHostBashRunner().run(
+      command: "git status --porcelain --untracked-files=all",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(status.exitCode == 0)
+    #expect(status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+    let trackedHarnessFiles = try await AgentHostBashRunner().run(
+      command: #"git ls-files | grep -E '(^fixture\.jsonl$|^prompt-logs/)'"#,
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(trackedHarnessFiles.exitCode == 1)
+    #expect(trackedHarnessFiles.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+    let latestPaths = try await AgentHostBashRunner().run(
+      command: "git diff-tree --no-commit-id --name-only -r HEAD",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(latestPaths.stdout.contains("src/display-name.tes"))
+    #expect(latestPaths.stdout.contains("tests/display-name.json"))
+    #expect(!latestPaths.stdout.contains("fixture.jsonl"))
+    #expect(!latestPaths.stdout.contains("prompt-logs/"))
+
+    let subjects = try await AgentHostBashRunner().run(
+      command: "git log --format=%s --max-count=3",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(!subjects.stdout.contains("Checkpoint pending changes before Compass run"))
+    let snapshot = events.snapshot()
+    #expect(!snapshot.contains { $0.kind == "preflight_commit_result" && $0.status == "completed" })
+    #expect(snapshot.contains { $0.kind == "host_commit_result" && $0.status == "completed" })
+  }
+
+  @Test
   func fixtureRunnerRetriesDevelopAfterVerifyFailure() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

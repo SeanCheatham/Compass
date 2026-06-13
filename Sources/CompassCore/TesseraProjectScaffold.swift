@@ -59,6 +59,8 @@ package enum TesseraProjectScaffold {
     target/
     .DS_Store
     *.log
+    *.jsonl
+    prompt-logs/
     """
 
   private static func readme(projectName: String) -> String {

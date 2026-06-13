@@ -268,7 +268,17 @@ public struct HeadlessCompassRunner: Sendable {
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
   ) async throws -> Bool {
     let repoURL = options.repoURL.standardizedFileURL
-    try await checkpointPendingGitChangesIfNeeded(repoURL: repoURL, onEvent: onEvent)
+    let harnessExcludes = Self.gitHarnessExcludes(
+      repoURL: repoURL,
+      fixtureURL: options.fixtureURL,
+      promptLogDirectory: options.promptLogDirectory
+    )
+    try await installLocalGitExcludes(repoURL: repoURL, paths: harnessExcludes)
+    try await checkpointPendingGitChangesIfNeeded(
+      repoURL: repoURL,
+      excluding: harnessExcludes,
+      onEvent: onEvent
+    )
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
     let sessionNumber = workspace.maxSessionNumber() + 1
@@ -544,6 +554,7 @@ public struct HeadlessCompassRunner: Sendable {
         _ = try await commitSuccessfulDevelopChangesIfNeeded(
           develop: successfulDevelop,
           repoURL: repoURL,
+          excluding: harnessExcludes,
           onEvent: onEvent
         )
       }
@@ -1246,10 +1257,11 @@ public struct HeadlessCompassRunner: Sendable {
   private func commitSuccessfulDevelopChangesIfNeeded(
     develop: DevelopSummary,
     repoURL: URL,
+    excluding excludedPaths: [String],
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) async throws -> String? {
     guard await gitIsInsideWorkTree(repoURL: repoURL) else { return nil }
-    let status = try await gitStatus(repoURL: repoURL)
+    let status = try await gitStatus(repoURL: repoURL, excluding: excludedPaths)
     guard !status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
 
     onEvent(
@@ -1264,7 +1276,7 @@ public struct HeadlessCompassRunner: Sendable {
 
     let add = try await ProcessRunner.runEnv(
       "git",
-      ["add", "-A"],
+      Self.gitAddArguments(forStatus: status),
       workingDirectory: repoURL,
       timeout: 30
     )
@@ -1333,10 +1345,11 @@ public struct HeadlessCompassRunner: Sendable {
 
   private func checkpointPendingGitChangesIfNeeded(
     repoURL: URL,
+    excluding excludedPaths: [String],
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) async throws {
     guard await gitIsInsideWorkTree(repoURL: repoURL) else { return }
-    let status = try await gitStatus(repoURL: repoURL)
+    let status = try await gitStatus(repoURL: repoURL, excluding: excludedPaths)
     guard !status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
     onEvent(
@@ -1351,7 +1364,7 @@ public struct HeadlessCompassRunner: Sendable {
 
     let add = try await ProcessRunner.runEnv(
       "git",
-      ["add", "-A"],
+      Self.gitAddArguments(forStatus: status),
       workingDirectory: repoURL,
       timeout: 30
     )
@@ -1413,6 +1426,46 @@ public struct HeadlessCompassRunner: Sendable {
     )
   }
 
+  private func installLocalGitExcludes(repoURL: URL, paths: [String]) async throws {
+    let paths = Self.uniqueNonEmptyPaths(paths)
+    guard !paths.isEmpty, await gitIsInsideWorkTree(repoURL: repoURL) else { return }
+    let result = try await ProcessRunner.runEnv(
+      "git",
+      ["rev-parse", "--git-dir"],
+      workingDirectory: repoURL,
+      timeout: 10
+    )
+    guard result.exitCode == 0 else {
+      let detail = tail(result.stderr + result.stdout, max: 2000)
+      throw HeadlessCompassError.gitCommitFailed("Failed to locate Git directory: \(detail)")
+    }
+    let rawGitDir = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !rawGitDir.isEmpty else { return }
+
+    let gitDirURL =
+      rawGitDir.hasPrefix("/")
+      ? URL(fileURLWithPath: rawGitDir)
+      : repoURL.appending(path: rawGitDir, directoryHint: .isDirectory)
+    let excludeURL = gitDirURL.appending(path: "info/exclude")
+    try FileManager.default.createDirectory(
+      at: excludeURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    let existing = (try? String(contentsOf: excludeURL, encoding: .utf8)) ?? ""
+    var linesToAdd: [String] = []
+    for path in paths {
+      for pattern in Self.gitInfoExcludePatterns(for: path)
+      where !existing.split(whereSeparator: \.isNewline).contains(Substring(pattern)) {
+        linesToAdd.append(pattern)
+      }
+    }
+    guard !linesToAdd.isEmpty else { return }
+    let prefix = existing.isEmpty || existing.hasSuffix("\n") ? "" : "\n"
+    let header = existing.contains("# Compass CLI harness artifacts") ? "" : "# Compass CLI harness artifacts\n"
+    let updated = existing + prefix + header + linesToAdd.joined(separator: "\n") + "\n"
+    try updated.write(to: excludeURL, atomically: true, encoding: .utf8)
+  }
+
   private func gitIsInsideWorkTree(repoURL: URL) async -> Bool {
     guard
       let result = try? await ProcessRunner.runEnv(
@@ -1427,10 +1480,10 @@ public struct HeadlessCompassRunner: Sendable {
     return result.exitCode == 0
   }
 
-  private func gitStatus(repoURL: URL) async throws -> String {
+  private func gitStatus(repoURL: URL, excluding excludedPaths: [String] = []) async throws -> String {
     let result = try await ProcessRunner.runEnv(
       "git",
-      ["status", "--porcelain", "--untracked-files=all"],
+      Self.gitStatusArguments(excluding: excludedPaths),
       workingDirectory: repoURL,
       timeout: 30
     )
@@ -1439,6 +1492,74 @@ public struct HeadlessCompassRunner: Sendable {
       throw HeadlessCompassError.gitCommitFailed("Failed to inspect Git status: \(detail)")
     }
     return result.stdout.trimmingCharacters(in: .newlines)
+  }
+
+  private static func gitHarnessExcludes(
+    repoURL: URL,
+    fixtureURL: URL?,
+    promptLogDirectory: URL?
+  ) -> [String] {
+    uniqueNonEmptyPaths(
+      [fixtureURL, promptLogDirectory]
+        .compactMap { $0.flatMap { relativeGitPath(for: $0, repoURL: repoURL) } }
+    )
+  }
+
+  private static func relativeGitPath(for url: URL, repoURL: URL) -> String? {
+    let rootPath = repoURL.standardizedFileURL.path
+    let path = url.standardizedFileURL.path
+    guard path != rootPath else { return nil }
+    let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+    guard path.hasPrefix(rootPrefix) else { return nil }
+    let relative = String(path.dropFirst(rootPrefix.count))
+      .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    return relative.isEmpty ? nil : relative
+  }
+
+  private static func gitStatusArguments(excluding excludedPaths: [String]) -> [String] {
+    var arguments = ["status", "--porcelain", "--untracked-files=all"]
+    let pathspecs = gitExcludePathspecs(for: excludedPaths)
+    if !pathspecs.isEmpty {
+      arguments += ["--", "."] + pathspecs
+    }
+    return arguments
+  }
+
+  private static func gitAddArguments(forStatus status: String) -> [String] {
+    ["add", "-A", "--"] + gitStatusPaths(status)
+  }
+
+  private static func gitStatusPaths(_ status: String) -> [String] {
+    status
+      .split(whereSeparator: \.isNewline)
+      .compactMap { line -> String? in
+        let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+        let rawPath = fields.count > 1 ? String(fields.last ?? "") : String(line.dropFirst(3))
+        let path = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        return path.isEmpty ? nil : path
+      }
+  }
+
+  private static func gitExcludePathspecs(for paths: [String]) -> [String] {
+    uniqueNonEmptyPaths(paths).flatMap { path in
+      [":(exclude)\(path)", ":(exclude)\(path)/**"]
+    }
+  }
+
+  private static func gitInfoExcludePatterns(for path: String) -> [String] {
+    let escaped = path
+      .replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: " ", with: "\\ ")
+    return ["/\(escaped)", "/\(escaped)/**"]
+  }
+
+  private static func uniqueNonEmptyPaths(_ paths: [String]) -> [String] {
+    var seen = Set<String>()
+    return paths.compactMap { raw in
+      let path = raw.trimmingCharacters(in: CharacterSet(charactersIn: "/ \n\t"))
+      guard !path.isEmpty, seen.insert(path).inserted else { return nil }
+      return path
+    }
   }
 
   private static func commitSubject(for develop: DevelopSummary) -> String {

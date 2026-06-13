@@ -387,6 +387,10 @@ struct FactoryPivotTests {
     let test = try #require(byPath["tests/display-name.json"])
     #expect(test.contains(#""expect"#))
     #expect(test.contains("my-factory-app!"))
+
+    let gitignore = try #require(byPath[".gitignore"])
+    #expect(gitignore.contains("*.jsonl"))
+    #expect(gitignore.contains("prompt-logs/"))
   }
 
   @Test

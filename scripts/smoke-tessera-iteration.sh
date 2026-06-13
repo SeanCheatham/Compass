@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_NAME="${COMPASS_TESSERA_SMOKE_NAME:-local-tessera-smoke}"
 KEEP_WORKSPACE="${COMPASS_KEEP_TESSERA_SMOKE:-0}"
 DIRTY_START="${COMPASS_TESSERA_SMOKE_DIRTY_START:-0}"
+ARTIFACTS_IN_REPO="${COMPASS_TESSERA_SMOKE_ARTIFACTS_IN_REPO:-0}"
 CREATED_WORK_DIR=0
 NORMALIZED_PROJECT_NAME="$(
   printf '%s' "${PROJECT_NAME}" \
@@ -26,9 +27,15 @@ else
 fi
 
 PROJECT_DIR="${WORK_DIR}/project"
-FIXTURE="${WORK_DIR}/fixture.jsonl"
-PROMPT_LOG_DIR="${WORK_DIR}/prompt-logs"
-RUN_LOG="${WORK_DIR}/run.log"
+if [[ "${ARTIFACTS_IN_REPO}" == "1" ]]; then
+  FIXTURE="${PROJECT_DIR}/fixture.jsonl"
+  PROMPT_LOG_DIR="${PROJECT_DIR}/prompt-logs"
+  RUN_LOG="${PROJECT_DIR}/run.log"
+else
+  FIXTURE="${WORK_DIR}/fixture.jsonl"
+  PROMPT_LOG_DIR="${WORK_DIR}/prompt-logs"
+  RUN_LOG="${WORK_DIR}/run.log"
+fi
 
 cleanup() {
   local exit_code=$?
@@ -88,6 +95,12 @@ if [[ ! -x "${CLI}" ]]; then
   exit 1
 fi
 
+echo "Scaffolding Tessera smoke project at ${PROJECT_DIR}"
+"${CLI}" scaffold tessera "${PROJECT_DIR}" --name "${PROJECT_NAME}" --format text
+if [[ "${DIRTY_START}" == "1" ]]; then
+  printf '\nOwner draft note before Compass run.\n' >>"${PROJECT_DIR}/README.md"
+fi
+
 cat >"${FIXTURE}" <<'JSONL'
 {"text":"{\"kind\":\"plan_submit\",\"payload\":{\"state\":{\"immediate\":{\"plan\":\"## Outcome\\nUpdate the generated Tessera display function to greet users with a Hello prefix and update its JSON test expectation.\\n\\n## Acceptance checks\\n- src/display-name.tes prefixes the display label with Hello.\\n- tests/display-name.json expects Hello, __PROJECT_NAME__!.\\n- The embedded Tessera run_test tool passes for tests/display-name.json.\\n- tessera verify . --json passes.\",\"verify\":\"tessera verify . --json\",\"verifyTimeoutMs\":60000,\"estimatedDifficulty\":\"low\",\"selectedBecause\":\"This deterministic slice proves Compass can scaffold a Tessera app, inspect it, edit Tessera source and tests, run a focused embedded Tessera check, and finish with the standard Tessera verify command.\",\"source\":\"repository\",\"candidateID\":null},\"queue\":[],\"brief\":{\"summary\":\"Smoke test Compass local Tessera iteration on a generated workspace.\",\"targetUsers\":[\"Compass maintainers\"],\"desiredOutcomes\":[\"Compass drives a Tessera app through a normal headless factory pass without using MLX output.\"],\"constraints\":[\"Keep the change tiny and deterministic.\"],\"acceptanceSignals\":[\"The Tessera test and standard verify command pass after Compass commits the edit.\"]},\"openQuestions\":[]},\"lessonEdits\":[]}}"}
 {"text":"{\"kind\":\"develop_continue\",\"tool\":\"tessera\",\"arguments\":{\"action\":\"inspect_project\"},\"reason\":\"Ground the generated Tessera workspace through Compass's embedded engine before editing.\"}"}
@@ -100,12 +113,6 @@ cat >"${FIXTURE}" <<'JSONL'
 JSONL
 sed "s/__PROJECT_NAME__/${NORMALIZED_PROJECT_NAME}/g" "${FIXTURE}" >"${FIXTURE}.tmp"
 mv "${FIXTURE}.tmp" "${FIXTURE}"
-
-echo "Scaffolding Tessera smoke project at ${PROJECT_DIR}"
-"${CLI}" scaffold tessera "${PROJECT_DIR}" --name "${PROJECT_NAME}" --format text
-if [[ "${DIRTY_START}" == "1" ]]; then
-  printf '\nOwner draft note before Compass run.\n' >>"${PROJECT_DIR}/README.md"
-fi
 
 echo "Running Compass fixture iteration against the Tessera project"
 set +e
@@ -153,6 +160,14 @@ if [[ "${DIRTY_START}" == "1" ]]; then
     exit 1
   fi
   printf '%s\n' "${preflight_paths}" | grep -Fxq "README.md"
+fi
+
+if [[ "${ARTIFACTS_IN_REPO}" == "1" ]]; then
+  if git -C "${PROJECT_DIR}" ls-files | grep -Eq '(^fixture\.jsonl$|^run\.log$|^prompt-logs/)'; then
+    echo "error: CLI harness artifacts were tracked by the generated project" >&2
+    git -C "${PROJECT_DIR}" ls-files | grep -E '(^fixture\.jsonl$|^run\.log$|^prompt-logs/)' >&2
+    exit 1
+  fi
 fi
 
 echo "Compass Tessera smoke passed."
