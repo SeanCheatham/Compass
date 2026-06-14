@@ -253,10 +253,10 @@ package struct AgentEditFileTool: AgentTool {
           return []
         }
         if let values = try? container.decode([String].self, forKey: key) {
-          return values.flatMap(Self.splitReplacementText)
+          return Self.normalizeReplacementLines(values.flatMap(Self.splitReplacementText))
         }
         if let value = try? container.decode(String.self, forKey: key) {
-          return Self.splitReplacementText(value)
+          return Self.normalizeReplacementLines(Self.splitReplacementText(value))
         }
       }
       throw DecodingError.keyNotFound(
@@ -273,6 +273,63 @@ package struct AgentEditFileTool: AgentTool {
         .replacingOccurrences(of: "\r\n", with: "\n")
         .replacingOccurrences(of: "\r", with: "\n")
         .components(separatedBy: "\n")
+    }
+
+    private static func normalizeReplacementLines(_ lines: [String]) -> [String] {
+      stripCopiedReadFileRows(from: lines) ?? lines
+    }
+
+    private static func stripCopiedReadFileRows(from lines: [String]) -> [String]? {
+      var stripped: [String] = []
+      var expectedNextNumber: Int?
+      var sawNumberedRow = false
+
+      for line in lines {
+        if isReadFileFooter(line) {
+          continue
+        }
+        guard let row = copiedReadFileRow(line) else {
+          return nil
+        }
+        if let expectedNextNumber, row.number != expectedNextNumber {
+          return nil
+        }
+        stripped.append(row.content)
+        expectedNextNumber = row.number + 1
+        sawNumberedRow = true
+      }
+
+      return sawNumberedRow ? stripped : nil
+    }
+
+    private static func isReadFileFooter(_ line: String) -> Bool {
+      let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmedLine.range(of: #"^\(total \d+ lines\)$"#, options: .regularExpression) != nil
+    }
+
+    private static func copiedReadFileRow(_ line: String) -> (number: Int, content: String)? {
+      var index = line.startIndex
+      var sawLeadingSpace = false
+      while index < line.endIndex, line[index] == " " {
+        sawLeadingSpace = true
+        index = line.index(after: index)
+      }
+      guard sawLeadingSpace else { return nil }
+
+      let digitsStart = index
+      while index < line.endIndex, line[index].wholeNumberValue != nil {
+        index = line.index(after: index)
+      }
+      guard digitsStart < index,
+        index < line.endIndex,
+        line[index] == "\t",
+        let number = Int(line[digitsStart..<index])
+      else {
+        return nil
+      }
+
+      let contentStart = line.index(after: index)
+      return (number, String(line[contentStart...]))
     }
   }
 
@@ -342,7 +399,7 @@ package struct AgentEditFileTool: AgentTool {
                 "type": "array",
                 "items": ["type": "string"],
                 "description":
-                  "Replacement lines without line-number prefixes. Use [] to delete the range. Newline-packed strings are split into source lines.",
+                  "Replacement lines without line-number prefixes. Use [] to delete the range. Newline-packed strings are split into source lines, and obvious copied read_file row prefixes are stripped.",
               ],
             ],
           ],

@@ -233,6 +233,45 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileStripsCopiedReadFileLinePrefixes() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let readmeURL = tempURL.appending(path: "README.md")
+    try """
+    # Fixture
+
+    Existing body.
+    """.write(to: readmeURL, atomically: true, encoding: .utf8)
+
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"README.md"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        ##"{"path":"README.md","startLine":1,"endLine":3,"replacementLines":["     1\t# Fixture","     2\t","     3\tCopied prefix marker.","     4\tExisting body.","(total 4 lines)"]}"##
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("file now has 4 lines"))
+    let edited = try String(contentsOf: readmeURL, encoding: .utf8)
+    #expect(
+      edited
+        == """
+        # Fixture
+
+        Copied prefix marker.
+        Existing body.
+        """
+    )
+  }
+
+  @Test
   func bashVerifySuccessTellsDevelopToSubmit() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
