@@ -528,8 +528,7 @@ package struct AgentEditFileTool: AgentTool {
               outOfRangeMessage(
                 editIndex: idx,
                 relativePath: relative,
-                startLine: edit.startLine,
-                endLine: edit.endLine,
+                edit: edit,
                 lines: lines
               )))
         }
@@ -595,8 +594,7 @@ package struct AgentEditFileTool: AgentTool {
             outOfRangeMessage(
               editIndex: idx,
               relativePath: relative,
-              startLine: edit.startLine,
-              endLine: edit.endLine,
+              edit: edit,
               lines: lines
             )))
       }
@@ -769,19 +767,25 @@ package struct AgentEditFileTool: AgentTool {
   private func outOfRangeMessage(
     editIndex: Int,
     relativePath: String,
-    startLine: Int,
-    endLine: Int,
+    edit: EditOperation,
     lines: [String]
   ) -> String {
     let lineCount = lines.count
     var message =
-      "edits[\(editIndex)] line range \(startLine)-\(endLine) is out of range for \(relativePath) (file has \(lineCount) lines)"
+      "edits[\(editIndex)] line range \(edit.startLine)-\(edit.endLine) is out of range for \(relativePath) (file has \(lineCount) lines)"
     if lineCount > 0 {
-      let preview = Self.nearbyLineHints(around: startLine, in: lines)
+      let preview = Self.nearbyLineHints(around: edit.startLine, in: lines)
       message +=
         "\nReread the file — line numbers may have shifted:\n" + preview.joined(separator: "\n")
       message +=
         "\nFor this file, replace the last line with startLine=\(lineCount), endLine=\(lineCount). To insert after the last line, use startLine=\(lineCount + 1), endLine=\(lineCount). Do not retry the same out-of-range range."
+      message += Self.editFileInsertRepairHint(
+        path: relativePath,
+        startLine: lineCount + 1,
+        endLine: lineCount,
+        content: Self.joinLines(edit.replacementLines),
+        intro: "If you intended to append the attempted replacement lines, return `edit_file` with these arguments"
+      )
     } else {
       message += "; use write_file to create the file from scratch"
     }

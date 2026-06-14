@@ -150,6 +150,10 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.errorKind == .editConflict)
     #expect(result.content.contains("file has 2 lines"))
     #expect(result.content.contains("To insert after the last line"))
+    #expect(result.content.contains("If you intended to append the attempted replacement lines"))
+    #expect(result.content.contains(#""startLine":3"#))
+    #expect(result.content.contains(#""endLine":2"#))
+    #expect(result.content.contains(#""insert":"(display user.name)\n""#))
   }
 
   @Test
