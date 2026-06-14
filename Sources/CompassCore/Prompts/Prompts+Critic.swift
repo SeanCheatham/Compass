@@ -19,6 +19,26 @@ package extension Prompts {
     let verifyStatus =
       verifyExitCode.map { $0 == 0 ? "passed (exit 0)" : "exited with code \($0)" }
       ?? "was bypassed by Develop"
+    let tesseraMode = (forgeProfile ?? ForgeProfile.generatedProjectDefault) == .tesseraApp
+    let probeRule = tesseraMode
+      ? "You may use read-only Tessera and codemap tools. Do not edit, commit, push, or call shell."
+      : "You may use read-only tools and `bash` probes. Do not edit, commit, or push."
+    let verifyHeader = tesseraMode
+      ? """
+        ## Tessera Proof
+        Planned proof label: `\(verifyCommand)`
+        Verify \(verifyStatus).
+        Output:
+        """
+      : """
+        ## Verify
+        Command:
+        ```bash
+        \(verifyCommand)
+        ```
+        Verify \(verifyStatus).
+        Output:
+        """
     let prior =
       priorCritiques.isEmpty
       ? "_(first critic review for this Develop pass)_"
@@ -38,7 +58,7 @@ package extension Prompts {
       - Check whether the diff implements the plan without overshooting it.
       - Look for bugs verify may not catch, missing tests, broken types, accidental
         generated artifacts, and ignored lessons or denied assumptions.
-      - You may use read-only tools and `bash` probes. Do not edit, commit, or push.
+      - \(probeRule)
 
       Finish with exactly one of these envelopes:
       {
@@ -61,13 +81,7 @@ package extension Prompts {
       ## Plan
       \(next.plan)
 
-      ## Verify
-      Command:
-      ```bash
-      \(verifyCommand)
-      ```
-      Verify \(verifyStatus).
-      Output:
+      \(verifyHeader)
       \(fencedOrEmpty(verifyOutput, empty: "_(no captured output)_"))
 
       ## Develop summary

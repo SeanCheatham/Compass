@@ -64,6 +64,7 @@ extension CompassProject {
     submitResultSchema: String,
     codemapStoreDirectory: URL,
     planHistoryEntries: [String] = [],
+    forgeProfile: ForgeProfile? = nil,
     sessionNumber: Int? = nil,
     requiresHostXcode: Bool = false,
     hostXcodeBuildTestEnabled: Bool = false,
@@ -76,7 +77,12 @@ extension CompassProject {
       hostRepoURL: workingDirectory,
       decode: T.self
     )
-    let tools = ToolRegistry.tools(for: phase, settings: agentSettings)
+    let activeForgeProfile = forgeProfile ?? self.forgeProfile
+    let tools = ToolRegistry.tools(
+      for: phase,
+      settings: agentSettings,
+      forgeProfile: activeForgeProfile
+    )
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: phase,
@@ -86,7 +92,8 @@ extension CompassProject {
         workingDirectoryPath: environment.workingDirectory.path,
         executionEnvironment: .containerizedLinux,
         hostXcodeBuildTestEnabled: false,
-        externalToolNames: []
+        externalToolNames: [],
+        forgeProfile: activeForgeProfile
       ),
       userPrompt: userPrompt,
       tools: tools,

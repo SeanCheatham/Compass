@@ -21,7 +21,7 @@ package extension Prompts {
 
     Response protocol:
     - Emit exactly one JSON object per turn, with no prose or Markdown fences.
-    - Request a tool with `{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current Tessera manifest.","note":"If entrypoints exist, report the relevant Tessera check."}`.
+    - Request a tool with \(delegateContinueExample(toolNames: toolNames)).
     - Finish with `{"kind":"delegate_submit","payload":{"findings":"<grounded findings>"}}`.
     Do not delegate further.
     """
@@ -37,44 +37,77 @@ package extension Prompts {
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
     hostXcodeBuildTestEnabled: Bool = false,
-    externalToolNames: [String] = []
+    externalToolNames: [String] = [],
+    forgeProfile: ForgeProfile? = nil
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
     let tesseraTool =
-      "tessera for embedded Tessera verify, project inspection, source checks, tests, and entrypoint execution"
+      "tessera for embedded Tessera resource reads, resource edits, verify, project inspection, source checks, tests, and entrypoint execution"
     let assumptionTools = "record_assumption, remove_assumption"
     let delegateTool = "delegate"
     let toolList: String
-    switch phase {
-    case .plan:
-      toolList = """
-      - Codemap: \(codemapTools)
-      - Files: \(fileTools)
-      - Tessera: \(tesseraTool)
-      - Shell: bash for read-only probes; do not mutate tracked files or commit
-      - History: plan_history
-      - Sub-agent: \(delegateTool)
-      - Assumptions: \(assumptionTools)
-      """
-    case .develop:
-      toolList = """
-      - Codemap: \(codemapTools)
-      - Files: \(fileTools)
-      - Tessera: \(tesseraTool)
-      - Mutation: write_file, edit_file, bash
-      - Sub-agent: \(delegateTool)
-      - Assumptions: \(assumptionTools)
-      """
-    case .critic:
-      toolList = """
-      - Codemap: \(codemapTools)
-      - Files: \(fileTools)
-      - Tessera: \(tesseraTool)
-      - Shell: bash for read-only probes; do not mutate tracked files or commit
-      - Sub-agent: \(delegateTool)
-      - Assumptions: \(assumptionTools)
-      """
+    let continueExample: String
+    if forgeProfile == .tesseraApp {
+      continueExample =
+        #"{"kind":"\#(phaseContinuationKind(phase))","tool":"tessera","arguments":{"action":"inspect_project"},"reason":"Need current Tessera project index.","note":"If entrypoints exist, choose the relevant Tessera check next."}"#
+      switch phase {
+      case .plan:
+        toolList = """
+        - Tessera: \(tesseraTool); read-only actions only in Plan
+        - Codemap: \(codemapTools)
+        - History: plan_history
+        - Sub-agent: \(delegateTool)
+        - Assumptions: \(assumptionTools)
+        """
+      case .develop:
+        toolList = """
+        - Tessera: \(tesseraTool); mutate only with `write_resource`, `edit_resource`, or `format_source`
+        - Codemap: \(codemapTools)
+        - Sub-agent: \(delegateTool)
+        - Assumptions: \(assumptionTools)
+        """
+      case .critic:
+        toolList = """
+        - Tessera: \(tesseraTool); read-only actions only in Critic
+        - Codemap: \(codemapTools)
+        - Sub-agent: \(delegateTool)
+        - Assumptions: \(assumptionTools)
+        """
+      }
+    } else {
+      continueExample =
+        #"{"kind":"\#(phaseContinuationKind(phase))","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current Tessera manifest.","note":"If entrypoints exist, choose the relevant Tessera check next."}"#
+      switch phase {
+      case .plan:
+        toolList = """
+        - Codemap: \(codemapTools)
+        - Files: \(fileTools)
+        - Tessera: \(tesseraTool)
+        - Shell: bash for read-only probes; do not mutate tracked files or commit
+        - History: plan_history
+        - Sub-agent: \(delegateTool)
+        - Assumptions: \(assumptionTools)
+        """
+      case .develop:
+        toolList = """
+        - Codemap: \(codemapTools)
+        - Files: \(fileTools)
+        - Tessera: \(tesseraTool)
+        - Mutation: write_file, edit_file, bash
+        - Sub-agent: \(delegateTool)
+        - Assumptions: \(assumptionTools)
+        """
+      case .critic:
+        toolList = """
+        - Codemap: \(codemapTools)
+        - Files: \(fileTools)
+        - Tessera: \(tesseraTool)
+        - Shell: bash for read-only probes; do not mutate tracked files or commit
+        - Sub-agent: \(delegateTool)
+        - Assumptions: \(assumptionTools)
+        """
+      }
     }
 
     return """
@@ -105,12 +138,21 @@ package extension Prompts {
 
     Response protocol:
     - Emit exactly one JSON object per turn, with no prose or Markdown fences.
-    - Request one Compass tool with `{"kind":"\(phaseContinuationKind(phase))","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current Tessera manifest.","note":"If entrypoints exist, choose the relevant Tessera check next."}`.
+    - Request one Compass tool with `\(continueExample)`.
     - Finish the phase with `{"kind":"\(phaseSubmitKind(phase))","payload":{...}}`, where `payload` matches the phase schema in the user message.
     - Use `reason` for why the requested tool is needed now. Use optional `note` only for a short unverified next-step hint after the real tool observation.
 
     Use codemap tools before broad file reads when possible.
     """
+  }
+
+  private static func delegateContinueExample(toolNames: [String]) -> String {
+    if toolNames.contains(AgentTesseraTool.toolName) {
+      return
+        #"`{"kind":"delegate_continue","tool":"tessera","arguments":{"action":"inspect_project"},"reason":"Need the current Tessera project index.","note":"Report relevant sources, tests, contexts, or entrypoints."}`"#
+    }
+    return
+      #"`{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"tessera.json"},"reason":"Need current Tessera manifest.","note":"If entrypoints exist, report the relevant Tessera check."}`"#
   }
 
   static func compassOverviewSection() -> String {

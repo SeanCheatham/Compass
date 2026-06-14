@@ -70,6 +70,8 @@ package enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
   case rpcFailure
   /// Bash command failed with a non-zero exit.
   case bashFailure
+  /// Embedded Tessera operation failed.
+  case tesseraFailure
   /// Sub-agent delegation failed before producing a result.
   case delegateFailure
   /// Catch-all for unclassified errors thrown out of a tool.

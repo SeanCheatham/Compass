@@ -355,7 +355,7 @@ package extension AgentExecutor {
             toolName: toolName,
             arguments: argumentText,
             pendingRepair: pendingSubmitRepair,
-            phase: configuration.continuationPhase,
+            configuration: configuration,
             repeatCount: blockedRepeatCount
           )
           sawContinuationRejection = true
@@ -393,26 +393,26 @@ package extension AgentExecutor {
         let result: AgentToolInvocationResult
         if configuration.phase == .develop,
           let lastSuccessfulVerifyCommand,
-          Self.isFileMutationTool(toolName),
+          Self.isFileMutationTool(toolName, arguments: arguments),
           !Self.isPostVerifyMutationJustified(reason: reason, note: note)
         {
           result = .failure(
             Self.postVerifyMutationRejectedMessage(
               command: lastSuccessfulVerifyCommand,
               toolName: toolName,
-              phase: configuration.continuationPhase
+              configuration: configuration
             ),
             kind: .invalidArguments
           )
         } else if configuration.phase == .develop,
           let lastSuccessfulVerifyCommand,
-          let requestedVerifyCommand = Self.verifyCommand(arguments: arguments)
+          let requestedVerifyCommand = Self.verifyCommand(toolName: toolName, arguments: arguments)
         {
           result = .failure(
             Self.repeatedSuccessfulVerifyRejectedMessage(
               previousCommand: lastSuccessfulVerifyCommand,
               requestedCommand: requestedVerifyCommand,
-              phase: configuration.continuationPhase
+              configuration: configuration
             ),
             kind: .invalidArguments
           )
@@ -436,14 +436,14 @@ package extension AgentExecutor {
         if let note {
           transcript.append(.assistantNote(note))
         }
-        if !result.isError, Self.isFileMutationTool(toolName) {
+        if !result.isError, Self.isFileMutationTool(toolName, arguments: arguments) {
           if let lastSuccessfulVerifyCommand {
             transcript.append(
               .repair(
                 Self.successfulVerifyInvalidatedByMutationRepairMessage(
                   command: lastSuccessfulVerifyCommand,
                   toolName: toolName,
-                  phase: configuration.continuationPhase
+                  configuration: configuration
                 )
               )
             )
@@ -455,7 +455,7 @@ package extension AgentExecutor {
                 Self.failedVerifyInvalidatedByMutationRepairMessage(
                   command: lastFailedVerifyCommand,
                   toolName: toolName,
-                  phase: configuration.continuationPhase
+                  configuration: configuration
                 )
               )
             )
@@ -475,7 +475,7 @@ package extension AgentExecutor {
             .repair(
               Self.successfulVerifyObservedRepairMessage(
                 command: command,
-                phase: configuration.continuationPhase
+                configuration: configuration
               )
             )
           )
@@ -558,7 +558,7 @@ package extension AgentExecutor {
                     arguments: argumentText,
                     repeatCount: repeatedSuccessfulReadOnlyDevelopToolCallCount,
                     readOnlyCount: consecutiveSuccessfulReadOnlyDevelopToolCallCount,
-                    phase: configuration.continuationPhase
+                    configuration: configuration
                   )
                 )
               )
@@ -581,7 +581,7 @@ package extension AgentExecutor {
                       toolName: toolName,
                       arguments: argumentText,
                       latestRepairMessage: latestContinuationRejectionRepairMessage,
-                      phase: configuration.continuationPhase
+                      configuration: configuration
                     )
                   )
                 )
@@ -600,7 +600,7 @@ package extension AgentExecutor {
                     repeatCount: repeatCount,
                     latestRepairMessage: latestContinuationRejectionRepairMessage,
                     rejectionDescription: latestContinuationRejectionDescription,
-                    phase: configuration.continuationPhase
+                    configuration: configuration
                   )
                 )
               )
@@ -726,8 +726,10 @@ package extension AgentExecutor {
     var repairMessage: String
   }
 
-  private static func isFileMutationTool(_ toolName: String) -> Bool {
-    toolName == AgentWriteFileTool.toolName || toolName == AgentEditFileTool.toolName
+  private static func isFileMutationTool(_ toolName: String, arguments: Data) -> Bool {
+    toolName == AgentWriteFileTool.toolName
+      || toolName == AgentEditFileTool.toolName
+      || (toolName == AgentTesseraTool.toolName && AgentTesseraTool.isMutatingAction(arguments: arguments))
   }
 
   private static let readOnlyInspectionToolNames: Set<String> = [
@@ -806,12 +808,15 @@ package extension AgentExecutor {
     arguments: Data,
     result: AgentToolInvocationResult
   ) -> String? {
+    if toolName == AgentTesseraTool.toolName, !result.isError {
+      return AgentTesseraTool.verifyActionLabel(arguments: arguments)
+    }
     guard toolName == AgentBashTool.toolName,
       !result.isError,
       result.content.contains("[exit 0]")
     else { return nil }
 
-    return verifyCommand(arguments: arguments)
+    return verifyCommand(toolName: toolName, arguments: arguments)
   }
 
   private static func failedVerifyCommand(
@@ -819,15 +824,21 @@ package extension AgentExecutor {
     arguments: Data,
     result: AgentToolInvocationResult
   ) -> String? {
+    if toolName == AgentTesseraTool.toolName, result.isError {
+      return AgentTesseraTool.verifyActionLabel(arguments: arguments)
+    }
     guard toolName == AgentBashTool.toolName,
       result.isError,
       result.errorKind == .bashFailure
     else { return nil }
 
-    return verifyCommand(arguments: arguments)
+    return verifyCommand(toolName: toolName, arguments: arguments)
   }
 
-  private static func verifyCommand(arguments: Data) -> String? {
+  private static func verifyCommand(toolName: String, arguments: Data) -> String? {
+    if toolName == AgentTesseraTool.toolName {
+      return AgentTesseraTool.verifyActionLabel(arguments: arguments)
+    }
     guard let object = try? JSONSerialization.jsonObject(with: arguments) as? [String: Any] else {
       return nil
     }
@@ -1276,15 +1287,19 @@ package extension AgentExecutor {
     toolName: String,
     arguments: String,
     pendingRepair: PendingSubmitRepair,
-    phase: AgentContinuationPhase,
+    configuration: AgentExecutionConfiguration,
     repeatCount: Int
   ) -> String {
+    let phase = configuration.continuationPhase
     let reason = pendingRepair.malformedJSON
       ? "because the JSON was malformed"
       : "because Compass rejected its payload"
     let repairTarget = pendingRepair.malformedJSON
       ? "malformed submit JSON"
       : "a rejected submit payload"
+    let blockedToolsLine = usesTesseraOnlyTools(configuration: configuration)
+      ? "Compass did not run `\(toolName)`. Do not call tools just to repair \(repairTarget). Existing observations remain available in the recent history."
+      : "Compass did not run `\(toolName)`. Do not call `read_file`, `list_files`, `bash`, or other tools just to repair \(repairTarget). Existing observations remain available in the recent history."
     let planPayloadRepair =
       phase == .plan
       ? """
@@ -1314,9 +1329,7 @@ package extension AgentExecutor {
     Your previous `\(pendingRepair.submitKind)` was rejected \(reason).
     The next action must repair that submit envelope; it must not call tools.
 
-    Compass did not run `\(toolName)`. Do not call `read_file`, `list_files`, `bash`,
-    or other tools just to repair \(repairTarget). Existing observations remain
-    available in the recent history.
+    \(blockedToolsLine)
 
     Return exactly one valid JSON object now:
     {"kind":"\(phase.submitKind)","payload":{...}}
@@ -1336,17 +1349,25 @@ package extension AgentExecutor {
     repeatCount: Int,
     latestRepairMessage: String?,
     rejectionDescription: String,
-    phase: AgentContinuationPhase
+    configuration: AgentExecutionConfiguration
   ) -> String {
+    let phase = configuration.continuationPhase
+    let planToolWarning = usesTesseraOnlyTools(configuration: configuration)
+      ? "Do not call tools or reread `tessera.json` just to repair Plan payload text."
+      : "Do not call `read_file`, `list_files`, or reread `tessera.json` just to repair Plan payload text."
     let planInstruction =
       phase == .plan
       ? """
 
         For Plan, read-only tools cannot repair a rejected handoff. Return `\(phase.submitKind)` now.
-        Do not call `read_file`, `list_files`, `bash`, or reread `tessera.json` just to repair
-        Plan payload text.
+        \(planToolWarning)
         """
       : ""
+    let verifyRepair = verifyToolInstruction(
+      command: "the requested proof",
+      configuration: configuration,
+      prefix: "If the rejected payload said a verify command still needs to run"
+    )
     let repairHeading = rejectionDescription.contains("payload")
       ? "Latest rejected-payload repair to apply now:"
       : "Latest continuation repair to apply now:"
@@ -1366,9 +1387,7 @@ package extension AgentExecutor {
     continuation now:
     - Reuse useful fields from the rejected output, if any.
     - Apply the latest Compass Repair instruction exactly.
-    - If the rejected payload said a verify command still needs to run, call `bash`
-      with that command now. Do not call `read_file`, `list_files`, or reread
-      `tessera.json` merely to rediscover the manifest.
+    - \(verifyRepair). Do not call tools merely to rediscover the manifest.
     - Return `\(phase.submitKind)` with a corrected `payload`.
     - Only call a different tool if the repair instruction explicitly requires new evidence.
     \(planInstruction)\(latestRepair)
@@ -1382,8 +1401,16 @@ package extension AgentExecutor {
     toolName: String,
     arguments: String,
     latestRepairMessage: String?,
-    phase: AgentContinuationPhase
+    configuration: AgentExecutionConfiguration
   ) -> String {
+    let phase = configuration.continuationPhase
+    let tesseraOnly = usesTesseraOnlyTools(configuration: configuration)
+    let mutationShape = tesseraOnly
+      ? "the `tessera` tool action `edit_resource` and JSON replacement lines"
+      : "`edit_file` and `replacementLines` as an array of strings"
+    let verifyShape = tesseraOnly
+      ? "Run verification only after the needed edits/tests have been accepted by calling `tessera` with `{\"action\":\"verify\"}`"
+      : "Call `bash` only after the needed file edits/tests have been accepted"
     let latestRepair = latestRepairMessage.map {
       """
 
@@ -1397,10 +1424,10 @@ package extension AgentExecutor {
     reading more files does not repair malformed JSON or malformed tool arguments.
 
     Use the latest observations and repair the rejected continuation now:
-    - If the rejected response was an `edit_file` with multiline content, return
-      `\(phase.continueKind)` using `edit_file` and `replacementLines` as an array of strings.
+    - If the rejected response was a mutation with multiline content, return
+      `\(phase.continueKind)` using \(mutationShape).
     - Do not reread `tessera.json`, list files, or inspect other files merely to repair JSON syntax.
-    - Call `bash` only after the needed file edits/tests have been accepted.
+    - \(verifyShape).
     - Return `\(phase.submitKind)` with status=failed or status=blocked only if no concrete
       edit or verify call remains.
     \(latestRepair)
@@ -1442,7 +1469,33 @@ package extension AgentExecutor {
 
       Latest rejected-payload repair to apply now:
       \(latestRepairMessage)
-      """
+    """
+  }
+
+  private static func usesTesseraOnlyTools(configuration: AgentExecutionConfiguration) -> Bool {
+    let toolNames = Set(configuration.tools.map(\.spec.name))
+    return toolNames.contains(AgentTesseraTool.toolName)
+      && !toolNames.contains(AgentBashTool.toolName)
+      && !toolNames.contains(AgentWriteFileTool.toolName)
+      && !toolNames.contains(AgentEditFileTool.toolName)
+  }
+
+  private static func mutationToolInstruction(configuration: AgentExecutionConfiguration) -> String {
+    if usesTesseraOnlyTools(configuration: configuration) {
+      return "`tessera` with `{\"action\":\"edit_resource\"}` or `{\"action\":\"write_resource\"}` using the known Tessera resource path and line numbers"
+    }
+    return "`edit_file` or `write_file`"
+  }
+
+  private static func verifyToolInstruction(
+    command: String,
+    configuration: AgentExecutionConfiguration,
+    prefix: String
+  ) -> String {
+    if usesTesseraOnlyTools(configuration: configuration) || command == "tessera verify" {
+      return "\(prefix), call `tessera` with `{\"action\":\"verify\"}`"
+    }
+    return "\(prefix), call `bash` with `\(command)` again"
   }
 
   private static func repeatedReadOnlyDevelopToolRepairMessage(
@@ -1450,9 +1503,16 @@ package extension AgentExecutor {
     arguments: String,
     repeatCount: Int,
     readOnlyCount: Int,
-    phase: AgentContinuationPhase
+    configuration: AgentExecutionConfiguration
   ) -> String {
-    """
+    let phase = configuration.continuationPhase
+    let mutationShape = mutationToolInstruction(configuration: configuration)
+    let verifyShape = verifyToolInstruction(
+      command: "the requested proof",
+      configuration: configuration,
+      prefix: "If the implementation is complete"
+    )
+    return """
     You repeated successful read-only Develop tool calls without changing files.
 
     The latest `\(toolName)` observation succeeded and already contains the concrete
@@ -1464,8 +1524,8 @@ package extension AgentExecutor {
     `read_file`, `list_files`, `ls`, `glob`, `grep`, `outline`, `find_symbol`,
     `importers_of`, `summary`, or `plan_history` merely to rediscover context.
     Choose exactly one next action:
-    - Call `edit_file` or `write_file` using the known paths and line numbers.
-    - Call `bash` with the verify command only if the implementation is complete.
+    - Call \(mutationShape).
+    - \(verifyShape).
     - Return `\(phase.submitKind)` with status=failed or status=blocked if you cannot
       make a concrete edit within this budget.
 
@@ -1476,12 +1536,12 @@ package extension AgentExecutor {
 
   private static func successfulVerifyObservedRepairMessage(
     command: String,
-    phase: AgentContinuationPhase
+    configuration: AgentExecutionConfiguration
   ) -> String {
-    """
-    Compass observed `\(command)` exit 0. This verify command passed.
+    let phase = configuration.continuationPhase
+    return """
+    Compass observed `\(command)` exit 0. This verification proof is current.
 
-    Do not interpret earlier stdout lines as failures unless the final exit marker is nonzero.
     If the requested packet and acceptance checks are complete, return `\(phase.submitKind)` now
     with status=succeeded, bypassVerify=false, and feedback naming `\(command)` as verified.
     Continue only if a specific acceptance requirement is still missing.
@@ -1491,14 +1551,20 @@ package extension AgentExecutor {
   private static func successfulVerifyInvalidatedByMutationRepairMessage(
     command: String,
     toolName: String,
-    phase: AgentContinuationPhase
+    configuration: AgentExecutionConfiguration
   ) -> String {
-    """
+    let phase = configuration.continuationPhase
+    let verifyShape = verifyToolInstruction(
+      command: command,
+      configuration: configuration,
+      prefix: "If the requested packet is now complete"
+    )
+    return """
     You just changed files with `\(toolName)` after Compass observed `\(command)` exit 0.
 
     That earlier verify result no longer proves the current worktree. Do not submit
     status=succeeded based on the old verify result. Choose exactly one next action:
-    - If the requested packet is now complete, call `bash` with `\(command)` again.
+    - \(verifyShape).
     - If a specific acceptance requirement is still missing, make that concrete edit now.
     - If you cannot complete the repair in this budget, return `\(phase.submitKind)` with
       status=failed or status=blocked and concise feedback.
@@ -1508,14 +1574,20 @@ package extension AgentExecutor {
   private static func failedVerifyInvalidatedByMutationRepairMessage(
     command: String,
     toolName: String,
-    phase: AgentContinuationPhase
+    configuration: AgentExecutionConfiguration
   ) -> String {
-    """
+    let phase = configuration.continuationPhase
+    let verifyShape = verifyToolInstruction(
+      command: command,
+      configuration: configuration,
+      prefix: "If the requested packet might now be complete"
+    )
+    return """
     You just changed files with `\(toolName)` after Compass observed `\(command)` fail.
 
     That earlier failure no longer proves the current worktree. Do not submit
     status=failed based on the old verify/typecheck/test output. Choose exactly one next action:
-    - If the requested packet might now be complete, call `bash` with `\(command)` again.
+    - \(verifyShape).
     - If a specific acceptance requirement is still missing, make that concrete edit now.
     - If verification cannot be rerun because of an external blocker, return `\(phase.submitKind)`
       with status=blocked and concise feedback explaining why.
@@ -1525,8 +1597,10 @@ package extension AgentExecutor {
   private static func repeatedSuccessfulVerifyRejectedMessage(
     previousCommand: String,
     requestedCommand: String,
-    phase: AgentContinuationPhase
+    configuration: AgentExecutionConfiguration
   ) -> String {
+    let phase = configuration.continuationPhase
+    let mutationShape = mutationToolInstruction(configuration: configuration)
     let requestedLine =
       requestedCommand == previousCommand
       ? ""
@@ -1536,7 +1610,7 @@ package extension AgentExecutor {
 
       Do not rerun verify against the same worktree. Repeating the proof command cannot implement missing acceptance requirements and wastes the Develop budget. Choose exactly one next action:
       - If the requested packet is complete, return `\(phase.submitKind)` with status=succeeded, bypassVerify=false, and one concrete feedback sentence naming `\(previousCommand)` as the passing verification.
-      - If a specific acceptance requirement is still missing, call `edit_file` or `write_file` now, then run `\(previousCommand)` after that accepted mutation.
+      - If a specific acceptance requirement is still missing, call \(mutationShape) now, then run `\(previousCommand)` after that accepted mutation.
       - If you cannot make a concrete edit in this budget, return `\(phase.submitKind)` with status=failed or status=blocked and concise feedback.
       """
   }
@@ -1544,17 +1618,22 @@ package extension AgentExecutor {
   private static func postVerifyMutationRejectedMessage(
     command: String,
     toolName: String,
-    phase: AgentContinuationPhase
+    configuration: AgentExecutionConfiguration
   ) -> String {
-    """
+    let phase = configuration.continuationPhase
+    let verifyShape = verifyToolInstruction(
+      command: command,
+      configuration: configuration,
+      prefix: "If an acceptance check is still missing, retry `\(toolName)` only with a `reason` that explicitly names the missing acceptance check it repairs; after that accepted mutation"
+    )
+    return """
     Compass already observed `\(command)` exit 0. A generic `\(toolName)` call after a
     passing verify would invalidate that proof before the phase can submit.
 
     Choose exactly one next action:
     - If the requested packet is complete, return `\(phase.submitKind)` now with
       status=succeeded, bypassVerify=false, and feedback naming `\(command)` as verified.
-    - If an acceptance check is still missing, retry `\(toolName)` only with a `reason` that
-      explicitly names the missing acceptance check it repairs, then rerun `\(command)`.
+    - \(verifyShape).
     - If you cannot finish in budget, return `\(phase.submitKind)` with status=failed or
       status=blocked and concise feedback.
     """
@@ -1682,6 +1761,12 @@ package extension AgentExecutor {
       summary.status == .failed
     else { return nil }
 
+    let verifyShape = verifyToolInstruction(
+      command: invalidatedVerifyCommand,
+      configuration: configuration,
+      prefix: "If the requested packet might now be complete"
+    )
+    let mutationShape = mutationToolInstruction(configuration: configuration)
     return InvalidToolArgumentsNudge(
       eventText: "develop_submit used stale verify failure",
       eventDetail:
@@ -1695,9 +1780,9 @@ package extension AgentExecutor {
         verification errors.
 
         Choose exactly one repair:
-        - If the requested packet might now be complete, call `bash` with `\(invalidatedVerifyCommand)` again.
+        - \(verifyShape).
         - If a specific acceptance requirement is still missing, call `develop_continue`
-          with the concrete `edit_file` or `write_file` repair now.
+          with the concrete \(mutationShape) repair now.
         - If verification cannot be rerun because of an external blocker, return
           `develop_submit` with status=blocked and concise feedback explaining why.
 
@@ -1758,6 +1843,11 @@ package extension AgentExecutor {
 
     let submittedState =
       "status=\(summary.status.rawValue), bypassVerify=\(summary.bypassVerify == true ? "true" : "false")"
+    let verifyShape = verifyToolInstruction(
+      command: successfulVerifyCommand,
+      configuration: configuration,
+      prefix: "If a specific acceptance check from the Handoff is still missing, make that repair and then"
+    )
     return InvalidToolArgumentsNudge(
       eventText: "develop_submit contradicted successful verify",
       eventDetail:
@@ -1766,15 +1856,14 @@ package extension AgentExecutor {
         Compass already observed this verify command pass:
         `\(successfulVerifyCommand)`
 
-        The bash observation ended with `[exit 0]`. Your previous Develop payload reported
+        The verification observation passed. Your previous Develop payload reported
         \(submittedState), which contradicts the successful verify result.
 
         Do not call another tool to inspect that verify output. Choose exactly one repair:
         - If the requested packet is complete, return `develop_submit` again with
           status=succeeded, bypassVerify=false, and feedback that names `\(successfulVerifyCommand)`
           as the passing verification.
-        - If a specific acceptance check from the Handoff is still missing, return
-          `develop_continue` for that missing check and name it in the reason.
+        - \(verifyShape).
 
         \(submitResultDecodeRetryShape(for: .develop))
         """

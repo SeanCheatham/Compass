@@ -15,24 +15,39 @@ package extension Prompts {
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
     let stateJSON = try CompassWorkspace.encodeProposal(state.promptDigest())
-    let standardVerify = (forgeProfile ?? ForgeProfile.generatedProjectDefault).standardVerifyCommand
+    let activeForgeProfile = forgeProfile ?? ForgeProfile.generatedProjectDefault
+    let standardVerify = activeForgeProfile.standardVerifyCommand
+    let tesseraMode = activeForgeProfile == .tesseraApp
+    let probeGuidance = tesseraMode
+      ? """
+        Use the `tessera` tool with `{"action":"inspect_project"}` to ground source,
+        test, context, and entrypoint paths. For focused probes use
+        `run_entrypoint`, `run_test`, `parse_source`, or `check_source`. Keep
+        `immediate.verify` as the standard proof label `\(standardVerify)`;
+        Develop will satisfy it with `{"action":"verify"}`, not shell.
+        """
+      : """
+        Use the `tessera` tool with `{"action":"inspect_project"}` to ground source,
+        test, context, and entrypoint paths. For focused probes use
+        `run_entrypoint`, `run_test`, `parse_source`, or `check_source` tool actions
+        while keeping human-readable verify fields as shell-style commands. For docs-only
+        slices use a simple `grep -q` content check.
+        """
+    let readOnlyGuidance = tesseraMode
+      ? "Do not edit files or commit. Use read-only Tessera and codemap tools when they help ground the choice."
+      : "Do not edit files or commit. Use read-only tools and `bash` probes when they help ground the choice."
     return """
       You are the Plan agent in Compass, a local software factory. Compass does most of the
       deterministic work; your job is narrow decomposition and selection.
 
-      Choose exactly one small implementation packet for the next Develop pass. Do not edit
-      files or commit. Use read-only tools and `bash` probes when they help ground the choice.
+      Choose exactly one small implementation packet for the next Develop pass. \(readOnlyGuidance)
 
       Factory rules:
       - Generated Compass output is Tessera by default.
       - New generated projects use `tessera.json`, `src/*.tes`, `contexts/*.json`,
         and `tests/*.json`.
       - Prefer `\(standardVerify)` as the verify command for generated work.
-        Use the `tessera` tool with `{"action":"inspect_project"}` to ground source,
-        test, context, and entrypoint paths. For focused probes use
-        `run_entrypoint`, `run_test`, `parse_source`, or `check_source` tool actions
-        while keeping human-readable verify fields as shell-style commands. For docs-only
-        slices use a simple `grep -q` content check.
+        \(probeGuidance)
       - Prefer dependency-free implementation packets. If the next slice needs a new
         host capability or manifest field, the handoff must explicitly name the
         `tessera.json` update and tests.

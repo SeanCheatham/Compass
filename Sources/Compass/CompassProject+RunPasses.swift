@@ -114,6 +114,7 @@ extension CompassProject {
         ),
         codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
         planHistoryEntries: currentState.completed,
+        forgeProfile: forgeProfile,
         sessionNumber: sessionNumber,
         decode: PlanRunResult.self
       )
@@ -336,7 +337,8 @@ extension CompassProject {
             attempt: attempt,
             priorIssues: priorIssues,
             criticFeedback: criticFeedbacks,
-            hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+            hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
+            forgeProfile: forgeProfile
           )
 
           let launchPlan = agentLaunchPlan(for: workspace.repoURL)
@@ -361,6 +363,7 @@ extension CompassProject {
               userPrompt: prompt,
               submitResultSchema: Prompts.developSchema,
               codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
+              forgeProfile: forgeProfile,
               sessionNumber: sessions[sessionIndex].session,
               requiresHostXcode: next.requiresHostXcode,
               hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
@@ -617,6 +620,7 @@ extension CompassProject {
         userPrompt: prompt,
         submitResultSchema: Prompts.criticSchema,
         codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
+        forgeProfile: forgeProfile,
         sessionNumber: sessions.indices.contains(sessionIndex)
           ? sessions[sessionIndex].session
           : nil,

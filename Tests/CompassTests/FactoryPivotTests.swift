@@ -658,13 +658,20 @@ struct FactoryPivotTests {
   func containerRuntimePromptAndToolsAreTesseraOnly() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
-      workingDirectoryPath: "/tmp/workspace"
+      workingDirectoryPath: "/tmp/workspace",
+      forgeProfile: .tesseraApp
     )
-    let toolNames = Set(ToolRegistry.tools(for: .develop).map(\.spec.name))
+    let toolNames = Set(ToolRegistry.tools(for: .develop, forgeProfile: .tesseraApp).map(\.spec.name))
 
     #expect(prompt.contains("containerized Linux runtime"))
     #expect(prompt.contains("/workspace"))
     #expect(prompt.contains("Docker, Xcode, and Homebrew are unavailable"))
+    #expect(prompt.contains("write_resource"))
+    #expect(!prompt.contains("bash"))
+    #expect(toolNames.contains(AgentTesseraTool.toolName))
+    #expect(!toolNames.contains(AgentBashTool.toolName))
+    #expect(!toolNames.contains(AgentWriteFileTool.toolName))
+    #expect(!toolNames.contains(AgentEditFileTool.toolName))
     #expect(!toolNames.contains("list_toolchains"))
     #expect(!toolNames.contains("install_toolchain"))
   }

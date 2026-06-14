@@ -9,7 +9,8 @@ extension Prompts {
     attempt: Int,
     priorIssues: [String],
     criticFeedback: [String] = [],
-    hostXcodeBuildTestEnabled: Bool = false
+    hostXcodeBuildTestEnabled: Bool = false,
+    forgeProfile: ForgeProfile? = nil
   ) -> String {
     let criticSection =
       criticFeedback.isEmpty
@@ -18,6 +19,31 @@ extension Prompts {
         + criticFeedback.enumerated()
         .map { "Review \($0.offset + 1):\n\($0.element)" }
         .joined(separator: "\n\n")
+    let tesseraMode = (forgeProfile ?? ForgeProfile.generatedProjectDefault) == .tesseraApp
+    let verificationRule = tesseraMode
+      ? "Run embedded Tessera verification with `{\"action\":\"verify\"}` before finishing unless the requested proof itself is wrong or out of scope."
+      : "Run the verify command before finishing unless the command itself is wrong or out of scope."
+    let mutationRule = tesseraMode
+      ? "Mutate Tessera project resources only through the `tessera` tool actions `write_resource`, `edit_resource`, and `format_source`; do not use shell or generic file mutation tools."
+      : "Before `edit_file`, read the exact target file in this Develop session. If a path is missing, use `list_files` or `glob` to find the existing target; use `write_file` only when the plan explicitly requires a new file."
+    let cleanWorkspaceRule = tesseraMode
+      ? "Leave only intentional Tessera source, test, context, or manifest changes."
+      : "Leave only intentional source, test, context, manifest, or documentation changes. Do not use bash for Git commits; the container may not have Git."
+    let workflowVerifyStep = tesseraMode
+      ? "Run `tessera` with `{\"action\":\"verify\"}` and fix failures."
+      : "Run verify and fix failures."
+    let proofSection = tesseraMode
+      ? """
+        ## Tessera Proof
+        Planned proof label: `\(next.verify)`
+        Run it through the Compass `tessera` tool with `{"action":"verify"}`.
+        """
+      : """
+        ## Verify
+        ```bash
+        \(next.verify)
+        ```
+        """
 
     return """
       You are the Develop agent in Compass, a local software factory. Implement exactly the
@@ -32,28 +58,28 @@ extension Prompts {
         in the same change before submitting.
       - Do not push, commit, or use destructive git operations. Compass commits verified
         Develop changes from the host after this phase succeeds.
-      - Run the verify command before finishing unless the command itself is wrong or out
-        of scope.
+      - \(verificationRule)
       - For generated Tessera projects, use the Compass `tessera` tool with
         `{"action":"verify"}`, `{"action":"inspect_project"}`,
         `{"action":"run_test","test_path":"tests/<name>.json"}`,
         `{"action":"check_source","path":"src/<name>.tes"}`, or
         `{"action":"run_entrypoint","entrypoint":"<name>"}` instead of depending on a
         `tessera` binary in shell PATH.
-      - Leave only intentional source, test, context, manifest, or documentation changes.
-        Do not use bash for Git commits; the container may not have Git.
+      - \(mutationRule)
+      - \(cleanWorkspaceRule)
       - Do not commit generated outputs or caches: `target/`, `.build/`, `build/`,
         logs, or editor artifacts.
       - Generated Tessera workspaces use `src/*.tes`, `contexts/*.json`, `tests/*.json`,
         and `tessera.json`. Use those paths when creating or editing generated work.
-      - Before `edit_file`, read the exact target file in this Develop session. If a path
-        is missing, use `list_files` or `glob` to find the existing target; use
-        `write_file` only when the plan explicitly requires a new file.
       - End with one `develop_submit` JSON envelope.
 
       \(lessonEditsGuidance())
 
-      \(developAttemptInstructions(attempt: attempt, priorIssues: priorIssues))
+      \(developAttemptInstructions(
+        attempt: attempt,
+        priorIssues: priorIssues,
+        workflowVerifyStep: workflowVerifyStep
+      ))
 
       ## Handoff
       \(developHandoffSection(next: next))
@@ -61,10 +87,7 @@ extension Prompts {
       ## Plan
       \(next.plan)
 
-      ## Verify
-      ```bash
-      \(next.verify)
-      ```
+      \(proofSection)
 
       ## Lessons
       \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
@@ -81,7 +104,7 @@ extension Prompts {
         "payload": {
           "status": "succeeded",
           "summary": "<what changed or what blocked the work>",
-          "feedback": "<smallest next action or no follow-up; verified the requested command>",
+          "feedback": "<smallest next action or no follow-up; verified the requested Tessera proof>",
           "bypassVerify": false,
           "lessonEdits": []
         }
@@ -111,7 +134,11 @@ extension Prompts {
     return lines.joined(separator: "\n")
   }
 
-  private static func developAttemptInstructions(attempt: Int, priorIssues: [String]) -> String {
+  private static func developAttemptInstructions(
+    attempt: Int,
+    priorIssues: [String],
+    workflowVerifyStep: String
+  ) -> String {
     if attempt <= 1 {
       return """
         Workflow:
@@ -124,7 +151,7 @@ extension Prompts {
         3. If a planned path is uncertain or missing, list files or glob for the correct
            generated workspace location before editing.
         4. Implement the packet without broadening scope.
-        5. Run verify and fix failures.
+        5. \(workflowVerifyStep)
         6. Return a concrete summary and feedback.
         """
     }

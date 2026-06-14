@@ -95,6 +95,69 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func tesseraResourceActionsGateAndEditProjectResources() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let src = tempURL.appending(path: "src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+    let sourceURL = src.appending(path: "display-name.tes")
+    try "(display user.name)\n".write(to: sourceURL, atomically: true, encoding: .utf8)
+    try #"{"entrypoints":{}}"#.write(
+      to: tempURL.appending(path: "tessera.json"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let context = AgentToolContext(workingDirectory: tempURL)
+    let tool = AgentTesseraTool(allowsMutation: true)
+    let read = try await tool.invoke(
+      arguments: Data(#"{"action":"read_resource","path":"src/display-name.tes"}"#.utf8),
+      context: context
+    )
+    #expect(!read.isError)
+    #expect(read.content.contains("(display user.name)"))
+
+    let edit = try await tool.invoke(
+      arguments: Data(
+        #"{"action":"edit_resource","path":"src/display-name.tes","edits":[{"startLine":1,"endLine":1,"replacementLines":["(concat user.name \"!\")"]}]}"#
+          .utf8
+      ),
+      context: context
+    )
+    #expect(!edit.isError)
+    let updated = try String(contentsOf: sourceURL, encoding: .utf8)
+    #expect(updated == "(concat user.name \"!\")\n")
+
+    let overwrite = try await tool.invoke(
+      arguments: Data(
+        #"{"action":"write_resource","path":"src/display-name.tes","content":"(display user.name)\n"}"#
+          .utf8
+      ),
+      context: context
+    )
+    #expect(overwrite.isError)
+    #expect(overwrite.content.contains("tessera write_resource refused"))
+    #expect(overwrite.content.contains("tessera edit_resource"))
+
+    let forbiddenPath = try await tool.invoke(
+      arguments: Data(#"{"action":"write_resource","path":"README.md","content":"Nope\n"}"#.utf8),
+      context: context
+    )
+    #expect(forbiddenPath.isError)
+    #expect(forbiddenPath.content.contains("Unsupported Tessera resource path"))
+
+    let readOnlyTool = AgentTesseraTool(allowsMutation: false)
+    let readOnlyMutation = try await readOnlyTool.invoke(
+      arguments: Data(
+        #"{"action":"write_resource","path":"src/other.tes","content":"(display user.name)\n"}"#.utf8
+      ),
+      context: context
+    )
+    #expect(readOnlyMutation.isError)
+    #expect(readOnlyMutation.content.contains("not available in this phase"))
+  }
+
+  @Test
   func writeFileRejectsExistingFileEvenAfterRead() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

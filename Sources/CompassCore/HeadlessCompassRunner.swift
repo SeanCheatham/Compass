@@ -829,7 +829,8 @@ public struct HeadlessCompassRunner: Sendable {
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: vision,
       attempt: attempt,
-      priorIssues: priorIssues
+      priorIssues: priorIssues,
+      forgeProfile: ForgeProfileService.resolve(repoURL: workspace.repoURL, workspace: workspace)
     )
     _ = try workspace.writeSessionAuditArtifact(
       session: sessionNumber,
@@ -939,10 +940,11 @@ public struct HeadlessCompassRunner: Sendable {
         phase: phase,
         workingDirectoryPath: workspace.repoURL.path,
         executionEnvironment: .containerizedLinux,
-        externalToolNames: []
+        externalToolNames: [],
+        forgeProfile: forgeProfile
       ),
       userPrompt: userPrompt,
-      tools: ToolRegistry.tools(for: phase, settings: settings),
+      tools: ToolRegistry.tools(for: phase, settings: settings, forgeProfile: forgeProfile),
       modelRuntime: runtime,
       submitResultSchema: AgentToolParametersSchema(json: Data(schema.utf8)),
       workingDirectory: workspace.repoURL,
