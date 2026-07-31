@@ -1660,14 +1660,43 @@ public struct HeadlessCompassRunner: Sendable {
   }
 
   private static func missingPackageEntryPointIssues(repoURL: URL) -> [PackageEntryPointIssue] {
-    _ = repoURL
-    return []
+    packageManifestURLs(in: repoURL).flatMap { manifestURL in
+      missingPackageEntryPointIssues(manifestURL: manifestURL, repoURL: repoURL)
+    }
+    .sorted {
+      [$0.manifestPath, $0.field, $0.targetPath].joined(separator: "\u{0}")
+        < [$1.manifestPath, $1.field, $1.targetPath].joined(separator: "\u{0}")
+    }
   }
 
   private static func packageManifestURLs(in repoURL: URL) -> [URL] {
-    _ = repoURL
-    return []
+    let fm = FileManager.default
+    guard
+      let enumerator = fm.enumerator(
+        at: repoURL,
+        includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
+        options: [.skipsHiddenFiles]
+      )
+    else {
+      return []
+    }
+
+    var manifests: [URL] = []
+    for case let url as URL in enumerator {
+      if Self.shouldSkipPackageManifestScanDescendants(url) {
+        enumerator.skipDescendants()
+        continue
+      }
+      guard url.lastPathComponent == "Cargo.toml",
+        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+      else {
+        continue
+      }
+      manifests.append(url)
+    }
+    return manifests
   }
+
   private static func shouldSkipPackageManifestScanDescendants(_ url: URL) -> Bool {
     guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
       return false
@@ -1679,8 +1708,28 @@ public struct HeadlessCompassRunner: Sendable {
     manifestURL: URL,
     repoURL: URL
   ) -> [PackageEntryPointIssue] {
-    _ = (manifestURL, repoURL)
-    return []
+    guard let contents = try? String(contentsOf: manifestURL, encoding: .utf8) else {
+      return []
+    }
+    let manifestPath = relativePath(manifestURL, repoURL: repoURL)
+    let packageDirectory = manifestURL.deletingLastPathComponent()
+    let pattern = #/\bpath\s*=\s*["']([^"']+)["']/#
+    var issues: [PackageEntryPointIssue] = []
+    for match in contents.matches(of: pattern) {
+      let declared = String(match.1)
+      guard let cleanedPath = cleanedLocalPackageEntryPath(declared) else { continue }
+      let targetURL = packageDirectory.appending(path: cleanedPath).standardizedFileURL
+      guard !FileManager.default.fileExists(atPath: targetURL.path) else { continue }
+      issues.append(
+        PackageEntryPointIssue(
+          manifestPath: manifestPath,
+          field: "path",
+          declaredPath: declared,
+          targetPath: relativePath(targetURL, repoURL: repoURL)
+        )
+      )
+    }
+    return issues
   }
 
   private static func cleanedLocalPackageEntryPath(_ rawPath: String) -> String? {

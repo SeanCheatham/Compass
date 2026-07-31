@@ -13,7 +13,7 @@ struct AgentListFilesToolTests {
     let codemapURL = tempURL.appending(path: "codemap", directoryHint: .isDirectory)
     let store = CodemapStore(directory: codemapURL)
     try store.saveEntry(entry("crates/app-cli/src/main.rs", language: .rust))
-    try store.saveEntry(entry("crates/app-cli/tests/cli_smoke.rs", language: .rust))
+    try store.saveEntry(entry("crates/app-cli/tests/cli.rs", language: .rust))
     try store.saveEntry(entry("crates/app-core/src/lib.rs", language: .rust))
 
     let cliSrc = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
@@ -22,7 +22,7 @@ struct AgentListFilesToolTests {
     try FileManager.default.createDirectory(at: cliTests, withIntermediateDirectories: true)
     try "fn main() {}\n".write(to: cliSrc.appending(path: "main.rs"), atomically: true, encoding: .utf8)
     try "#[test] fn smoke() {}\n".write(
-      to: cliTests.appending(path: "cli_smoke.rs"), atomically: true, encoding: .utf8)
+      to: cliTests.appending(path: "cli.rs"), atomically: true, encoding: .utf8)
 
     let tool = AgentListFilesTool()
     let context = AgentToolContext(
@@ -43,7 +43,7 @@ struct AgentListFilesToolTests {
       context: context
     )
     #expect(!braced.isError)
-    #expect(braced.content.contains("crates/app-cli/tests/cli_smoke.rs"))
+    #expect(braced.content.contains("crates/app-cli/tests/cli.rs"))
   }
 
   @Test

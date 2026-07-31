@@ -391,7 +391,7 @@ struct FactoryPivotTests {
     #expect(byPath.keys.contains("crates/app-cli/Cargo.toml"))
     #expect(byPath.keys.contains("crates/app-core/src/lib.rs"))
     #expect(byPath.keys.contains("crates/app-cli/src/main.rs"))
-    #expect(byPath.keys.contains("crates/app-cli/tests/cli_smoke.rs"))
+    #expect(byPath.keys.contains("crates/app-cli/tests/cli.rs"))
 
     let workspace = try #require(byPath["Cargo.toml"])
     #expect(workspace.contains("crates/app-core"))

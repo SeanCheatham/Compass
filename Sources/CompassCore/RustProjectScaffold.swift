@@ -34,7 +34,7 @@ enum RustProjectScaffold {
       ScaffoldFile(path: "crates/app-core/src/lib.rs", contents: appCoreLib),
       ScaffoldFile(path: "crates/app-cli/Cargo.toml", contents: appCLIManifest),
       ScaffoldFile(path: "crates/app-cli/src/main.rs", contents: appCLIMain),
-      ScaffoldFile(path: "crates/app-cli/tests/cli_smoke.rs", contents: appCLISmokeTest),
+      ScaffoldFile(path: "crates/app-cli/tests/cli.rs", contents: appCLISmokeTest),
     ]
   }
 
