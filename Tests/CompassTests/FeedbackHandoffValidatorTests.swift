@@ -28,7 +28,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Edited the utility.",
-      feedback: "Run `pnpm verify` to check if the changes pass the verification process.",
+      feedback: "Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes pass the verification process.",
       bypassVerify: false
     )
 
@@ -37,7 +37,7 @@ struct FeedbackHandoffValidatorTests {
       Issue.record("Expected run-verify feedback rejection.")
     } catch let error as DevelopFeedbackValidationError {
       #expect(error.reason == .unfinishedSuccess)
-      #expect(error.feedback?.contains("pnpm verify") == true)
+      #expect(error.feedback?.contains("cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace") == true)
     }
   }
 
@@ -82,7 +82,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the summarize helper.",
-      feedback: "Verify the changes with `pnpm verify`.",
+      feedback: "Verify the changes with `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`.",
       bypassVerify: false
     )
 
@@ -118,7 +118,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the utility file.",
-      feedback: "Next action: Update the CLI in packages/cli/src/main.ts to use the summary.",
+      feedback: "Next action: Update the CLI in crates/app-cli/src/main.rs to use the summary.",
       bypassVerify: false
     )
 
@@ -149,9 +149,9 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithBareNextWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Moved the existing summarizeCLI function to packages/cli/src/summarize.ts.",
+      summary: "Moved the existing summarizeCLI function to crates/app-cli/src/summarize.rs.",
       feedback:
-        "Next, create tests for the new `summarizeCLI` function in `packages/cli/src/summarize.test.ts`.",
+        "Next, create tests for the new `summarizeCLI` function in `crates/app-cli/tests/summarize.rs`.",
       bypassVerify: false
     )
 
@@ -205,7 +205,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the utility file.",
-      feedback: "Update the CLI in packages/cli/src/main.ts and add a test for the summary.",
+      feedback: "Update the CLI in crates/app-cli/src/main.rs and add a test for the summary.",
       bypassVerify: false
     )
 
@@ -218,7 +218,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackStartingWithEditAndPrepare() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Moved existing logic to packages/cli/src/summarize.ts.",
+      summary: "Moved existing logic to crates/app-cli/src/summarize.rs.",
       feedback: "Edit the existing file with the new logic and prepare for adding a test function next.",
       bypassVerify: false
     )
@@ -237,7 +237,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Added the CLI JSON flag and touched the tests.",
-      feedback: "pnpm verify now fails due to type errors. Resolve the type errors before proceeding.",
+      feedback: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace now fails due to type errors. Resolve the type errors before proceeding.",
       bypassVerify: false
     )
 
@@ -246,7 +246,7 @@ struct FeedbackHandoffValidatorTests {
       Issue.record("Expected verify-failure feedback rejection.")
     } catch let error as DevelopFeedbackValidationError {
       #expect(error.reason == .unfinishedSuccess)
-      #expect(error.feedback?.contains("verify now fails") == true)
+      #expect(error.feedback?.contains("fails") == true)
     }
   }
 
@@ -255,7 +255,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Updated the CLI entrypoint.",
-      feedback: "Fix the syntax error in packages/cli/src/main.ts and then run pnpm verify again.",
+      feedback: "Fix the syntax error in crates/app-cli/src/main.rs and then run cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace again.",
       bypassVerify: false
     )
 
@@ -273,7 +273,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Updated the CLI and tests.",
-      feedback: "Fixed the failing CLI assertion and verified pnpm verify passes.",
+      feedback: "Fixed the failing CLI assertion and verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.",
       bypassVerify: false
     )
 
@@ -285,7 +285,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Updated the CLI and tests.",
-      feedback: "Verified pnpm verify passes with the CLI summary assertion in main.test.ts.",
+      feedback: "Verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes with the CLI summary assertion in main.test.ts.",
       bypassVerify: false
     )
 

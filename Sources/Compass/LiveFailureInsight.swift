@@ -291,23 +291,23 @@ struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["pnpm: command not found", "corepack: command not found"]) {
+    if containsAny(normalized, ["cargo: command not found", "rustc: command not found", "rustup: command not found"]) {
       return (
         .unavailableService,
-        "Node Runtime Tools Are Not Ready",
-        "Compass could not find the Node/pnpm tools needed for generated TypeScript work.",
-        "Repair the containerized Linux runtime bootstrap, then rerun verify.",
+        "Rust Toolchain Is Not Ready",
+        "Compass could not find the Rust toolchain needed for generated Cargo work.",
+        "Repair the containerized Linux runtime bootstrap so cargo/rustc are on PATH, then rerun verify.",
         "Runtime tools",
         "shippingbox"
       )
     }
 
-    if containsAny(normalized, ["vitest: command not found", "cannot find package 'vitest'"]) {
+    if containsAny(normalized, ["llvm-cov: command not found", "could not find `llvm-cov`", "cargo-llvm-cov"]) {
       return (
         .commandFailure,
-        "Test Tooling Is Missing",
-        "The TypeScript test command could not find Vitest or its coverage tooling.",
-        "Run `pnpm install`, then rerun the planned verify command.",
+        "Coverage Tooling Is Missing",
+        "The Rust coverage command could not find cargo-llvm-cov or its dependencies.",
+        "Install cargo-llvm-cov in the runtime, then rerun the planned verify command.",
         "Coverage",
         "gauge.with.dots.needle.bottom.50percent"
       )
@@ -316,50 +316,51 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(
       normalized,
       [
-        "pnpm-workspace.yaml",
-        "workspace package not found",
-        "no projects matched the filters",
+        "could not find `Cargo.toml`",
+        "failed to load manifest",
+        "no such file or directory",
+        "workspace member",
       ]
     ) {
       return (
         .commandFailure,
-        "Workspace Scaffold Needs Repair",
-        "The generated TypeScript workspace no longer matches the Compass scaffold contract.",
-        "Restore the missing workspace file or package reference, then rerun `pnpm verify`.",
+        "Cargo Workspace Needs Repair",
+        "The generated Rust workspace no longer matches the Compass scaffold contract.",
+        "Restore the missing Cargo.toml, crate member, or workspace reference, then rerun verify.",
         "Scaffold",
         "wrench.and.screwdriver"
       )
     }
 
-    if containsAny(normalized, ["tsc ", "typescript", "type error"]) {
+    if containsAny(normalized, ["error[e", "error: could not compile", "rustc --explain"]) {
       return (
         .commandFailure,
-        "TypeScript Check Failed",
-        "The TypeScript compiler found an issue that should be fixed before the change lands.",
-        "Start at the first reported file and line, make the smallest code change, then rerun `pnpm typecheck` or verify.",
-        "TypeScript",
+        "Rust Compile Check Failed",
+        "The Rust compiler found an issue that should be fixed before the change lands.",
+        "Start at the first reported file and line, make the smallest code change, then rerun `cargo check` or verify.",
+        "rustc",
         "paintbrush.pointed"
       )
     }
 
-    if normalized.contains("vite build") || normalized.contains("failed to resolve import") {
+    if normalized.contains("clippy") || normalized.contains("deny(warnings)") {
       return (
         .commandFailure,
-        "Web Build Failed",
-        "The Vite build found a bundling or import issue.",
-        "Fix the first Vite error, then rerun `pnpm build` or verify.",
-        "Vite",
+        "Clippy Check Failed",
+        "Clippy found a lint issue that should be fixed before the change lands.",
+        "Fix the first Clippy warning, then rerun `cargo clippy` or verify.",
+        "clippy",
         "curlybraces"
       )
     }
 
-    if containsAny(normalized, ["npm err!", "pnpm err!", "lockfile"]) {
+    if containsAny(normalized, ["cargo err!", "failed to select a version", "failed to parse manifest"]) {
       return (
         .commandFailure,
-        "Package Command Failed",
-        "The package manager reported an install, script, or lockfile problem.",
-        "Use the first package-manager error, repair dependencies or scripts, then rerun the scoped verify command.",
-        "pnpm",
+        "Cargo Command Failed",
+        "Cargo reported a manifest, dependency, or lockfile problem.",
+        "Use the first Cargo error, repair dependencies or workspace members, then rerun the scoped verify command.",
+        "cargo",
         "terminal"
       )
     }

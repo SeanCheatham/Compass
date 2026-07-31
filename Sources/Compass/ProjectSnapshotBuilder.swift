@@ -38,7 +38,6 @@ enum ProjectSnapshotBuilder {
       isAutoPlaying: project.isAutoPlaying,
       isPaused: project.isPaused,
       languageProfile: project.languageProfile,
-      forgeProfile: project.forgeProfile,
       drafts: project.drafts,
       vision: project.vision
     )

@@ -8,8 +8,7 @@ struct PlanHandoffClipboardPayload: Equatable, Sendable {
   init(
     plan rawPlan: String,
     verify rawVerify: String?,
-    languageProfile: RepositoryLanguageProfile,
-    forgeProfile: ForgeProfile? = nil
+    languageProfile: RepositoryLanguageProfile
   ) {
     let plan = Self.normalized(rawPlan)
     let normalizedVerify = Self.normalized(rawVerify ?? "")
@@ -18,8 +17,7 @@ struct PlanHandoffClipboardPayload: Equatable, Sendable {
     let repairGuide = PlanHandoffRepairGuide(
       plan: plan,
       verify: verify,
-      languageProfile: languageProfile,
-      forgeProfile: forgeProfile
+      languageProfile: languageProfile
     )
     let verifySummary = PlanVerifyCommandSummary(command: verify)
 

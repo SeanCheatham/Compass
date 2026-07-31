@@ -20,12 +20,8 @@ let package = Package(
       revision: "7b7909f2f6b9414be0958275f4c8e5d69c3bca43"
     ),
     .package(
-      url: "https://github.com/tree-sitter/tree-sitter-typescript",
-      revision: "75b3874edb2dc714fb1fd77a32013d0f8699989f"
-    ),
-    .package(
-      url: "https://github.com/tree-sitter/tree-sitter-javascript",
-      revision: "58404d8cf191d69f2674a8fd507bd5776f46cb11"
+      url: "https://github.com/tree-sitter/tree-sitter-rust",
+      revision: "77a3747266f4d621d0757825e6b11edcbf991ca5"
     ),
     .package(
       url: "https://github.com/apple/swift-testing",
@@ -71,11 +67,9 @@ let package = Package(
       name: "CompassCore",
       dependencies: [
         "CompassSandbox",
-        "TreeSitterScanners",
         .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
-        .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
-        .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
+        .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
         .product(name: "MLXLLM", package: "mlx-swift-lm"),
         .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
         .product(name: "HuggingFace", package: "swift-huggingface"),
@@ -93,11 +87,9 @@ let package = Package(
       name: "Compass",
       dependencies: [
         "CompassSandbox",
-        "TreeSitterScanners",
         .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
-        .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
-        .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
+        .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
         .product(name: "MLXLLM", package: "mlx-swift-lm"),
         .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
         .product(name: "HuggingFace", package: "swift-huggingface"),

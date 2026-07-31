@@ -93,7 +93,7 @@ struct ContainerRuntimeView: View {
     if isResetting { return "Resetting cache..." }
     if isChecking { return "Checking Apple Containerization runtime..." }
     guard let status else { return "Not checked yet." }
-    return status.ok ? "Ready for TypeScript agent commands." : "Runtime needs attention."
+    return status.ok ? "Ready for Rust agent commands." : "Runtime needs attention."
   }
 
   private var lastMessage: String? {

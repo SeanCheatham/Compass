@@ -5,6 +5,8 @@ import Testing
 
 @Suite("PlanTransitionValidator")
 struct PlanTransitionValidatorTests {
+  private let standardVerify = GeneratedProjectQuality.standardVerifyCommand
+
   @Test
   func rejectsDroppingExistingBriefFields() throws {
     let current = PlanState(
@@ -23,12 +25,12 @@ struct PlanTransitionValidatorTests {
       immediate: PlanNext(
         plan: """
           ## Outcome
-          Update `packages/cli/src/main.ts` and `packages/cli/src/main.test.ts` so the CLI prints a useful one-line ledger summary.
+          Update `crates/app-cli/src/main.rs` and `crates/app-cli/tests/cli.rs` so the CLI prints a useful one-line ledger summary.
 
           ## Acceptance checks
           - The CLI test asserts the one-line ledger summary from sample entries.
           """,
-        verify: "pnpm verify",
+        verify: standardVerify,
         verifyTimeoutMs: 600_000,
         estimatedDifficulty: .low,
         selectedBecause: "This is a focused test packet.",
@@ -64,15 +66,91 @@ struct PlanTransitionValidatorTests {
   func rejectsMissingExplicitPathsUnlessMarkedAsNewFile() throws {
     let tempURL = try makePlanValidatorTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    let cliSrc = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let cliSrc = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
-    try "export const main = true;\n".write(
-      to: cliSrc.appending(path: "main.ts"),
+    try "pub fn main() {}\n".write(
+      to: cliSrc.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
-    try "import './main';\n".write(
-      to: cliSrc.appending(path: "main.test.ts"),
+    let cliTests = tempURL.appending(path: "crates/app-cli/tests", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: cliTests, withIntermediateDirectories: true)
+    try "#[test] fn cli() {}\n".write(
+      to: cliTests.appending(path: "cli.rs"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try """
+    [package]
+    name = "app-cli"
+    """.write(
+      to: tempURL.appending(path: "crates/app-cli/Cargo.toml"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let invalid = planState(
+      """
+      ## Outcome
+      Update `crates/app-cli/src/cli.rs` so the CLI prints a queue summary.
+
+      ## Acceptance checks
+      - CLI output includes the queue summary.
+      """
+    )
+
+    #expect(throws: PlanTransitionValidationError.self) {
+      try PlanTransitionValidator.validate(from: .empty, to: invalid, repoURL: tempURL)
+    }
+
+    do {
+      try PlanTransitionValidator.validate(from: .empty, to: invalid, repoURL: tempURL)
+      Issue.record("Expected missing path rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .ungroundedPaths)
+      #expect(error.message.contains("crates/app-cli/src/cli.rs"))
+      #expect(error.message.contains("main.rs"))
+    }
+
+    let wrongTestPath = planState(
+      """
+      ## Outcome
+      Update `crates/app-cli/test/cli.rs` to cover loud CLI output.
+
+      ## Acceptance checks
+      - `crates/app-cli/test/cli.rs` covers loud CLI output.
+      """
+    )
+
+    do {
+      try PlanTransitionValidator.validate(from: .empty, to: wrongTestPath, repoURL: tempURL)
+      Issue.record("Expected missing test path rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .ungroundedPaths)
+      #expect(error.message.contains("crates/app-cli/test/cli.rs"))
+      #expect(error.message.contains("same filename exists at: crates/app-cli/tests/cli.rs"))
+    }
+
+    let explicitNewUtilityFile = planState(
+      """
+      ## Outcome
+      Create new file `crates/app-core/src/activity.rs` for reusable activity helpers.
+
+      ## Acceptance checks
+      - The new activity helper file exists.
+      """
+    )
+
+    try PlanTransitionValidator.validate(
+      from: .empty,
+      to: explicitNewUtilityFile,
+      repoURL: tempURL
+    )
+
+    let legacyCliSrc = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: legacyCliSrc, withIntermediateDirectories: true)
+    try "export const main = true;\n".write(
+      to: legacyCliSrc.appending(path: "main.ts"),
       atomically: true,
       encoding: .utf8
     )
@@ -89,48 +167,6 @@ struct PlanTransitionValidatorTests {
       atomically: true,
       encoding: .utf8
     )
-
-    let invalid = planState(
-      """
-      ## Outcome
-      Update `packages/cli/src/cli.ts` so the CLI prints a queue summary.
-
-      ## Acceptance checks
-      - CLI output includes the queue summary.
-      """
-    )
-
-    #expect(throws: PlanTransitionValidationError.self) {
-      try PlanTransitionValidator.validate(from: .empty, to: invalid, repoURL: tempURL)
-    }
-
-    do {
-      try PlanTransitionValidator.validate(from: .empty, to: invalid, repoURL: tempURL)
-      Issue.record("Expected missing path rejection.")
-    } catch let error as PlanTransitionValidationError {
-      #expect(error.reason == .ungroundedPaths)
-      #expect(error.message.contains("packages/cli/src/cli.ts"))
-      #expect(error.message.contains("main.ts"))
-    }
-
-    let wrongTestPath = planState(
-      """
-      ## Outcome
-      Update `packages/cli/test/main.test.ts` to cover loud CLI output.
-
-      ## Acceptance checks
-      - `packages/cli/test/main.test.ts` covers loud CLI output.
-      """
-    )
-
-    do {
-      try PlanTransitionValidator.validate(from: .empty, to: wrongTestPath, repoURL: tempURL)
-      Issue.record("Expected missing test path rejection.")
-    } catch let error as PlanTransitionValidationError {
-      #expect(error.reason == .ungroundedPaths)
-      #expect(error.message.contains("packages/cli/test/main.test.ts"))
-      #expect(error.message.contains("same filename exists at: packages/cli/src/main.test.ts"))
-    }
 
     let duplicateEntryPoint = planState(
       """
@@ -157,38 +193,6 @@ struct PlanTransitionValidatorTests {
         ))
       #expect(error.message.contains("Do not resubmit the same new-file path"))
     }
-
-    let explicitEntrypointMove = planState(
-      """
-      ## Outcome
-      Change `bin.compass-test` from `packages/cli/src/main.ts` to `packages/cli/src/cli.ts`, then create new file `packages/cli/src/cli.ts` as the replacement CLI entry point.
-
-      ## Acceptance checks
-      - The package bin routes compass-test through the replacement entry point.
-      """
-    )
-
-    try PlanTransitionValidator.validate(
-      from: .empty,
-      to: explicitEntrypointMove,
-      repoURL: tempURL
-    )
-
-    let explicitNewUtilityFile = planState(
-      """
-      ## Outcome
-      Create new file `packages/core/src/utils/activity.ts` for reusable activity helpers.
-
-      ## Acceptance checks
-      - The new activity helper file exists.
-      """
-    )
-
-    try PlanTransitionValidator.validate(
-      from: .empty,
-      to: explicitNewUtilityFile,
-      repoURL: tempURL
-    )
   }
 
   @Test
@@ -209,13 +213,13 @@ struct PlanTransitionValidatorTests {
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
       #expect(error.message.contains("does not include a CLI test"))
-      #expect(error.message.contains("packages/cli/src/main.test.ts"))
+      #expect(error.message.contains("crates/app-cli/tests/cli.rs"))
     }
 
     let grounded = planState(
       """
       ## Outcome
-      Update the CLI and `packages/cli/src/main.test.ts` so it prints a useful one-line ledger summary.
+      Update the CLI and `crates/app-cli/tests/cli.rs` so it prints a useful one-line ledger summary.
 
       ## Acceptance checks
       - The CLI test asserts the one-line ledger summary from sample entries.
@@ -230,12 +234,11 @@ struct PlanTransitionValidatorTests {
     let weak = planState(
       """
       ## Outcome
-      Implement a CLI habit streak summary feature.
+      Implement a CLI habit streak summary that prints output.
 
       ## Acceptance checks
-      - Add or update core tests for the streak helper.
+      - The CLI prints a readable streak summary from sample entries.
       - Add or update CLI tests for split argv usage of `--streak`.
-      - `pnpm verify` passes.
       """
     )
 
@@ -245,8 +248,8 @@ struct PlanTransitionValidatorTests {
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
       #expect(error.message.contains("does not include a CLI test or direct proof"))
-      #expect(error.message.contains("packages/cli/src/main.test.ts"))
-      #expect(error.message.contains(#"main(["--streak", "value"])"#))
+      #expect(error.message.contains("crates/app-cli/tests/cli.rs"))
+      #expect(error.message.contains(#"["--streak", "value"]"#))
     }
   }
 
@@ -258,7 +261,7 @@ struct PlanTransitionValidatorTests {
       Add support for `--format json` to the CLI.
 
       ## Acceptance checks
-      - Running `main(["--format", "json", "Ship", "it"])` returns JSON output.
+      - Running the CLI with `["--format", "json", "Ship", "it"]` returns JSON output.
       """
     )
 
@@ -267,8 +270,8 @@ struct PlanTransitionValidatorTests {
       Issue.record("Expected weak verify rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
-      #expect(error.message.contains("packages/cli/src/main.test.ts"))
-      #expect(error.message.contains(#"main(["--format", "json", "Ship", "it"])"#))
+      #expect(error.message.contains("crates/app-cli/tests/cli.rs"))
+      #expect(error.message.contains(#"["--format", "json", "Ship", "it"]"#))
       #expect(error.message.contains("parsed JSON title is `Ship it`"))
     }
   }
@@ -281,10 +284,10 @@ struct PlanTransitionValidatorTests {
       Implement a split-argv `--limit <number>` option in the CLI.
 
       ## Acceptance checks
-      - `main(["--limit", "4", "Ship", "it"])` parses the real split argv entries and returns `4 open / 4 total`.
-      - Update `packages/cli/src/main.test.ts` with the split argv assertion.
+      - The CLI parses real split argv entries and returns `4 open / 4 total`.
+      - Update `crates/app-cli/tests/cli.rs` with the split argv assertion.
       """,
-      verify: "pnpm test -- --coverage"
+      verify: "cargo test --workspace"
     )
 
     do {
@@ -292,9 +295,9 @@ struct PlanTransitionValidatorTests {
       Issue.record("Expected test-only verify rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
-      #expect(error.rejectedVerify == "pnpm test -- --coverage")
+      #expect(error.rejectedVerify == "cargo test --workspace")
       #expect(error.message.contains("test-only verify command"))
-      #expect(error.message.contains("use `pnpm verify`"))
+      #expect(error.message.contains(standardVerify))
     }
   }
 
@@ -303,12 +306,12 @@ struct PlanTransitionValidatorTests {
     let testOnly = planState(
       """
       ## Outcome
-      Add regression coverage in `packages/cli/src/main.test.ts` for the existing CLI split argv behavior.
+      Add regression coverage in `crates/app-cli/tests/cli.rs` for the existing CLI split argv behavior.
 
       ## Acceptance checks
-      - The CLI test calls `main(["--format", "json", "Ship", "it"])` and asserts the parsed title is `Ship it`.
+      - The CLI test runs with `["--format", "json", "Ship", "it"]` and asserts the parsed title is `Ship it`.
       """,
-      verify: "pnpm test -- --coverage"
+      verify: "cargo llvm-cov --workspace --summary-only"
     )
 
     try PlanTransitionValidator.validate(from: .empty, to: testOnly)
@@ -327,11 +330,7 @@ struct PlanTransitionValidatorTests {
       verify: #"grep -q "Compass local-model smoke note." README.md"#
     )
 
-    try PlanTransitionValidator.validate(
-      from: .empty,
-      to: docsOnly,
-      forgeProfile: .typeScriptPnpmVite
-    )
+    try PlanTransitionValidator.validate(from: .empty, to: docsOnly)
   }
 
   @Test
@@ -342,27 +341,23 @@ struct PlanTransitionValidatorTests {
       Implement a split-argv `--limit <number>` option in the CLI.
 
       ## Acceptance checks
-      - The CLI can parse `main(["--limit", "4", "Ship", "it"])`.
+      - The CLI can parse split argv limit flags.
       """,
       verify: #"grep -q "--limit" README.md"#
     )
 
     do {
-      try PlanTransitionValidator.validate(
-        from: .empty,
-        to: implementation,
-        forgeProfile: .typeScriptPnpmVite
-      )
+      try PlanTransitionValidator.validate(from: .empty, to: implementation)
       Issue.record("Expected coverage verify rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .coverageRequirement)
       #expect(error.rejectedVerify == #"grep -q "--limit" README.md"#)
-      #expect(error.message.contains("pnpm verify"))
+      #expect(error.message.contains("cargo fmt"))
     }
   }
 }
 
-private func planState(_ plan: String, verify: String = "pnpm verify") -> PlanState {
+private func planState(_ plan: String, verify: String = GeneratedProjectQuality.standardVerifyCommand) -> PlanState {
   PlanState(
     completed: [],
     immediate: PlanNext(

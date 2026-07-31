@@ -11,8 +11,7 @@ struct VerifyBypassAutoRepair: Equatable, Sendable {
 
   static func repair(
     plannedCommand: String,
-    developSummary: DevelopSummary,
-    forgeProfile: ForgeProfile?
+    developSummary: DevelopSummary
   ) -> VerifyBypassAutoRepair? {
     guard developSummary.bypassVerify == true else { return nil }
 
@@ -24,10 +23,7 @@ struct VerifyBypassAutoRepair: Equatable, Sendable {
       return nil
     }
 
-    switch forgeProfile {
-    case .swiftSPM, .typeScriptPnpmVite, nil:
-      return nil
-    }
+    return nil
   }
 
   private static func describesSortedDiffFileListProblem(_ text: String) -> Bool {

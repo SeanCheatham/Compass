@@ -7,22 +7,27 @@ struct VerifyFailureInsightTests {
   @Test
   func compilerErrorsWinOverCoverageMentions() {
     let detail = """
-      > pnpm typecheck && pnpm test -- --coverage && pnpm build
-      packages/core typecheck: src/index.ts(16,1): error TS1005: '}' expected.
+      error[E0425]: cannot find value `missing` in this scope
+       --> crates/app-core/src/lib.rs:16:1
       """
-    let insight = VerifyFailureInsight(detail: detail, metadata: "command=pnpm verify exitCode=2")
+  let verify = GeneratedProjectQuality.standardVerifyCommand
+    let insight = VerifyFailureInsight(detail: detail, metadata: "command=\(verify) exitCode=2")
 
     #expect(insight.kind == .buildFailure)
-    #expect(insight.repairDetail.contains("syntax error"))
+    #expect(insight.repairDetail.contains("concrete file, symbol, module, or syntax error"))
   }
 
   @Test
-  func corepackFetchErrorsArePackageManagerBootstrapFailures() {
+  func cargoToolchainFetchErrorsArePackageManagerBootstrapFailures() {
     let detail = """
-      Preparing pnpm@9.15.4 for immediate activation...
-      Internal Error: Error when performing the request to https://registry.npmjs.org/pnpm/-/pnpm-9.15.4.tgz
+      cargo install cargo-llvm-cov --locked
+      error: failed to download from https://crates.io
+      network: Error when performing the request
       """
-    let insight = VerifyFailureInsight(detail: detail, metadata: "command=pnpm verify exitCode=1")
+    let insight = VerifyFailureInsight(
+      detail: detail,
+      metadata: "command=\(GeneratedProjectQuality.standardVerifyCommand) exitCode=1"
+    )
 
     #expect(insight.kind == .packageManagerBootstrap)
     #expect(insight.inspectDetail.contains("before project tests could run"))

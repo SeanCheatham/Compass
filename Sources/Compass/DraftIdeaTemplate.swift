@@ -10,20 +10,20 @@ struct DraftIdeaTemplate: Identifiable, Equatable, Sendable {
 enum DraftIdeaLibrary {
   static func ideas(for profile: RepositoryLanguageProfile) -> [DraftIdeaTemplate] {
     [
-      typeScriptFactoryIdea,
+      rustFactoryIdea,
       feedbackIdea,
       languageIdea(for: profile.primaryLanguage),
     ]
   }
 
-  private static let typeScriptFactoryIdea = DraftIdeaTemplate(
-    id: "typescript-factory-output",
-    title: "TypeScript Factory",
-    systemImage: "curlybraces.square",
+  private static let rustFactoryIdea = DraftIdeaTemplate(
+    id: "rust-factory-output",
+    title: "Rust Factory",
+    systemImage: "gearshape.2",
     text: """
-      Change: create or improve the TypeScript output path
-      Because: generated projects should build, test, typecheck, and run inside the containerized Linux runtime with pnpm
-      Done when: `pnpm verify` passes and the workspace has core, CLI, and web packages
+      Change: create or improve the Rust output path
+      Because: generated projects should build, test, lint, and run inside the containerized Linux runtime with Cargo
+      Done when: standard cargo fmt/clippy/test verify passes and the workspace has app-core and app-cli crates
       """
   )
 
@@ -47,19 +47,19 @@ enum DraftIdeaLibrary {
         systemImage: "macwindow",
         text: """
           Change: polish the imported Swift repo without creating new generated Swift output
-          Because: legacy Swift work is still inspectable, while new Compass-generated projects should be TypeScript
+          Because: legacy Swift work is still inspectable, while new Compass-generated projects should be Rust
           Done when: the affected view uses clear controls, accessible labels, and existing Swift tests pass
           """
       )
-    case .typeScriptJavaScript:
+    case .rust:
       return DraftIdeaTemplate(
-        id: "legacy-web-state-clarity",
-        title: "Legacy Web",
-        systemImage: "rectangle.3.group",
+        id: "rust-cli-clarity",
+        title: "CLI Clarity",
+        systemImage: "terminal",
         text: """
-          Change: repair or clarify the imported TS/JS repo without creating new generated web output
-          Because: legacy web repos are still inspectable, while new Compass-generated projects use the pnpm TypeScript scaffold
-          Done when: the active view shows ready, blocked, and in-progress states clearly
+          Change: tighten CLI help and status output in the generated Rust workspace
+          Because: backend/CLI projects should expose a clear, testable command surface
+          Done when: `cargo test --workspace` covers the CLI path and help text matches behavior
           """
       )
     case .markdown:

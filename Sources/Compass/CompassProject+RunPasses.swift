@@ -83,8 +83,7 @@ extension CompassProject {
         assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
         vision: visionText,
         focus: focus,
-        forgeProfile: forgeProfile,
-        coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
+        coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -238,8 +237,7 @@ extension CompassProject {
     let repairGuide = PlanHandoffRepairGuide(
       plan: next.plan,
       verify: next.verify,
-      languageProfile: languageProfile,
-      forgeProfile: forgeProfile
+      languageProfile: languageProfile
     )
     guard repairGuide.status == .ready else {
       let missing = repairGuide.steps
@@ -601,7 +599,6 @@ extension CompassProject {
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
-      forgeProfile: forgeProfile,
       iteration: iteration,
       maxIterations: maxCriticAttempts
     )
@@ -645,7 +642,6 @@ extension CompassProject {
       try PlanTransitionValidator.validate(
         from: current,
         to: next,
-        forgeProfile: forgeProfile,
         repoURL: workspace?.repoURL
       )
     } catch let error as PlanTransitionValidationError {
@@ -681,8 +677,7 @@ extension CompassProject {
 
     let autoRepair = VerifyBypassAutoRepair.repair(
       plannedCommand: next.verify,
-      developSummary: summary,
-      forgeProfile: forgeProfile
+      developSummary: summary
     )
     if summary.bypassVerify == true, let autoRepair {
       log(
@@ -749,14 +744,11 @@ extension CompassProject {
       if verify.exitCode == 0 {
         log("Verify passed.", level: .success)
         feedback(.verifyPassed)
-        if let profile = forgeProfile {
-          await collectCoverageAfterVerify(
-            profile: profile,
-            workingDirectory: workingDirectory,
-            launchPlan: launchPlan,
-            sessionIndex: sessionIndex
-          )
-        }
+        await collectCoverageAfterVerify(
+          workingDirectory: workingDirectory,
+          launchPlan: launchPlan,
+          sessionIndex: sessionIndex
+        )
       } else {
         let verifyTail = tail(verify.stdout + verify.stderr, max: 4000)
         let output = VerifyOutput(
@@ -933,10 +925,9 @@ extension CompassProject {
     return [message]
   }
 
-  /// After verify passes, run the forge profile's coverage collector and
-  /// persist a snapshot for the next Plan pass.
+  /// After verify passes, run the coverage collector and persist a snapshot
+  /// for the next Plan pass.
   func collectCoverageAfterVerify(
-    profile: ForgeProfile,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     sessionIndex: Int
@@ -944,20 +935,19 @@ extension CompassProject {
     guard let workspace else { return }
     let sessionNumber =
       sessions.indices.contains(sessionIndex) ? sessions[sessionIndex].session : nil
-    log("Post-check: collecting coverage for \(profile.displayName).", level: .info)
+    log("Post-check: collecting coverage.", level: .info)
     do {
       let result = try await runVerifyCommand(
-        command: profile.coverageCollectCommand(),
+        command: GeneratedProjectQuality.coverageCollectCommand,
         hostWorkingDirectory: workingDirectory,
         timeoutSeconds: TimeInterval(verifyTimeoutMs(for: PlanNext(plan: "", verify: ""))) / 1000,
         launchPlan: launchPlan
       )
-      var snapshot = profile.parseCoverageReport(
-        output: result.stdout + "\n" + result.stderr,
-        workingDirectory: workingDirectory
+      var snapshot = GeneratedProjectQuality.parseCoverageReport(
+        output: result.stdout + "\n" + result.stderr
       )
       snapshot.sessionNumber = sessionNumber
-      try ForgeProfileService.writeCoverageSnapshot(snapshot, workspace: workspace)
+      try CoverageSnapshotStore.writeCoverageSnapshot(snapshot, workspace: workspace)
       if let overall = snapshot.overallLineCoveragePercent {
         log(
           String(

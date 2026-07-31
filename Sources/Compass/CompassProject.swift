@@ -17,7 +17,6 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var hasOlderArchivedSessions = false
   @Published var isLoadingArchivedSessions = false
   @Published var languageProfile = RepositoryLanguageProfile.empty
-  @Published var forgeProfile: ForgeProfile?
   @Published var activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned()
   @Published var nativeFeedbackMode: NativeFeedbackMode
   @Published var hostXcodeBuildTestEnabled: Bool

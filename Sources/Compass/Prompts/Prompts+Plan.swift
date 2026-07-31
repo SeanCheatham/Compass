@@ -10,7 +10,6 @@ extension Prompts {
     assumptions: String = "",
     vision: String,
     focus: PlanFocus,
-    forgeProfile: ForgeProfile? = nil,
     coverageSnapshot: CoverageSnapshot? = nil,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
@@ -23,12 +22,13 @@ extension Prompts {
       files or commit. Use read-only tools and `bash` probes when they help ground the choice.
 
       Factory rules:
-      - Generated Compass output is TypeScript only.
-      - New generated projects use pnpm workspaces, strict TypeScript, Vite + React in
-        `packages/web`, Vitest coverage, and `tsx` for CLI/dev scripts.
-      - Prefer `pnpm verify` as the verify command. Do not use bare `pnpm test`.
-        For focused test slices use `pnpm test -- --coverage`; for compile-only
-        or docs-only slices use `pnpm typecheck` or `pnpm build`.
+      - Generated Compass output is Rust only.
+      - New generated projects use a Cargo workspace with `crates/app-core` and
+        `crates/app-cli` (no web UI). Prefer
+        `\(GeneratedProjectQuality.standardVerifyCommand)` as the verify command.
+        For focused test slices use `cargo test --workspace` or
+        `\(GeneratedProjectQuality.coverageCollectCommand)`; for compile-only slices
+        use `cargo check --workspace` or `cargo clippy --workspace`.
       - Keep `brief` stable and short: summary, target users, desired outcomes, constraints,
         and acceptance signals.
       - Keep `queue` to at most six actionable work items. Mark obsolete work stale or drop it.
@@ -41,16 +41,17 @@ extension Prompts {
         is one of `low`, `medium`, `high`; `status` is one of `available`, `active`,
         `blocked`, `deferred`, `done`, `stale`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
-      - For generated TypeScript work, name likely target files in the handoff. Use
-        `packages/core/src` for domain logic, `packages/cli/src` for CLI behavior, and
-        `packages/web/src` for React UI.
+      - For generated Rust work, name likely target files in the handoff. Use
+        `crates/app-core/src` for domain logic and `crates/app-cli/src` for CLI behavior.
+        Put integration tests in `crates/*/tests/`; unit tests belong in `#[cfg(test)]`
+        modules inside the crate sources.
       - Do not name a file path as an existing target unless a read-only tool proved it
         exists. If a path is intentionally new, say `create new file <path>` in the
         handoff.
       - If the Outcome or Acceptance checks claim new CLI/web behavior, include the
         matching test file/update in the handoff or choose a verify command that directly
-        exercises that behavior. Generic `pnpm verify` only proves new behavior when the
-        packet adds or updates tests for it.
+        exercises that behavior. The standard verify command only proves new behavior when
+        the packet adds or updates tests for it.
       - Use `immediate: null` only when there is no useful draft, feedback, queue item, or
         repository-originated cleanup/test/docs slice.
       - Acceptance checks describe observable behavior or state. Put shell commands only in
@@ -58,9 +59,9 @@ extension Prompts {
       - Completed history is managed by Compass. It currently has \(completedCount) completed
         iteration(s). Use `plan_history` when old shipped work matters.
 
-      \(forgeProfileSection(forgeProfile: forgeProfile))
+      \(generatedProjectConventionsSection())
 
-      \(forgeCoveragePlanningRules(forgeProfile: forgeProfile))
+      \(generatedCoveragePlanningRules())
 
       \(lessonEditsGuidance())
 
@@ -73,7 +74,7 @@ extension Prompts {
           "state": {
             "immediate": {
               "plan": "## Outcome\\n<what changes>\\n\\n## Why it matters\\n<why now>\\n\\n## Acceptance checks\\n- <observable result>",
-              "verify": "pnpm verify",
+              "verify": "\(GeneratedProjectQuality.standardVerifyCommand)",
               "verifyTimeoutMs": 600000,
               "estimatedDifficulty": "low",
               "selectedBecause": "<why this is next>",

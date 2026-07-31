@@ -97,34 +97,27 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
     } else if Self.containsAny(
       lowercased,
       [
-        "vitest",
-        "npm test",
-        "npm run test",
-        "pnpm test",
-        "pnpm run test",
-        "yarn test",
-        "yarn run test",
+        "cargo test",
+        "cargo llvm-cov",
       ])
     {
-      let collectsCoverage = lowercased.contains("coverage")
-      title = collectsCoverage ? "Runs TypeScript coverage" : "Runs TypeScript tests"
+      let collectsCoverage = lowercased.contains("llvm-cov")
+      title = collectsCoverage ? "Runs Rust coverage" : "Runs Rust tests"
       detail =
         collectsCoverage
-        ? "Compass will run the project's TypeScript tests with coverage enabled."
-        : "Compass will run the project's TypeScript test command."
+        ? "Compass will run the Rust workspace tests with llvm-cov coverage enabled."
+        : "Compass will run the Rust workspace test suite with cargo test."
       systemImage = "checkmark.seal"
     } else if Self.containsAny(
       lowercased,
       [
-        "npm run build",
-        "pnpm build",
-        "pnpm run build",
-        "yarn build",
-        "yarn run build",
+        "cargo build",
+        "cargo check",
+        "cargo fmt",
       ])
     {
-      title = "Builds the web project"
-      detail = "Compass will run the project's build script and fail on compile or bundling errors."
+      title = "Builds the Rust workspace"
+      detail = "Compass will compile or format-check the Rust workspace and fail on errors."
       systemImage = "hammer"
     } else if Self.containsAny(lowercased, ["lint", "clippy", "swiftlint"]) {
       title = "Runs quality checks"
@@ -513,10 +506,12 @@ struct PlanHandoffDigest: Equatable, Sendable {
     "npm run build",
     "npm run test",
     "npm test",
-    "pnpm build",
-    "pnpm run build",
-    "pnpm run test",
-    "pnpm test",
+    "cargo build",
+    "cargo check",
+    "cargo clippy",
+    "cargo fmt",
+    "cargo llvm-cov",
+    "cargo test",
     "pytest",
     "python -m pytest",
     "python -m unittest",
@@ -524,8 +519,6 @@ struct PlanHandoffDigest: Equatable, Sendable {
     "python3 -m unittest",
     "swift build",
     "swift test",
-    "vitest",
-    "vitest run",
     "xcodebuild",
     "yarn build",
     "yarn run build",
@@ -830,8 +823,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
     state: PlanState,
     reliabilityFeedback: PlanReliabilityFeedback,
     launchPlan: AgentExecutionLaunchPlan,
-    languageProfile: RepositoryLanguageProfile,
-    forgeProfile: ForgeProfile? = nil
+    languageProfile: RepositoryLanguageProfile
   ) {
     let routeSummary = Self.routeSummary(for: launchPlan)
     routeLabel = routeSummary.label
@@ -840,8 +832,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
     let repairGuide = PlanHandoffRepairGuide(
       plan: state.immediate?.plan,
       verify: state.immediate?.verify,
-      languageProfile: languageProfile,
-      forgeProfile: forgeProfile
+      languageProfile: languageProfile
     )
 
     if let notice = reliabilityFeedback.notices.first {

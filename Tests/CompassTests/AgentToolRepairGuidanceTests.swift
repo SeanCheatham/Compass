@@ -574,16 +574,16 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
-  func writeFileRejectsVitestJestPackageImport() async throws {
+  func writeFileRejectsTestCodeInProductionSourceFile() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "summarize.test.ts")
+    let fileURL = srcURL.appending(path: "util.rs")
     let result = try await AgentWriteFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/summarize.test.ts","content":"import { summarizeCLI } from './summarize';\nimport { describe, expect, test } from '@vitest/jest';\n\ndescribe('summarizeCLI', () => {\n  test('formats counts', () => {\n    expect(summarizeCLI([])).toBe('Done: 0, Pending: 0');\n  });\n});\n"}"#
+        "{\"path\":\"crates/app-cli/src/util.rs\",\"content\":\"#[test]\\nfn bad_test() {\\n    assert_eq!(1, 1);\\n}\\n\"}"
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -591,8 +591,7 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("`@vitest/jest` is not a Vitest package import"))
-    #expect(result.content.contains("from \"vitest\""))
+    #expect(result.content.contains("#[test]"))
     #expect(!FileManager.default.fileExists(atPath: fileURL.path))
   }
 
@@ -945,8 +944,7 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
     #expect(result.content.contains("test code into non-test source file main.ts"))
-    #expect(result.content.contains("Do not paste Vitest/Jest"))
-    #expect(result.content.contains(".test.ts"))
+    #expect(result.content.contains("#[cfg(test)]") || result.content.contains("tests/"))
     #expect(result.content.contains("implementation code only"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == original)
@@ -1609,15 +1607,20 @@ struct AgentToolRepairGuidanceTests {
       phase: .develop
     )
 
+    let verify = GeneratedProjectQuality.standardVerifyCommand
+    let payload = try JSONSerialization.data(
+      withJSONObject: ["command": verify],
+      options: []
+    )
     let result = try await AgentBashTool().invoke(
-      arguments: Data(#"{"command":"pnpm verify"}"#.utf8),
+      arguments: payload,
       context: context
     )
 
     #expect(!result.isError)
     #expect(result.content.contains("[stdout]\nverify passed"))
     #expect(result.content.contains("[exit 0]"))
-    #expect(result.content.contains("`pnpm verify` exited 0"))
+    #expect(result.content.contains("`\(verify)` exited 0"))
     #expect(result.content.contains("do not keep editing"))
     #expect(result.content.contains("submit status=succeeded now"))
     #expect(result.content.contains("specific acceptance requirement is still missing"))
@@ -1637,14 +1640,19 @@ struct AgentToolRepairGuidanceTests {
       phase: .develop
     )
 
+    let verify = GeneratedProjectQuality.standardVerifyCommand
+    let payload = try JSONSerialization.data(
+      withJSONObject: ["commands": [verify]],
+      options: []
+    )
     let result = try await AgentBashTool().invoke(
-      arguments: Data(#"{"commands":["pnpm verify"]}"#.utf8),
+      arguments: payload,
       context: context
     )
 
     #expect(!result.isError)
-    #expect(await bashRunner.commands == ["pnpm verify"])
-    #expect(result.content.contains("`pnpm verify` exited 0"))
+    #expect(await bashRunner.commands == [verify])
+    #expect(result.content.contains("`\(verify)` exited 0"))
   }
 
   @Test
@@ -1662,12 +1670,12 @@ struct AgentToolRepairGuidanceTests {
     )
 
     let result = try await AgentBashTool().invoke(
-      arguments: Data(#"{"commands":["pnpm install --frozen-lockfile","pnpm verify"]}"#.utf8),
+      arguments: Data(#"{"commands":["cargo fmt --all --check","cargo test --workspace"]}"#.utf8),
       context: context
     )
 
     #expect(!result.isError)
-    #expect(await bashRunner.commands == ["pnpm install --frozen-lockfile\npnpm verify"])
+    #expect(await bashRunner.commands == ["cargo fmt --all --check\ncargo test --workspace"])
   }
 
   @Test
@@ -1684,7 +1692,7 @@ struct AgentToolRepairGuidanceTests {
     )
 
     let result = try await AgentBashTool().invoke(
-      arguments: Data(#"{"command":"pnpm verify"}"#.utf8),
+      arguments: Data(#"{"command":"cargo test --workspace"}"#.utf8),
       context: context
     )
 
@@ -1692,7 +1700,7 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.errorKind == .bashFailure)
     #expect(result.content.contains("[stderr]\ntimed out"))
     #expect(result.content.contains("[exit 124]"))
-    #expect(!result.content.contains("`pnpm verify` exited 0"))
+    #expect(!result.content.contains("`cargo test --workspace` exited 0"))
   }
 }
 

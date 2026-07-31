@@ -123,20 +123,20 @@ final class AppModel: ObservableObject {
     }
   }
 
-  func createTypeScriptProject() async {
+  func createRustProject() async {
     let panel = NSSavePanel()
     panel.canCreateDirectories = true
     panel.canSelectHiddenExtension = false
     panel.isExtensionHidden = true
-    panel.nameFieldStringValue = "CompassTypeScriptApp"
-    panel.message = "Create a TypeScript project for Compass to evolve"
+    panel.nameFieldStringValue = "CompassRustApp"
+    panel.message = "Create a Rust project for Compass to evolve"
     panel.prompt = "Create"
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
     let projectURL = url.standardizedFileURL
 
     do {
-      try await Self.initializeGeneratedTypeScriptProject(at: projectURL)
+      try await Self.initializeGeneratedRustProject(at: projectURL)
       let project = upsertProject(repoURL: projectURL)
       selectProject(project)
       project.logProjectSelected()
@@ -197,20 +197,16 @@ final class AppModel: ObservableObject {
     return project
   }
 
-  static func initializeGeneratedTypeScriptProject(at url: URL) async throws {
+  static func initializeGeneratedRustProject(at url: URL) async throws {
     let projectURL = url.standardizedFileURL
     try ensureCreatableProjectDirectory(projectURL)
-    try TypeScriptProjectScaffold.write(
+    try RustProjectScaffold.write(
       to: projectURL,
-      options: TypeScriptProjectScaffold.Options(projectName: projectURL.lastPathComponent)
+      options: RustProjectScaffold.Options(projectName: projectURL.lastPathComponent)
     )
     let workspace = CompassWorkspace(repoURL: projectURL)
     try workspace.initialize()
-    try ForgeProfileService.writeRecord(
-      ForgeProfileRecord(profile: .typeScriptPnpmVite, version: ForgeProfileRecord.currentVersion),
-      workspace: workspace
-    )
-    try await initializeGeneratedTypeScriptGitRepository(at: projectURL)
+    try await initializeGeneratedRustGitRepository(at: projectURL)
   }
 
   private static func ensureCreatableProjectDirectory(_ url: URL) throws {
@@ -218,19 +214,19 @@ final class AppModel: ObservableObject {
     var isDirectory: ObjCBool = false
     if fm.fileExists(atPath: url.path, isDirectory: &isDirectory) {
       guard isDirectory.boolValue else {
-        throw AppModelError.internalInvariant("Cannot create a TypeScript project over a file.")
+        throw AppModelError.internalInvariant("Cannot create a Rust project over a file.")
       }
       let children = try fm.contentsOfDirectory(atPath: url.path)
       guard children.isEmpty else {
         throw AppModelError.internalInvariant(
-          "Choose an empty folder or a new folder name for the TypeScript project.")
+          "Choose an empty folder or a new folder name for the Rust project.")
       }
     } else {
       try fm.createDirectory(at: url, withIntermediateDirectories: true)
     }
   }
 
-  private static func initializeGeneratedTypeScriptGitRepository(at url: URL) async throws {
+  private static func initializeGeneratedRustGitRepository(at url: URL) async throws {
     let fm = FileManager.default
     if !fm.fileExists(atPath: url.appending(path: ".git").path) {
       let initResult = try await ProcessRunner.runEnv(
@@ -265,7 +261,7 @@ final class AppModel: ObservableObject {
       [
         "-c", "user.email=compass@example.invalid",
         "-c", "user.name=Compass",
-        "commit", "-q", "-m", "Create TypeScript project scaffold",
+        "commit", "-q", "-m", "Create Rust project scaffold",
       ],
       workingDirectory: url
     )

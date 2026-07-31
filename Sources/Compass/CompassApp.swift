@@ -45,15 +45,15 @@ struct CompassApp: App {
     .windowStyle(.titleBar)
     .commands {
       CommandGroup(replacing: .newItem) {
-        Button("New TypeScript Project") {
-          Task { await model.createTypeScriptProject() }
+        Button("New Rust Project") {
+          Task { await model.createRustProject() }
         }
         .keyboardShortcut("n", modifiers: [.command])
         .disabled(!isOnboardingComplete)
       }
       CommandMenu("Compass") {
-        Button("New TypeScript Project") {
-          Task { await model.createTypeScriptProject() }
+        Button("New Rust Project") {
+          Task { await model.createRustProject() }
         }
         .disabled(!isOnboardingComplete)
 

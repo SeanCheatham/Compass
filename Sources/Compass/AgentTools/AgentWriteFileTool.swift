@@ -147,12 +147,12 @@ struct AgentWriteFileTool: AgentTool {
     }
     if existing == nil,
       Self.isSourceFile(url),
-      let unsupportedVitestImport = Self.unsupportedVitestJestImport(in: args.content)
+      let inappropriateTest = Self.inappropriateRustTestCode(in: args.content, url: url)
     {
       let relative = context.relativize(url)
       return .failure(
         .invalidArguments(
-          "write_file refused to create \(relative) because \(unsupportedVitestImport) is not a Vitest package import. Use `import { describe, expect, it } from \"vitest\"` or `import { describe, expect, test } from \"vitest\"` instead."
+          "write_file refused to create \(relative) because \(inappropriateTest). Do not paste `#[test]` functions or bare `mod tests` blocks into production crate sources. Put tests in `crates/*/tests/` integration files or inside a `#[cfg(test)]` module."
         ))
     }
     if existing == nil,
@@ -476,20 +476,31 @@ struct AgentWriteFileTool: AgentTool {
     let preview: String
   }
 
-  private static func unsupportedVitestJestImport(in text: String) -> String? {
+  private static func inappropriateRustTestCode(in text: String, url: URL) -> String? {
+    guard url.pathExtension.lowercased() == "rs", !isTestFile(url) else { return nil }
+    let path = url.path.lowercased()
+    guard path.contains("/src/") else { return nil }
     for line in text.components(separatedBy: "\n") {
       let trimmed = line.trimmingCharacters(in: .whitespaces)
-      guard trimmed.hasPrefix("import ") else { continue }
-      for pattern in [
-        #"from\s+["'](@?vitest/jest)["']"#,
-        #"^\s*import\s+["'](@?vitest/jest)["']"#,
-      ] {
-        if let specifier = firstCapture(in: trimmed, pattern: pattern) {
-          return "`\(specifier)`"
-        }
+      if trimmed.hasPrefix("#[test]")
+        || trimmed.hasPrefix("#[tokio::test]")
+        || trimmed == "mod tests {"
+        || trimmed.hasPrefix("mod tests ")
+      {
+        return "`\(trimmed)`"
       }
     }
     return nil
+  }
+
+  private static func isTestFile(_ url: URL) -> Bool {
+    let path = url.path.lowercased()
+    let filename = url.lastPathComponent.lowercased()
+    return path.contains("/tests/")
+      || filename.hasSuffix("_test.rs")
+      || filename.contains(".test.")
+      || filename.contains(".spec.")
+      || path.contains("/__tests__/")
   }
 
   private static func emptyOrCommentOnlySourceContent(

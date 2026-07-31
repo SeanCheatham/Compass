@@ -204,7 +204,7 @@ public struct HeadlessCompassRunner: Sendable {
     return textReady && sandboxStatus.ok
   }
 
-  public func scaffoldTypeScript(
+  public func scaffoldRust(
     at url: URL,
     name: String?,
     initializeGit: Bool = false,
@@ -213,25 +213,18 @@ public struct HeadlessCompassRunner: Sendable {
     let url = url.standardizedFileURL
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     let projectName = name ?? url.lastPathComponent
-    try TypeScriptProjectScaffold.write(
+    try RustProjectScaffold.write(
       to: url,
-      options: TypeScriptProjectScaffold.Options(projectName: projectName)
+      options: RustProjectScaffold.Options(projectName: projectName)
     )
     let workspace = CompassWorkspace(repoURL: url)
     try workspace.initialize()
-    try ForgeProfileService.writeRecord(
-      ForgeProfileRecord(
-        profile: .typeScriptPnpmVite,
-        version: ForgeProfileRecord.currentVersion
-      ),
-      workspace: workspace
-    )
     onEvent(
       HeadlessCompassEvent(
         kind: "scaffold",
         level: "success",
         status: "completed",
-        message: "TypeScript project scaffolded.",
+        message: "Rust project scaffolded.",
         metadata: ["path": url.path, "name": projectName]
       )
     )
@@ -276,7 +269,7 @@ public struct HeadlessCompassRunner: Sendable {
       command?.isEmpty == false
       ? command!
       : state.immediate?.verify.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
-        ?? "pnpm verify"
+        ?? GeneratedProjectQuality.standardVerifyCommand
     return try await runVerifyCommand(
       verifyCommand,
       repoURL: options.repoURL,
@@ -320,9 +313,6 @@ public struct HeadlessCompassRunner: Sendable {
     case .auto, .fixture:
       break
     }
-    let forgeProfile =
-      (try? ForgeProfileService.detectAndPersist(repoURL: repoURL, workspace: workspace))
-      ?? .generatedProjectDefault
 
     let brief = options.brief.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !brief.isEmpty else {
@@ -346,7 +336,6 @@ public struct HeadlessCompassRunner: Sendable {
         workspace: workspace,
         settings: settings,
         runtime: runtime,
-        forgeProfile: forgeProfile,
         sessionNumber: sessionNumber,
         maxIterations: options.maxIterations,
         onEvent: onEvent
@@ -759,7 +748,6 @@ public struct HeadlessCompassRunner: Sendable {
           workspace: workspace,
           settings: settings,
           runtime: runtime,
-          forgeProfile: forgeProfile,
           sessionNumber: sessionNumber,
           maxIterations: options.maxIterations,
           onEvent: onEvent
@@ -856,7 +844,6 @@ public struct HeadlessCompassRunner: Sendable {
     workspace: CompassWorkspace,
     settings: AgentRuntimeSettings,
     runtime: any LocalModelGenerating,
-    forgeProfile: ForgeProfile,
     sessionNumber: Int,
     maxIterations: Int,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
@@ -874,8 +861,7 @@ public struct HeadlessCompassRunner: Sendable {
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
       focus: .feature,
-      forgeProfile: forgeProfile,
-      coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace)
+      coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace)
     )
     _ = try workspace.writeSessionAuditArtifact(
       session: sessionNumber,
@@ -891,7 +877,6 @@ public struct HeadlessCompassRunner: Sendable {
       userPrompt: prompt,
       schema: Prompts.planSchema,
       workspace: workspace,
-      forgeProfile: forgeProfile,
       sessionNumber: sessionNumber,
       promptLogLabelPrefix: "plan",
       maxIterations: maxIterations,
@@ -933,7 +918,6 @@ public struct HeadlessCompassRunner: Sendable {
       userPrompt: prompt,
       schema: Prompts.developSchema,
       workspace: workspace,
-      forgeProfile: ForgeProfileService.resolve(repoURL: workspace.repoURL, workspace: workspace),
       sessionNumber: sessionNumber,
       promptLogLabelPrefix: "develop-attempt-\(attempt)",
       maxIterations: maxIterations,
@@ -950,7 +934,6 @@ public struct HeadlessCompassRunner: Sendable {
     workspace: CompassWorkspace,
     settings: AgentRuntimeSettings,
     runtime: any LocalModelGenerating,
-    forgeProfile: ForgeProfile,
     sessionNumber: Int,
     maxIterations: Int,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
@@ -967,7 +950,6 @@ public struct HeadlessCompassRunner: Sendable {
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
-      forgeProfile: forgeProfile,
       iteration: 1,
       maxIterations: 1
     )
@@ -985,7 +967,6 @@ public struct HeadlessCompassRunner: Sendable {
       userPrompt: prompt,
       schema: Prompts.criticSchema,
       workspace: workspace,
-      forgeProfile: forgeProfile,
       sessionNumber: sessionNumber,
       promptLogLabelPrefix: "critic",
       maxIterations: maxIterations,
@@ -1001,7 +982,6 @@ public struct HeadlessCompassRunner: Sendable {
     userPrompt: String,
     schema: String,
     workspace: CompassWorkspace,
-    forgeProfile: ForgeProfile?,
     sessionNumber: Int,
     promptLogLabelPrefix: String?,
     maxIterations: Int,
@@ -1044,7 +1024,6 @@ public struct HeadlessCompassRunner: Sendable {
       validateSubmitResult: submitResultValidation(
         for: phase,
         workspace: workspace,
-        forgeProfile: forgeProfile,
         decode: T.self
       ),
       maxIterations: maxIterations,
@@ -1104,7 +1083,6 @@ public struct HeadlessCompassRunner: Sendable {
   private func submitResultValidation<T: Decodable>(
     for phase: AgentPhase,
     workspace: CompassWorkspace,
-    forgeProfile: ForgeProfile?,
     decode: T.Type
   ) -> @Sendable (Data) throws -> Void {
     { args in
@@ -1125,7 +1103,6 @@ public struct HeadlessCompassRunner: Sendable {
       try PlanTransitionValidator.validate(
         from: current,
         to: next,
-        forgeProfile: forgeProfile,
         repoURL: workspace.repoURL
       )
     }
@@ -1309,14 +1286,14 @@ public struct HeadlessCompassRunner: Sendable {
     let insight = VerifyFailureInsight(detail: detail, metadata: nil)
     guard insight.kind == .packageManagerBootstrap else { return nil }
     return """
-      TypeScript package-manager bootstrap failed before project verification could run.
+      Rust toolchain bootstrap failed before project verification could run.
 
       \(insight.inspectDetail)
 
       Repair guidance: \(insight.repairDetail)
 
       Compass will not retry Develop for this failure because application code changes cannot
-      repair Corepack, pnpm, or network availability in the execution environment.
+      repair Cargo, rustup, or network availability in the execution environment.
       """
   }
 
@@ -1397,7 +1374,7 @@ public struct HeadlessCompassRunner: Sendable {
       - Do not edit those source files merely to say no changes were needed; the problem is
         missing execution evidence, not a source formatting issue.
       - If an existing sibling or package test file is listed below, read it and edit it.
-        Otherwise create the suggested sibling `*.test.ts` file.
+        Otherwise create a `tests/*.rs` integration test or a `#[cfg(test)]` module.
       \(testTargetSection)
 
       A green verify is not enough when new or changed source has 0% coverage. Add or update tests that import and execute these changed files, wire the new code into the planned behavior when needed, then rerun `\(command)`.
@@ -1423,9 +1400,20 @@ public struct HeadlessCompassRunner: Sendable {
 
   private static func coverageRepairTestTargets(for changedPath: String) -> [String] {
     let url = URL(fileURLWithPath: changedPath)
-    let ext = url.pathExtension
-    let basename = url.deletingPathExtension().lastPathComponent
+    let ext = url.pathExtension.lowercased()
     guard !ext.isEmpty else { return [] }
+    if ext == "rs" {
+      let basename = url.deletingPathExtension().lastPathComponent
+      if changedPath.contains("/src/") {
+        let crateRoot = changedPath.split(separator: "/src/", maxSplits: 1).first.map(String.init) ?? ""
+        return [
+          "\(crateRoot)/tests/\(basename).rs",
+          "\(crateRoot)/tests/cli.rs",
+        ]
+      }
+      return []
+    }
+    let basename = url.deletingPathExtension().lastPathComponent
     let sibling = url
       .deletingLastPathComponent()
       .appending(path: "\(basename).test.\(ext)")
@@ -1498,11 +1486,13 @@ public struct HeadlessCompassRunner: Sendable {
       return nil
     }
     let changedCLIPaths = changedPaths.filter { path in
-      path.hasPrefix("packages/cli/src/") && Self.isCoverageGatedSourcePath(path)
+      path.hasPrefix("crates/app-cli/src/")
+        && Self.isCoverageGatedSourcePath(path)
     }
     guard !changedCLIPaths.isEmpty else { return nil }
     let changedTestPaths = changedPaths.filter { path in
-      path.hasPrefix("packages/cli/src/") && Self.isTestPath(path)
+      path.hasPrefix("crates/app-cli/")
+        && Self.isTestPath(path)
     }
     guard !changedTestPaths.isEmpty else { return nil }
 
@@ -1561,7 +1551,7 @@ public struct HeadlessCompassRunner: Sendable {
       - If the replacement was accidental, restore the manifest entry to the existing source file and edit that existing file instead.
       - Rerun `\(command)` after the manifest and files agree.
 
-      A green package build can miss a package `bin` target when the TypeScript project only compiles files from `tsconfig.json`. Do not submit success while a package entry points at a missing file.
+      A green Cargo build can miss a binary target when only library crates are checked. Do not submit success while a manifest entry points at a missing file.
       """
   }
 
@@ -1619,6 +1609,7 @@ public struct HeadlessCompassRunner: Sendable {
       .joined()
     return normalized.contains("[\"--format\",\"json\"")
       || normalized.contains("([\"--format\",\"json\"")
+      || normalized.contains("\"--formatjson\"")
   }
 
   private static func mentionedTestPaths(in text: String) -> [String] {
@@ -1655,100 +1646,41 @@ public struct HeadlessCompassRunner: Sendable {
 
     return entries.compactMap { entry -> String? in
       let filename = entry.lastPathComponent.lowercased()
-      guard filename.contains(".test.") || filename.contains(".spec.") else { return nil }
+      let relative = sourceDirectory.appending(path: entry.lastPathComponent).relativePath
+      if filename.hasSuffix(".rs") {
+        guard relative.contains("/tests/") else { return nil }
+      } else {
+        guard filename.contains(".test.") || filename.contains(".spec.") else { return nil }
+      }
       guard (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
         return nil
       }
-      return sourceDirectory.appending(path: entry.lastPathComponent).relativePath
+      return relative
     }.sorted()
   }
 
   private static func missingPackageEntryPointIssues(repoURL: URL) -> [PackageEntryPointIssue] {
-    packageManifestURLs(in: repoURL).flatMap { manifestURL in
-      missingPackageEntryPointIssues(manifestURL: manifestURL, repoURL: repoURL)
-    }
-    .sorted {
-      [$0.manifestPath, $0.field, $0.targetPath].joined(separator: "\u{0}")
-        < [$1.manifestPath, $1.field, $1.targetPath].joined(separator: "\u{0}")
-    }
+    _ = repoURL
+    return []
   }
 
   private static func packageManifestURLs(in repoURL: URL) -> [URL] {
-    let fm = FileManager.default
-    guard
-      let enumerator = fm.enumerator(
-        at: repoURL,
-        includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
-        options: [.skipsHiddenFiles]
-      )
-    else {
-      return []
-    }
-
-    var manifests: [URL] = []
-    for case let url as URL in enumerator {
-      let name = url.lastPathComponent
-      if Self.shouldSkipPackageManifestScanDescendants(url) {
-        enumerator.skipDescendants()
-        continue
-      }
-      guard name == "package.json",
-        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-      else {
-        continue
-      }
-      manifests.append(url)
-    }
-    return manifests
+    _ = repoURL
+    return []
   }
-
   private static func shouldSkipPackageManifestScanDescendants(_ url: URL) -> Bool {
     guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
       return false
     }
-    return [".compass", ".git", "dist", "node_modules"].contains(url.lastPathComponent)
+    return [".compass", ".git", "dist", "node_modules", "target"].contains(url.lastPathComponent)
   }
 
   private static func missingPackageEntryPointIssues(
     manifestURL: URL,
     repoURL: URL
   ) -> [PackageEntryPointIssue] {
-    guard let data = try? Data(contentsOf: manifestURL),
-      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else {
-      return []
-    }
-
-    let manifestPath = relativePath(manifestURL, repoURL: repoURL)
-    let packageDirectory = manifestURL.deletingLastPathComponent()
-    let scalarEntries: [(field: String, rawPath: String)] = [
-      "main", "module", "browser", "types", "typings",
-    ].compactMap { field in
-      (object[field] as? String).map { (field, $0) }
-    }
-
-    let binEntries: [(field: String, rawPath: String)]
-    if let bin = object["bin"] as? String {
-      binEntries = [("bin", bin)]
-    } else if let bin = object["bin"] as? [String: Any] {
-      binEntries = bin.compactMap { key, value in
-        (value as? String).map { ("bin.\(key)", $0) }
-      }
-    } else {
-      binEntries = []
-    }
-
-    return (scalarEntries + binEntries).compactMap { entry in
-      guard let cleanedPath = cleanedLocalPackageEntryPath(entry.rawPath) else { return nil }
-      let targetURL = packageDirectory.appending(path: cleanedPath).standardizedFileURL
-      guard !FileManager.default.fileExists(atPath: targetURL.path) else { return nil }
-      return PackageEntryPointIssue(
-        manifestPath: manifestPath,
-        field: entry.field,
-        declaredPath: entry.rawPath,
-        targetPath: relativePath(targetURL, repoURL: repoURL)
-      )
-    }
+    _ = (manifestURL, repoURL)
+    return []
   }
 
   private static func cleanedLocalPackageEntryPath(_ rawPath: String) -> String? {
@@ -1770,11 +1702,10 @@ public struct HeadlessCompassRunner: Sendable {
 
   private static func isPackageMetadataPath(_ path: String) -> Bool {
     let filename = URL(fileURLWithPath: path).lastPathComponent.lowercased()
-    return filename == "package.json"
-      || filename == "pnpm-lock.yaml"
-      || filename == "package-lock.json"
-      || filename == "npm-shrinkwrap.json"
-      || filename == "yarn.lock"
+    return filename == "cargo.toml"
+      || filename == "cargo.lock"
+      || filename == "rust-toolchain.toml"
+      || filename == "rust-toolchain"
   }
 
   private static func isHeadlessFixtureArtifactPath(_ path: String) -> Bool {
@@ -1796,7 +1727,7 @@ public struct HeadlessCompassRunner: Sendable {
       "logic",
       "source",
       "test",
-      "web",
+      "crate",
     ]
     return sourceSignals.contains { normalized.contains($0) }
   }
@@ -1864,25 +1795,26 @@ public struct HeadlessCompassRunner: Sendable {
   private static func isCoverageGatedSourcePath(_ path: String) -> Bool {
     let lowercased = path.lowercased()
     guard hasSourceExtension(lowercased),
-      !lowercased.contains("/dist/"),
-      !lowercased.contains("/node_modules/")
+      !lowercased.contains("/target/"),
+      !lowercased.contains("/tests/")
     else {
       return false
     }
-    let filename = URL(fileURLWithPath: lowercased).lastPathComponent
-    return !filename.contains(".test.") && !filename.contains(".spec.")
+    return lowercased.contains("/src/")
   }
 
   private static func isTestPath(_ path: String) -> Bool {
     let lowercased = path.lowercased()
     guard hasSourceExtension(lowercased) else { return false }
+    if lowercased.hasSuffix(".rs") {
+      return lowercased.contains("/tests/")
+    }
     let filename = URL(fileURLWithPath: lowercased).lastPathComponent
     return filename.contains(".test.") || filename.contains(".spec.")
   }
 
   private static func hasSourceExtension(_ path: String) -> Bool {
-    ["js", "jsx", "mjs", "mts", "ts", "tsx"].contains(
-      URL(fileURLWithPath: path).pathExtension.lowercased())
+    ["rs"].contains(URL(fileURLWithPath: path).pathExtension.lowercased())
   }
 
   private static func coveragePercent(_ value: String) -> Double? {

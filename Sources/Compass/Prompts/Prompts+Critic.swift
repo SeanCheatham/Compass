@@ -12,7 +12,6 @@ extension Prompts {
     lessons: String,
     assumptions: String = "",
     vision: String,
-    forgeProfile: ForgeProfile? = nil,
     iteration: Int,
     maxIterations: Int
   ) -> String {
@@ -34,9 +33,9 @@ extension Prompts {
       fixable issue the next Develop pass can address in one small step.
 
       Review rules:
-      - Generated Compass output must remain TypeScript.
+      - Generated Compass output must remain Rust.
       - Check whether the diff implements the plan without overshooting it.
-      - Look for bugs verify may not catch, missing tests, broken strict typing, accidental
+      - Look for bugs verify may not catch, missing tests, Clippy or compile issues, accidental
         generated artifacts, and ignored lessons or denied assumptions.
       - You may use read-only tools and `bash` probes. Do not edit, commit, or push.
 

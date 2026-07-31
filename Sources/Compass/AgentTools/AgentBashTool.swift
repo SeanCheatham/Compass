@@ -187,12 +187,19 @@ struct AgentBashTool: AgentTool {
       .filter { !$0.isEmpty }
       .joined(separator: " ")
 
-    return normalized == "pnpm verify"
-      || normalized == "pnpm run verify"
-      || normalized.contains(" pnpm verify")
-      || normalized.contains(" pnpm run verify")
-      || normalized.hasSuffix(" pnpm verify")
-      || normalized.hasSuffix(" pnpm run verify")
+    let standard = GeneratedProjectQuality.standardVerifyCommand.lowercased()
+    if normalized == standard || normalized.contains(standard) {
+      return true
+    }
+    if normalized.contains("cargo test")
+      && (normalized.contains("clippy") || normalized.contains("llvm-cov"))
+    {
+      return true
+    }
+    return normalized == "cargo test --workspace"
+      || normalized.contains("cargo llvm-cov")
+      || (normalized.contains("cargo fmt") && normalized.contains("clippy")
+        && normalized.contains("cargo test"))
   }
 
   private func successfulVerificationGuidance(for command: String) -> String? {

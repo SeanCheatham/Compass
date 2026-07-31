@@ -18,9 +18,10 @@ public struct SandboxProcessResult: Sendable, Equatable {
 }
 
 public struct ContainerSandboxConfiguration: Sendable, Equatable {
-  public static let defaultRuntimeImage = "docker.io/library/node:22-bookworm"
+  public static let defaultRuntimeImage = "docker.io/library/rust:1-bookworm"
   public static let defaultInitfsReference = "ghcr.io/apple/containerization/vminit:0.33.4"
-  public static let defaultPnpmVersion = "9.15.4"
+  public static let defaultVerifyCommand =
+    "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
   public static let defaultKernelURL =
     "https://github.com/kata-containers/kata-containers/releases/download/3.26.0/kata-static-3.26.0-arm64.tar.zst"
   public static let defaultKernelPathInArchive =
@@ -29,7 +30,6 @@ public struct ContainerSandboxConfiguration: Sendable, Equatable {
 
   public var runtimeImage: String
   public var initfsReference: String
-  public var pnpmVersion: String
   public var containerWorkspacePath: String
   public var cpuCount: Int
   public var memorySizeBytes: UInt64
@@ -43,7 +43,6 @@ public struct ContainerSandboxConfiguration: Sendable, Equatable {
   public init(
     runtimeImage: String = Self.defaultRuntimeImage,
     initfsReference: String = Self.defaultInitfsReference,
-    pnpmVersion: String = Self.defaultPnpmVersion,
     containerWorkspacePath: String = Self.defaultWorkspacePath,
     cpuCount: Int = 4,
     memorySizeBytes: UInt64 = 2 * 1024 * 1024 * 1024,
@@ -58,7 +57,6 @@ public struct ContainerSandboxConfiguration: Sendable, Equatable {
   ) {
     self.runtimeImage = runtimeImage
     self.initfsReference = initfsReference
-    self.pnpmVersion = pnpmVersion
     self.containerWorkspacePath = containerWorkspacePath
     self.cpuCount = cpuCount
     self.memorySizeBytes = memorySizeBytes
@@ -208,27 +206,32 @@ public struct ContainerizedLinuxSandbox: Sendable {
       let src = scratch.appendingPathComponent("src", isDirectory: true)
       try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
       try """
-        {
-          "name": "compass-container-smoke",
-          "private": true,
-          "type": "module",
-          "scripts": {
-            "verify": "node index.js"
-          }
+        [package]
+        name = "compass-container-smoke"
+        version = "0.1.0"
+        edition = "2021"
+        """.write(to: scratch.appendingPathComponent("Cargo.toml"), atomically: true, encoding: .utf8)
+      try """
+        fn main() {
+          println!("COMPASS_CONTAINER_SMOKE_OK");
         }
-        """.write(to: scratch.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
-      try #"console.log("COMPASS_CONTAINER_SMOKE_OK");"#
-        .write(to: scratch.appendingPathComponent("index.js"), atomically: true, encoding: .utf8)
+
+        #[cfg(test)]
+        mod tests {
+          #[test]
+          fn smoke() {}
+        }
+        """.write(to: src.appendingPathComponent("main.rs"), atomically: true, encoding: .utf8)
       let result = try await run(
         ContainerSandboxRunRequest(
-          command: "pnpm verify",
+          command: ContainerSandboxConfiguration.defaultVerifyCommand,
           hostRepoRoot: scratch,
           hostWorkingDirectory: scratch,
           timeout: 120,
           label: "smoke"
         )
       )
-      let ok = result.exitCode == 0 && result.stdout.contains("COMPASS_CONTAINER_SMOKE_OK")
+      let ok = result.exitCode == 0
       return ContainerRuntimeStatus(
         ok: ok,
         message: ok ? "Containerized Linux runtime is ready." : result.stderr + result.stdout,
@@ -338,7 +341,6 @@ public struct ContainerizedLinuxSandbox: Sendable {
       config.environmentVariables = [
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "HOME=/root",
-        "COREPACK_HOME=/tmp/corepack",
       ]
       config.workingDirectory = self.configuration.containerWorkspacePath
       config.stdout = stdout
@@ -374,12 +376,17 @@ public struct ContainerizedLinuxSandbox: Sendable {
       printf '\\n127.0.0.1 localhost\\n::1 localhost ip6-localhost ip6-loopback\\n' >> /etc/hosts || true
     fi
     cd \(shellQuote(containerWorkingDirectory))
-    command -v node >/dev/null
-    command -v npm >/dev/null
+    command -v cargo >/dev/null
+    command -v rustc >/dev/null
     command -v git >/dev/null
-    corepack enable
-    corepack prepare pnpm@\(shellQuote(configuration.pnpmVersion)) --activate
-    command -v pnpm >/dev/null
+    if ! command -v rustfmt >/dev/null || ! cargo clippy -V >/dev/null 2>&1; then
+      rustup component add rustfmt clippy
+    fi
+    command -v rustfmt >/dev/null
+    cargo clippy -V >/dev/null
+    if ! cargo llvm-cov --version >/dev/null 2>&1; then
+      cargo install cargo-llvm-cov --locked
+    fi
     \(userCommand)
     """
   }

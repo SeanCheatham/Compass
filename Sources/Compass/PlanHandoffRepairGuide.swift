@@ -24,8 +24,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
   init(
     plan rawPlan: String?,
     verify rawVerify: String?,
-    languageProfile: RepositoryLanguageProfile,
-    forgeProfile: ForgeProfile? = nil
+    languageProfile: RepositoryLanguageProfile
   ) {
     let digest = PlanHandoffDigest(plan: rawPlan)
     let verifyCommand = PlanVerifyCommandPolicy.normalizedCommand(rawVerify)
@@ -34,15 +33,13 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       verifyCommand.map { !PlanVerifyCommandPolicy.isPlaceholder($0) && !hasFailureMask } ?? false
     let coverageViolation =
       hasRealVerify
-      ? verifyCommand.flatMap {
-        ForgeVerifyValidator.coverageViolation(verify: $0, profile: forgeProfile)
-      }
+      ? verifyCommand.flatMap { GeneratedVerifyValidator.coverageViolation(verify: $0) }
       : nil
     let hasUsableVerify = hasRealVerify && coverageViolation == nil
     suggestedVerifyCommand =
       hasUsableVerify
       ? verifyCommand
-      : Self.suggestedVerifyCommand(for: languageProfile, forgeProfile: forgeProfile)
+      : Self.suggestedVerifyCommand(for: languageProfile)
 
     steps = [
       Step(
@@ -64,8 +61,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
           ? "Compass can run \(verifyCommand ?? "the planned check")."
           : Self.verifyRepairDetail(
             coverageViolation: coverageViolation,
-            hasFailureMask: hasFailureMask,
-            forgeProfile: forgeProfile
+            hasFailureMask: hasFailureMask
           )
       ),
       Step(
@@ -200,11 +196,10 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
 
   private static func verifyRepairDetail(
     coverageViolation: String?,
-    hasFailureMask: Bool,
-    forgeProfile: ForgeProfile?
+    hasFailureMask: Bool
   ) -> String {
-    if coverageViolation != nil, let forgeProfile {
-      return "Add coverage to the verify command for \(forgeProfile.displayName)."
+    if coverageViolation != nil {
+      return "Add coverage to the verify command for generated Rust projects."
     }
     if hasFailureMask {
       return "Remove fallback no-op clauses so failed checks still fail."
@@ -223,38 +218,22 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
   }
 
   private static func suggestedVerifyCommand(
-    for profile: RepositoryLanguageProfile,
-    forgeProfile: ForgeProfile?
+    for profile: RepositoryLanguageProfile
   ) -> String? {
-    if let forgeProfile {
-      return coverageReadyVerifyCommand(for: forgeProfile)
-    }
-
     if let hint = profile.manifestHints.first {
       switch hint {
-      case .packageJSON:
-        return coverageReadyVerifyCommand(for: .typeScriptPnpmVite)
+      case .cargoToml:
+        return GeneratedProjectQuality.standardVerifyCommand
       case .packageSwift:
-        return "swift test"
+        return "swift test --enable-code-coverage"
       }
     }
 
     switch profile.primaryLanguage {
     case .swift:
-      return "swift test"
-    case .typeScriptJavaScript:
-      return coverageReadyVerifyCommand(for: .typeScriptPnpmVite)
-    case .markdown, .other, .unknown:
-      return coverageReadyVerifyCommand(for: ForgeProfile.generatedProjectDefault)
-    }
-  }
-
-  private static func coverageReadyVerifyCommand(for forgeProfile: ForgeProfile) -> String {
-    switch forgeProfile {
-    case .swiftSPM:
       return "swift test --enable-code-coverage"
-    case .typeScriptPnpmVite:
-      return "pnpm verify"
+    case .rust, .markdown, .other, .unknown:
+      return GeneratedProjectQuality.standardVerifyCommand
     }
   }
 

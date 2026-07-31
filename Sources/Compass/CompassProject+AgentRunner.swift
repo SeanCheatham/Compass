@@ -226,7 +226,6 @@ extension CompassProject {
   ) -> (@Sendable (Data) throws -> Void) {
     let hostWorkspace = makeWorkspace(repoURL: hostRepoURL)
     let validatesLessonEdits = phase == .plan || phase == .develop
-    let activeForgeProfile = forgeProfile
     return { args in
       if validatesLessonEdits {
         try hostWorkspace.validateSubmitResultLessonEdits(args)
@@ -245,7 +244,6 @@ extension CompassProject {
       try PlanTransitionValidator.validate(
         from: currentState,
         to: nextState,
-        forgeProfile: activeForgeProfile,
         repoURL: hostRepoURL
       )
     }

@@ -42,13 +42,14 @@ struct VerifyFailureInsight: Equatable {
         "Have Develop address the earliest concrete file, symbol, module, or syntax error first."
       retryDetail = "Compass will rerun verification after the build can complete."
     case .packageManagerBootstrap:
-      inspectTitle = "Inspect package-manager bootstrap"
+      inspectTitle = "Inspect Rust toolchain bootstrap"
       inspectDetail =
-        "Compass found that package-manager bootstrap failed before project tests could run: \(detail)"
-      repairTitle = "Restore Corepack/pnpm"
+        "Compass found that Rust toolchain bootstrap failed before project tests could run: \(detail)"
+      repairTitle = "Restore cargo/rustup"
       repairDetail =
-        "Repair Corepack, pnpm, or network access in the containerized runtime, then rerun verify. Do not ask Develop to rewrite app code for this environment failure."
-      retryDetail = "Retry after pnpm can be activated in the selected execution environment."
+        "Repair cargo, rustup components (rustfmt/clippy), cargo-llvm-cov, or network access in the containerized runtime, then rerun verify. Do not ask Develop to rewrite app code for this environment failure."
+      retryDetail =
+        "Retry after the Rust toolchain can run in the selected execution environment."
     case .missingTool:
       inspectTitle = "Inspect the missing tool"
       inspectDetail = "Compass found that the verify command could not start cleanly: \(detail)"
@@ -95,7 +96,10 @@ struct VerifyFailureInsight: Equatable {
     }
     if containsAny(
       text,
-      ["typecheck", "tsc -p", "error ts", "syntax error", "compile error", "compiler error"]
+      [
+        "error[e", "cannot find value", "cannot find type", "unresolved import",
+        "syntax error", "compile error", "compiler error", "rustc",
+      ]
     ) {
       return .buildFailure
     }
@@ -103,7 +107,7 @@ struct VerifyFailureInsight: Equatable {
       text,
       [
         "xctassert", "assertion failed", "expected", "test case", "tests failed",
-        "failing test", "failed test",
+        "failing test", "failed test", "panicked at",
       ]
     ) {
       return .testFailure
@@ -112,12 +116,12 @@ struct VerifyFailureInsight: Equatable {
       text,
       [
         "build failed", "compile error", "compiler error", "error:", "cannot find",
-        "no such module", "missing package", "syntax error",
+        "no such module", "missing package", "syntax error", "clippy",
       ]
     ) {
       return .buildFailure
     }
-    if containsAny(text, ["coverage", "profdata", "lcov", "coverprofile"]) {
+    if containsAny(text, ["coverage", "profdata", "lcov", "coverprofile", "llvm-cov"]) {
       return .coverage
     }
     return .generic
@@ -127,17 +131,21 @@ struct VerifyFailureInsight: Equatable {
     if containsAny(
       text,
       [
-        "pnpm: command not found",
-        "corepack: command not found",
-        "could not find command pnpm",
-        "could not find command corepack",
-        "registry.npmjs.org/pnpm/",
-        "pnpm-9.15.4.tgz",
+        "cargo: command not found",
+        "rustc: command not found",
+        "rustup: command not found",
+        "could not find command cargo",
+        "could not find command rustc",
+        "could not find `cargo-llvm-cov`",
+        "no such command: `llvm-cov`",
       ]
     ) {
       return true
     }
-    guard text.contains("corepack") || text.contains("preparing pnpm@") else {
+    guard
+      text.contains("rustup") || text.contains("cargo install")
+        || text.contains("cargo-llvm-cov")
+    else {
       return false
     }
     return containsAny(
@@ -146,8 +154,9 @@ struct VerifyFailureInsight: Equatable {
         "error when performing the request",
         "fetch",
         "network",
-        "registry.npmjs.org",
+        "crates.io",
         "internal error",
+        "failed to download",
       ]
     )
   }

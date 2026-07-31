@@ -32,7 +32,6 @@ struct ProjectRunControlGuide: Equatable {
     isAutoPlaying: Bool,
     isPaused: Bool,
     languageProfile: RepositoryLanguageProfile = .empty,
-    forgeProfile: ForgeProfile? = nil,
     drafts: String = "",
     vision: String? = nil
   ) {
@@ -41,8 +40,7 @@ struct ProjectRunControlGuide: Equatable {
     let visionGuide = vision.map(ProjectVisionGuide.init(vision:))
     let handoffReadiness = HandoffReadiness(
       state: state,
-      languageProfile: languageProfile,
-      forgeProfile: forgeProfile
+      languageProfile: languageProfile
     )
     let hasImmediate = handoffReadiness.hasImmediate
     let canDevelop = hasImmediate && handoffReadiness.canDevelop
@@ -895,15 +893,13 @@ struct ProjectRunControlGuide: Equatable {
 
     init(
       state: PlanState,
-      languageProfile: RepositoryLanguageProfile,
-      forgeProfile: ForgeProfile?
+      languageProfile: RepositoryLanguageProfile
     ) {
       hasImmediate = state.immediate != nil
       let repairGuide = PlanHandoffRepairGuide(
         plan: state.immediate?.plan,
         verify: state.immediate?.verify,
-        languageProfile: languageProfile,
-        forgeProfile: forgeProfile
+        languageProfile: languageProfile
       )
       canDevelop = repairGuide.status == .ready
       let missingSteps = repairGuide.steps

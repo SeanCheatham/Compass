@@ -33,8 +33,16 @@ Legacy state files from older projects are ignored in-place.
 
 ## Generated Output
 
-Compass-generated projects use a TypeScript pnpm workspace with `packages/core`, `packages/cli`, and `packages/web`.
+Compass-generated projects are Rust Cargo workspaces with `crates/app-core` and `crates/app-cli`. There is no web UI package.
+
+Quality conventions live in `GeneratedProjectQuality`:
+
+- `standardVerifyCommand` — fmt + clippy + test
+- `coverageCollectCommand` — `cargo llvm-cov --workspace --summary-only`
+- `mutationTestCommand` — `cargo mutants` (prepared for a future post-verify hook; not invoked by the factory loop yet)
+
+Coverage snapshots are persisted via `CoverageSnapshotStore` after verify. Plan handoff validation uses `GeneratedVerifyValidator` for coverage-ready verify commands.
 
 ## Containerized Linux
 
-The containerized Linux runtime provides a deterministic execution surface for generated TypeScript work. Default provisioning installs Command Line Tools, Homebrew, ripgrep, Node.js, npm, Corepack/pnpm, and TypeScript via the `node:22-bookworm` image bootstrap. File tools operate on the host worktree through the virtual root `/workspace`; bash/verify run inside ephemeral Linux containers with that worktree mounted at `/workspace`.
+The containerized Linux runtime provides a deterministic execution surface for generated Rust work. Default provisioning uses the `rust:1-bookworm` image with the Rust toolchain on PATH. File tools operate on the host worktree through the virtual root `/workspace`; bash/verify run inside ephemeral Linux containers with that worktree mounted at `/workspace`.

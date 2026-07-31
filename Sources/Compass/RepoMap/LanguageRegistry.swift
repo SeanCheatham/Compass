@@ -1,9 +1,7 @@
 import Foundation
 import SwiftTreeSitter
-import TreeSitterJavaScript
+import TreeSitterRust
 import TreeSitterSwift
-import TreeSitterTSX
-import TreeSitterTypeScript
 
 /// Loads tree-sitter `Language`s and pre-compiles the symbol/import query
 /// for each supported source language. Construction is eager so a malformed
@@ -72,13 +70,13 @@ final class LanguageRegistry: @unchecked Sendable {
         errorTypes: ["do_statement", "try_expression"],
         callTypes: ["call_expression"]
       )
-    case .typescript, .tsx, .javascript:
+    case .rust:
       return RuntimeNodeKinds(
-        branchTypes: ["if_statement"],
-        loopTypes: ["for_statement", "for_in_statement", "while_statement", "do_statement"],
-        switchTypes: ["switch_statement"],
-        errorTypes: ["catch_clause"],
-        callTypes: ["call_expression"]
+        branchTypes: ["if_expression", "if_let_expression"],
+        loopTypes: ["for_expression", "while_expression", "while_let_expression", "loop_expression"],
+        switchTypes: ["match_expression"],
+        errorTypes: ["try_expression", "call_expression"],
+        callTypes: ["call_expression", "macro_invocation"]
       )
     }
   }
@@ -86,9 +84,7 @@ final class LanguageRegistry: @unchecked Sendable {
   private static func makeLanguage(for codemapLanguage: CodemapLanguage) -> Language {
     switch codemapLanguage {
     case .swift: return Language(language: tree_sitter_swift())
-    case .typescript: return Language(language: tree_sitter_typescript())
-    case .tsx: return Language(language: tree_sitter_tsx())
-    case .javascript: return Language(language: tree_sitter_javascript())
+    case .rust: return Language(language: tree_sitter_rust())
     }
   }
 
@@ -105,9 +101,7 @@ final class LanguageRegistry: @unchecked Sendable {
   static func symbolQuerySource(for language: CodemapLanguage) -> String {
     switch language {
     case .swift: return swiftQuery
-    case .typescript: return typeScriptQuery
-    case .tsx: return typeScriptQuery
-    case .javascript: return javaScriptQuery
+    case .rust: return rustQuery
     }
   }
 
@@ -138,54 +132,37 @@ final class LanguageRegistry: @unchecked Sendable {
       (pattern (simple_identifier) @name)) @def.property
     """#
 
-  private static let typeScriptQuery = #"""
-    (import_statement
-      source: (string) @import.source) @import
+  private static let rustQuery = #"""
+    (use_declaration
+      argument: (scoped_identifier) @import.source) @import
+    (use_declaration
+      argument: (identifier) @import.source) @import
 
-    (function_declaration
+    (function_item
       name: (identifier) @name) @def.function
 
-    (class_declaration
-      name: (type_identifier) @name) @def.class
+    (struct_item
+      name: (type_identifier) @name) @def.struct
 
-    (abstract_class_declaration
-      name: (type_identifier) @name) @def.class
+    (enum_item
+      name: (type_identifier) @name) @def.enum
 
-    (interface_declaration
-      name: (type_identifier) @name) @def.interface
+    (trait_item
+      name: (type_identifier) @name) @def.trait
 
-    (type_alias_declaration
+    (type_item
       name: (type_identifier) @name) @def.type
 
-    (enum_declaration
-      name: (identifier) @name) @def.enum
+    (impl_item
+      type: (type_identifier) @name) @def.impl
 
-    (method_definition
-      name: (property_identifier) @name) @def.method
+    (mod_item
+      name: (identifier) @name) @def.module
 
-    (lexical_declaration
-      (variable_declarator
-        name: (identifier) @name
-        value: [(arrow_function) (function_expression)])) @def.function
+    (const_item
+      name: (identifier) @name) @def.constant
+
+    (static_item
+      name: (identifier) @name) @def.constant
     """#
-
-  private static let javaScriptQuery = #"""
-    (import_statement
-      source: (string) @import.source) @import
-
-    (function_declaration
-      name: (identifier) @name) @def.function
-
-    (class_declaration
-      name: (identifier) @name) @def.class
-
-    (method_definition
-      name: (property_identifier) @name) @def.method
-
-    (lexical_declaration
-      (variable_declarator
-        name: (identifier) @name
-        value: [(arrow_function) (function_expression)])) @def.function
-    """#
-
 }

@@ -68,8 +68,8 @@ struct FactoryPivotTests {
       {
         "state": {
           "immediate": {
-            "plan": "## Outcome\\nAdd loud CLI output.\\n\\n## Acceptance checks\\n- pnpm verify passes",
-            "verify": "pnpm verify",
+            "plan": "## Outcome\\nAdd loud CLI output.\\n\\n## Acceptance checks\\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
+            "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
             "verifyTimeoutMs": 600000,
             "estimatedDifficulty": "low",
             "selectedBecause": "First useful slice.",
@@ -133,13 +133,13 @@ struct FactoryPivotTests {
         targetUsers: ["Product teams"],
         desiredOutcomes: ["List decision records"],
         constraints: ["No new dependencies"],
-        acceptanceSignals: ["pnpm verify passes"]
+        acceptanceSignals: ["cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"]
       )
     )
     let proposal = PlanProposal(
       immediate: PlanNext(
-        plan: "## Outcome\nAdd decision records\n\n## Acceptance checks\n- pnpm verify passes",
-        verify: "pnpm verify"
+        plan: "## Outcome\nAdd decision records\n\n## Acceptance checks\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
+        verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
       ),
       candidates: [],
       strategicContext: PlanStrategicContext(summary: "Build decision notes."),
@@ -152,7 +152,7 @@ struct FactoryPivotTests {
     #expect(next.brief.targetUsers == ["Product teams"])
     #expect(next.brief.desiredOutcomes == ["List decision records"])
     #expect(next.brief.constraints == ["No new dependencies"])
-    #expect(next.brief.acceptanceSignals == ["pnpm verify passes"])
+    #expect(next.brief.acceptanceSignals == ["cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"])
   }
 
   @Test
@@ -205,14 +205,14 @@ struct FactoryPivotTests {
   func promptsDoNotMentionRemovedDirections() throws {
     let state = PlanProposal(from: FactoryState.empty)
     let next = PlanNext(
-      plan: "## Outcome\nAdd a TypeScript slice\n\n## Acceptance checks\n- pnpm verify passes",
-      verify: "pnpm verify",
+      plan: "## Outcome\nAdd a Rust slice\n\n## Acceptance checks\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
+      verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
     )
     let developSummary = DevelopSummary(
       status: .succeeded,
       summary: "Implemented the slice",
-      feedback: "Verified with pnpm verify",
+      feedback: "Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       bypassVerify: false,
       lessonEdits: []
     )
@@ -225,7 +225,6 @@ struct FactoryPivotTests {
         lessons: "",
         vision: "",
         focus: .feature,
-        forgeProfile: .typeScriptPnpmVite
       ),
       Prompts.developPrompt(
         next: next,
@@ -237,14 +236,13 @@ struct FactoryPivotTests {
       Prompts.criticPrompt(
         next: next,
         developSummary: developSummary,
-        verifyCommand: "pnpm verify",
+        verifyCommand: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
         verifyExitCode: 0,
         verifyOutput: "ok",
         gitDiff: "",
         priorCritiques: [],
         lessons: "",
         vision: "",
-        forgeProfile: .typeScriptPnpmVite,
         iteration: 1,
         maxIterations: 2
       ),
@@ -261,15 +259,16 @@ struct FactoryPivotTests {
       "Foundation Models",
       "native tool calling",
       "remote providers",
-      "Rust",
-      "cargo",
+      "TypeScript",
+      "pnpm",
+      "Vitest",
+      "Vite",
     ] {
       #expect(!prompts.contains(removed))
     }
     #expect(prompts.contains("local software factory"))
-    #expect(prompts.contains("TypeScript"))
-    #expect(prompts.contains("pnpm verify"))
-    #expect(prompts.contains("Do not use bare `pnpm test`"))
+    #expect(prompts.contains("Rust"))
+    #expect(prompts.contains(GeneratedProjectQuality.standardVerifyCommand))
     #expect(prompts.contains("develop_continue"))
     #expect(prompts.contains("develop_submit"))
     #expect(prompts.contains("OpenAI-compatible"))
@@ -280,13 +279,13 @@ struct FactoryPivotTests {
     let next = PlanNext(
       plan: """
         ## Outcome
-        Implement `--streak` in `packages/cli/src/main.ts` with a core helper.
+        Implement `--streak` in `crates/app-cli/src/main.rs` with a core helper.
 
         ## Acceptance checks
-        - `packages/core/src/index.test.ts` covers the streak helper.
-        - `packages/cli/src/main.test.ts` calls `main(["--streak", "done", "done"])`.
+        - `crates/app-core/src/lib.rs` covers the streak helper.
+        - `crates/app-cli/tests/cli.rs` calls `main(["--streak", "done", "done"])`.
         """,
-      verify: "pnpm verify",
+      verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
     )
 
@@ -299,10 +298,10 @@ struct FactoryPivotTests {
     )
 
     #expect(prompt.contains("Inspect the files implied by the Outcome and Acceptance checks"))
-    #expect(prompt.contains("packages/cli/src/main.ts"))
-    #expect(prompt.contains("packages/cli/src/main.test.ts"))
-    #expect(prompt.contains("packages/core/src/index.ts"))
-    #expect(prompt.contains("packages/core/src/index.test.ts"))
+    #expect(prompt.contains("crates/app-cli/src/main.rs"))
+    #expect(prompt.contains("crates/app-cli/tests/cli.rs"))
+    #expect(prompt.contains("crates/app-core/src/lib.rs"))
+    #expect(prompt.contains("crates/app-core/src/lib.rs"))
     #expect(prompt.contains("source-only edit"))
   }
 
@@ -314,9 +313,9 @@ struct FactoryPivotTests {
         Add signal board formatting
 
         ## Acceptance checks
-        - `packages/cli/src/main.test.ts` calls `main(["--signal", "api:green"])`.
+        - `crates/app-cli/tests/cli.rs` calls `main(["--signal", "api:green"])`.
         """,
-      verify: "pnpm verify",
+      verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
     )
 
@@ -327,21 +326,21 @@ struct FactoryPivotTests {
       attempt: 2,
       priorIssues: [
         """
-        Verify passed for `pnpm verify`, but coverage shows changed source files were not exercised.
+        Verify passed for `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`, but coverage shows changed source files were not exercised.
 
         Suggested test targets:
-        - `packages/core/src/signalBoard.test.ts` (write_file) should import and execute `packages/core/src/signalBoard.ts`.
+        - `crates/app-core/tests/signal_board.rs` (write_file) should import and execute `crates/app-core/src/signal_board.rs`.
         """
       ]
     )
 
     #expect(prompt.contains("read and edit one of those exact"))
     #expect(
-      prompt.contains("Do not start\na retry by rereading package.json")
-        || prompt.contains("Do not start a retry by rereading package.json")
+      prompt.contains("Do not start\na retry by rereading Cargo.toml")
+        || prompt.contains("Do not start a retry by rereading Cargo.toml")
     )
     #expect(prompt.contains("Do not submit success or rerun verify until you have changed a file"))
-    #expect(prompt.contains("packages/core/src/signalBoard.test.ts"))
+    #expect(prompt.contains("crates/app-core/tests/signal_board.rs"))
   }
 
   @Test
@@ -352,9 +351,9 @@ struct FactoryPivotTests {
         Add JSON output support to the CLI.
 
         ## Acceptance checks
-        - `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])`.
+        - `crates/app-cli/tests/cli.rs` calls `main(["--format", "json", "Ship", "it"])`.
         """,
-      verify: "pnpm verify",
+      verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
     )
 
@@ -365,10 +364,10 @@ struct FactoryPivotTests {
       attempt: 4,
       priorIssues: [
         """
-        Verify passed for `pnpm verify`, but the accepted plan or brief explicitly requires test changes and no test/spec file changed.
+        Verify passed for `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`, but the accepted plan or brief explicitly requires test changes and no test/spec file changed.
 
         Requested test file(s):
-        - `packages/cli/src/main.test.ts`
+        - `crates/app-cli/tests/cli.rs`
         """
       ]
     )
@@ -376,131 +375,101 @@ struct FactoryPivotTests {
     #expect(prompt.contains("If the prior issue lists Requested test file(s)"))
     #expect(prompt.contains("make your first write/edit target"))
     #expect(prompt.contains("Do not edit source files again until that requested test"))
-    #expect(prompt.contains("packages/cli/src/main.test.ts"))
+    #expect(prompt.contains("crates/app-cli/tests/cli.rs"))
   }
 
   @Test
-  func typeScriptScaffoldHasWorkspaceScriptsAndPackages() throws {
-    let files = TypeScriptProjectScaffold.files(
+  func rustScaffoldHasCargoWorkspaceAndCrates() throws {
+    let files = RustProjectScaffold.files(
       options: .init(projectName: "My Factory App")
     )
     let byPath = Dictionary(uniqueKeysWithValues: files.map { ($0.path, $0.contents) })
 
-    #expect(byPath.keys.contains("pnpm-workspace.yaml"))
-    #expect(byPath.keys.contains("package.json"))
-    #expect(byPath.keys.contains("tsconfig.base.json"))
-    #expect(byPath.keys.contains("packages/core/package.json"))
-    #expect(byPath.keys.contains("packages/cli/package.json"))
-    #expect(byPath.keys.contains("packages/web/package.json"))
+    #expect(byPath.keys.contains("Cargo.toml"))
+    #expect(byPath.keys.contains("rust-toolchain.toml"))
+    #expect(byPath.keys.contains("crates/app-core/Cargo.toml"))
+    #expect(byPath.keys.contains("crates/app-cli/Cargo.toml"))
+    #expect(byPath.keys.contains("crates/app-core/src/lib.rs"))
+    #expect(byPath.keys.contains("crates/app-cli/src/main.rs"))
+    #expect(byPath.keys.contains("crates/app-cli/tests/cli_smoke.rs"))
 
-    let rootPackage = try #require(byPath["package.json"])
-    #expect(rootPackage.contains("\"verify\": \"pnpm typecheck && pnpm test -- --coverage && pnpm build\""))
-    #expect(rootPackage.contains("\"test\": \"vitest run\""))
-    #expect(rootPackage.contains("\"build\": \"pnpm -r build\""))
-    #expect(rootPackage.contains("\"typecheck\": \"pnpm -r typecheck\""))
+    let workspace = try #require(byPath["Cargo.toml"])
+    #expect(workspace.contains("crates/app-core"))
+    #expect(workspace.contains("crates/app-cli"))
 
-    let workspace = try #require(byPath["pnpm-workspace.yaml"])
-    #expect(workspace.contains("\"packages/*\""))
-
-    let cliPackage = try #require(byPath["packages/cli/package.json"])
-    #expect(cliPackage.contains("\"tsx\""))
-    #expect(cliPackage.contains("\"workspace:*\""))
-
-    let webPackage = try #require(byPath["packages/web/package.json"])
-    #expect(webPackage.contains("\"vite\""))
-    #expect(webPackage.contains("\"react\""))
-    #expect(webPackage.contains("\"@types/jsdom\""))
+    let readme = try #require(byPath["README.md"])
+    #expect(readme.contains("cargo llvm-cov"))
   }
 
   @Test
-  func forgeProfileDefaultsToTypeScriptGeneratedProjects() throws {
-    #expect(ForgeProfile.generatedProjectDefault == .typeScriptPnpmVite)
-    #expect(ForgeProfile.generatedProjectTargets == [.typeScriptPnpmVite])
-    #expect(RepositoryManifestHint.packageJSON.forgeProfile == .typeScriptPnpmVite)
-
+  func rustScaffoldDetectsGeneratedWorkspace() throws {
     let tempURL = FileManager.default.temporaryDirectory
-      .appending(path: "CompassForgeProfileTests-\(UUID().uuidString)")
+      .appending(path: "CompassRustScaffoldTests-\(UUID().uuidString)")
     try FileManager.default.createDirectory(
       at: tempURL,
       withIntermediateDirectories: true,
       attributes: nil
     )
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try TypeScriptProjectScaffold.write(to: tempURL, options: .init(projectName: "Detected App"))
+    try RustProjectScaffold.write(to: tempURL, options: .init(projectName: "Detected App"))
 
-    #expect(TypeScriptProjectScaffold.isGeneratedWorkspace(at: tempURL))
-    #expect(ForgeProfileService.detect(in: tempURL) == .typeScriptPnpmVite)
+    #expect(RustProjectScaffold.isGeneratedWorkspace(at: tempURL))
+    #expect(RepositoryManifestHint.cargoToml.language == .rust)
   }
 
   @Test
-  func typeScriptVerifyGateAcceptsCompassStandardVerify() {
+  func generatedVerifyGateAcceptsCompassStandardVerify() {
+    let standardVerify =
+      GeneratedProjectQuality.standardVerifyCommand
     #expect(
-      ForgeVerifyValidator.coverageViolation(
-        verify: "pnpm verify",
-        profile: .typeScriptPnpmVite
-      ) == nil
+      GeneratedVerifyValidator.coverageViolation(verify: standardVerify) == nil
     )
     #expect(
-      ForgeVerifyValidator.coverageViolation(
-        verify: "pnpm run verify",
-        profile: .typeScriptPnpmVite
-      ) == nil
+      GeneratedVerifyValidator.coverageViolation(verify: "cargo llvm-cov --workspace --summary-only")
+        == nil
     )
     #expect(
-      ForgeVerifyValidator.coverageViolation(
-        verify: "pnpm typecheck",
-        profile: .typeScriptPnpmVite
-      ) == nil
-    )
-    #expect(
-      ForgeVerifyValidator.coverageViolation(
-        verify: "pnpm test -- --coverage",
-        profile: .typeScriptPnpmVite
-      ) == nil
+      GeneratedVerifyValidator.coverageViolation(verify: "cargo test --workspace") == nil
     )
 
-    let violation = ForgeVerifyValidator.coverageViolation(
-      verify: "pnpm test",
-      profile: .typeScriptPnpmVite
-    )
+    let violation = GeneratedVerifyValidator.coverageViolation(verify: "echo ok")
     #expect(violation != nil)
-    #expect(violation?.contains("pnpm verify") == true)
+    #expect(violation?.contains("llvm-cov") == true)
   }
 
   @Test
-  func coverageRepairNudgeNamesExactTypeScriptVerifyCommand() {
+  func coverageRepairNudgeNamesExactRustVerifyCommand() {
     let error = PlanTransitionValidationError(
       message: "Verify command must collect coverage.",
       reason: .coverageRequirement,
       missingLabels: ["Coverage-ready verify command"],
-      rejectedVerify: "pnpm test"
+      rejectedVerify: "cargo test --workspace"
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
 
     #expect(nudge.eventText == "plan_submit rejected")
-    #expect(nudge.userMessage.contains("`pnpm test`"))
-    #expect(nudge.userMessage.contains("`pnpm verify`"))
-    #expect(nudge.userMessage.contains("Do not use bare `pnpm test`"))
+    #expect(nudge.userMessage.contains("`cargo test --workspace`"))
+    #expect(nudge.userMessage.contains(GeneratedProjectQuality.standardVerifyCommand))
   }
 
   @Test
   func weakCLIProofNudgeShowsRepeatedSplitArgvShape() {
     let error = PlanTransitionValidationError(
       message:
-        "Plan selected generic `pnpm verify` for repeated `--signal` CLI behavior without a CLI test.",
+        "Plan selected generic `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` for repeated `--signal` CLI behavior without a CLI test.",
       reason: .weakVerifyCoverage,
-      rejectedVerify: "pnpm verify"
+      rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
 
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not resubmit the same Acceptance checks unchanged"))
-    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
+    #expect(nudge.userMessage.contains("crates/app-cli/tests/cli.rs"))
     #expect(
       nudge.userMessage.contains(
-        #"main(["--signal", "api:green", "--signal", "db:red"])"#
+        #"["--signal", "api:green", "--signal", "db:red"]"#
       )
     )
   }
@@ -513,7 +482,7 @@ struct FactoryPivotTests {
 
         Set `state.brief` exactly to this current brief in the next `plan_submit`:
         ```json
-        {"acceptanceSignals":["pnpm verify passes"],"constraints":[],"desiredOutcomes":[],"summary":"Build the slice.","targetUsers":[]}
+        {"acceptanceSignals":["cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"],"constraints":[],"desiredOutcomes":[],"summary":"Build the slice.","targetUsers":[]}
         ```
         """,
       reason: .invalidStateMutation,
@@ -525,7 +494,7 @@ struct FactoryPivotTests {
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
     #expect(nudge.userMessage.contains("copy the current `state.brief` exactly"))
-    #expect(nudge.userMessage.contains(#""acceptanceSignals":["pnpm verify passes"]"#))
+    #expect(nudge.userMessage.contains(#""acceptanceSignals":["cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"]"#))
   }
 
   @Test
@@ -533,7 +502,7 @@ struct FactoryPivotTests {
     let error = PlanTransitionValidationError(
       message: """
         Plan named file paths that do not exist in the repo:
-        - packages/cli/test/main.test.ts (nearest existing directory: packages/cli; entries: package.json, src/, tsconfig.json; same filename exists at: packages/cli/src/main.test.ts)
+        - crates/app-cli/test/cli.rs (nearest existing directory: packages/cli; entries: package.json, src/, tsconfig.json; same filename exists at: crates/app-cli/tests/cli.rs)
 
         Repair the handoff without calling another tool.
         """,
@@ -545,7 +514,7 @@ struct FactoryPivotTests {
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
     #expect(nudge.userMessage.contains("same-filename match"))
-    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
+    #expect(nudge.userMessage.contains("crates/app-cli/tests/cli.rs"))
     #expect(nudge.userMessage.contains("create new file <path>"))
   }
 
@@ -555,8 +524,8 @@ struct FactoryPivotTests {
       {
         "state": {
           "immediate": {
-            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- pnpm verify passes",
-            "verify": "pnpm verify",
+            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
+            "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
             "verifyTimeoutMs": 600000,
             "estimatedDifficulty": "low",
             "selectedBecause": "First useful slice.",
@@ -600,8 +569,8 @@ struct FactoryPivotTests {
       {
         "state": {
           "immediate": {
-            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- pnpm verify passes",
-            "verify": "pnpm verify",
+            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
+            "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
             "verifyTimeoutMs": 600000,
             "estimatedDifficulty": "low",
             "selectedBecause": "First useful slice.",
@@ -653,22 +622,22 @@ struct FactoryPivotTests {
   func weakCLIProofNudgeTellsPlanToRepairWithoutTools() {
     let error = PlanTransitionValidationError(
       message: """
-        Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
+        Plan selected generic `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
 
-        `pnpm verify` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `packages/cli/src/main.test.ts`.
+        `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `crates/app-cli/tests/cli.rs`.
         """,
       reason: .weakVerifyCoverage,
-      rejectedVerify: "pnpm verify"
+      rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
 
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
-    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
-    #expect(nudge.userMessage.contains(#"main(["--format", "json", "Ship", "it"])"#))
+    #expect(nudge.userMessage.contains("crates/app-cli/tests/cli.rs"))
+    #expect(nudge.userMessage.contains(#"["--format", "json", "Ship", "it"]"#))
     #expect(nudge.userMessage.contains("parsed JSON title is `Ship it`"))
-    #expect(nudge.userMessage.contains("Keep `state.immediate.verify` as `pnpm verify`"))
+    #expect(nudge.userMessage.contains("Keep `state.immediate.verify` as `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`"))
     #expect(nudge.userMessage.contains("narrow the Outcome to core-only work"))
     #expect(nudge.userMessage.contains("exactly one repair"))
   }
@@ -677,9 +646,9 @@ struct FactoryPivotTests {
   func unfinishedDevelopSuccessNudgeTellsAgentToContinueOrFail() {
     let error = DevelopFeedbackValidationError(
       message:
-        "Develop reported status=succeeded, but feedback says planned work remains: `Run pnpm verify`.",
+        "Develop reported status=succeeded, but feedback says planned work remains: `Run cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`.",
       reason: .unfinishedSuccess,
-      feedback: "Run `pnpm verify` to check if the changes pass."
+      feedback: "Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes pass."
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .develop)
@@ -692,12 +661,12 @@ struct FactoryPivotTests {
     #expect(nudge.userMessage.contains("Return status=succeeded only after"))
     #expect(nudge.userMessage.contains("Detected missing verification command"))
     #expect(nudge.userMessage.contains(#""tool": "bash""#))
-    #expect(nudge.userMessage.contains(#""command": "pnpm verify""#))
+    #expect(nudge.userMessage.contains("cargo test --workspace"))
     #expect(nudge.userMessage.contains("Do not call `read_file`"))
   }
 
   @Test
-  func containerRuntimePromptAndToolsAreTypeScriptOnly() {
+  func containerRuntimePromptAndToolsAreRustGenerated() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
       workingDirectoryPath: "/Users/example/repo"
@@ -708,7 +677,8 @@ struct FactoryPivotTests {
     #expect(prompt.contains("Working directory: /workspace"))
     #expect(!prompt.contains("/Users/example/repo"))
     #expect(prompt.contains("/workspace"))
-    #expect(prompt.contains("Docker, Xcode, and Homebrew are unavailable"))
+    #expect(prompt.contains("Docker, Xcode"))
+    #expect(prompt.contains("Homebrew are unavailable"))
     #expect(!toolNames.contains("list_toolchains"))
     #expect(!toolNames.contains("install_toolchain"))
   }
@@ -813,7 +783,7 @@ struct FactoryPivotTests {
   func continuationParserAcceptsValidSubmitPerPhase() throws {
     let payloads: [AgentContinuationPhase: String] = [
       .plan: #"{"state":{"immediate":null,"queue":[],"brief":{"summary":"","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}"#,
-      .develop: #"{"status":"succeeded","summary":"Done","feedback":"Verified pnpm verify","bypassVerify":false,"lessonEdits":[]}"#,
+      .develop: #"{"status":"succeeded","summary":"Done","feedback":"Verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","bypassVerify":false,"lessonEdits":[]}"#,
       .critic: #"{"verdict":"approve","summary":"No blockers","feedback":""}"#,
       .delegate: #"{"findings":"No blockers found."}"#,
     ]
@@ -882,7 +852,7 @@ struct FactoryPivotTests {
           "kind": "develop_continue",
           "tool": "edit_file",
           "arguments": {
-            "path": "packages/cli/src/main.ts",
+            "path": "crates/app-cli/src/main.rs",
             "startLine": 1,
             "endLine": 1,
             "content": `const one = 1;
@@ -916,7 +886,7 @@ struct FactoryPivotTests {
 
     let runtime = FakeLocalModelRuntime(outputs: [
       #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports.","note":"after-read-note: edit this file if it exports answer."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Read the file.","feedback":"Verified with pnpm verify.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Read the file.","feedback":"Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
     let result = try await AgentExecutor().run(
       testConfiguration(
@@ -1188,9 +1158,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let readSource =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.ts"},"reason":"Need current CLI logic before editing."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/src/main.rs"},"reason":"Need current CLI logic before editing."}"#
     let readTest =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.test.ts"},"reason":"Need current tests before editing."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/tests/cli.rs"},"reason":"Need current tests before editing."}"#
     let runtime = FakeLocalModelRuntime(outputs: [
       readSource,
       readTest,
@@ -1220,7 +1190,7 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Do not keep calling\n`read_file`")
       || prompts[3].contains("Do not keep calling `read_file`"))
     #expect(prompts[3].contains("Call `edit_file` or `write_file`"))
-    #expect(prompts[3].contains(#""path":"packages/cli/src/main.ts""#))
+    #expect(prompts[3].contains(#""path":"crates/app-cli/src/main.rs""#))
   }
 
   @Test
@@ -1276,7 +1246,7 @@ struct FactoryPivotTests {
     #expect(prompts[2].contains(#"{"kind":"plan_submit","payload":{...}}"#))
     #expect(prompts[2].contains("Your previous Plan payload claimed new CLI behavior without proof"))
     #expect(prompts[2].contains("Do not call another tool to repair this"))
-    #expect(prompts[2].contains(#"main(["--format", "json", "Ship", "it"])"#))
+    #expect(prompts[2].contains(#"["--format", "json", "Ship", "it"]"#))
     #expect(prompts[2].contains(#""path":"package.json""#))
   }
 
@@ -1284,7 +1254,7 @@ struct FactoryPivotTests {
   func executorEscalatesRepeatedToolCallsAfterMalformedContinuationRejection() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
+    try #"{"scripts":{"verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"}}"#.write(
       to: tempURL.appending(path: "package.json"),
       atomically: true,
       encoding: .utf8
@@ -1363,8 +1333,8 @@ struct FactoryPivotTests {
     #expect(prompts[2].contains("Do not return the same payload again"))
     #expect(prompts[2].contains("Plan repair checklist"))
     #expect(prompts[2].contains("Do not resubmit the same `state.immediate.plan`"))
-    #expect(prompts[2].contains("Keep `state.immediate.verify` as `pnpm verify`"))
-    #expect(prompts[2].contains(#"main(["--format", "json", "Ship", "it"])"#))
+    #expect(prompts[2].contains("Keep `state.immediate.verify` as `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`"))
+    #expect(prompts[2].contains(#"["--format", "json", "Ship", "it"]"#))
     #expect(prompts[2].contains("Latest rejected-payload repair to apply now"))
   }
 
@@ -1372,20 +1342,20 @@ struct FactoryPivotTests {
   func executorGivesConcreteVerifyCommandAfterUnfinishedDevelopSuccess() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
+    try #"{"scripts":{"verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"}}"#.write(
       to: tempURL.appending(path: "package.json"),
       atomically: true,
       encoding: .utf8
     )
 
     let unfinishedSubmit =
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Edited main.ts.","feedback":"Run `pnpm verify` to check if the changes meet the acceptance criteria.","bypassVerify":false,"lessonEdits":[]}}"#
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Edited main.ts.","feedback":"Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes meet the acceptance criteria.","bypassVerify":false,"lessonEdits":[]}}"#
     let readPackage =
       #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts."}"#
     let runVerify =
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run the missing verification command before submitting success."}"#
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run the missing verification command before submitting success."}"#
     let finishedSubmit =
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verified the completed packet.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verified the completed packet.","feedback":"Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
       unfinishedSubmit,
       readPackage,
@@ -1417,7 +1387,7 @@ struct FactoryPivotTests {
     #expect(prompts.count == 5)
     #expect(prompts[1].contains("Detected missing verification command"))
     #expect(prompts[1].contains(#""tool": "bash""#))
-    #expect(prompts[1].contains(#""command": "pnpm verify""#))
+    #expect(prompts[1].contains("cargo clippy"))
     #expect(prompts[1].contains("Do not call `read_file`"))
     #expect(prompts[3].contains("If the rejected payload said a verify command still needs to run"))
     #expect(prompts[3].contains("Do not call `read_file`, `list_files`, or reread"))
@@ -1429,9 +1399,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run verification."}"#,
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Typecheck failed due to a missing summarizeQueue import.","feedback":"Fix the summarizeQueue import before trying again.","bypassVerify":false,"lessonEdits":[]}}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the requested changes.","feedback":"Verified with pnpm verify; the packet is ready for Plan.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the requested changes.","feedback":"Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace; the packet is ready for Plan.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1449,7 +1419,7 @@ struct FactoryPivotTests {
     #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
-    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[1].contains("Compass observed `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` exit 0"))
     #expect(prompts[2].contains("Compass already observed this verify command pass"))
     #expect(prompts[2].contains("status=failed, bypassVerify=false"))
     #expect(prompts[2].contains("return `develop_submit` again with"))
@@ -1461,9 +1431,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run baseline verification."}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run baseline verification."}"#,
       #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Repair missing acceptance check: generated.ts must exist after verify."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"A later file mutation still needs verification.","feedback":"Run pnpm verify after generated.ts was created.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"A later file mutation still needs verification.","feedback":"Run cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace after generated.ts was created.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1484,10 +1454,10 @@ struct FactoryPivotTests {
     #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("failed"))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
-    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
-    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[1].contains("Compass observed `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` exit 0"))
+    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` exit 0"))
     #expect(prompts[2].contains("That earlier verify result no longer proves the current worktree"))
-    #expect(prompts[2].contains("call `bash` with `pnpm verify` again"))
+    #expect(prompts[2].contains("call `bash` with `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` again"))
     #expect(!prompts[2].contains("Compass already observed this verify command pass"))
   }
 
@@ -1497,9 +1467,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run verification."}"#,
       #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Create the file after verify."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"The packet was already verified.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"The packet was already verified.","feedback":"Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1520,7 +1490,7 @@ struct FactoryPivotTests {
     #expect(!FileManager.default.fileExists(atPath: tempURL.appending(path: "generated.ts").path))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
-    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[1].contains("Compass observed `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` exit 0"))
     #expect(prompts[2].contains("A generic `write_file` call after a"))
     #expect(prompts[2].contains("passing verify would invalidate that proof"))
     #expect(prompts[2].contains("retry `write_file` only with a `reason`"))
@@ -1535,9 +1505,9 @@ struct FactoryPivotTests {
 
     let bashCounter = ToolInvocationCounter()
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run the missing verification command before submitting success."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed for the requested packet.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run the missing verification command before submitting success."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed for the requested packet.","feedback":"Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1560,8 +1530,8 @@ struct FactoryPivotTests {
     #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
-    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
-    #expect(prompts[2].contains("Compass already observed `pnpm verify` exit 0"))
+    #expect(prompts[1].contains("Compass observed `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` exit 0"))
+    #expect(prompts[2].contains("Compass already observed `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` exit 0"))
     #expect(prompts[2].contains("Do not rerun verify against the same worktree"))
     #expect(prompts[2].contains("call `edit_file` or `write_file` now"))
   }
@@ -1573,15 +1543,15 @@ struct FactoryPivotTests {
 
     let bashCounter = ToolInvocationCounter()
     let bashResults = ToolResultQueue([
-      .failure("[stderr]\nTypeScript error before repair.\n\n[exit 1]", kind: .bashFailure),
+      .failure("[stderr]\nRust compile error before repair.\n\n[exit 1]", kind: .bashFailure),
       .ok("[stdout]\nAll checks passed after repair.\n\n[exit 0]\n\n[next]\nSubmit success."),
     ])
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run verification."}"#,
       #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Repair failed verification output."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"TypeScript errors during verification still block the packet.","feedback":"Review TypeScript errors from pnpm verify before trying again.","bypassVerify":false,"lessonEdits":[]}}"#,
-      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Rerun verification after the accepted repair."}"#,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the repair.","feedback":"Verified with pnpm verify after the accepted repair; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Rust compile errors during verification still block the packet.","feedback":"Review Rust compile errors from cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace before trying again.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Rerun verification after the accepted repair."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the repair.","feedback":"Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace after the accepted repair; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1602,11 +1572,11 @@ struct FactoryPivotTests {
     #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 5)
-    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `pnpm verify` fail"))
+    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` fail"))
     #expect(prompts[2].contains("That earlier failure no longer proves the current worktree"))
     #expect(prompts[3].contains("Compass previously observed this verify command fail"))
     #expect(prompts[3].contains("Do not submit status=failed from stale"))
-    #expect(prompts[3].contains("call `bash` with `pnpm verify` again"))
+    #expect(prompts[3].contains("call `bash` with `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` again"))
   }
 
   @Test
@@ -1642,7 +1612,7 @@ struct FactoryPivotTests {
       """
     let runtime = FakeLocalModelRuntime(outputs: continues + [
       summary,
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Compaction preserved enough context.","feedback":"Verified with pnpm verify.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Compaction preserved enough context.","feedback":"Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
     let result = try await AgentExecutor().run(
@@ -1703,7 +1673,7 @@ struct FactoryPivotTests {
   func executorEscalatesRepeatedMalformedSubmitJSONAcrossToolReads() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
+    try #"{"scripts":{"verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"}}"#.write(
       to: tempURL.appending(path: "package.json"),
       atomically: true,
       encoding: .utf8
@@ -1717,7 +1687,7 @@ struct FactoryPivotTests {
           "state": {
             "immediate": {
               "plan": "## Outcome\\nAdd count support.\\n\\n## Acceptance checks\\n- main(["--count", "3", "Ship", "it"]) returns 3 open / 3 total.",
-              "verify": "pnpm verify"
+              "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
             },
             "queue": [],
             "brief": {
@@ -1860,7 +1830,7 @@ struct FactoryPivotTests {
         "kind": "develop_continue",
         "tool": "edit_file",
         "arguments": {
-          "path": "packages/cli/src/main.ts",
+          "path": "crates/app-cli/src/main.rs",
           "startLine": 4,
           "endLine": 15,
           "content": `export function main() {
@@ -1914,7 +1884,7 @@ struct FactoryPivotTests {
         "kind": "develop_continue",
         "tool": "edit_file",
         "arguments": {
-          "path": "packages/cli/src/main.ts",
+          "path": "crates/app-cli/src/main.rs",
           "startLine": 4,
           "endLine": 15,
           "content": `export function main() {
@@ -2082,9 +2052,9 @@ private final class RejectFirstPlanSubmitValidator: @unchecked Sendable {
     if attempt == 1 {
       throw PlanTransitionValidationError(
         message:
-          "Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
+          "Plan selected generic `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
         reason: .weakVerifyCoverage,
-        rejectedVerify: "pnpm verify"
+        rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
       )
     }
     _ = try JSONDecoder().decode(PlanRunResult.self, from: data)
@@ -2104,9 +2074,9 @@ private final class RejectFirstTwoPlanSubmitValidator: @unchecked Sendable {
     if attempt <= 2 {
       throw PlanTransitionValidationError(
         message:
-          "Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
+          "Plan selected generic `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
         reason: .weakVerifyCoverage,
-        rejectedVerify: "pnpm verify"
+        rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
       )
     }
     _ = try JSONDecoder().decode(PlanRunResult.self, from: data)

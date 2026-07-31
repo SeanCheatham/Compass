@@ -44,7 +44,6 @@ enum PlanTransitionValidator {
   static func validate(
     from current: PlanState,
     to next: PlanState,
-    forgeProfile: ForgeProfile? = nil,
     repoURL: URL? = nil
   )
     throws
@@ -128,10 +127,7 @@ enum PlanTransitionValidator {
     }
 
     let handoffDigest = PlanHandoffDigest(plan: immediate.plan)
-    if let coverageError = ForgeVerifyValidator.coverageViolation(
-      verify: verify,
-      profile: forgeProfile
-    ),
+    if let coverageError = GeneratedVerifyValidator.coverageViolation(verify: verify),
       !isDocumentationOnlyContentVerify(verify, handoffDigest: handoffDigest)
     {
       throw PlanTransitionValidationError(
@@ -343,13 +339,13 @@ enum PlanTransitionValidator {
         message: """
           Plan selected test-only verify command `\(immediate.verify)` for new CLI implementation work.
 
-          `pnpm test -- --coverage` is only acceptable for focused test-only slices. This handoff asks Develop to implement CLI behavior, so use `pnpm verify` and keep the CLI test update in the acceptance checks.
+          `cargo test --workspace` or `\(GeneratedProjectQuality.coverageCollectCommand)` is only acceptable for focused test-only slices. This handoff asks Develop to implement CLI behavior, so use `\(GeneratedProjectQuality.standardVerifyCommand)` and keep the CLI test update in the acceptance checks.
           """,
         reason: .weakVerifyCoverage,
         rejectedVerify: immediate.verify
       )
     }
-    guard normalizedVerify == "pnpm verify" || normalizedVerify == "pnpm run verify" else {
+    guard isStandardWorkspaceVerify(normalizedVerify) else {
       return
     }
     guard claimsNewCLIBehavior(acceptanceText), !mentionsTestProof(plan) else {
@@ -360,7 +356,7 @@ enum PlanTransitionValidator {
       message: """
         Plan selected generic `\(immediate.verify)` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
 
-        `pnpm verify` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `packages/cli/src/main.test.ts`. Add the test file/update to the handoff, or choose a focused verify command that directly exercises the CLI output.
+        `\(GeneratedProjectQuality.standardVerifyCommand)` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `crates/app-cli/tests/cli.rs`. Add the test file/update to the handoff, or choose a focused verify command that directly exercises the CLI output.
 
         \(cliTestProofGuidance(for: plan + "\n" + acceptanceText))
         """,
@@ -691,7 +687,7 @@ enum PlanTransitionValidator {
       return
         """
         Required acceptance check to append:
-        - `packages/cli/src/main.test.ts` exercises the new CLI path with split argv and asserts the output.
+        - `crates/app-cli/tests/cli.rs` exercises the new CLI path with split args and asserts the output.
         """
     }
 
@@ -700,20 +696,20 @@ enum PlanTransitionValidator {
       return
         """
         Required acceptance check to append:
-        - `packages/cli/src/main.test.ts` calls `main([\"\(flag)\", \"api:green\", \"\(flag)\", \"db:red\"])` and asserts the formatted output.
+        - `crates/app-cli/tests/cli.rs` runs the CLI with `["\(flag)", "api:green", "\(flag)", "db:red"]` and asserts the formatted output.
         """
     }
     if flag == "--format", text.contains("json") {
       return
         """
         Required acceptance check to append:
-        - `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])` and asserts the parsed JSON title is `Ship it`.
+        - `crates/app-cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]` and asserts the parsed JSON title is `Ship it`.
         """
     }
     return
       """
       Required acceptance check to append:
-      - `packages/cli/src/main.test.ts` calls `main([\"\(flag)\", \"value\"])` and asserts the output.
+      - `crates/app-cli/tests/cli.rs` runs the CLI with `["\(flag)", "value"]` and asserts the output.
       """
   }
 
@@ -734,10 +730,18 @@ enum PlanTransitionValidator {
   }
 
   private static func isFocusedCoverageVerify(_ normalizedVerify: String) -> Bool {
-    normalizedVerify.contains("pnpm test")
-      && normalizedVerify.contains("--coverage")
-      && !normalizedVerify.contains("typecheck")
-      && !normalizedVerify.contains("build")
+    let testFocused =
+      normalizedVerify.contains("cargo llvm-cov")
+      || (normalizedVerify.contains("cargo test") && !normalizedVerify.contains("clippy"))
+    return testFocused && !normalizedVerify.contains("cargo fmt")
+  }
+
+  private static func isStandardWorkspaceVerify(_ normalizedVerify: String) -> Bool {
+    let standard = GeneratedProjectQuality.standardVerifyCommand.lowercased()
+    return normalizedVerify == standard
+      || (normalizedVerify.contains("cargo test")
+        && normalizedVerify.contains("clippy")
+        && normalizedVerify.contains("cargo fmt"))
   }
 
   private static func isDocumentationOnlyContentVerify(
@@ -756,11 +760,11 @@ enum PlanTransitionValidator {
       || text.contains("documentation")
     guard mentionsDocs else { return false }
     return ![
-      "packages/",
-      ".ts",
-      ".tsx",
+      "crates/",
+      ".rs",
       "cli behavior",
-      "vitest",
+      "#[test]",
+      "cargo test",
       "test file",
       "source file",
     ].contains { text.contains($0) }
@@ -780,8 +784,9 @@ enum PlanTransitionValidator {
       "implement",
       "add support",
       "support for",
-      "packages/cli/src/main.ts",
-      "main.ts",
+      "crates/app-cli/src/main.rs",
+      "crates/app-cli/src/lib.rs",
+      "main.rs",
       "entrypoint",
       "source",
     ].contains { text.contains($0) }
@@ -789,12 +794,12 @@ enum PlanTransitionValidator {
 
   private static func mentionsTestProof(_ plan: String) -> Bool {
     [
-      ".test.",
-      "packages/cli/src/main.test.ts",
-      "vitest",
-      "coverage",
-      "assert",
-      "expect(",
+      "#[test]",
+      "crates/app-cli/tests/",
+      ".rs",
+      "cargo test",
+      "assert_eq!",
+      "assert!",
     ].contains { plan.contains($0) }
   }
 

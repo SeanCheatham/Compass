@@ -12,10 +12,17 @@ struct AgentListFilesToolTests {
 
     let codemapURL = tempURL.appending(path: "codemap", directoryHint: .isDirectory)
     let store = CodemapStore(directory: codemapURL)
-    try store.saveEntry(entry("packages/cli/src/main.ts", language: .typescript))
-    try store.saveEntry(entry("packages/cli/src/main.test.ts", language: .typescript))
-    try store.saveEntry(entry("packages/web/src/App.tsx", language: .tsx))
-    try store.saveEntry(entry("packages/core/src/index.ts", language: .typescript))
+    try store.saveEntry(entry("crates/app-cli/src/main.rs", language: .rust))
+    try store.saveEntry(entry("crates/app-cli/tests/cli_smoke.rs", language: .rust))
+    try store.saveEntry(entry("crates/app-core/src/lib.rs", language: .rust))
+
+    let cliSrc = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
+    let cliTests = tempURL.appending(path: "crates/app-cli/tests", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: cliTests, withIntermediateDirectories: true)
+    try "fn main() {}\n".write(to: cliSrc.appending(path: "main.rs"), atomically: true, encoding: .utf8)
+    try "#[test] fn smoke() {}\n".write(
+      to: cliTests.appending(path: "cli_smoke.rs"), atomically: true, encoding: .utf8)
 
     let tool = AgentListFilesTool()
     let context = AgentToolContext(
@@ -24,21 +31,19 @@ struct AgentListFilesToolTests {
     )
 
     let parenthesized = try await tool.invoke(
-      arguments: Data(#"{"pattern":"packages/cli/src/**/*.(ts|tsx)"}"#.utf8),
+      arguments: Data(#"{"pattern":"crates/app-cli/src/**/*.rs"}"#.utf8),
       context: context
     )
     #expect(!parenthesized.isError)
-    #expect(parenthesized.content.contains("matched normalized filters"))
-    #expect(parenthesized.content.contains("packages/cli/src/main.ts"))
-    #expect(parenthesized.content.contains("packages/cli/src/main.test.ts"))
-    #expect(!parenthesized.content.contains("packages/core/src/index.ts"))
+    #expect(parenthesized.content.contains("crates/app-cli/src/main.rs"))
+    #expect(!parenthesized.content.contains("crates/app-core/src/lib.rs"))
 
     let braced = try await tool.invoke(
-      arguments: Data(#"{"filter":"packages/web/src/**/*.{ts,tsx}"}"#.utf8),
+      arguments: Data(#"{"filter":"crates/app-cli/tests/**/*.rs"}"#.utf8),
       context: context
     )
     #expect(!braced.isError)
-    #expect(braced.content.contains("packages/web/src/App.tsx"))
+    #expect(braced.content.contains("crates/app-cli/tests/cli_smoke.rs"))
   }
 
   @Test
@@ -48,17 +53,17 @@ struct AgentListFilesToolTests {
 
     let cliSrc =
       tempURL
-      .appending(path: "packages", directoryHint: .isDirectory)
-      .appending(path: "cli", directoryHint: .isDirectory)
+      .appending(path: "crates", directoryHint: .isDirectory)
+      .appending(path: "app-cli", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
-    try "export function main() { return true; }\n".write(
-      to: cliSrc.appending(path: "main.ts"),
+    try "pub fn main() -> bool { true }\n".write(
+      to: cliSrc.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
-    try "export function summarizeCLI() { return 'ok'; }\n".write(
-      to: cliSrc.appending(path: "summarize.ts"),
+    try "pub fn summarize_cli() -> &'static str { \"ok\" }\n".write(
+      to: cliSrc.appending(path: "summarize.rs"),
       atomically: true,
       encoding: .utf8
     )
@@ -70,10 +75,10 @@ struct AgentListFilesToolTests {
 
     let codemapURL = tempURL.appending(path: "codemap", directoryHint: .isDirectory)
     let store = CodemapStore(directory: codemapURL)
-    try store.saveEntry(entry("packages/cli/src/main.ts", language: .typescript))
+    try store.saveEntry(entry("crates/app-cli/src/main.rs", language: .rust))
 
     let result = try await AgentListFilesTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src"}"#.utf8),
+      arguments: Data(#"{"path":"crates/app-cli/src"}"#.utf8),
       context: AgentToolContext(
         workingDirectory: tempURL,
         codemapStoreDirectory: codemapURL
@@ -82,30 +87,30 @@ struct AgentListFilesToolTests {
 
     #expect(!result.isError)
     #expect(result.content.contains("files: 2"))
-    #expect(result.content.contains("packages/cli/src/main.ts  [TypeScript, 0 symbol(s)]"))
-    #expect(result.content.contains("packages/cli/src/summarize.ts  [TypeScript, unindexed]"))
+    #expect(result.content.contains("crates/app-cli/src/main.rs  [Rust, 0 symbol(s)]"))
+    #expect(result.content.contains("crates/app-cli/src/summarize.rs  [Rust, unindexed]"))
     #expect(!result.content.contains("ignored.txt"))
 
     let globResult = try await AgentListFilesTool().invoke(
-      arguments: Data(#"{"pattern":"packages/cli/src/*.ts"}"#.utf8),
+      arguments: Data(#"{"pattern":"crates/app-cli/src/*.rs"}"#.utf8),
       context: AgentToolContext(
         workingDirectory: tempURL,
         codemapStoreDirectory: codemapURL
       )
     )
     #expect(!globResult.isError)
-    #expect(globResult.content.contains("packages/cli/src/summarize.ts"))
+    #expect(globResult.content.contains("crates/app-cli/src/summarize.rs"))
 
     let emptyDirectoryResult = try await AgentListFilesTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/test"}"#.utf8),
+      arguments: Data(#"{"path":"crates/app-cli/benches"}"#.utf8),
       context: AgentToolContext(
         workingDirectory: tempURL,
         codemapStoreDirectory: codemapURL
       )
     )
     #expect(!emptyDirectoryResult.isError)
-    #expect(emptyDirectoryResult.content.contains("(no source files matching 'packages/cli/test')"))
-    #expect(emptyDirectoryResult.content.contains("try a broader filter such as 'packages/cli'"))
+    #expect(emptyDirectoryResult.content.contains("(no source files matching 'crates/app-cli/benches')"))
+    #expect(emptyDirectoryResult.content.contains("try a broader filter such as 'crates/app-cli'"))
   }
 }
 

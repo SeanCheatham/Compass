@@ -7,7 +7,7 @@ The current direction:
 - Factory turns (Plan / Develop / Critic) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
 - Optional **MLX** local assist handles cheap/small work (narration, compaction, Explore helpers) when the blessed local model is downloaded.
 - Compass does deterministic work through local tools and the containerized Linux runtime.
-- Generated projects are TypeScript pnpm workspaces.
+- Generated projects are Rust Cargo workspaces (backend/CLI only — no web UI).
 
 ## Factory Loop
 
@@ -32,25 +32,28 @@ Activity/Live is the primary project surface.
 
 ## Generated Projects
 
-Compass-generated output is TypeScript only. New projects use:
+Compass-generated output is Rust only. New projects use a Cargo workspace:
 
-- `pnpm-workspace.yaml`
-- root `package.json`
-- `tsconfig.base.json`
-- `packages/core`
-- `packages/cli`
-- `packages/web`
+- root `Cargo.toml` workspace manifest
+- `rust-toolchain.toml` (stable + rustfmt + clippy)
+- `crates/app-core` — shared library and domain logic
+- `crates/app-cli` — CLI entry point and integration tests
 
-The generated stack is strict TypeScript, Vite + React for web, Vitest coverage, and `tsx` for CLI/dev scripts.
+There is no web or desktop UI package in generated output.
 
-Standard root scripts:
+Standard verification:
 
 ```bash
-pnpm verify
-pnpm test -- --coverage
-pnpm build
-pnpm typecheck
+cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace
 ```
+
+Coverage is collected after verify with:
+
+```bash
+cargo llvm-cov --workspace --summary-only
+```
+
+Mutation testing is planned (`cargo mutants`) but not wired into the factory loop yet.
 
 ## Runtime
 
@@ -74,9 +77,9 @@ MLX can run `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit` after user-approved d
 
 Factory bash/verify run in ephemeral Apple Containerization Linux VMs:
 
-- Image: `docker.io/library/node:22-bookworm`
+- Image: `docker.io/library/rust:1-bookworm`
 - Repo mount: host worktree → `/workspace`
-- Bootstrap: Node.js, npm, Corepack, pinned pnpm
+- Bootstrap: Rust toolchain (cargo, rustc, rustfmt, clippy)
 
 File/search tools still operate on the host worktree, addressed through the same `/workspace` path space.
 

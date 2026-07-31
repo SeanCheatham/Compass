@@ -1,11 +1,8 @@
 import Foundation
 
 extension Prompts {
-  static func sharedVMApplePlatformPlanningRule(
-    forgeProfile: ForgeProfile?
-  ) -> String {
-    _ = forgeProfile
-    return ""
+  static func sharedVMApplePlatformPlanningRule() -> String {
+    ""
   }
 
   /// Instruction appended to the live conversation when the executor
@@ -26,27 +23,16 @@ extension Prompts {
     Be terse but specific. Reply ONLY with the summary as plain text — no preamble, no tool call, no submit envelope. The next turn will receive only this summary plus the original task.
     """
 
-  static func forgeProfileSection(forgeProfile: ForgeProfile?) -> String {
-    guard let forgeProfile else {
-      return """
-        ## Forge profile
-        _(not detected - generated Compass projects default to TypeScript with pnpm, Vite, and Vitest.)_
-        """
-    }
-    return """
-      ## Forge profile
-      Active profile: **\(forgeProfile.displayName)** (`\(forgeProfile.rawValue)`)
-      Status: \(forgeProfile.generationStatusDescription).
-
-      \(forgeProfile.planningGuidance)
+  static func generatedProjectConventionsSection() -> String {
+    """
+      ## Generated project conventions
+      \(GeneratedProjectQuality.planningGuidance)
       """
   }
 
-  static func forgeCoveragePlanningRules(forgeProfile: ForgeProfile?) -> String {
-    guard let forgeProfile else { return "" }
-    return """
-      - Forge profile coverage rule (\(forgeProfile.displayName)): \
-      \(forgeProfile.coverageRequirementHint)
+  static func generatedCoveragePlanningRules() -> String {
+    """
+      - Coverage rule: \(GeneratedProjectQuality.coverageRequirementHint)
       - When Plan focus is `test` or `bugHunt`, prefer increments that raise \
       coverage on the lowest-covered files listed in the Coverage section.
       """

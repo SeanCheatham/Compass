@@ -993,7 +993,7 @@ struct AgentEditFileTool: AgentTool {
     }
 
     return
-      "edits[\(editIndex)] would introduce test code into non-test source file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not paste Vitest/Jest `describe`, `it`, `test`, or `expect` blocks into implementation files. Put assertions in a `.test.ts`/`.spec.ts` file, and edit \(relativePath) with implementation code only."
+      "edits[\(editIndex)] would introduce test code into non-test source file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not paste `#[test]` functions or bare `mod tests` blocks into production crate sources. Put assertions in `crates/*/tests/` integration files or inside a `#[cfg(test)]` module, and edit \(relativePath) with implementation code only."
   }
 
   private static func implementationCodeInTestFileMessage(
@@ -1016,7 +1016,7 @@ struct AgentEditFileTool: AgentTool {
 
     let implementationPath = probableImplementationPath(forTestPath: relativePath)
     return
-      "edits[\(editIndex)] would introduce argument-parsing implementation code into test file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not repair production behavior by pasting `argv` parsing or return logic into a test file. Edit \(implementationPath) with the implementation, and keep test edits focused on `describe`/`it`/`test`/`expect` assertions or fixtures."
+      "edits[\(editIndex)] would introduce argument-parsing implementation code into test file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not repair production behavior by pasting CLI argument parsing or return logic into a test file. Edit \(implementationPath) with the implementation, and keep test edits focused on `#[test]` functions, `assert_eq!`, or `assert!` checks."
   }
 
   private struct TestCodeMarker {
@@ -1028,9 +1028,17 @@ struct AgentEditFileTool: AgentTool {
     for (index, line) in lines.enumerated() {
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
       if trimmed.range(
-        of: #"^(describe|it|test)\s*\("#,
+        of: #"^#\[test\]"#,
         options: .regularExpression
       ) != nil
+        || trimmed.range(of: #"^#\[tokio::test\]"#, options: .regularExpression) != nil
+        || trimmed.range(of: #"^mod tests\b"#, options: .regularExpression) != nil
+        || trimmed.range(of: #"^assert_eq!\("#, options: .regularExpression) != nil
+        || trimmed.range(of: #"^assert!\("#, options: .regularExpression) != nil
+        || trimmed.range(
+          of: #"^(describe|it|test)\s*\("#,
+          options: .regularExpression
+        ) != nil
         || trimmed.range(of: #"^expect\s*\("#, options: .regularExpression) != nil
       {
         return TestCodeMarker(lineNumber: index + 1, preview: linePreview(trimmed))
@@ -1044,7 +1052,7 @@ struct AgentEditFileTool: AgentTool {
   {
     let trimmedLines = lines.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     guard trimmedLines.contains(where: { line in
-      line.range(of: #"\b(argv|process\.argv)\b"#, options: .regularExpression) != nil
+      line.range(of: #"\b(argv|process\.argv|std::env::args|env::args)\b"#, options: .regularExpression) != nil
     }),
       trimmedLines.contains(where: { line in
         line.range(of: #"^return\b"#, options: .regularExpression) != nil
@@ -1054,7 +1062,7 @@ struct AgentEditFileTool: AgentTool {
     }
 
     for (index, line) in trimmedLines.enumerated() where !line.isEmpty {
-      if line.range(of: #"\b(argv|process\.argv)\b"#, options: .regularExpression) != nil
+      if line.range(of: #"\b(argv|process\.argv|std::env::args|env::args)\b"#, options: .regularExpression) != nil
         || line.range(of: #"^return\b"#, options: .regularExpression) != nil
       {
         return TestCodeMarker(lineNumber: index + 1, preview: linePreview(line))
@@ -1066,6 +1074,7 @@ struct AgentEditFileTool: AgentTool {
   private static func probableImplementationPath(forTestPath relativePath: String) -> String {
     let implementationPath =
       relativePath
+      .replacingOccurrences(of: "_test.rs", with: ".rs")
       .replacingOccurrences(of: ".test.", with: ".")
       .replacingOccurrences(of: ".spec.", with: ".")
     guard implementationPath != relativePath else {
@@ -1786,18 +1795,19 @@ struct AgentEditFileTool: AgentTool {
   private static func isTestFile(_ url: URL) -> Bool {
     let path = url.path.lowercased()
     let filename = url.lastPathComponent.lowercased()
-    return filename.contains(".test.")
+    return path.contains("/tests/")
+      || filename.hasSuffix("_test.rs")
+      || filename.contains(".test.")
       || filename.contains(".spec.")
       || path.contains("/__tests__/")
-      || path.contains("/tests/")
   }
 
   private static func argumentRepairMessage(_ detail: String) -> String {
     """
     \(detail)
     edit_file requires path plus startLine, endLine, and replacement lines. Read the target file first, then use the returned line numbers.
-    Example replace: {"path":"packages/cli/src/main.ts","startLine":4,"endLine":6,"replacementLines":["new line"]}
-    Example insert after line 6: {"path":"packages/cli/src/main.ts","startLine":7,"endLine":6,"insert":["new line"]}
+    Example replace: {"path":"crates/app-cli/src/main.rs","startLine":4,"endLine":6,"replacementLines":["new line"]}
+    Example insert after line 6: {"path":"crates/app-cli/src/main.rs","startLine":7,"endLine":6,"insert":["new line"]}
     Use write_file instead only when creating a new file.
     """
   }

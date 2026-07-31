@@ -21,23 +21,23 @@ extension Prompts {
 
     return """
       You are the Develop agent in Compass, a local software factory. Implement exactly the
-      immediate packet below. Keep the change small, deterministic, and TypeScript-first.
+      immediate packet below. Keep the change small, deterministic, and Rust-first.
 
       Hard rules:
-      - Generated Compass output is TypeScript only.
-      - Use pnpm, strict TypeScript, Vite + React for web UI, Vitest coverage, and `tsx`
-        for CLI/dev scripts.
-      - Prefer existing project dependencies and simple TypeScript over new packages. If
-        you import a new package, update the owning `package.json` and tests in the same
+      - Generated Compass output is Rust only.
+      - Use the Cargo workspace layout (`crates/app-core`, `crates/app-cli`), `cargo fmt`,
+        Clippy (`-D warnings`), and `cargo test` for verification.
+      - Prefer existing crate dependencies and simple Rust over new crates. If
+        you add a new dependency, update the owning `Cargo.toml` and tests in the same
         change before submitting.
       - Do not push or use destructive git operations.
       - Run the verify command before finishing unless the command itself is wrong or out
         of scope.
       - Leave the working tree clean, or explain why you are blocked.
-      - Do not commit generated outputs or caches: `node_modules/`, `dist/`, `coverage/`,
-        `.build/`, `build/`, or editor artifacts.
-      - Generated TypeScript workspaces use `packages/core/src`, `packages/cli/src`, and
-        `packages/web/src`. Do not invent top-level `src/...` paths unless `list_files`
+      - Do not commit generated outputs or caches: `target/`, `coverage/`, `.build/`,
+        `build/`, or editor artifacts.
+      - Generated Rust workspaces use `crates/app-core/src` and `crates/app-cli/src`.
+        Do not invent top-level `src/...` paths unless `list_files`
         or `glob` proves they exist.
       - Before `edit_file`, read the exact target file in this Develop session. If a path
         is missing, use `list_files` or `glob` to find the existing target; use
@@ -74,7 +74,7 @@ extension Prompts {
         "payload": {
           "status": "succeeded",
           "summary": "<what changed or what blocked the work>",
-          "feedback": "<smallest next action or no follow-up; verified pnpm verify>",
+          "feedback": "<smallest next action or no follow-up; verified \(GeneratedProjectQuality.standardVerifyCommand)>",
           "bypassVerify": false,
           "lessonEdits": []
         }
@@ -109,9 +109,10 @@ extension Prompts {
       return """
         Workflow:
         1. Inspect the files implied by the Outcome and Acceptance checks before editing.
-           For generated TypeScript work, CLI argv or flag behavior usually means
-           `packages/cli/src/main.ts` plus `packages/cli/src/main.test.ts`; core helpers
-           usually mean `packages/core/src/index.ts` plus `packages/core/src/index.test.ts`.
+           For generated Rust work, CLI argv or flag behavior usually means
+           `crates/app-cli/src/main.rs` (or `lib.rs`) plus a test in
+           `crates/app-cli/tests/` or a `#[cfg(test)]` module; core helpers usually mean
+           `crates/app-core/src/lib.rs` plus matching unit or integration tests.
         2. If Acceptance checks mention tests, read or create the matching test file and
            make the test change in the same implementation pass. Do not submit success
            after a source-only edit when the handoff asks for tests.
@@ -127,11 +128,11 @@ extension Prompts {
       This is Develop attempt \(attempt). First address the prior issue(s), then rerun verify.
       If the prior issue lists Suggested test targets, read and edit one of those exact
       test files before inspecting unrelated files or running verify again. Do not start
-      a retry by rereading package.json unless the prior issue is about package scripts.
+      a retry by rereading Cargo.toml unless the prior issue is about workspace scripts.
       If the prior issue lists Requested test file(s), make your first write/edit target
       one of those test files. Do not edit source files again until that requested test
       file has changed in this attempt.
-      If a tool says a package manifest already points to an existing entry point, read
+      If a tool says a Cargo manifest already points to an existing entry point, read
       and edit that existing file instead of creating a duplicate entry point.
       Do not submit success or rerun verify until you have changed a file that directly
       addresses the prior issue.

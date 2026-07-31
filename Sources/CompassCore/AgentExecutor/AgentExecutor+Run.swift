@@ -1152,7 +1152,7 @@ extension AgentExecutor {
       ? """
 
         For Plan, do not call more tools to repair JSON syntax. Return `\(phase.submitKind)`
-        with a smaller valid payload. Keep `state.immediate.verify` as `pnpm verify`.
+        with a smaller valid payload. Keep `state.immediate.verify` as `\(GeneratedProjectQuality.standardVerifyCommand)`.
         If the plan text needs to mention an argv example, either escape quotes inside
         the JSON string or write it in words, for example: split `--count`, `3`, `Ship`,
         `it` argv.
@@ -1434,10 +1434,10 @@ extension AgentExecutor {
         Plan repair checklist:
         - Do not call another tool. The rejected payload text is what must change.
         - Do not resubmit the same `state.immediate.plan`.
-        - Keep `state.immediate.verify` as `pnpm verify` unless the latest repair says otherwise.
+        - Keep `state.immediate.verify` as `\(GeneratedProjectQuality.standardVerifyCommand)` unless the latest repair says otherwise.
         - If the rejection is about CLI proof, add an explicit Acceptance check in
           `state.immediate.plan` naming the CLI test file and invocation, for example:
-          `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])`
+          `crates/app-cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]`
           and asserts the parsed JSON title is `Ship it`.
         """
       : ""

@@ -127,8 +127,9 @@ extension Prompts {
     Compass uses an OpenAI-compatible cloud model for factory turns when configured, with
     optional local MLX assist for cheap work, and keeps the harness responsible for state,
     verification, files, history, assumptions, and retries.
-    Generated output is TypeScript only: pnpm workspace, strict TypeScript, Vite + React,
-    Vitest coverage, and `tsx` for CLI/dev scripts.
+    Generated output is Rust only: Cargo workspace with `crates/app-core` and
+    `crates/app-cli`, no web UI. Verification uses `cargo fmt`, Clippy, and
+    `cargo test`; coverage uses `cargo llvm-cov`.
     """
   }
 
@@ -185,7 +186,8 @@ extension Prompts {
       File tools read and write the host worktree through the virtual root `/workspace`.
       Bash commands run inside Linux with that same worktree mounted at `/workspace`.
       Use relative paths or `/workspace/...` for every tool. Expected shell tools include
-      git, Node.js, npm, Corepack, and pinned pnpm. Docker, Xcode, and Homebrew are unavailable.
+      git and the Rust toolchain (cargo, rustc, rustfmt, clippy). Docker, Xcode,
+      and Homebrew are unavailable.
       """
     }
   }

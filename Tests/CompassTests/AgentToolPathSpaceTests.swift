@@ -15,12 +15,12 @@ struct AgentToolPathSpaceTests {
 
     #expect(try context.resolvePath("/workspace").path == host.path)
     #expect(
-      try context.resolvePath("/workspace/packages/cli/src/main.ts").path
-        == host.appendingPathComponent("packages/cli/src/main.ts").path
+      try context.resolvePath("/workspace/crates/app-cli/src/main.rs").path
+        == host.appendingPathComponent("crates/app-cli/src/main.rs").path
     )
     #expect(
-      try context.resolvePath("packages/cli/src/main.ts").path
-        == host.appendingPathComponent("packages/cli/src/main.ts").path
+      try context.resolvePath("crates/app-cli/src/main.rs").path
+        == host.appendingPathComponent("crates/app-cli/src/main.rs").path
     )
   }
 
@@ -46,15 +46,15 @@ struct AgentToolPathSpaceTests {
       workingDirectory: host,
       agentVisibleWorkspacePath: "/workspace"
     )
-    let fileURL = host.appendingPathComponent("packages/core/src/index.ts")
+    let fileURL = host.appendingPathComponent("crates/app-core/src/lib.rs")
 
     #expect(context.displayPath(for: host) == "/workspace")
-    #expect(context.displayPath(for: fileURL) == "/workspace/packages/core/src/index.ts")
+    #expect(context.displayPath(for: fileURL) == "/workspace/crates/app-core/src/lib.rs")
     #expect(
       context.sanitizeHostPaths(
-        in: "failed in /Users/sean/git/demo/packages/core/src/index.ts under /Users/sean/git/demo"
+        in: "failed in /Users/sean/git/demo/crates/app-core/src/lib.rs under /Users/sean/git/demo"
       )
-        == "failed in /workspace/packages/core/src/index.ts under /workspace"
+        == "failed in /workspace/crates/app-core/src/lib.rs under /workspace"
     )
   }
 

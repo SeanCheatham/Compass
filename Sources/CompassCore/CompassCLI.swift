@@ -24,8 +24,8 @@ public enum CompassCLI {
         let ok = await runner.doctor(repoURL: repo, onEvent: emit)
         return ok ? 0 : 1
 
-      case .scaffoldTypeScript(let path, let name, _):
-        try runner.scaffoldTypeScript(at: path, name: name, initializeGit: true, onEvent: emit)
+      case .scaffoldRust(let path, let name, _):
+        try runner.scaffoldRust(at: path, name: name, initializeGit: true, onEvent: emit)
         return 0
 
       case .verify(let repo, let verifyCommand, _):
@@ -106,7 +106,7 @@ enum CompassCLIOutputFormat: String, Equatable {
 
 enum CompassCLICommand: Equatable {
   case doctor(repo: URL, format: CompassCLIOutputFormat)
-  case scaffoldTypeScript(path: URL, name: String?, format: CompassCLIOutputFormat)
+  case scaffoldRust(path: URL, name: String?, format: CompassCLIOutputFormat)
   case run(options: HeadlessRunOptions, format: CompassCLIOutputFormat)
   case replay(
     repo: URL,
@@ -122,7 +122,7 @@ enum CompassCLICommand: Equatable {
   var format: CompassCLIOutputFormat {
     switch self {
     case .doctor(_, let format),
-      .scaffoldTypeScript(_, _, let format),
+      .scaffoldRust(_, _, let format),
       .run(_, let format),
       .replay(_, _, _, _, _, _, let format),
       .verify(_, _, let format):
@@ -142,14 +142,14 @@ enum CompassCLICommand: Equatable {
 
     case "scaffold":
       let kind = try parser.requireCommand()
-      guard kind == "typescript" else {
-        throw CompassCLIError.usage("Only `scaffold typescript` is supported.")
+      guard kind == "rust" else {
+        throw CompassCLIError.usage("Only `scaffold rust` is supported.")
       }
       let path = try parser.requirePositionalURL("path")
       let name = try parser.optionalValue("--name")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
-      return .scaffoldTypeScript(path: path, name: name, format: format)
+      return .scaffoldRust(path: path, name: name, format: format)
 
     case "run":
       let repo = try parser.requireURLOption("--repo")
@@ -381,7 +381,7 @@ enum CompassCLIError: LocalizedError, Equatable {
     """
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
-      compass-cli scaffold typescript <path> [--name <name>] [--format json|text]
+      compass-cli scaffold rust <path> [--name <name>] [--format json|text]
       compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
