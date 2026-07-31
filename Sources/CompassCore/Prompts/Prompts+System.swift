@@ -1,3 +1,4 @@
+import CompassSandbox
 import Foundation
 
 extension Prompts {
@@ -8,13 +9,18 @@ extension Prompts {
     executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
     hostXcodeBuildTestEnabled: Bool = false
   ) -> String {
-    """
+    let visibleWorkingDirectory = Self.visibleWorkingDirectory(
+      workingDirectoryPath,
+      executionEnvironment: executionEnvironment
+    )
+    return """
     You are a focused sub-agent inside Compass's local software factory. Investigate the
     delegated task and return a self-contained `findings` string through `delegate_submit`.
 
     \(compassOverviewSection())
 
-    Working directory: \(workingDirectoryPath)
+    Working directory: \(visibleWorkingDirectory)
+    All tool paths are resolved against this directory. Prefer relative paths.
     Tools available: \(toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", "))
 
     \(executionEnvironmentSection(executionEnvironment, hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled))
@@ -72,15 +78,21 @@ extension Prompts {
       """
     }
 
+    let visibleWorkingDirectory = Self.visibleWorkingDirectory(
+      workingDirectoryPath,
+      executionEnvironment: executionEnvironment
+    )
+
     return """
-    You are operating inside Compass's local MLX software factory.
+    You are operating inside Compass's local software factory.
 
     \(compassOverviewSection())
 
     \(workLoopSection(phase: phase))
 
-    Working directory: \(workingDirectoryPath)
-    All paths are resolved against this directory. Prefer relative paths.
+    Working directory: \(visibleWorkingDirectory)
+    All tool paths are resolved against this directory. Prefer relative paths
+    (or paths under \(visibleWorkingDirectory) when an absolute path is required).
 
     Compass-owned `.compass/` files are injected into the user prompt. Do not read or edit
     `.compass/*` directly. Return lesson updates through `lessonEdits`; manage assumptions
@@ -112,8 +124,9 @@ extension Prompts {
     """
     Compass is a macOS host app that runs one Git repository as a local software factory.
     The loop is Brief -> decomposed queue -> immediate packet -> Develop -> Verify -> Critic.
-    Compass relies on one local MLX model for narrow non-deterministic work and keeps the
-    harness responsible for state, verification, files, history, assumptions, and retries.
+    Compass uses an OpenAI-compatible cloud model for factory turns when configured, with
+    optional local MLX assist for cheap work, and keeps the harness responsible for state,
+    verification, files, history, assumptions, and retries.
     Generated output is TypeScript only: pnpm workspace, strict TypeScript, Vite + React,
     Vitest coverage, and `tsx` for CLI/dev scripts.
     """
@@ -162,15 +175,30 @@ extension Prompts {
     _ = hostXcodeBuildTestEnabled
     switch env {
     case .host:
-      return "Execution environment: native macOS host. Probe tools before relying on them."
+      return """
+      Execution environment: native macOS host.
+      File tools and bash both operate on the host worktree. Probe tools before relying on them.
+      """
     case .containerizedLinux:
       return """
       Execution environment: containerized Linux runtime.
-      File tools read and write repo-relative paths on the Compass-owned host worktree.
-      Bash commands run inside Linux with the repo mounted at `/workspace`; use relative
-      paths or `/workspace/...` in shell commands. Expected tools include git, Node.js,
-      npm, Corepack, and pinned pnpm. Docker, Xcode, and Homebrew are unavailable.
+      File tools read and write the host worktree through the virtual root `/workspace`.
+      Bash commands run inside Linux with that same worktree mounted at `/workspace`.
+      Use relative paths or `/workspace/...` for every tool. Expected shell tools include
+      git, Node.js, npm, Corepack, and pinned pnpm. Docker, Xcode, and Homebrew are unavailable.
       """
+    }
+  }
+
+  static func visibleWorkingDirectory(
+    _ workingDirectoryPath: String,
+    executionEnvironment: ExecutionEnvironmentDescriptor
+  ) -> String {
+    switch executionEnvironment {
+    case .containerizedLinux:
+      return ContainerSandboxConfiguration.defaultWorkspacePath
+    case .host:
+      return workingDirectoryPath
     }
   }
 }

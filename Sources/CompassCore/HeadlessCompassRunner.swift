@@ -1031,6 +1031,7 @@ public struct HeadlessCompassRunner: Sendable {
       userPrompt: userPrompt,
       tools: ToolRegistry.tools(for: phase, settings: settings),
       modelRuntime: runtime,
+      agentVisibleWorkspacePath: ContainerSandboxConfiguration.defaultWorkspacePath,
       submitResultSchema: AgentToolParametersSchema(json: Data(schema.utf8)),
       workingDirectory: workspace.repoURL,
       filesystem: AgentHostFilesystem(),

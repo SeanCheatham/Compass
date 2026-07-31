@@ -23,6 +23,9 @@ struct AgentExecutionConfiguration {
   var userPrompt: String
   var tools: [AgentTool]
   var modelRuntime: (any LocalModelGenerating)?
+  /// Virtual workspace root presented to the model (typically `/workspace`
+  /// for containerized Linux factory phases). `nil` keeps host-native paths.
+  var agentVisibleWorkspacePath: String?
   var submitResultSchema: AgentToolParametersSchema
   var workingDirectory: URL
   var filesystem: AgentFilesystem
@@ -60,6 +63,7 @@ struct AgentExecutionConfiguration {
     userPrompt: String,
     tools: [AgentTool],
     modelRuntime: (any LocalModelGenerating)? = nil,
+    agentVisibleWorkspacePath: String? = nil,
     submitResultSchema: AgentToolParametersSchema,
     workingDirectory: URL,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
@@ -81,6 +85,7 @@ struct AgentExecutionConfiguration {
     self.userPrompt = userPrompt
     self.tools = tools
     self.modelRuntime = modelRuntime
+    self.agentVisibleWorkspacePath = agentVisibleWorkspacePath
     self.submitResultSchema = submitResultSchema
     self.workingDirectory = workingDirectory
     self.filesystem = filesystem
@@ -111,7 +116,7 @@ enum AgentExecutionError: LocalizedError, Equatable {
 
   var errorDescription: String? {
     switch self {
-    case .streamFailed(let detail): return "Local model generation failed: \(detail)"
+    case .streamFailed(let detail): return "Model generation failed: \(detail)"
     case .maxIterationsExceeded(let n): return "Agent exceeded max iterations (\(n))"
     case .wallClockExceeded(let timeout):
       return "Agent exceeded wall-clock timeout (\(Int(timeout))s)"

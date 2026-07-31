@@ -10,6 +10,7 @@ extension AgentExecutor {
       ?? ModelRuntimeFactory.makeRouted(settings: configuration.settings)
     let toolContext = AgentToolContext(
       workingDirectory: configuration.workingDirectory,
+      agentVisibleWorkspacePath: configuration.agentVisibleWorkspacePath,
       filesystem: configuration.filesystem,
       bashRunner: configuration.bashRunner,
       delegateRunner: AgentExecutor.makeDelegateRunner(
@@ -436,7 +437,8 @@ extension AgentExecutor {
         let observation = Self.toolObservationJSON(
           toolName: toolName,
           result: result,
-          reason: reason
+          reason: reason,
+          pathSanitizer: { toolContext.sanitizeHostPaths(in: $0) }
         )
         transcript.append(.toolObservation(observation))
         if let note {
@@ -655,6 +657,7 @@ extension AgentExecutor {
       parentPhase: configuration.phase,
       parentModelOverride: configuration.modelOverride,
       workingDirectory: configuration.workingDirectory,
+      agentVisibleWorkspacePath: configuration.agentVisibleWorkspacePath,
       filesystem: configuration.filesystem,
       bashRunner: configuration.bashRunner,
       codemapStoreDirectory: configuration.codemapStoreDirectory,
@@ -1571,12 +1574,14 @@ extension AgentExecutor {
   private static func toolObservationJSON(
     toolName: String,
     result: AgentToolInvocationResult,
-    reason: String?
+    reason: String?,
+    pathSanitizer: ((String) -> String)? = nil
   ) -> String {
+    let content = pathSanitizer?(result.content) ?? result.content
     var object: [String: Any] = [
       "tool": toolName,
       "isError": result.isError,
-      "content": boundedObservation(result.content),
+      "content": boundedObservation(content),
     ]
     if let reason, !reason.isEmpty {
       object["reason"] = reason

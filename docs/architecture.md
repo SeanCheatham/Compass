@@ -4,7 +4,7 @@ Compass is a native macOS host around a local software factory loop.
 
 ## Host
 
-The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt assembly, tool execution, and Shared VM lifecycle.
+The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt assembly, tool execution, and containerized Linux lifecycle.
 
 ## Model Backends
 
@@ -35,6 +35,6 @@ Legacy state files from older projects are ignored in-place.
 
 Compass-generated projects use a TypeScript pnpm workspace with `packages/core`, `packages/cli`, and `packages/web`.
 
-## Shared VM
+## Containerized Linux
 
-The Shared VM provides a deterministic execution surface for generated TypeScript work. Default provisioning installs Command Line Tools, Homebrew, ripgrep, Node.js, npm, Corepack/pnpm, and TypeScript.
+The containerized Linux runtime provides a deterministic execution surface for generated TypeScript work. Default provisioning installs Command Line Tools, Homebrew, ripgrep, Node.js, npm, Corepack/pnpm, and TypeScript via the `node:22-bookworm` image bootstrap. File tools operate on the host worktree through the virtual root `/workspace`; bash/verify run inside ephemeral Linux containers with that worktree mounted at `/workspace`.

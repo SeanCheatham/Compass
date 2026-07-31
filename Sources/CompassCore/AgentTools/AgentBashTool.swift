@@ -64,7 +64,8 @@ struct AgentBashTool: AgentTool {
       "properties": [
         "command": [
           "type": "string",
-          "description": "Shell command. Executed by `/bin/zsh -lc`.",
+          "description":
+            "Shell command for the agent's configured execution environment.",
         ],
         "timeoutMs": [
           "type": "integer",
@@ -76,14 +77,14 @@ struct AgentBashTool: AgentTool {
         "cwd": [
           "type": "string",
           "description":
-            "Optional working directory for the command. Must resolve inside the agent's working directory. Defaults to it.",
+            "Optional working directory for the command. Must resolve inside the agent's working directory. Prefer relative paths or `/workspace/...` during containerized Linux factory phases. Defaults to the working directory.",
         ],
       ],
     ])
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Execute a shell command via /bin/zsh -lc. Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
+        "Execute a shell command in the agent's configured execution environment. Factory phases use the containerized Linux shell with the repo at `/workspace`; preflight commit uses the native macOS host shell. Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
       parameters: schema
     )
   }

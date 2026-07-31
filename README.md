@@ -6,7 +6,7 @@ The current direction:
 
 - Factory turns (Plan / Develop / Critic) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
 - Optional **MLX** local assist handles cheap/small work (narration, compaction, Explore helpers) when the blessed local model is downloaded.
-- Compass does deterministic work through local tools and the Shared VM.
+- Compass does deterministic work through local tools and the containerized Linux runtime.
 - Generated projects are TypeScript pnpm workspaces.
 
 ## Factory Loop
@@ -70,17 +70,15 @@ Kimi/Moonshot, OpenAI, OpenRouter, and local proxies all work the same way as lo
 
 MLX can run `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit` after user-approved download into Compass Application Support. It is used for cheap assist tasks when available; cloud-only installs remain supported.
 
-### Shared VM
+### Containerized Linux
 
-The Shared VM provisions the default generated-project toolchain:
+Factory bash/verify run in ephemeral Apple Containerization Linux VMs:
 
-- Xcode Command Line Tools
-- Homebrew
-- ripgrep
-- Node.js
-- npm
-- Corepack/pnpm
-- TypeScript
+- Image: `docker.io/library/node:22-bookworm`
+- Repo mount: host worktree → `/workspace`
+- Bootstrap: Node.js, npm, Corepack, pinned pnpm
+
+File/search tools still operate on the host worktree, addressed through the same `/workspace` path space.
 
 ## Development
 

@@ -1,4 +1,5 @@
 import AppKit
+import CompassSandbox
 import Foundation
 
 @MainActor
@@ -90,6 +91,7 @@ extension CompassProject {
       userPrompt: userPrompt,
       tools: tools,
       modelRuntime: ModelRuntimeFactory.makeRouted(settings: agentSettings),
+      agentVisibleWorkspacePath: ContainerSandboxConfiguration.defaultWorkspacePath,
       submitResultSchema: schema,
       workingDirectory: environment.workingDirectory,
       filesystem: environment.filesystem,

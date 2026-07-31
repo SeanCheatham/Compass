@@ -258,7 +258,6 @@ struct FactoryPivotTests {
       "PMF",
       "Product Tournament",
       "MiniMax",
-      "OpenAI",
       "Foundation Models",
       "native tool calling",
       "remote providers",
@@ -273,6 +272,7 @@ struct FactoryPivotTests {
     #expect(prompts.contains("Do not use bare `pnpm test`"))
     #expect(prompts.contains("develop_continue"))
     #expect(prompts.contains("develop_submit"))
+    #expect(prompts.contains("OpenAI-compatible"))
   }
 
   @Test
@@ -700,11 +700,13 @@ struct FactoryPivotTests {
   func containerRuntimePromptAndToolsAreTypeScriptOnly() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
-      workingDirectoryPath: "/tmp/workspace"
+      workingDirectoryPath: "/Users/example/repo"
     )
     let toolNames = Set(ToolRegistry.tools(for: .develop).map(\.spec.name))
 
     #expect(prompt.contains("containerized Linux runtime"))
+    #expect(prompt.contains("Working directory: /workspace"))
+    #expect(!prompt.contains("/Users/example/repo"))
     #expect(prompt.contains("/workspace"))
     #expect(prompt.contains("Docker, Xcode, and Homebrew are unavailable"))
     #expect(!toolNames.contains("list_toolchains"))

@@ -31,6 +31,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   let parentPhase: AgentPhase
   let parentModelOverride: String
   let workingDirectory: URL
+  let agentVisibleWorkspacePath: String?
   let filesystem: AgentFilesystem
   let bashRunner: AgentBashRunner
   /// Host-side codemap directory inherited from the parent run. Nil
@@ -76,7 +77,8 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
     let toolNameList = effectiveTools.map { $0.spec.name }
     let systemPrompt = Prompts.subAgentSystemPrompt(
       parentPhase: parentPhase,
-      workingDirectoryPath: workingDirectory.path,
+      workingDirectoryPath: agentVisibleWorkspacePath
+        ?? workingDirectory.path,
       toolNames: toolNameList,
       hostXcodeBuildTestEnabled: false
     )
@@ -90,6 +92,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       systemPrompt: systemPrompt,
       userPrompt: trimmedTask,
       tools: effectiveTools,
+      agentVisibleWorkspacePath: agentVisibleWorkspacePath,
       submitResultSchema: AgentToolParametersSchema(json: Data(Prompts.subAgentSchema.utf8)),
       workingDirectory: workingDirectory,
       filesystem: filesystem,

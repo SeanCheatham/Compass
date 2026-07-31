@@ -131,14 +131,19 @@ actor AgentReadTracker {
 }
 
 /// Execution context handed to a tool at invocation time. The working
-/// directory is the root the tool must scope itself to — any path that
-/// escapes it is rejected. The filesystem picks how file ops are served
-/// (host `FileManager` vs. container-mounted workspace); the bash runner picks
-/// how shell commands are dispatched. The read tracker
-/// is shared across every tool call in one execution so the mutation tools
-/// can require a prior `read_file`.
+/// directory is the host worktree root tools must scope themselves to — any
+/// path that escapes it is rejected. When `agentVisibleWorkspacePath` is set
+/// (typically `/workspace` for containerized Linux runs), the model may also
+/// address that virtual root; paths are mapped onto the host worktree.
+/// The filesystem picks how file ops are served; the bash runner picks how
+/// shell commands are dispatched. The read tracker is shared across every
+/// tool call in one execution so the mutation tools can require a prior
+/// `read_file`.
 struct AgentToolContext: Sendable {
   var workingDirectory: URL
+  /// Virtual workspace root shown to the model for containerized runs
+  /// (for example `/workspace`). `nil` means host-native path presentation.
+  var agentVisibleWorkspacePath: String?
   var filesystem: AgentFilesystem
   var bashRunner: AgentBashRunner
   var readTracker: AgentReadTracker
@@ -149,26 +154,26 @@ struct AgentToolContext: Sendable {
   var delegateRunner: AgentDelegateRunner?
   /// Directory the codemap-backed tools read entries from. The codemap
   /// is built host-side at `<workspace.compassURL>/codemap/`, but when
-  /// the agent runs in the containerized Linux runtime, `workingDirectory` is the container
-  /// workspace — which doesn't (and shouldn't) have its own codemap. The
-  /// caller threads the host-side store path through here so
-  /// `list_files`, `find_symbol`, `outline`, `summary`, and
-  /// `importers_of` keep finding entries regardless of route. Defaults
-  /// to `<workingDirectory>/.compass/codemap` so on-host tests and
-  /// stand-alone tool invocations work without configuration.
+  /// the agent runs in the containerized Linux runtime, bash sees the
+  /// repo at `/workspace`. The caller threads the host-side store path
+  /// through here so `list_files`, `find_symbol`, `outline`, `summary`,
+  /// and `importers_of` keep finding entries regardless of route.
+  /// Defaults to `<workingDirectory>/.compass/codemap` so on-host tests
+  /// and stand-alone tool invocations work without configuration.
   var codemapStoreDirectory: URL
   /// Completed plan summaries from host-side state.json. Plan agents read
   /// these through `plan_history`; they are not writable via Plan submit.
   var planHistoryEntries: [String]
-  /// Host-side assumptions ledger. The agent may run inside a containerized Linux runtime
-  /// copy, but assumptions are durable Compass state and are always written
-  /// through this host URL when present.
+  /// Host-side assumptions ledger. The agent may run bash inside a
+  /// containerized Linux runtime, but assumptions are durable Compass
+  /// state and are always written through this host URL when present.
   var assumptionsURL: URL?
   /// Phase/session metadata attached to assumptions recorded by tools.
   var phase: AgentPhase
   var sessionNumber: Int?
   init(
     workingDirectory: URL,
+    agentVisibleWorkspacePath: String? = nil,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
     readTracker: AgentReadTracker = AgentReadTracker(),
@@ -181,6 +186,9 @@ struct AgentToolContext: Sendable {
   ) {
     let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
     self.workingDirectory = normalizedWorkingDirectory
+    self.agentVisibleWorkspacePath = Self.normalizedVisibleWorkspacePath(
+      agentVisibleWorkspacePath
+    )
     self.filesystem = filesystem
     self.bashRunner = bashRunner
     self.readTracker = readTracker
@@ -199,6 +207,18 @@ struct AgentToolContext: Sendable {
       .appending(path: ".compass", directoryHint: .isDirectory)
       .appending(path: "codemap", directoryHint: .isDirectory)
       .standardizedFileURL
+  }
+
+  static func normalizedVisibleWorkspacePath(_ raw: String?) -> String? {
+    guard var trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty
+    else {
+      return nil
+    }
+    while trimmed.count > 1 && trimmed.hasSuffix("/") {
+      trimmed.removeLast()
+    }
+    guard trimmed.hasPrefix("/") else { return nil }
+    return trimmed
   }
 }
 
@@ -269,16 +289,22 @@ extension AgentToolContext {
   /// that resolve outside the working directory are rejected so a buggy or
   /// adversarial tool call can't read `/etc/passwd` from a sandbox-style
   /// read-only planning or review pass.
+  ///
+  /// When `agentVisibleWorkspacePath` is set (e.g. `/workspace`), absolute
+  /// paths under that virtual root map onto the host worktree.
   func resolvePath(_ raw: String) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       throw AgentToolError.invalidArguments("path is empty")
     }
+    let hostRelative = mapVisibleWorkspacePathToHostRelative(trimmed)
     let candidate: URL
-    if trimmed.hasPrefix("/") {
-      candidate = URL(fileURLWithPath: trimmed).standardizedFileURL
+    if hostRelative.hasPrefix("/") {
+      candidate = URL(fileURLWithPath: hostRelative).standardizedFileURL
+    } else if hostRelative == "." || hostRelative.isEmpty {
+      candidate = workingDirectory.standardizedFileURL
     } else {
-      candidate = workingDirectory.appendingPathComponent(trimmed).standardizedFileURL
+      candidate = workingDirectory.appendingPathComponent(hostRelative).standardizedFileURL
     }
     let root = workingDirectory.standardizedFileURL
     let rootPath = root.path
@@ -287,6 +313,19 @@ extension AgentToolContext {
       throw AgentToolError.pathEscapesWorkingDirectory(raw)
     }
     return candidate
+  }
+
+  /// Convert an absolute URL to the path space the model should see:
+  /// relative when no virtual root is configured, otherwise `/workspace/...`.
+  func displayPath(for url: URL) -> String {
+    let relative = relativize(url)
+    guard let visible = agentVisibleWorkspacePath else {
+      return relative
+    }
+    if relative == "." {
+      return visible
+    }
+    return visible + "/" + relative
   }
 
   /// Convert an absolute URL back to a path relative to the working
@@ -302,11 +341,34 @@ extension AgentToolContext {
     return absolutePath
   }
 
+  /// Rewrite host absolute worktree prefixes to the agent-visible root so
+  /// tool observations never leak `/Users/...` paths during containerized
+  /// runs.
+  func sanitizeHostPaths(in text: String) -> String {
+    guard let visible = agentVisibleWorkspacePath else { return text }
+    let host = workingDirectory.standardizedFileURL.path
+    guard !host.isEmpty else { return text }
+    var rewritten = text
+    rewritten = rewritten.replacingOccurrences(of: host + "/", with: visible + "/")
+    rewritten = rewritten.replacingOccurrences(of: host, with: visible)
+    return rewritten
+  }
+
   /// Codemap cache directory for this run. Tools read this rather than
   /// re-deriving the path so the executor can point them at the
-  /// host-side store even when `workingDirectory` is a remote (e.g.
-  /// containerized Linux runtime) container path.
+  /// host-side store even when bash runs in the containerized Linux runtime.
   func codemapStore() -> CodemapStore {
     CodemapStore(directory: codemapStoreDirectory)
+  }
+
+  private func mapVisibleWorkspacePathToHostRelative(_ trimmed: String) -> String {
+    guard let visible = agentVisibleWorkspacePath else { return trimmed }
+    if trimmed == visible {
+      return "."
+    }
+    if trimmed.hasPrefix(visible + "/") {
+      return String(trimmed.dropFirst(visible.count + 1))
+    }
+    return trimmed
   }
 }

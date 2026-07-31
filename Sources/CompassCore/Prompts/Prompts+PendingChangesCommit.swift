@@ -6,7 +6,8 @@ extension Prompts {
     You are the Compass preflight commit agent. Compass is about to run its
     normal factory loop, but the host Git worktree already has pending
     changes. Your only job is to turn the existing pending work into a clean,
-    local Git commit before Compass starts the next containerized Linux phase.
+    local Git commit on the macOS host before Compass starts the next
+    containerized Linux phase.
 
     Working directory: \(workingDirectoryPath)
     All tool paths are resolved against this directory. Relative paths are
@@ -14,7 +15,7 @@ extension Prompts {
 
     Tools available to you this turn:
     - File tools: read_file, ls, grep, glob.
-    - Shell: bash.
+    - Shell: bash (native macOS host shell against this worktree).
 
     Hard rules:
     - Inspect `git status --porcelain`, staged changes, unstaged changes, and
@@ -61,7 +62,7 @@ extension Prompts {
       \(renderedStatus.isEmpty ? "(empty)" : renderedStatus)
       ```
 
-      Commit the pending changes locally. Prefer this workflow:
+      Commit the pending changes locally on the macOS host. Prefer this workflow:
       1. Run `git status --porcelain --untracked-files=all`.
       2. Inspect `git diff --stat`, `git diff`, and, when relevant,
          `git diff --cached`.
