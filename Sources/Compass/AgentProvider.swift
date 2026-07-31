@@ -1,10 +1,34 @@
 import Foundation
 
 enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
+  case openAICompatible
   case mlx
 
-  var displayName: String { "MLX" }
-  var requiresCredentials: Bool { false }
+  var displayName: String {
+    switch self {
+    case .openAICompatible: return "OpenAI-compatible"
+    case .mlx: return "MLX"
+    }
+  }
+
+  var requiresCredentials: Bool {
+    switch self {
+    case .openAICompatible: return true
+    case .mlx: return false
+    }
+  }
+
+  var defaultBaseURLString: String? {
+    switch self {
+    case .openAICompatible: return "https://api.moonshot.ai/v1"
+    case .mlx: return nil
+    }
+  }
+
+  var defaultBaseURL: URL? {
+    defaultBaseURLString.flatMap(URL.init(string:))
+  }
+
   var supportedCapabilities: [AgentCapability] { [.text] }
 
   func supports(_ capability: AgentCapability) -> Bool {
@@ -12,22 +36,41 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
   }
 
   func defaultModel(for capability: AgentCapability) -> String? {
-    supports(capability) ? LocalModelCatalog.blessedModelID : nil
+    guard supports(capability) else { return nil }
+    switch self {
+    case .openAICompatible:
+      return nil
+    case .mlx:
+      return LocalModelCatalog.blessedModelID
+    }
   }
 
   func usesModelField(for capability: AgentCapability) -> Bool {
-    false
+    guard supports(capability) else { return false }
+    switch self {
+    case .openAICompatible: return true
+    case .mlx: return false
+    }
   }
 
   func textContextWindowTokens(for modelIdentifier: String?) -> Int {
-    defaultTextContextWindowTokens
+    _ = modelIdentifier
+    return defaultTextContextWindowTokens
   }
 
   func defaultModel(for phase: AgentPhase, baseModel: String) -> String? {
-    nil
+    _ = phase
+    let trimmed = baseModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !trimmed.isEmpty { return trimmed }
+    return defaultModel(for: .text)
   }
 
-  var defaultTextContextWindowTokens: Int { 4_096 }
+  var defaultTextContextWindowTokens: Int {
+    switch self {
+    case .openAICompatible: return 128_000
+    case .mlx: return 4_096
+    }
+  }
 }
 
 enum AgentCapability: String, Sendable, CaseIterable, Codable {
@@ -36,5 +79,5 @@ enum AgentCapability: String, Sendable, CaseIterable, Codable {
   var displayName: String { "Text" }
   var systemImageName: String { "text.bubble" }
   var isRequired: Bool { true }
-  var availableProviders: [AgentProviderKind] { [.mlx] }
+  var availableProviders: [AgentProviderKind] { [.openAICompatible, .mlx] }
 }

@@ -2,11 +2,11 @@
 
 Compass is a macOS-native local software factory for Git repositories.
 
-The current direction is intentionally narrow:
+The current direction:
 
-- MLX is the only model backend.
+- Factory turns (Plan / Develop / Critic) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
+- Optional **MLX** local assist handles cheap/small work (narration, compaction, Explore helpers) when the blessed local model is downloaded.
 - Compass does deterministic work through local tools and the Shared VM.
-- Model calls are reserved for decomposition, implementation text, and review.
 - Generated projects are TypeScript pnpm workspaces.
 
 ## Factory Loop
@@ -54,7 +54,23 @@ pnpm typecheck
 
 ## Runtime
 
-Compass runs model work locally through native Swift MLX with `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit`. The model is downloaded only after user approval into Compass Application Support. There are no API keys, remote text providers, media providers, or provider routing settings in this build.
+### Cloud (primary)
+
+Configure any OpenAI-compatible chat-completions endpoint in Settings or via environment:
+
+- `COMPASS_AGENT_TEXT_PROVIDER=openAICompatible` (default)
+- `COMPASS_AGENT_BASE_URL` (example empty-state: `https://api.moonshot.ai/v1`)
+- `COMPASS_AGENT_API_KEY`
+- `COMPASS_AGENT_MODEL`
+- `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS`
+
+Kimi/Moonshot, OpenAI, OpenRouter, and local proxies all work the same way as long as they speak `/v1/chat/completions`.
+
+### Local assist (optional)
+
+MLX can run `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit` after user-approved download into Compass Application Support. It is used for cheap assist tasks when available; cloud-only installs remain supported.
+
+### Shared VM
 
 The Shared VM provisions the default generated-project toolchain:
 
@@ -74,4 +90,6 @@ Build and test the macOS host with SwiftPM:
 swift test
 ```
 
-Legacy project files in existing user workspaces are ignored rather than deleted. The repository code for the previous product-factory, market, provider, and non-TypeScript generated-output systems has been removed for this pivot.
+Headless CLI modes: `auto` (cloud when configured, else MLX), `cloud`, `mlx`, `fixture`.
+
+Legacy project files in existing user workspaces are ignored rather than deleted.

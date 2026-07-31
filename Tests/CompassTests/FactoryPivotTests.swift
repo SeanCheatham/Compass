@@ -156,16 +156,28 @@ struct FactoryPivotTests {
   }
 
   @Test
-  func mlxOnlyRuntimeReadiness() {
-    let settings = AgentRuntimeSettings()
-
-    #expect(settings.textProvider == .mlx)
-    #expect(settings.textProvider.requiresCredentials == false)
+  func hybridRuntimeReadiness() {
+    let cloud = AgentRuntimeSettings(
+      textProvider: .openAICompatible,
+      baseURL: URL(string: "https://api.example.com/v1")!,
+      apiKey: "sk-test",
+      model: "example-model"
+    )
+    #expect(cloud.textProvider == .openAICompatible)
+    #expect(cloud.textProvider.requiresCredentials == true)
     #expect(AgentCapability.allCases == [.text])
-    #expect(AgentProviderKind.allCases == [.mlx])
-    #expect(settings.model(for: .plan) == LocalModelCatalog.blessedModelID)
-    #expect(settings.isTextCapabilityRunnable(localModelReady: true))
-    #expect(!settings.isTextCapabilityRunnable(localModelReady: false))
+    #expect(AgentProviderKind.allCases == [.openAICompatible, .mlx])
+    #expect(cloud.model(for: .plan) == "example-model")
+    #expect(cloud.isTextCapabilityRunnable(localModelReady: false))
+    #expect(cloud.isTextCapabilityRunnable(localModelReady: true))
+    #expect(cloud.hasCloudCredentials)
+
+    let local = AgentRuntimeSettings(textProvider: .mlx)
+    #expect(local.textProvider == .mlx)
+    #expect(local.textProvider.requiresCredentials == false)
+    #expect(local.model(for: .plan) == LocalModelCatalog.blessedModelID)
+    #expect(local.isTextCapabilityRunnable(localModelReady: true))
+    #expect(!local.isTextCapabilityRunnable(localModelReady: false))
   }
 
   @Test
@@ -178,13 +190,13 @@ struct FactoryPivotTests {
       errorMessage: nil,
       directory: URL(fileURLWithPath: "/tmp/CompassModel")
     )
-    let settings = AgentRuntimeSettings()
+    let settings = AgentRuntimeSettings(textProvider: .mlx)
 
     let settingsGuide = AgentSettingsGuide(settings: settings, modelSnapshot: snapshot)
     #expect(settingsGuide.title == "Local Model Downloading")
     #expect(settingsGuide.actionLabel == "Downloading 42%")
     #expect(settingsGuide.tone == .optionalAttention)
-    #expect(settingsGuide.rows.first?.status == .attention)
+    #expect(settingsGuide.rows.contains { $0.id == "mlxAssist" && $0.status == .attention })
     #expect(!settingsGuide.actionLabel.localizedCaseInsensitiveContains("blocked"))
 
   }

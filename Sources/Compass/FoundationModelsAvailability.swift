@@ -1,9 +1,6 @@
 import Foundation
 
 /// Describes why an Explore explanation could not be generated.
-///
-/// The original case name is kept for persistence/UI compatibility while
-/// generated narration is paused during the MLX runtime migration.
 enum ExplainUnavailableReason: Sendable, CaseIterable {
   case foundationModelsUnavailable
   case noDiff
@@ -14,7 +11,7 @@ enum ExplainUnavailableReason: Sendable, CaseIterable {
   var message: String {
     switch self {
     case .foundationModelsUnavailable:
-      return "Generated explanation is unavailable until local MLX narration is migrated."
+      return "Generated explanation is unavailable until a text model is configured."
     case .noDiff:
       return "No commit diff available for this file."
     case .emptyDiff:
@@ -27,14 +24,14 @@ enum ExplainUnavailableReason: Sendable, CaseIterable {
   }
 }
 
-/// Compatibility shim for older narration helpers.
+/// Lightweight assist text path for narrators and Explore helpers.
 ///
-/// Agent execution no longer uses this path. Lightweight explanatory helpers
-/// either receive an explicit test override or return unavailable until they
-/// are moved onto the MLX text runtime.
+/// Prefer MLX when downloaded; otherwise fall back to the configured
+/// OpenAI-compatible cloud endpoint. Agent Plan/Develop/Critic turns do not
+/// use this path — they go through `AgentExecutor` + `RoutedModelRuntime`.
 enum FoundationModelsAvailability {
   static let generatedExploreUnavailableMessage =
-    "Generated Explore insight is unavailable until local MLX narration is migrated. Deterministic change details remain available."
+    "Generated Explore insight is unavailable until a text model is configured. Deterministic change details remain available."
 
   struct TextProvider: Sendable {
     var isAvailable: @Sendable () -> Bool
@@ -61,13 +58,36 @@ enum FoundationModelsAvailability {
   }
 
   static var isAvailable: Bool {
-    textProviderOverride?.isAvailable() ?? false
+    if let textProviderOverride {
+      return textProviderOverride.isAvailable()
+    }
+    let settings = AgentSettingsStore().load()
+    return settings.isTextCapabilityReady || settings.isLocalAssistReady
   }
 
   static func _streamText(prompt: String) async -> String? {
     if let textProviderOverride {
       return await textProviderOverride.streamText(prompt)
     }
-    return nil
+
+    let settings = AgentSettingsStore().load()
+    let runtime = ModelRuntimeFactory.makeRouted(settings: settings)
+    do {
+      let result = try await runtime.generateText(
+        request: LocalModelGenerationRequest(
+          modelID: settings.codemapModel,
+          systemPrompt:
+            "You write concise, practical guidance for a local software-factory UI. Reply with plain text only.",
+          prompt: prompt,
+          maxOutputTokens: 512,
+          logLabel: "assist-narration",
+          routingHint: .localPreferred
+        )
+      )
+      let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed.isEmpty ? nil : trimmed
+    } catch {
+      return nil
+    }
   }
 }

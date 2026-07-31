@@ -89,6 +89,7 @@ extension CompassProject {
       ),
       userPrompt: userPrompt,
       tools: tools,
+      modelRuntime: ModelRuntimeFactory.makeRouted(settings: agentSettings),
       submitResultSchema: schema,
       workingDirectory: environment.workingDirectory,
       filesystem: environment.filesystem,

@@ -5,7 +5,9 @@ extension AgentExecutor {
     try AgentExecutor.ensureUniqueToolNames(configuration.tools)
 
     let startedAt = Date()
-    let runtime = configuration.modelRuntime ?? MLXLocalModelRuntime.shared
+    let runtime =
+      configuration.modelRuntime
+      ?? ModelRuntimeFactory.makeRouted(settings: configuration.settings)
     let toolContext = AgentToolContext(
       workingDirectory: configuration.workingDirectory,
       filesystem: configuration.filesystem,
@@ -134,7 +136,7 @@ extension AgentExecutor {
       iterations += 1
       emit(
         level: .info,
-        text: "MLX continuation iteration \(iterations)",
+        text: "Continuation iteration \(iterations)",
         kind: .lifecycle,
         status: .running
       )
@@ -143,11 +145,15 @@ extension AgentExecutor {
       do {
         generation = try await runtime.generateText(
           request: LocalModelGenerationRequest(
-            modelID: LocalModelCatalog.blessedModelID,
+            modelID: configuration.settings.model(
+              for: configuration.phase,
+              sidebarOverride: configuration.modelOverride
+            ),
             systemPrompt: configuration.systemPrompt,
             prompt: prompt,
             maxOutputTokens: Self.maxCompletionTokensPerTurn,
-            logLabel: Self.generationLogLabel(configuration: configuration, iteration: iterations)
+            logLabel: Self.generationLogLabel(configuration: configuration, iteration: iterations),
+            routingHint: .cloudPrimary
           )
         )
       } catch is CancellationError {
@@ -946,7 +952,7 @@ extension AgentExecutor {
 
     let generation = try await runtime.generateText(
       request: LocalModelGenerationRequest(
-        modelID: LocalModelCatalog.blessedModelID,
+        modelID: configuration.settings.codemapModel,
         systemPrompt: continuationCompactionSystemPrompt(),
         prompt: continuationCompactionPrompt(
           configuration: configuration,
@@ -955,7 +961,8 @@ extension AgentExecutor {
           recentEntries: transcript.suffix(rawTranscriptEntriesAfterCompaction)
         ),
         maxOutputTokens: maxSummaryCompletionTokens,
-        logLabel: Self.generationLogLabel(configuration: configuration, suffix: "compaction")
+        logLabel: Self.generationLogLabel(configuration: configuration, suffix: "compaction"),
+        routingHint: .localPreferred
       )
     )
 

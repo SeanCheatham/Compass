@@ -6,7 +6,7 @@ struct CompassSettingsView: View {
   var body: some View {
     AgentSettingsTab()
       .environmentObject(model)
-      .frame(minWidth: 580, minHeight: 420)
+      .frame(minWidth: 640, minHeight: 520)
   }
 }
 
@@ -14,6 +14,10 @@ private struct AgentSettingsTab: View {
   @EnvironmentObject var model: AppModel
   @ObservedObject private var localModelManager = LocalModelManager.shared
   @State private var settingsNarration: AgentSettingsGuideNarration?
+  @State private var textProviderRaw = AgentRuntimeSettings.defaultTextProvider.rawValue
+  @State private var baseURLString = AgentRuntimeSettings.defaultBaseURLString
+  @State private var modelIdentifier = ""
+  @State private var apiKey = ""
   @AppStorage(AgentSettingsStore.Key.contextWindowTokens.rawValue)
   private var contextWindowTokens = "\(AgentRuntimeSettings.defaultContextWindowTokens)"
 
@@ -37,14 +41,51 @@ private struct AgentSettingsTab: View {
         )
       }
 
-      Section(header: Label("Local Model", systemImage: "cpu")) {
+      Section(header: Label("Cloud Endpoint", systemImage: "cloud")) {
+        Picker("Text provider", selection: $textProviderRaw) {
+          ForEach(AgentProviderKind.allCases, id: \.rawValue) { kind in
+            Text(kind.displayName).tag(kind.rawValue)
+          }
+        }
+        .onChange(of: textProviderRaw) { _, raw in
+          guard let kind = AgentProviderKind(rawValue: raw) else { return }
+          model.setAgentTextProvider(kind)
+        }
+
+        TextField("Base URL", text: $baseURLString)
+          .textFieldStyle(.roundedBorder)
+          .onSubmit { commitCloudFields() }
+          .help("OpenAI-compatible API root, e.g. https://api.moonshot.ai/v1")
+
+        SecureField("API key", text: $apiKey)
+          .textFieldStyle(.roundedBorder)
+          .onSubmit { commitCloudFields() }
+          .help("Stored under Application Support with 0600 permissions.")
+
+        TextField("Model", text: $modelIdentifier)
+          .textFieldStyle(.roundedBorder)
+          .onSubmit { commitCloudFields() }
+          .help("Chat model id accepted by the endpoint.")
+
+        Button("Save Cloud Settings") {
+          commitCloudFields()
+        }
+
+        Text(
+          "Any OpenAI-compatible chat-completions endpoint works (Kimi/Moonshot, OpenAI, OpenRouter, local proxies, etc.)."
+        )
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      }
+
+      Section(header: Label("Local Assist", systemImage: "cpu")) {
         LabeledContent("Runtime", value: localModelManager.snapshot.runtimeName)
         LabeledContent("Model", value: localModelManager.snapshot.modelID)
         LabeledContent("Status", value: localModelManager.snapshot.statusLabel)
         LabeledContent("Storage", value: localModelManager.snapshot.directory.path)
           .textSelection(.enabled)
         LabeledContent("Credentials", value: "Not required")
-        LabeledContent("Network calls", value: "Only approved model download")
+        LabeledContent("Used for", value: "Narration, compaction, cheap assist")
 
         if let error = localModelManager.snapshot.errorMessage {
           Text(error)
@@ -92,24 +133,26 @@ private struct AgentSettingsTab: View {
         }
       }
 
-      Section(header: Label("Local Execution", systemImage: "cpu")) {
+      Section(header: Label("Prompt Budget", systemImage: "ruler")) {
         TextField("Context window tokens", text: $contextWindowTokens)
           .textFieldStyle(.roundedBorder)
           .onSubmit {
             normalizeContextWindow()
           }
-          .help("Used as the local planning budget for MLX prompts.")
+          .help("Used as the planning budget when shaping prompts.")
 
-        Text("Compass uses deterministic tools for files, shell commands, verification, and state updates. The model is only asked for narrow decomposition, implementation text, and review.")
-          .font(.callout)
-          .foregroundStyle(.secondary)
+        Text(
+          "Compass uses deterministic tools for files, shell commands, verification, and state updates. Models are asked for decomposition, implementation text, and review."
+        )
+        .font(.callout)
+        .foregroundStyle(.secondary)
       }
     }
     .formStyle(.grouped)
     .padding()
     .onAppear {
       localModelManager.refresh()
-      contextWindowTokens = "\(model.agentSettings.contextWindowTokens)"
+      syncFieldsFromModel()
     }
     .onChange(of: contextWindowTokens) { _, _ in
       normalizeContextWindow()
@@ -118,6 +161,31 @@ private struct AgentSettingsTab: View {
       settingsNarration = nil
       settingsNarration = await AgentSettingsGuideNarrator.narrate(guide: settingsGuide)
     }
+  }
+
+  private func syncFieldsFromModel() {
+    textProviderRaw = model.agentSettings.textProvider.rawValue
+    baseURLString = model.agentSettings.baseURL.absoluteString
+    modelIdentifier = model.agentSettings.model
+    apiKey = model.agentSettings.apiKey
+    contextWindowTokens = "\(model.agentSettings.contextWindowTokens)"
+  }
+
+  private func commitCloudFields() {
+    if let kind = AgentProviderKind(rawValue: textProviderRaw) {
+      model.setAgentTextProvider(kind)
+    }
+    let trimmedURL = baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let url = URL(string: trimmedURL), !trimmedURL.isEmpty {
+      model.setAgentBaseURL(url)
+      baseURLString = url.absoluteString
+    } else {
+      model.setAgentBaseURL(AgentRuntimeSettings.defaultBaseURL)
+      baseURLString = AgentRuntimeSettings.defaultBaseURLString
+    }
+    model.setAgentModel(modelIdentifier.trimmingCharacters(in: .whitespacesAndNewlines))
+    model.setAgentAPIKey(apiKey)
+    syncFieldsFromModel()
   }
 
   private func matchingNarration(

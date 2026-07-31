@@ -46,28 +46,62 @@ struct AgentSettingsGuide: Equatable, Sendable {
   var narrationIdentifier: String
 
   init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
-    let textReady = settings.isTextCapabilityRunnable(
-      localModelReady: modelSnapshot.isRunnable
+    let cloudReady = settings.isCloudConfigured || (
+      settings.textProvider == .openAICompatible && settings.hasCloudCredentials
     )
+    let mlxReady = modelSnapshot.isRunnable
     let modelDownloading = modelSnapshot.status == .downloading
+    let textReady = settings.isTextCapabilityRunnable(localModelReady: mlxReady)
+
+    let cloudDetail: String
+    let cloudStatus: RowStatus
+    if settings.textProvider == .mlx {
+      cloudDetail = "Cloud endpoint unused while text provider is MLX."
+      cloudStatus = .off
+    } else if cloudReady {
+      cloudDetail =
+        "\(settings.trimmedModel) via \(settings.cloudEndpointDisplay()) is ready for Plan/Develop/Critic."
+      cloudStatus = .ready
+    } else {
+      cloudDetail =
+        "Set API key, base URL, and model for the OpenAI-compatible cloud endpoint."
+      cloudStatus = .blocked
+    }
+
+    let localDetail: String
+    let localStatus: RowStatus
+    if mlxReady {
+      localDetail = "\(modelSnapshot.modelID) is ready for cheap local assist work."
+      localStatus = .ready
+    } else if modelDownloading {
+      localDetail = "\(modelSnapshot.modelID) is downloading for optional local assist."
+      localStatus = .attention
+    } else {
+      localDetail =
+        "Optional: download \(modelSnapshot.modelID) for local assist (narration, compaction)."
+      localStatus = settings.textProvider == .mlx ? .blocked : .off
+    }
+
     rows = [
       Row(
-        id: "mlxModel",
-        label: "MLX model",
-        detail: Self.boundedRowDetail(
-          textReady
-            ? "\(modelSnapshot.modelID) is ready for local runs."
-            : modelDownloading
-              ? "\(modelSnapshot.modelID) is downloading."
-              : "\(modelSnapshot.modelID) must be downloaded before the factory loop can start."
-        ),
-        status: textReady ? .ready : modelDownloading ? .attention : .blocked
+        id: "cloud",
+        label: "Cloud endpoint",
+        detail: Self.boundedRowDetail(cloudDetail),
+        status: cloudStatus
+      ),
+      Row(
+        id: "mlxAssist",
+        label: "Local assist",
+        detail: Self.boundedRowDetail(localDetail),
+        status: localStatus
       ),
       Row(
         id: "execution",
         label: "Execution",
         detail: Self.boundedRowDetail(
-          "Plan, Develop, and Critic all use the local model. Deterministic tools handle file access, edits, shell checks, and verification."
+          textReady
+            ? "Plan/Develop/Critic use the primary text provider. Deterministic tools handle files, shell, and verification."
+            : "Configure cloud credentials or download MLX before the factory loop can start."
         ),
         status: textReady ? .ready : .blocked
       ),
@@ -79,35 +113,45 @@ struct AgentSettingsGuide: Equatable, Sendable {
       ),
     ]
 
+    let readyCount = [cloudStatus == .ready, localStatus == .ready, textReady].filter { $0 }.count
     runtimeCoverage = Self.coverage(
-      readyCount: textReady ? 1 : 0,
-      selectedCount: 1,
-      fraction: textReady ? 1 : 0,
+      readyCount: readyCount,
+      selectedCount: 3,
+      fraction: Double(readyCount) / 3.0,
       label: textReady
-        ? "Local runtime ready"
-        : modelDownloading ? "Local model downloading" : "Local runtime blocked",
+        ? (mlxReady ? "Hybrid runtime ready" : "Cloud runtime ready")
+        : modelDownloading ? "Local model downloading" : "Runtime blocked",
       detail: textReady
-        ? "The local MLX model can handle the software-factory loop."
-        : modelDownloading
+        ? (mlxReady
+          ? "Cloud handles factory turns; MLX assists with cheap local work."
+          : "Cloud can run the factory loop. Download MLX later for local assist.")
+        : modelDownloading && settings.textProvider == .mlx
           ? "Compass will unlock local runs when the blessed Qwen model finishes downloading."
-          : "Download the blessed Qwen model before running Compass."
+          : "Configure an OpenAI-compatible endpoint (or MLX) before running Compass."
     )
 
     if textReady {
-      title = "Local Runtime Ready"
-      detail = "Compass will use MLX for narrow non-deterministic work and keep the rest of the factory loop deterministic."
+      title = mlxReady ? "Hybrid Runtime Ready" : "Cloud Runtime Ready"
+      detail =
+        mlxReady
+        ? "Compass will use the OpenAI-compatible cloud endpoint for Plan/Develop/Critic and MLX for small assist tasks."
+        : "Compass will use the configured OpenAI-compatible endpoint for factory turns. Local MLX assist is optional."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
-    } else if modelDownloading {
+    } else if settings.textProvider == .mlx && modelDownloading {
       title = "Local Model Downloading"
-      detail = "Compass is downloading the blessed Qwen model. Local runs remain blocked until the files are complete."
+      detail =
+        "Compass is downloading the blessed Qwen model. Local runs remain blocked until the files are complete."
       actionLabel = modelSnapshot.statusLabel
       tone = .optionalAttention
       systemImageName = "arrow.down.circle"
     } else {
-      title = "Local Model Missing"
-      detail = "Compass is MLX-only in this build. The run loop is blocked until the blessed Qwen model is downloaded."
+      title = "Runtime Not Ready"
+      detail =
+        settings.textProvider == .mlx
+        ? "Download the blessed Qwen model before running Compass in MLX mode."
+        : "Add an API key, base URL, and model for the OpenAI-compatible cloud endpoint."
       actionLabel = "Blocked"
       tone = .blocked
       systemImageName = "text.bubble.badge.exclamationmark"
@@ -190,22 +234,29 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
       "Compass Runtime Settings Handoff",
       "",
       "Recipient instructions:",
-      "- Treat this packet as bounded local runtime context.",
+      "- Treat this packet as bounded runtime context.",
       "- Do not invent credentials, network endpoints, model names, files, or run outcomes.",
-      "- Compass is MLX-only; deterministic tools carry file edits, shell checks, and verification.",
+      "- Cloud turns use an OpenAI-compatible endpoint; MLX is optional local assist.",
       "",
       "Status: \(guide.title) (\(guide.tone.rawValue))",
       "Action: \(guide.actionLabel)",
       "Detail: \(guide.detail)",
       "Runtime coverage: \(guide.runtimeCoverage.label) - \(guide.runtimeCoverage.detail)",
       "",
-      "Local model:",
-      "Runnable: \(Self.yesNo(textReady))",
+      "Text provider: \(settings.textProvider.displayName)",
+      "Cloud base URL: \(settings.cloudEndpointDisplay())",
+      "Cloud model: \(settings.trimmedModel.isEmpty ? "(unset)" : settings.trimmedModel)",
+      "Cloud key present: \(Self.yesNo(!settings.trimmedAPIKey.isEmpty))",
+      "Cloud ready: \(Self.yesNo(settings.hasCloudCredentials))",
+      "",
+      "Local assist:",
+      "Runnable: \(Self.yesNo(modelSnapshot.isRunnable))",
       "Runtime: \(modelSnapshot.runtimeName)",
       "Model: \(modelSnapshot.modelID)",
       "Status: \(modelSnapshot.statusLabel)",
       "Directory: \(modelSnapshot.directory.path)",
       "Context window tokens: \(settings.contextWindowTokens)",
+      "Factory text ready: \(Self.yesNo(textReady))",
       "",
       "Guide rows:",
     ]

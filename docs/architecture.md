@@ -6,9 +6,17 @@ Compass is a native macOS host around a local software factory loop.
 
 The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt assembly, tool execution, and Shared VM lifecycle.
 
-## Model Backend
+## Model Backends
 
-Native Swift MLX is the only model backend. Runtime settings are limited to local model availability and the context budget used when shaping prompts. The blessed v1 model is `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit`.
+Text generation goes through `LocalModelGenerating`:
+
+- **OpenAI-compatible cloud** (`OpenAICompatibleModelRuntime`) — primary for Plan / Develop / Critic.
+- **MLX local** (`MLXLocalModelRuntime`) — preferred for cheap assist (compaction, narrators, Explore) when the blessed model is downloaded.
+- **`RoutedModelRuntime`** selects between them using `ModelRoutingHint` (`.cloudPrimary` vs `.localPreferred`).
+
+Runtime settings store provider choice, base URL, model id, context window, and (separately) the API key under Application Support secrets.
+
+There is no Cursor model provider in this build. Cursor’s SDK is an agent harness, not a chat-completions endpoint.
 
 ## Factory State
 

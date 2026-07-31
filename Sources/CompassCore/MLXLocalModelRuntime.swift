@@ -6,25 +6,35 @@ import Foundation
   import Tokenizers
 #endif
 
+enum ModelRoutingHint: String, Sendable, Equatable {
+  /// Plan / Develop / Critic agent turns — prefer the configured cloud endpoint.
+  case cloudPrimary
+  /// Cheap assist work (compaction, narrators, codemap) — prefer MLX when ready.
+  case localPreferred
+}
+
 struct LocalModelGenerationRequest: Sendable, Equatable {
   var modelID: String
   var systemPrompt: String
   var prompt: String
   var maxOutputTokens: Int
   var logLabel: String?
+  var routingHint: ModelRoutingHint
 
   init(
     modelID: String = LocalModelCatalog.blessedModelID,
     systemPrompt: String,
     prompt: String,
     maxOutputTokens: Int = AgentExecutor.maxCompletionTokensPerTurn,
-    logLabel: String? = nil
+    logLabel: String? = nil,
+    routingHint: ModelRoutingHint = .cloudPrimary
   ) {
     self.modelID = modelID
     self.systemPrompt = systemPrompt
     self.prompt = prompt
     self.maxOutputTokens = max(1, maxOutputTokens)
     self.logLabel = logLabel
+    self.routingHint = routingHint
   }
 }
 

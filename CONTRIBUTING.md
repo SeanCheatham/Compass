@@ -1,28 +1,17 @@
 # Contributing to Compass
 
-Compass is becoming a hybrid system:
+Compass is a Swift/macOS software factory:
 
-- Swift owns the macOS shell: SwiftUI views, app lifecycle, Keychain,
-  Foundation Models access, and `Virtualization.framework` orchestration.
-- Rust owns portable product logic: daemon IPC, tournament state and
-  transitions, agent execution, host/guest tools, schemas, and replay tests.
-- The guest boundary remains AgentRPC-compatible while the guest agent migrates.
+- Swift owns the macOS shell: SwiftUI views, app lifecycle, secret storage, Shared VM orchestration, and the agent loop.
+- Model text comes from a user-configured OpenAI-compatible cloud endpoint, with optional MLX local assist for cheap tasks.
+- Deterministic work (files, shell, verify, state) stays in local tools / the Shared VM.
 
-Prefer Rust for new deterministic product behavior. Prefer Swift only when the
-code needs an Apple-only framework, UI binding, or signed-app lifecycle hook.
-
-Migration feature flags are centralized in `CompassRuntimeFeatureFlags` and are
-included in runtime diagnostics. Add new flags there first, then route shell
-decisions through the typed property instead of reading environment variables at
-call sites.
+Prefer keeping new product behavior in Swift (`CompassCore` for headless/shared logic, `Compass` for UI). Do not reintroduce removed Rust daemon, tournament/market, or vendor-specific media tool paths unless that is an explicit product decision.
 
 Before opening a change:
 
 ```bash
-cargo test --workspace
 swift test
-./scripts/test-rust-engine.sh
 ```
 
-Live LLM, Foundation Models, and VM provisioning tests remain opt-in/manual
-unless a CI job explicitly provides credentials and a signed macOS runner.
+Live cloud, MLX download, and VM provisioning tests remain opt-in/manual unless a CI job explicitly provides credentials and a signed macOS runner.

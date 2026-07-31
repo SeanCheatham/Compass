@@ -7,33 +7,66 @@ enum AgentPhase: String, Sendable, CaseIterable {
 }
 
 struct AgentRuntimeSettings: Equatable, Sendable {
-  static let defaultTextProvider: AgentProviderKind = .mlx
-  static let defaultContextWindowTokens = LocalModelCatalog.defaultContextWindowTokens
+  static let defaultTextProvider: AgentProviderKind = .openAICompatible
+  static let defaultContextWindowTokens =
+    AgentProviderKind.openAICompatible.defaultTextContextWindowTokens
+  static let defaultBaseURLString =
+    AgentProviderKind.openAICompatible.defaultBaseURLString ?? "https://api.moonshot.ai/v1"
+  static var defaultBaseURL: URL {
+    URL(string: defaultBaseURLString) ?? URL(fileURLWithPath: "/")
+  }
 
   var textProvider: AgentProviderKind
+  var baseURL: URL
+  var apiKey: String
+  var model: String
   var contextWindowTokens: Int
 
   init(
     textProvider: AgentProviderKind = AgentRuntimeSettings.defaultTextProvider,
+    baseURL: URL = AgentRuntimeSettings.defaultBaseURL,
+    apiKey: String = "",
+    model: String = "",
     contextWindowTokens: Int = AgentRuntimeSettings.defaultContextWindowTokens
   ) {
     self.textProvider = textProvider
+    self.baseURL = baseURL
+    self.apiKey = apiKey
+    self.model = model
     self.contextWindowTokens = max(0, contextWindowTokens)
   }
 
   static func defaultFromEnvironment(
     _ environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> Self {
-    let contextWindow =
-      environment.trimmedValue("COMPASS_AGENT_CONTEXT_WINDOW_TOKENS")
-      .flatMap(Int.init) ?? defaultContextWindowTokens
-    return Self(
-      contextWindowTokens: contextWindow
-    )
+    AgentSettingsStore(environment: environment).load()
+  }
+
+  var trimmedAPIKey: String {
+    apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  var trimmedModel: String {
+    model.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  var hasCloudCredentials: Bool {
+    !trimmedAPIKey.isEmpty && !trimmedModel.isEmpty && !baseURL.absoluteString.isEmpty
+  }
+
+  var isCloudConfigured: Bool {
+    textProvider == .openAICompatible && hasCloudCredentials
+  }
+
+  var isLocalAssistReady: Bool {
+    LocalModelCatalog.isBlessedModelReady()
   }
 
   var codemapModel: String {
-    LocalModelCatalog.blessedModelID
+    if isLocalAssistReady {
+      return LocalModelCatalog.blessedModelID
+    }
+    return model(for: .plan)
   }
 
   var isTextCapabilityReady: Bool {
@@ -41,13 +74,27 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   }
 
   func isTextCapabilityRunnable(localModelReady: Bool) -> Bool {
-    localModelReady
+    switch textProvider {
+    case .openAICompatible:
+      return hasCloudCredentials
+    case .mlx:
+      return localModelReady
+    }
   }
 
   func model(for phase: AgentPhase, sidebarOverride: String = "") -> String {
-    _ = phase
-    _ = sidebarOverride
-    return LocalModelCatalog.blessedModelID
+    let override = sidebarOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !override.isEmpty { return override }
+    switch textProvider {
+    case .openAICompatible:
+      return trimmedModel
+    case .mlx:
+      return LocalModelCatalog.blessedModelID
+    }
+  }
+
+  func cloudEndpointDisplay() -> String {
+    baseURL.absoluteString
   }
 }
 

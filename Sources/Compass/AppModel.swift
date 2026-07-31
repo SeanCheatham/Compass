@@ -44,6 +44,30 @@ final class AppModel: ObservableObject {
 
   // MARK: - Agent settings setters
 
+  func setAgentTextProvider(_ provider: AgentProviderKind) {
+    agentSettingsStore.setTextProvider(provider)
+    agentSettings = agentSettingsStore.load()
+  }
+
+  func setAgentBaseURL(_ url: URL) {
+    agentSettingsStore.setBaseURL(url)
+    agentSettings = agentSettingsStore.load()
+  }
+
+  func setAgentModel(_ model: String) {
+    agentSettingsStore.setModel(model)
+    agentSettings = agentSettingsStore.load()
+  }
+
+  func setAgentAPIKey(_ key: String) {
+    do {
+      try agentSettingsStore.setAPIKey(key)
+      agentSettings = agentSettingsStore.load()
+    } catch {
+      fail(error)
+    }
+  }
+
   func setAgentContextWindowTokens(_ tokens: Int) {
     agentSettingsStore.setContextWindowTokens(tokens)
     agentSettings = agentSettingsStore.load()

@@ -12,17 +12,22 @@ struct AgentRuntimeSidebarSummary: Equatable, Sendable {
   var lines: [Line]
 
   init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
+    let primaryModel: String
+    switch settings.textProvider {
+    case .openAICompatible:
+      primaryModel =
+        settings.trimmedModel.isEmpty ? "(cloud model unset)" : settings.trimmedModel
+    case .mlx:
+      primaryModel = modelSnapshot.modelID
+    }
+
     let rawLines = [
-      Line(id: "runtime", label: "Runtime", value: modelSnapshot.runtimeName),
+      Line(id: "provider", label: "Provider", value: settings.textProvider.displayName),
+      Line(id: "model", label: "Model", value: primaryModel),
       Line(
-        id: "status",
-        label: "Status",
+        id: "assist",
+        label: "Local assist",
         value: modelSnapshot.statusLabel
-      ),
-      Line(
-        id: "model",
-        label: "Model",
-        value: modelSnapshot.modelID
       ),
       Line(
         id: "context",

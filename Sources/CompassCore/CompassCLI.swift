@@ -312,7 +312,7 @@ struct CompassCLIParser {
   mutating func modelMode() throws -> HeadlessModelMode {
     guard let raw = try optionalValue("--mode") else { return .auto }
     guard let mode = HeadlessModelMode(rawValue: raw) else {
-      throw CompassCLIError.usage("--mode must be auto, fixture, or mlx.")
+      throw CompassCLIError.usage("--mode must be auto, fixture, mlx, or cloud.")
     }
     return mode
   }
@@ -382,8 +382,8 @@ enum CompassCLIError: LocalizedError, Equatable {
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
       compass-cli scaffold typescript <path> [--name <name>] [--format json|text]
-      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
-      compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
+      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
+      compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
 
     \(localizedDescription)

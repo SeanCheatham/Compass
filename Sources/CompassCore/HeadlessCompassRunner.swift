@@ -5,6 +5,7 @@ public enum HeadlessModelMode: String, Codable, Equatable, Sendable {
   case auto
   case fixture
   case mlx
+  case cloud
 }
 
 public enum HeadlessCompassError: LocalizedError, Equatable {
@@ -12,6 +13,7 @@ public enum HeadlessCompassError: LocalizedError, Equatable {
   case fixtureDecodeFailed(String)
   case fixtureExhausted
   case modelMissing(String)
+  case cloudNotConfigured(String)
   case missingTool(String)
   case invalidBrief(String)
   case noImmediateWork
@@ -25,6 +27,8 @@ public enum HeadlessCompassError: LocalizedError, Equatable {
     case .fixtureExhausted:
       return "Fixture output exhausted before the agent submitted a phase result."
     case .modelMissing(let detail):
+      return detail
+    case .cloudNotConfigured(let detail):
       return detail
     case .missingTool(let name):
       return "Required host tool is missing: \(name)"
@@ -111,7 +115,10 @@ public struct HeadlessCompassRunner: Sendable {
   ) async -> Bool {
     let repoURL = repoURL.standardizedFileURL
     let workspace = CompassWorkspace(repoURL: repoURL)
+    let settings = AgentSettingsStore().load()
     let modelReady = LocalModelCatalog.isBlessedModelReady()
+    let cloudReady = settings.hasCloudCredentials
+    let textReady = settings.isTextCapabilityRunnable(localModelReady: modelReady)
     let sandboxConfiguration = ContainerSandboxConfiguration()
     onEvent(
       HeadlessCompassEvent(
@@ -136,9 +143,14 @@ public struct HeadlessCompassRunner: Sendable {
         metadata: [
           "repo": repoURL.path,
           "compass": workspace.compassURL.path,
-          "model": LocalModelCatalog.blessedModelID,
-          "modelReady": modelReady ? "true" : "false",
-          "modelDirectory": LocalModelCatalog.blessedModelDirectory.path,
+          "textProvider": settings.textProvider.rawValue,
+          "cloudReady": cloudReady ? "true" : "false",
+          "cloudBaseURL": settings.cloudEndpointDisplay(),
+          "cloudModel": settings.trimmedModel,
+          "localAssistModel": LocalModelCatalog.blessedModelID,
+          "localAssistReady": modelReady ? "true" : "false",
+          "localAssistDirectory": LocalModelCatalog.blessedModelDirectory.path,
+          "textReady": textReady ? "true" : "false",
         ]
       )
     )
@@ -163,18 +175,33 @@ public struct HeadlessCompassRunner: Sendable {
         metadata: runtimeMetadata
       )
     )
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "cloud_readiness",
+        level: cloudReady ? "success" : "warning",
+        status: cloudReady ? "ready" : "missing",
+        message: cloudReady
+          ? "OpenAI-compatible cloud endpoint is configured."
+          : "OpenAI-compatible cloud endpoint is not fully configured.",
+        metadata: [
+          "baseURL": settings.cloudEndpointDisplay(),
+          "model": settings.trimmedModel,
+          "apiKeyPresent": settings.trimmedAPIKey.isEmpty ? "false" : "true",
+        ]
+      )
+    )
     if !modelReady {
       onEvent(
         HeadlessCompassEvent(
           kind: "model_readiness",
           level: "warning",
           status: "missing",
-          message: "Blessed MLX model is not ready.",
+          message: "Blessed MLX assist model is not ready.",
           metadata: ["model": LocalModelCatalog.blessedModelID]
         )
       )
     }
-    return modelReady && sandboxStatus.ok
+    return textReady && sandboxStatus.ok
   }
 
   public func scaffoldTypeScript(
@@ -284,7 +311,15 @@ public struct HeadlessCompassRunner: Sendable {
       promptLogDirectory: options.promptLogDirectory,
       onEvent: onEvent
     )
-    let settings = AgentRuntimeSettings.defaultFromEnvironment()
+    var settings = AgentRuntimeSettings.defaultFromEnvironment()
+    switch mode {
+    case .mlx:
+      settings.textProvider = .mlx
+    case .cloud:
+      settings.textProvider = .openAICompatible
+    case .auto, .fixture:
+      break
+    }
     let forgeProfile =
       (try? ForgeProfileService.detectAndPersist(repoURL: repoURL, workspace: workspace))
       ?? .generatedProjectDefault
@@ -1870,6 +1905,7 @@ public struct HeadlessCompassRunner: Sendable {
     promptLogDirectory: URL?,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) throws -> any LocalModelGenerating {
+    let settings = AgentSettingsStore().load()
     switch mode {
     case .fixture:
       guard let fixtureURL else { throw HeadlessCompassError.fixtureRequired }
@@ -1885,7 +1921,7 @@ public struct HeadlessCompassRunner: Sendable {
         jsonlURL: fixtureURL,
         promptLogDirectory: promptLogDirectory
       )
-    case .mlx, .auto:
+    case .mlx:
       guard LocalModelCatalog.isBlessedModelReady() else {
         let message =
           "\(LocalModelCatalog.blessedModelID) is not downloaded. Run doctor or download the model in Compass settings."
@@ -1914,14 +1950,76 @@ public struct HeadlessCompassRunner: Sendable {
         base: runtime,
         promptLogDirectory: promptLogDirectory
       )
+    case .cloud, .auto:
+      let runtime = ModelRuntimeFactory.makeRouted(settings: settings)
+      if mode == .cloud {
+        guard settings.hasCloudCredentials else {
+          let message =
+            "OpenAI-compatible cloud endpoint is not configured. Set COMPASS_AGENT_API_KEY, COMPASS_AGENT_BASE_URL, and COMPASS_AGENT_MODEL."
+          onEvent(
+            HeadlessCompassEvent(
+              kind: "cloud_readiness",
+              level: "error",
+              status: "missing",
+              message: message,
+              metadata: [
+                "baseURL": settings.cloudEndpointDisplay(),
+                "model": settings.trimmedModel,
+              ]
+            )
+          )
+          throw HeadlessCompassError.cloudNotConfigured(message)
+        }
+      } else if runtime.cloud == nil && runtime.local == nil {
+        let message =
+          "No model backend is ready. Configure an OpenAI-compatible endpoint or download the local MLX model."
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "model_readiness",
+            level: "error",
+            status: "missing",
+            message: message
+          )
+        )
+        throw HeadlessCompassError.modelMissing(message)
+      }
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "model_runtime",
+          status: "ready",
+          message: mode == .cloud
+            ? "Using OpenAI-compatible cloud runtime."
+            : "Using routed cloud/local model runtime.",
+          metadata: [
+            "mode": mode.rawValue,
+            "cloudReady": runtime.cloud == nil ? "false" : "true",
+            "localAssistReady": runtime.local == nil ? "false" : "true",
+            "textProvider": settings.textProvider.rawValue,
+            "cloudModel": settings.trimmedModel,
+            "cloudBaseURL": settings.cloudEndpointDisplay(),
+          ]
+        )
+      )
+      guard let promptLogDirectory else { return runtime }
+      return PromptLoggingLocalModelRuntime(
+        base: runtime,
+        promptLogDirectory: promptLogDirectory
+      )
     }
   }
 
   private func resolveMode(_ mode: HeadlessModelMode) -> HeadlessModelMode {
     switch mode {
     case .auto:
-      return .mlx
-    case .fixture, .mlx:
+      let settings = AgentSettingsStore().load()
+      if settings.hasCloudCredentials {
+        return .cloud
+      }
+      if LocalModelCatalog.isBlessedModelReady() {
+        return .mlx
+      }
+      return .cloud
+    case .fixture, .mlx, .cloud:
       return mode
     }
   }
