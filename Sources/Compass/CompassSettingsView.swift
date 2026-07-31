@@ -55,7 +55,7 @@ private struct AgentSettingsTab: View {
         TextField("Base URL", text: $baseURLString)
           .textFieldStyle(.roundedBorder)
           .onSubmit { commitCloudFields() }
-          .help("OpenAI-compatible API root, e.g. https://api.moonshot.ai/v1")
+          .help("OpenAI-compatible API root, e.g. https://api.kimi.com/coding/v1")
 
         SecureField("API key", text: $apiKey)
           .textFieldStyle(.roundedBorder)

@@ -11,7 +11,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   static let defaultContextWindowTokens =
     AgentProviderKind.openAICompatible.defaultTextContextWindowTokens
   static let defaultBaseURLString =
-    AgentProviderKind.openAICompatible.defaultBaseURLString ?? "https://api.moonshot.ai/v1"
+    AgentProviderKind.openAICompatible.defaultBaseURLString ?? "https://api.kimi.com/coding/v1"
   static var defaultBaseURL: URL {
     URL(string: defaultBaseURLString) ?? URL(fileURLWithPath: "/")
   }

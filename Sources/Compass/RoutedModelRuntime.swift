@@ -76,7 +76,18 @@ struct RoutedModelRuntime: LocalModelGenerating, Sendable {
 
   func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
     let runtime = try selectRuntime(for: request.routingHint)
-    return try await runtime.generateText(request: request)
+    var resolvedRequest = request
+    if let local, isSameBackend(runtime, local) {
+      resolvedRequest.modelID = LocalModelCatalog.blessedModelID
+    }
+    return try await runtime.generateText(request: resolvedRequest)
+  }
+
+  private func isSameBackend(
+    _ lhs: any LocalModelGenerating,
+    _ rhs: any LocalModelGenerating
+  ) -> Bool {
+    (lhs as AnyObject) === (rhs as AnyObject)
   }
 
   func selectRuntime(for hint: ModelRoutingHint) throws -> any LocalModelGenerating {

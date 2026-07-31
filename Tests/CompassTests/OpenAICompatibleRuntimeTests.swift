@@ -81,6 +81,42 @@ struct OpenAICompatibleRuntimeTests {
   }
 
   @Test
+  func routedRuntimeRewritesModelIDWhenFallingBackToLocal() async throws {
+    let local = RecordingModelRuntime(name: "local")
+    let localOnly = RoutedModelRuntime(
+      cloud: nil,
+      local: local,
+      preferCloudWhenAvailable: true
+    )
+
+    _ = try await localOnly.generateText(
+      request: LocalModelGenerationRequest(
+        modelID: "",
+        systemPrompt: "sys",
+        prompt: "hi",
+        routingHint: .cloudPrimary
+      )
+    )
+    #expect(local.lastModelID == LocalModelCatalog.blessedModelID)
+
+    let cloud = RecordingModelRuntime(name: "cloud")
+    let both = RoutedModelRuntime(
+      cloud: cloud,
+      local: local,
+      preferCloudWhenAvailable: true
+    )
+    _ = try await both.generateText(
+      request: LocalModelGenerationRequest(
+        modelID: "cloud-model",
+        systemPrompt: "sys",
+        prompt: "hi",
+        routingHint: .cloudPrimary
+      )
+    )
+    #expect(cloud.lastModelID == "cloud-model")
+  }
+
+  @Test
   func settingsStoreLoadsCloudFieldsFromEnvironment() {
     let defaults = UserDefaults(suiteName: "CompassOpenAICompatibleRuntimeTests.\(UUID().uuidString)")!
     defer {
@@ -113,12 +149,14 @@ struct OpenAICompatibleRuntimeTests {
 
 private final class RecordingModelRuntime: LocalModelGenerating, @unchecked Sendable {
   let name: String
+  private(set) var lastModelID: String?
 
   init(name: String) {
     self.name = name
   }
 
   func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
-    LocalModelGenerationResult(text: name, tokenUsage: AgentRunTokenUsage())
+    lastModelID = request.modelID
+    return LocalModelGenerationResult(text: name, tokenUsage: AgentRunTokenUsage())
   }
 }

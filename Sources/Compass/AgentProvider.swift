@@ -20,7 +20,7 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
 
   var defaultBaseURLString: String? {
     switch self {
-    case .openAICompatible: return "https://api.moonshot.ai/v1"
+    case .openAICompatible: return "https://api.kimi.com/coding/v1"
     case .mlx: return nil
     }
   }
@@ -39,7 +39,7 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
     guard supports(capability) else { return nil }
     switch self {
     case .openAICompatible:
-      return nil
+      return "k3"
     case .mlx:
       return LocalModelCatalog.blessedModelID
     }
