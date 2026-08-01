@@ -1,14 +1,14 @@
 import Foundation
 
-struct DraftReadinessGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+public struct DraftReadinessGuideNarration: Equatable, Sendable {
+  public var guideIdentifier: String
+  public var text: String
 }
 
-enum DraftReadinessGuideNarrator {
-  static let maxCharacters = 300
+public enum DraftReadinessGuideNarrator {
+  public static let maxCharacters = 300
 
-  static func narrate(guide: DraftReadinessGuide) async -> DraftReadinessGuideNarration? {
+  public static func narrate(guide: DraftReadinessGuide) async -> DraftReadinessGuideNarration? {
     guard guide.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -32,7 +32,7 @@ enum DraftReadinessGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: DraftReadinessGuide) -> String {
+  public static func prompt(for guide: DraftReadinessGuide) -> String {
     """
     You are Compass coaching a rough planning draft for a non-engineer.
     Use only the facts below. Do not invent files, commands, acceptance criteria, deadlines, or outcomes.

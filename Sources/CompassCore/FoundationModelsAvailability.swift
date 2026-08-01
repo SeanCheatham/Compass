@@ -1,14 +1,14 @@
 import Foundation
 
 /// Describes why an Explore explanation could not be generated.
-enum ExplainUnavailableReason: Sendable, CaseIterable {
+public enum ExplainUnavailableReason: Sendable, CaseIterable {
   case foundationModelsUnavailable
   case noDiff
   case emptyDiff
   case emptyResponse
   case unavailable
 
-  var message: String {
+  public var message: String {
     switch self {
     case .foundationModelsUnavailable:
       return "Generated explanation is unavailable until a text model is configured."
@@ -29,15 +29,15 @@ enum ExplainUnavailableReason: Sendable, CaseIterable {
 /// Prefer MLX when downloaded; otherwise fall back to the configured
 /// OpenAI-compatible cloud endpoint. Agent Plan/Develop/Critic turns do not
 /// use this path — they go through `AgentExecutor` + `RoutedModelRuntime`.
-enum FoundationModelsAvailability {
-  static let generatedExploreUnavailableMessage =
+public enum FoundationModelsAvailability {
+  public static let generatedExploreUnavailableMessage =
     "Generated Explore insight is unavailable until a text model is configured. Deterministic change details remain available."
 
-  struct TextProvider: Sendable {
-    var isAvailable: @Sendable () -> Bool
-    var streamText: @Sendable (_ prompt: String) async -> String?
+  public struct TextProvider: Sendable {
+    public var isAvailable: @Sendable () -> Bool
+    public var streamText: @Sendable (_ prompt: String) async -> String?
 
-    init(
+    public init(
       isAvailable: @escaping @Sendable () -> Bool,
       streamText: @escaping @Sendable (_ prompt: String) async -> String?
     ) {
@@ -48,7 +48,7 @@ enum FoundationModelsAvailability {
 
   @TaskLocal private static var textProviderOverride: TextProvider?
 
-  static func withTextProvider<T>(
+  public static func withTextProvider<T>(
     _ provider: TextProvider,
     operation: () async throws -> T
   ) async rethrows -> T {
@@ -57,7 +57,7 @@ enum FoundationModelsAvailability {
     }
   }
 
-  static var isAvailable: Bool {
+  public static var isAvailable: Bool {
     if let textProviderOverride {
       return textProviderOverride.isAvailable()
     }
@@ -65,7 +65,7 @@ enum FoundationModelsAvailability {
     return settings.isTextCapabilityReady || settings.isLocalAssistReady
   }
 
-  static func _streamText(prompt: String) async -> String? {
+  public static func _streamText(prompt: String) async -> String? {
     if let textProviderOverride {
       return await textProviderOverride.streamText(prompt)
     }

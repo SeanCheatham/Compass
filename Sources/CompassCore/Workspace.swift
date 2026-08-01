@@ -1,41 +1,41 @@
 import Foundation
 
-struct CompassWorkspace {
-  var repoURL: URL
+public struct CompassWorkspace {
+  public var repoURL: URL
   private var injectedStorageRootURL: URL?
 
-  init(repoURL: URL, storageRootURL: URL? = nil) {
+  public init(repoURL: URL, storageRootURL: URL? = nil) {
     self.repoURL = repoURL
     self.injectedStorageRootURL = storageRootURL
   }
 
-  static func repoLocalStorageRootURL(for repoURL: URL) -> URL {
+  public static func repoLocalStorageRootURL(for repoURL: URL) -> URL {
     repoURL.appending(path: ".compass", directoryHint: .isDirectory)
   }
 
-  var repoLocalCompassURL: URL { Self.repoLocalStorageRootURL(for: repoURL) }
-  var storageRootURL: URL { injectedStorageRootURL ?? repoLocalCompassURL }
-  var compassURL: URL { storageRootURL }
-  var stateURL: URL { compassURL.appending(path: "state.json") }
-  var stateBackupURL: URL { compassURL.appending(path: "state.json.bak") }
-  var draftsURL: URL { compassURL.appending(path: "drafts.md") }
-  var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
-  var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
-  var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
-  var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
-  var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
-  var sessionRecordStore: SessionRecordStore {
+  public var repoLocalCompassURL: URL { Self.repoLocalStorageRootURL(for: repoURL) }
+  public var storageRootURL: URL { injectedStorageRootURL ?? repoLocalCompassURL }
+  public var compassURL: URL { storageRootURL }
+  public var stateURL: URL { compassURL.appending(path: "state.json") }
+  public var stateBackupURL: URL { compassURL.appending(path: "state.json.bak") }
+  public var draftsURL: URL { compassURL.appending(path: "drafts.md") }
+  public var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
+  public var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
+  public var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
+  public var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
+  public var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
+  public var sessionRecordStore: SessionRecordStore {
     SessionRecordStore(compassURL: compassURL)
   }
-  var isRepoLocalStorage: Bool {
+  public var isRepoLocalStorage: Bool {
     compassURL.standardizedFileURL.path == repoLocalCompassURL.standardizedFileURL.path
   }
 
-  static func isGitRepository(_ url: URL) -> Bool {
+  public static func isGitRepository(_ url: URL) -> Bool {
     FileManager.default.fileExists(atPath: url.appending(path: ".git").path)
   }
 
-  static func discover(from startURL: URL) -> URL? {
+  public static func discover(from startURL: URL) -> URL? {
     var current = startURL.standardizedFileURL
 
     while true {
@@ -49,12 +49,12 @@ struct CompassWorkspace {
     }
   }
 
-  static func normalizedURL(from path: String) -> URL {
+  public static func normalizedURL(from path: String) -> URL {
     URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
       .standardizedFileURL
   }
 
-  func initialize() throws {
+  public func initialize() throws {
     let fm = FileManager.default
     try fm.createDirectory(at: compassURL, withIntermediateDirectories: true)
     try fm.createDirectory(at: sessionsURL, withIntermediateDirectories: true)
@@ -70,7 +70,7 @@ struct CompassWorkspace {
     }
   }
 
-  func readState() throws -> PlanState {
+  public func readState() throws -> PlanState {
     guard FileManager.default.fileExists(atPath: stateURL.path) else {
       return .empty
     }
@@ -79,11 +79,11 @@ struct CompassWorkspace {
     return try JSONDecoder().decode(PlanState.self, from: data)
   }
 
-  func writeState(_ state: PlanState) throws {
+  public func writeState(_ state: PlanState) throws {
     try Self.encodeState(state).write(to: stateURL, atomically: true, encoding: .utf8)
   }
 
-  func backupStateFile() throws {
+  public func backupStateFile() throws {
     let fm = FileManager.default
     guard fm.fileExists(atPath: stateURL.path) else { return }
     if fm.fileExists(atPath: stateBackupURL.path) {
@@ -92,15 +92,15 @@ struct CompassWorkspace {
     try fm.copyItem(at: stateURL, to: stateBackupURL)
   }
 
-  func readDrafts() -> String {
+  public func readDrafts() -> String {
     (try? String(contentsOf: draftsURL, encoding: .utf8)) ?? ""
   }
 
-  func writeDrafts(_ text: String) throws {
+  public func writeDrafts(_ text: String) throws {
     try text.write(to: draftsURL, atomically: true, encoding: .utf8)
   }
 
-  func appendDraft(_ text: String) throws {
+  public func appendDraft(_ text: String) throws {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return }
 
@@ -116,7 +116,7 @@ struct CompassWorkspace {
     try writeDrafts(existing)
   }
 
-  func snapshotAndClearDrafts() throws -> String {
+  public func snapshotAndClearDrafts() throws -> String {
     let fm = FileManager.default
     let snapshotURL = draftsURL.deletingLastPathComponent()
       .appending(path: "\(draftsURL.lastPathComponent).snapshot")
@@ -137,16 +137,16 @@ struct CompassWorkspace {
     return (try? String(contentsOf: snapshotURL, encoding: .utf8)) ?? ""
   }
 
-  func readLessons() -> String {
+  public func readLessons() -> String {
     (try? String(contentsOf: lessonsURL, encoding: .utf8)) ?? ""
   }
 
-  func writeLessons(_ text: String) throws {
+  public func writeLessons(_ text: String) throws {
     try text.write(to: lessonsURL, atomically: true, encoding: .utf8)
   }
 
   /// Dry-run lesson edits against the current lessons file without writing.
-  func validateLessonEdits(_ edits: [LessonEdit]) throws {
+  public func validateLessonEdits(_ edits: [LessonEdit]) throws {
     guard !edits.isEmpty else { return }
     var current = readLessons()
     for edit in edits {
@@ -155,7 +155,7 @@ struct CompassWorkspace {
   }
 
   /// Validate `lessonEdits` embedded in a phase submit payload.
-  func validateSubmitResultLessonEdits(_ submitResultJSON: Data) throws {
+  public func validateSubmitResultLessonEdits(_ submitResultJSON: Data) throws {
     let payload = try JSONDecoder().decode(
       SubmitResultLessonEditsPayload.self,
       from: submitResultJSON
@@ -164,7 +164,7 @@ struct CompassWorkspace {
   }
 
   @discardableResult
-  func applyLessonEdits(_ edits: [LessonEdit]) throws -> Int {
+  public func applyLessonEdits(_ edits: [LessonEdit]) throws -> Int {
     guard !edits.isEmpty else { return 0 }
     var current = readLessons()
     var applied = 0
@@ -212,15 +212,15 @@ struct CompassWorkspace {
     return updated
   }
 
-  func readVision() -> String {
+  public func readVision() -> String {
     (try? String(contentsOf: visionURL, encoding: .utf8)) ?? ""
   }
 
-  func writeVision(_ text: String) throws {
+  public func writeVision(_ text: String) throws {
     try text.write(to: visionURL, atomically: true, encoding: .utf8)
   }
 
-  func readSessions(includeArchived: Bool = false) -> [SessionRecord] {
+  public func readSessions(includeArchived: Bool = false) -> [SessionRecord] {
     let store = sessionRecordStore
     if includeArchived {
       return store.readAllSessions()
@@ -228,27 +228,27 @@ struct CompassWorkspace {
     return store.readActiveSessions()
   }
 
-  func readArchivedSessions() -> [SessionRecord] {
+  public func readArchivedSessions() -> [SessionRecord] {
     sessionRecordStore.readArchivedSessions()
   }
 
-  func hasArchivedSessions() -> Bool {
+  public func hasArchivedSessions() -> Bool {
     sessionRecordStore.hasArchivedSessions()
   }
 
-  func maxSessionNumber() -> Int {
+  public func maxSessionNumber() -> Int {
     sessionRecordStore.maxSessionNumber()
   }
 
-  func previousSessionFeedback(excluding session: Int, activeSessions: [SessionRecord]) -> String {
+  public func previousSessionFeedback(excluding session: Int, activeSessions: [SessionRecord]) -> String {
     sessionRecordStore.previousFeedback(excluding: session, activeSessions: activeSessions)
   }
 
-  func writeSessions(_ records: [SessionRecord]) throws {
+  public func writeSessions(_ records: [SessionRecord]) throws {
     try sessionRecordStore.writeActiveSessions(records)
   }
 
-  func writeSessionArtifact(session: Int, name: String, contents: String) throws -> URL {
+  public func writeSessionArtifact(session: Int, name: String, contents: String) throws -> URL {
     try FileManager.default.createDirectory(at: sessionsURL, withIntermediateDirectories: true)
     let safeName =
       name
@@ -259,22 +259,22 @@ struct CompassWorkspace {
     return url
   }
 
-  func sessionAuditDirectoryURL(session: Int) -> URL {
+  public func sessionAuditDirectoryURL(session: Int) -> URL {
     sessionsURL.appending(
       path: Self.sessionAuditDirectoryName(session),
       directoryHint: .isDirectory
     )
   }
 
-  func sessionAuditManifestURL(session: Int) -> URL {
+  public func sessionAuditManifestURL(session: Int) -> URL {
     sessionAuditDirectoryURL(session: session).appending(path: "manifest.json")
   }
 
-  func sessionAuditEventsURL(session: Int) -> URL {
+  public func sessionAuditEventsURL(session: Int) -> URL {
     sessionAuditDirectoryURL(session: session).appending(path: "events.jsonl")
   }
 
-  func sessionAuditEventCount(session: Int) -> Int {
+  public func sessionAuditEventCount(session: Int) -> Int {
     let url = sessionAuditEventsURL(session: session)
     guard let text = try? String(contentsOf: url, encoding: .utf8), !text.isEmpty else {
       return 0
@@ -282,13 +282,13 @@ struct CompassWorkspace {
     return text.split(whereSeparator: \.isNewline).count
   }
 
-  func readSessionAuditManifest(session: Int) -> SessionAuditManifest? {
+  public func readSessionAuditManifest(session: Int) -> SessionAuditManifest? {
     let url = sessionAuditManifestURL(session: session)
     guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
     return try? JSONDecoder().decode(SessionAuditManifest.self, from: data)
   }
 
-  func writeSessionAuditManifest(_ manifest: SessionAuditManifest) throws {
+  public func writeSessionAuditManifest(_ manifest: SessionAuditManifest) throws {
     try FileManager.default.createDirectory(
       at: sessionAuditDirectoryURL(session: manifest.session),
       withIntermediateDirectories: true
@@ -299,7 +299,7 @@ struct CompassWorkspace {
     try data.write(to: sessionAuditManifestURL(session: manifest.session), options: .atomic)
   }
 
-  func updateSessionAuditManifest(
+  public func updateSessionAuditManifest(
     session: Int,
     status: SessionStatus?,
     startedAt: Double?,
@@ -317,7 +317,7 @@ struct CompassWorkspace {
     try writeSessionAuditManifest(manifest)
   }
 
-  func appendSessionAuditEvent(_ event: SessionAuditEvent) throws {
+  public func appendSessionAuditEvent(_ event: SessionAuditEvent) throws {
     try FileManager.default.createDirectory(
       at: sessionAuditDirectoryURL(session: event.session),
       withIntermediateDirectories: true
@@ -336,7 +336,7 @@ struct CompassWorkspace {
     try handle.write(contentsOf: Data("\n".utf8))
   }
 
-  func writeSessionAuditArtifact(
+  public func writeSessionAuditArtifact(
     session: Int,
     name: String,
     kind: String,
@@ -352,7 +352,7 @@ struct CompassWorkspace {
     )
   }
 
-  func writeSessionAuditArtifactData(
+  public func writeSessionAuditArtifactData(
     session: Int,
     name: String,
     kind: String,
@@ -380,11 +380,11 @@ struct CompassWorkspace {
     return url
   }
 
-  func sessionAuditRelativePath(session: Int, fileName: String) -> String {
+  public func sessionAuditRelativePath(session: Int, fileName: String) -> String {
     "sessions/\(Self.sessionAuditDirectoryName(session))/\(fileName)"
   }
 
-  static func encodeState(_ state: PlanState) throws -> String {
+  public static func encodeState(_ state: PlanState) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(state)
@@ -411,11 +411,11 @@ struct CompassWorkspace {
     return directory.appending(path: "\(UUID().uuidString)-\(safeName)")
   }
 
-  static func sessionAuditDirectoryName(_ session: Int) -> String {
+  public static func sessionAuditDirectoryName(_ session: Int) -> String {
     String(format: "%06d", max(0, session))
   }
 
-  static func safeSessionAuditFileName(_ name: String) -> String {
+  public static func safeSessionAuditFileName(_ name: String) -> String {
     let invalid = CharacterSet(charactersIn: "/:\\")
       .union(.newlines)
       .union(.controlCharacters)
@@ -424,7 +424,7 @@ struct CompassWorkspace {
     return safe.isEmpty ? "artifact.txt" : safe
   }
 
-  static func encodeProposal(_ proposal: PlanProposal) throws -> String {
+  public static func encodeProposal(_ proposal: PlanProposal) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(proposal)
@@ -458,14 +458,14 @@ struct CompassWorkspace {
 }
 
 private struct SubmitResultLessonEditsPayload: Decodable {
-  var lessonEdits: [LessonEdit]
+  public var lessonEdits: [LessonEdit]
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case lessonEdits
     case lessonEditsSnake = "lesson_edits"
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     lessonEdits =
       try FlexibleModelDecoder.decodeLessonEditsIfPresent(
@@ -479,7 +479,7 @@ private struct SubmitResultLessonEditsPayload: Decodable {
 private enum CompassWorkspaceError: LocalizedError {
   case lessonEditFailed(String)
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .lessonEditFailed(let message):
       return message

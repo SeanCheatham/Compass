@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import CompassCore
 
 @MainActor
 final class CompassProject: ObservableObject, Identifiable {

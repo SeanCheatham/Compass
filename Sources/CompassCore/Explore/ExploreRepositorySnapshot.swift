@@ -42,19 +42,19 @@ import Foundation
 
 /// A node in a repository directory tree produced by `CodemapFileSystem` or
 /// `ExploreTreeBuilder`.
-struct FileTreeNode: Identifiable, Equatable, Sendable {
-  let relativePath: String
-  let isDirectory: Bool
-  let language: CodemapLanguage?
-  var children: [FileTreeNode]
+public struct FileTreeNode: Identifiable, Equatable, Sendable {
+  public let relativePath: String
+  public let isDirectory: Bool
+  public let language: CodemapLanguage?
+  public var children: [FileTreeNode]
 
-  var id: String { relativePath }
+  public var id: String { relativePath }
 
-  var name: String {
+  public var name: String {
     (relativePath as NSString).lastPathComponent
   }
 
-  var folderSummary: String? {
+  public var folderSummary: String? {
     guard isDirectory else { return nil }
     let fileCount = children.filter { !$0.isDirectory }.count
     guard fileCount > 0 else { return nil }
@@ -63,34 +63,34 @@ struct FileTreeNode: Identifiable, Equatable, Sendable {
 }
 
 /// Cached repository snapshot payload.
-struct ExploreRepositorySnapshot: Sendable, Equatable {
-  let fileTree: [FileTreeNode]
-  let codemapEntries: [String: CodemapEntry]
+public struct ExploreRepositorySnapshot: Sendable, Equatable {
+  public let fileTree: [FileTreeNode]
+  public let codemapEntries: [String: CodemapEntry]
 }
 
 /// In-memory cache so repeated repository-inspection requests do not rebuild
 /// the tree from scratch.
-final class ExploreRepositorySnapshotCache: @unchecked Sendable {
-  static let shared = ExploreRepositorySnapshotCache()
+public final class ExploreRepositorySnapshotCache: @unchecked Sendable {
+  public static let shared = ExploreRepositorySnapshotCache()
 
   private let lock = NSLock()
   private var storage: [String: ExploreRepositorySnapshot] = [:]
 
-  func snapshot(for repoURL: URL) -> ExploreRepositorySnapshot? {
+  public func snapshot(for repoURL: URL) -> ExploreRepositorySnapshot? {
     lock.lock()
     defer { lock.unlock() }
     return storage[repoURL.standardizedFileURL.path]
   }
 
-  func store(_ snapshot: ExploreRepositorySnapshot, for repoURL: URL) {
+  public func store(_ snapshot: ExploreRepositorySnapshot, for repoURL: URL) {
     lock.lock()
     defer { lock.unlock() }
     storage[repoURL.standardizedFileURL.path] = snapshot
   }
 }
 
-enum ExploreRepositorySnapshotLoader {
-  static func load(repoURL: URL, codemapDirectory: URL) -> ExploreRepositorySnapshot {
+public enum ExploreRepositorySnapshotLoader {
+  public static func load(repoURL: URL, codemapDirectory: URL) -> ExploreRepositorySnapshot {
     let fileTree = ExploreTreeBuilder.buildSourceTree(repoURL: repoURL)
     let store = CodemapStore(directory: codemapDirectory)
     let allPaths = ExploreTreeBuilder.allFilePaths(in: fileTree)
@@ -105,8 +105,8 @@ enum ExploreRepositorySnapshotLoader {
   }
 }
 
-enum ExploreTreeBuilder {
-  static func buildSourceTree(repoURL: URL) -> [FileTreeNode] {
+public enum ExploreTreeBuilder {
+  public static func buildSourceTree(repoURL: URL) -> [FileTreeNode] {
     let paths = GitSourcePaths.sourcePaths(in: repoURL)
     if paths.isEmpty {
       return CodemapFileSystem(rootURL: repoURL).buildSourceTree()
@@ -114,7 +114,7 @@ enum ExploreTreeBuilder {
     return buildTree(fromSourcePaths: paths)
   }
 
-  static func buildTree(fromSourcePaths paths: [String]) -> [FileTreeNode] {
+  public static func buildTree(fromSourcePaths paths: [String]) -> [FileTreeNode] {
     var roots: [FileTreeNode] = []
     for path in paths.sorted(by: {
       $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
@@ -124,7 +124,7 @@ enum ExploreTreeBuilder {
     return sortNodes(roots)
   }
 
-  static func allFilePaths(in nodes: [FileTreeNode]) -> [String] {
+  public static func allFilePaths(in nodes: [FileTreeNode]) -> [String] {
     nodes.flatMap { node -> [String] in
       if node.isDirectory {
         return allFilePaths(in: node.children)
@@ -208,7 +208,7 @@ enum ExploreTreeBuilder {
 }
 
 private enum GitSourcePaths {
-  static func sourcePaths(in repoURL: URL) -> [String] {
+  public static func sourcePaths(in repoURL: URL) -> [String] {
     guard let listing = runGitLsFiles(repoURL: repoURL) else { return [] }
     return
       listing

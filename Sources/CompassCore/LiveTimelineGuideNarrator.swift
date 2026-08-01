@@ -1,14 +1,14 @@
 import Foundation
 
-struct LiveTimelineGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+public struct LiveTimelineGuideNarration: Equatable, Sendable {
+  public var guideIdentifier: String
+  public var text: String
 }
 
-enum LiveTimelineGuideNarrator {
-  static let maxCharacters = 340
+public enum LiveTimelineGuideNarrator {
+  public static let maxCharacters = 340
 
-  static func narrate(guide: LiveTimelineGuide) async -> LiveTimelineGuideNarration? {
+  public static func narrate(guide: LiveTimelineGuide) async -> LiveTimelineGuideNarration? {
     guard guide.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -31,7 +31,7 @@ enum LiveTimelineGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: LiveTimelineGuide) -> String {
+  public static func prompt(for guide: LiveTimelineGuide) -> String {
     """
     You are Compass explaining the Live timeline to a non-engineer.
     Use only the facts below. Do not invent project facts, commands, files, outcomes, or next steps.

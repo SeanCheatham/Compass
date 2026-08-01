@@ -5,13 +5,13 @@ import Foundation
 /// the entry's `relativePath`, so two files with similar names never
 /// collide. Concurrent indexers can write different entries in parallel
 /// without coordinating.
-struct CodemapStore: Sendable {
+public struct CodemapStore: Sendable {
   /// Directory the store owns. Created lazily on first write.
-  let directory: URL
+  public let directory: URL
   /// Set to true in tests to assert structured logging when entries change.
-  let prettyPrint: Bool
+  public let prettyPrint: Bool
 
-  init(directory: URL, prettyPrint: Bool = false) {
+  public init(directory: URL, prettyPrint: Bool = false) {
     self.directory = directory.standardizedFileURL
     self.prettyPrint = prettyPrint
   }
@@ -19,7 +19,7 @@ struct CodemapStore: Sendable {
   /// Default location: `<workspaceCompass>/codemap/`. The store mirrors the
   /// rest of `.compass/` so the cache moves with whatever storage root the
   /// workspace picks.
-  static func defaultDirectory(forWorkspace workspace: CompassWorkspace) -> URL {
+  public static func defaultDirectory(forWorkspace workspace: CompassWorkspace) -> URL {
     workspace.compassURL
       .appending(path: "codemap", directoryHint: .isDirectory)
       .standardizedFileURL
@@ -27,12 +27,12 @@ struct CodemapStore: Sendable {
 
   /// Absolute path the entry for `relativePath` lives at, whether or not
   /// the file currently exists.
-  func entryURL(forRelativePath relativePath: String) -> URL {
+  public func entryURL(forRelativePath relativePath: String) -> URL {
     directory.appending(path: filename(for: relativePath))
   }
 
   /// Disk filename for `relativePath`. Public so tests can verify naming.
-  func filename(for relativePath: String) -> String {
+  public func filename(for relativePath: String) -> String {
     "\(CodemapHash.sha256Hex(relativePath)).json"
   }
 
@@ -40,7 +40,7 @@ struct CodemapStore: Sendable {
   /// Decode failures (corrupt JSON, schema mismatch from an older build)
   /// return nil rather than throwing so a stale cache file silently
   /// triggers a re-parse.
-  func loadEntry(forRelativePath relativePath: String) -> CodemapEntry? {
+  public func loadEntry(forRelativePath relativePath: String) -> CodemapEntry? {
     let url = entryURL(forRelativePath: relativePath)
     guard let data = try? Data(contentsOf: url), !data.isEmpty else {
       return nil
@@ -50,7 +50,7 @@ struct CodemapStore: Sendable {
 
   /// Atomically replace the on-disk entry for `entry.relativePath`. Creates
   /// the codemap directory on first write.
-  func saveEntry(_ entry: CodemapEntry) throws {
+  public func saveEntry(_ entry: CodemapEntry) throws {
     try ensureDirectoryExists()
     let url = entryURL(forRelativePath: entry.relativePath)
     let encoder = JSONEncoder()
@@ -65,7 +65,7 @@ struct CodemapStore: Sendable {
 
   /// Delete the entry for `relativePath`. Idempotent — missing files are
   /// silently OK.
-  func deleteEntry(forRelativePath relativePath: String) throws {
+  public func deleteEntry(forRelativePath relativePath: String) throws {
     let url = entryURL(forRelativePath: relativePath)
     let fm = FileManager.default
     if fm.fileExists(atPath: url.path) {
@@ -75,7 +75,7 @@ struct CodemapStore: Sendable {
 
   /// Iterate every entry on disk. Returns lazily-loaded pairs so a caller
   /// pruning stale entries doesn't have to hold them all in memory.
-  func allEntryURLs() -> [URL] {
+  public func allEntryURLs() -> [URL] {
     let fm = FileManager.default
     guard
       let names = try? fm.contentsOfDirectory(atPath: directory.path)
@@ -87,7 +87,7 @@ struct CodemapStore: Sendable {
   /// Decode every entry currently on disk. Skips files that fail to
   /// decode; callers that need to detect corruption should iterate
   /// `allEntryURLs()` directly.
-  func loadAllEntries() -> [CodemapEntry] {
+  public func loadAllEntries() -> [CodemapEntry] {
     allEntryURLs().compactMap { url in
       guard let data = try? Data(contentsOf: url), !data.isEmpty else {
         return nil
@@ -96,7 +96,7 @@ struct CodemapStore: Sendable {
     }
   }
 
-  func ensureDirectoryExists() throws {
+  public func ensureDirectoryExists() throws {
     let fm = FileManager.default
     var isDirectory: ObjCBool = false
     if fm.fileExists(atPath: directory.path, isDirectory: &isDirectory) {

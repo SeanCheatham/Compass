@@ -1,27 +1,27 @@
 import Foundation
 
-struct PlanHandoffRepairGuide: Equatable, Sendable {
-  static let templateLimit = 720
-  static let identifierLimit = 1_200
+public struct PlanHandoffRepairGuide: Equatable, Sendable {
+  public static let templateLimit = 720
+  public static let identifierLimit = 1_200
 
-  var status: Status
-  var title: String
-  var detail: String
-  var scoreLabel: String
-  var steps: [Step]
-  var suggestedVerifyCommand: String?
-  var planTemplate: String?
-  var narrationIdentifier: String
+  public var status: Status
+  public var title: String
+  public var detail: String
+  public var scoreLabel: String
+  public var steps: [Step]
+  public var suggestedVerifyCommand: String?
+  public var planTemplate: String?
+  public var narrationIdentifier: String
 
-  var shouldShow: Bool {
+  public var shouldShow: Bool {
     status != .ready
   }
 
-  var allowsNarration: Bool {
+  public var allowsNarration: Bool {
     shouldShow && !narrationIdentifier.isEmpty
   }
 
-  init(
+  public init(
     plan rawPlan: String?,
     verify rawVerify: String?,
     languageProfile: RepositoryLanguageProfile
@@ -119,12 +119,12 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     )
   }
 
-  enum Status: Equatable, Sendable {
+  public enum Status: Equatable, Sendable {
     case missingHandoff
     case needsRepair
     case ready
 
-    var narrationKey: String {
+    public var narrationKey: String {
       switch self {
       case .missingHandoff:
         return "missingHandoff"
@@ -136,25 +136,25 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     }
   }
 
-  struct Step: Identifiable, Equatable, Sendable {
-    var kind: Kind
-    var isSatisfied: Bool
-    var detail: String
+  public struct Step: Identifiable, Equatable, Sendable {
+    public var kind: Kind
+    public var isSatisfied: Bool
+    public var detail: String
 
-    var id: Kind { kind }
-    var title: String { kind.title }
-    var systemImage: String { isSatisfied ? "checkmark.circle.fill" : kind.systemImage }
-    var isRequired: Bool { kind.isRequired }
+    public var id: Kind { kind }
+    public var title: String { kind.title }
+    public var systemImage: String { isSatisfied ? "checkmark.circle.fill" : kind.systemImage }
+    public var isRequired: Bool { kind.isRequired }
   }
 
-  enum Kind: Equatable, Sendable {
+  public enum Kind: Equatable, Sendable {
     case outcome
     case acceptanceChecks
     case verifyCommand
     case coverageReadyVerify
     case whyItMatters
 
-    var title: String {
+    public var title: String {
       switch self {
       case .outcome:
         return "Outcome"
@@ -169,7 +169,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       }
     }
 
-    var systemImage: String {
+    public var systemImage: String {
       switch self {
       case .outcome:
         return "target"
@@ -184,7 +184,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       }
     }
 
-    var isRequired: Bool {
+    public var isRequired: Bool {
       switch self {
       case .outcome, .acceptanceChecks, .verifyCommand, .coverageReadyVerify:
         return true
@@ -301,7 +301,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
   }
 }
 
-extension PlanHandoffRepairGuide.Kind {
+public extension PlanHandoffRepairGuide.Kind {
   fileprivate var narrationKey: String {
     switch self {
     case .outcome:

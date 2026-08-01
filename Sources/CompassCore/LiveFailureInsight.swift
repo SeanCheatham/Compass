@@ -1,10 +1,10 @@
 import Foundation
 
-struct LiveFailureInsight: Equatable, Sendable {
-  static let detailLimit = 420
-  static let identifierLimit = 1_200
+public struct LiveFailureInsight: Equatable, Sendable {
+  public static let detailLimit = 420
+  public static let identifierLimit = 1_200
 
-  enum Kind: String, Equatable, Sendable {
+  public enum Kind: String, Equatable, Sendable {
     case argumentRepair
     case resultContractRepair
     case safetyGate
@@ -24,18 +24,18 @@ struct LiveFailureInsight: Equatable, Sendable {
     case generic
   }
 
-  var kind: Kind
-  var title: String
-  var explanation: String
-  var nextStep: String
-  var badge: String
-  var repairOwner: RepairOwner
-  var systemImageName: String
-  var lineTitle: String
-  var detail: String
-  var narrationIdentifier: String
+  public var kind: Kind
+  public var title: String
+  public var explanation: String
+  public var nextStep: String
+  public var badge: String
+  public var repairOwner: RepairOwner
+  public var systemImageName: String
+  public var lineTitle: String
+  public var detail: String
+  public var narrationIdentifier: String
 
-  init?(line: LiveLine) {
+  public init?(line: LiveLine) {
     guard line.status == .failed || line.level == .error else { return nil }
 
     let lineTitle = Self.normalized(line.text)
@@ -64,16 +64,16 @@ struct LiveFailureInsight: Equatable, Sendable {
     )
   }
 
-  var allowsNarration: Bool {
+  public var allowsNarration: Bool {
     !narrationIdentifier.isEmpty
   }
 
-  struct RepairOwner: Equatable, Sendable {
-    static let detailLimit = 180
+  public struct RepairOwner: Equatable, Sendable {
+    public static let detailLimit = 180
 
-    var label: String
-    var detail: String
-    var systemImageName: String
+    public var label: String
+    public var detail: String
+    public var systemImageName: String
   }
 
   private static func normalized(_ text: String) -> String {
@@ -517,17 +517,17 @@ struct LiveFailureInsight: Equatable, Sendable {
   }
 }
 
-struct LiveFailureInsightNarration: Equatable, Sendable {
-  var insightIdentifier: String
-  var text: String
+public struct LiveFailureInsightNarration: Equatable, Sendable {
+  public var insightIdentifier: String
+  public var text: String
 }
 
-struct LiveFailureInsightClipboardPayload: Equatable, Sendable {
-  static let textLimit = 2_600
+public struct LiveFailureInsightClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 2_600
 
-  var text: String
+  public var text: String
 
-  init(insight: LiveFailureInsight) {
+  public init(insight: LiveFailureInsight) {
     let sections = [
       "Compass Live Failure Handoff",
       "",
@@ -561,13 +561,13 @@ struct LiveFailureInsightClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum LiveFailureInsightClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  public static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }
@@ -577,10 +577,10 @@ private enum LiveFailureInsightClipboardText {
   }
 }
 
-enum LiveFailureInsightNarrator {
-  static let maxCharacters = 340
+public enum LiveFailureInsightNarrator {
+  public static let maxCharacters = 340
 
-  static func narrate(insight: LiveFailureInsight) async -> LiveFailureInsightNarration? {
+  public static func narrate(insight: LiveFailureInsight) async -> LiveFailureInsightNarration? {
     guard insight.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -603,7 +603,7 @@ enum LiveFailureInsightNarrator {
     return nil
   }
 
-  static func prompt(for insight: LiveFailureInsight) -> String {
+  public static func prompt(for insight: LiveFailureInsight) -> String {
     """
     You are Compass explaining one failed live event to a non-engineer.
     Use only the facts below. Do not invent project facts, files, commands, outcomes, or promises.

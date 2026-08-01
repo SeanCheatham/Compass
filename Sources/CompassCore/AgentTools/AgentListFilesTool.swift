@@ -5,15 +5,15 @@ import Foundation
 /// narrowed by a substring or glob-like filter on the relative path. The
 /// output is one path per line with the detected language so the model can
 /// quickly find candidates without paging through `glob`.
-struct AgentListFilesTool: AgentTool {
-  static let toolName = "list_files"
-  static let maxResults = 500
-  static let liveWalkCap = 20_000
+public struct AgentListFilesTool: AgentTool {
+  public static let toolName = "list_files"
+  public static let maxResults = 500
+  public static let liveWalkCap = 20_000
 
-  struct Arguments: Decodable {
-    let filter: String?
+  public struct Arguments: Decodable {
+    public let filter: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case filter
       case query
       case search
@@ -28,7 +28,7 @@ struct AgentListFilesTool: AgentTool {
       case fileNameSnake = "file_name"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       filter = try FlexibleModelDecoder.decodeStringIfPresent(
         from: container,
@@ -41,9 +41,9 @@ struct AgentListFilesTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -63,7 +63,7 @@ struct AgentListFilesTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -121,9 +121,9 @@ struct AgentListFilesTool: AgentTool {
   }
 
   private struct ListedFile {
-    let relativePath: String
-    let language: CodemapLanguage
-    let symbolCount: Int?
+    public let relativePath: String
+    public let language: CodemapLanguage
+    public let symbolCount: Int?
   }
 
   private static func liveSourceFiles(context: AgentToolContext) async -> [ListedFile] {

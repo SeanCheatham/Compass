@@ -1,6 +1,6 @@
 import Foundation
 
-extension Prompts {
+public extension Prompts {
   static func developPrompt(
     next: PlanNext,
     lessons: String,
@@ -9,7 +9,8 @@ extension Prompts {
     attempt: Int,
     priorIssues: [String],
     criticFeedback: [String] = [],
-    hostXcodeBuildTestEnabled: Bool = false
+    hostXcodeBuildTestEnabled: Bool = false,
+    promptMode: AgentPromptMode = .envelope
   ) -> String {
     let criticSection =
       criticFeedback.isEmpty
@@ -18,6 +19,38 @@ extension Prompts {
         + criticFeedback.enumerated()
           .map { "Review \($0.offset + 1):\n\($0.element)" }
           .joined(separator: "\n\n")
+
+    let submitSection =
+      promptMode == .nativeTools
+      ? """
+      Finish by calling the `develop_submit` tool with these arguments:
+      {
+        "status": "succeeded",
+        "summary": "<what changed or what blocked the work>",
+        "feedback": "<smallest next action or no follow-up; verified \(GeneratedProjectQuality.standardVerifyCommand)>",
+        "bypassVerify": false,
+        "lessonEdits": []
+      }
+
+      """
+      : """
+      Finish with exactly this envelope:
+      {
+        "kind": "develop_submit",
+        "payload": {
+          "status": "succeeded",
+          "summary": "<what changed or what blocked the work>",
+          "feedback": "<smallest next action or no follow-up; verified \(GeneratedProjectQuality.standardVerifyCommand)>",
+          "bypassVerify": false,
+          "lessonEdits": []
+        }
+      }
+
+      """
+    let closingLine =
+      promptMode == .nativeTools
+      ? "Use the Compass tools to implement and verify, then call `develop_submit`."
+      : "Use `develop_continue` to request one Compass tool at a time while implementing."
 
     return """
       You are the Develop agent in Compass, a local software factory. Implement exactly the
@@ -42,7 +75,7 @@ extension Prompts {
       - Before `edit_file`, read the exact target file in this Develop session. If a path
         is missing, use `list_files` or `glob` to find the existing target; use
         `write_file` only when the plan explicitly requires a new file.
-      - End with one `develop_submit` JSON envelope.
+      - End with one `develop_submit`\(promptMode == .nativeTools ? " tool call" : " JSON envelope").
 
       \(lessonEditsGuidance())
 
@@ -68,19 +101,7 @@ extension Prompts {
       ## Project context
       \(fencedOrEmpty(vision, empty: "_(no project context set)_"))\(criticSection)
 
-      Finish with exactly this envelope:
-      {
-        "kind": "develop_submit",
-        "payload": {
-          "status": "succeeded",
-          "summary": "<what changed or what blocked the work>",
-          "feedback": "<smallest next action or no follow-up; verified \(GeneratedProjectQuality.standardVerifyCommand)>",
-          "bypassVerify": false,
-          "lessonEdits": []
-        }
-      }
-
-      Use `develop_continue` to request one Compass tool at a time while implementing.
+      \(submitSection)\(closingLine)
       """
   }
 

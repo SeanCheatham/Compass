@@ -1,15 +1,15 @@
 import Foundation
 
-struct DraftStarterTemplate: Equatable, Sendable {
-  static let textLimit = 1_100
+public struct DraftStarterTemplate: Equatable, Sendable {
+  public static let textLimit = 1_100
 
-  var title: String
-  var text: String
-  var systemImage: String
-  var isEnabled: Bool
-  var helpText: String
+  public var title: String
+  public var text: String
+  public var systemImage: String
+  public var isEnabled: Bool
+  public var helpText: String
 
-  init(draft: String) {
+  public init(draft: String) {
     let normalizedDraft = DraftRefinementService.normalizeDraft(draft)
     let guide = DraftReadinessGuide(draft: normalizedDraft)
 
@@ -71,7 +71,7 @@ struct DraftStarterTemplate: Equatable, Sendable {
   }
 }
 
-extension DraftReadinessGuide {
+public extension DraftReadinessGuide {
   var missingSignalKinds: [Kind] {
     cues.filter { !$0.isSatisfied }.map(\.kind)
   }

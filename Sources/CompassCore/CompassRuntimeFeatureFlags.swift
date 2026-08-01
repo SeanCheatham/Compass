@@ -1,14 +1,14 @@
 import Foundation
 
-struct CompassRuntimeFeatureFlags: Equatable, Sendable {
-  var foundationModelsOnly: Bool
+public struct CompassRuntimeFeatureFlags: Equatable, Sendable {
+  public var foundationModelsOnly: Bool
 
-  init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+  public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
     _ = environment
     foundationModelsOnly = true
   }
 
-  var copyText: String {
+  public var copyText: String {
     "foundationModelsOnly=\(foundationModelsOnly)"
   }
 }

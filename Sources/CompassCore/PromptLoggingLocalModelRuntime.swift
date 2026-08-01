@@ -1,16 +1,16 @@
 import Foundation
 
-actor PromptLoggingLocalModelRuntime: LocalModelGenerating {
+public actor PromptLoggingLocalModelRuntime: LocalModelGenerating {
   private let base: any LocalModelGenerating
   private let promptLogDirectory: URL
   private var turn = 0
 
-  init(base: any LocalModelGenerating, promptLogDirectory: URL) {
+  public init(base: any LocalModelGenerating, promptLogDirectory: URL) {
     self.base = base
     self.promptLogDirectory = promptLogDirectory
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
     turn += 1
     let currentTurn = turn
     let artifacts = try PromptLogWriter.writePromptLog(
@@ -42,16 +42,16 @@ actor PromptLoggingLocalModelRuntime: LocalModelGenerating {
   }
 }
 
-struct PromptLogArtifacts: Equatable, Sendable {
-  var turn: Int
-  var label: String?
-  var systemFilename: String
-  var promptFilename: String
-  var outputFilename: String
+public struct PromptLogArtifacts: Equatable, Sendable {
+  public var turn: Int
+  public var label: String?
+  public var systemFilename: String
+  public var promptFilename: String
+  public var outputFilename: String
 }
 
-enum PromptLogWriter {
-  static func writePromptLog(
+public enum PromptLogWriter {
+  public static func writePromptLog(
     request: LocalModelGenerationRequest,
     turn: Int,
     in promptLogDirectory: URL
@@ -82,7 +82,7 @@ enum PromptLogWriter {
     return artifacts
   }
 
-  static func writeOutputLog(
+  public static func writeOutputLog(
     _ output: String,
     request: LocalModelGenerationRequest,
     artifacts: PromptLogArtifacts,
@@ -156,15 +156,79 @@ enum PromptLogWriter {
 }
 
 private struct PromptLogIndexEntry: Encodable {
-  var turn: Int
-  var label: String?
-  var status: String
-  var modelID: String
-  var systemFilename: String
-  var promptFilename: String
-  var outputFilename: String
-  var inputCharacters: Int
-  var outputCharacters: Int
-  var maxOutputTokens: Int
-  var error: String?
+  public var turn: Int
+  public var label: String?
+  public var status: String
+  public var modelID: String
+  public var systemFilename: String
+  public var promptFilename: String
+  public var outputFilename: String
+  public var inputCharacters: Int
+  public var outputCharacters: Int
+  public var maxOutputTokens: Int
+  public var error: String?
+}
+
+extension PromptLoggingLocalModelRuntime: AgentChatGenerating {
+  /// The wrapped backend's native tool-calling interface, when it has one.
+  /// Kept as a separate probe so `ModelRuntimeFactory.promptMode` doesn't
+  /// treat text-only wrapped backends (fixtures) as chat-capable.
+  nonisolated public var chatBase: (any AgentChatGenerating)? {
+    if let routed = base as? RoutedModelRuntime {
+      return routed.chatBackend(for: .cloudPrimary)
+    }
+    return base as? AgentChatGenerating
+  }
+
+  public func generateChat(request: AgentChatRequest) async throws -> AgentChatResponse {
+    guard let chatBase else {
+      throw AgentExecutionError.streamFailed(
+        "Wrapped runtime does not support native tool calling."
+      )
+    }
+    turn += 1
+    let currentTurn = turn
+    let systemText = request.messages.filter { $0.role == .system }.map(\.content).joined(separator: "\n\n")
+    let conversationText = request.messages.filter { $0.role != .system }.map { message -> String in
+      let calls = message.toolCalls.map { "  tool_call: \($0.name) \($0.argumentsJSON)" }.joined(separator: "\n")
+      return "### \(message.role.rawValue)\n\(message.content)\(calls.isEmpty ? "" : "\n\(calls)")"
+    }.joined(separator: "\n\n")
+    let loggingRequest = LocalModelGenerationRequest(
+      modelID: request.modelID,
+      systemPrompt: systemText,
+      prompt: conversationText,
+      maxOutputTokens: request.maxOutputTokens,
+      logLabel: request.logLabel,
+      routingHint: request.routingHint
+    )
+    let artifacts = try PromptLogWriter.writePromptLog(
+      request: loggingRequest,
+      turn: currentTurn,
+      in: promptLogDirectory
+    )
+    do {
+      let response = try await chatBase.generateChat(request: request)
+      let outputText = ([response.text] + response.toolCalls.map { "tool_call: \($0.name) \($0.argumentsJSON)" })
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n\n")
+      try PromptLogWriter.writeOutputLog(
+        outputText,
+        request: loggingRequest,
+        artifacts: artifacts,
+        status: "completed",
+        in: promptLogDirectory
+      )
+      return response
+    } catch {
+      try? PromptLogWriter.writeOutputLog(
+        "Generation failed: \(error.localizedDescription)\n",
+        request: loggingRequest,
+        artifacts: artifacts,
+        status: "failed",
+        error: error.localizedDescription,
+        in: promptLogDirectory
+      )
+      throw error
+    }
+  }
 }

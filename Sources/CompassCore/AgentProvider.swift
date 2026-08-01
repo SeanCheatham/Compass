@@ -1,41 +1,41 @@
 import Foundation
 
-enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
+public enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
   case openAICompatible
   case mlx
 
-  var displayName: String {
+  public var displayName: String {
     switch self {
     case .openAICompatible: return "OpenAI-compatible"
     case .mlx: return "MLX"
     }
   }
 
-  var requiresCredentials: Bool {
+  public var requiresCredentials: Bool {
     switch self {
     case .openAICompatible: return true
     case .mlx: return false
     }
   }
 
-  var defaultBaseURLString: String? {
+  public var defaultBaseURLString: String? {
     switch self {
     case .openAICompatible: return "https://api.kimi.com/coding/v1"
     case .mlx: return nil
     }
   }
 
-  var defaultBaseURL: URL? {
+  public var defaultBaseURL: URL? {
     defaultBaseURLString.flatMap(URL.init(string:))
   }
 
-  var supportedCapabilities: [AgentCapability] { [.text] }
+  public var supportedCapabilities: [AgentCapability] { [.text] }
 
-  func supports(_ capability: AgentCapability) -> Bool {
+  public func supports(_ capability: AgentCapability) -> Bool {
     capability == .text
   }
 
-  func defaultModel(for capability: AgentCapability) -> String? {
+  public func defaultModel(for capability: AgentCapability) -> String? {
     guard supports(capability) else { return nil }
     switch self {
     case .openAICompatible:
@@ -45,7 +45,7 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
     }
   }
 
-  func usesModelField(for capability: AgentCapability) -> Bool {
+  public func usesModelField(for capability: AgentCapability) -> Bool {
     guard supports(capability) else { return false }
     switch self {
     case .openAICompatible: return true
@@ -53,31 +53,31 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
     }
   }
 
-  func textContextWindowTokens(for modelIdentifier: String?) -> Int {
+  public func textContextWindowTokens(for modelIdentifier: String?) -> Int {
     _ = modelIdentifier
     return defaultTextContextWindowTokens
   }
 
-  func defaultModel(for phase: AgentPhase, baseModel: String) -> String? {
+  public func defaultModel(for phase: AgentPhase, baseModel: String) -> String? {
     _ = phase
     let trimmed = baseModel.trimmingCharacters(in: .whitespacesAndNewlines)
     if !trimmed.isEmpty { return trimmed }
     return defaultModel(for: .text)
   }
 
-  var defaultTextContextWindowTokens: Int {
+  public var defaultTextContextWindowTokens: Int {
     switch self {
     case .openAICompatible: return 128_000
-    case .mlx: return 4_096
+    case .mlx: return LocalModelCatalog.defaultContextWindowTokens
     }
   }
 }
 
-enum AgentCapability: String, Sendable, CaseIterable, Codable {
+public enum AgentCapability: String, Sendable, CaseIterable, Codable {
   case text
 
-  var displayName: String { "Text" }
-  var systemImageName: String { "text.bubble" }
-  var isRequired: Bool { true }
-  var availableProviders: [AgentProviderKind] { [.openAICompatible, .mlx] }
+  public var displayName: String { "Text" }
+  public var systemImageName: String { "text.bubble" }
+  public var isRequired: Bool { true }
+  public var availableProviders: [AgentProviderKind] { [.openAICompatible, .mlx] }
 }

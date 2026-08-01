@@ -7,17 +7,17 @@ import Foundation
 /// Compass uses this for the agent API key. The production implementation
 /// stores the key as a 0600 file under `~/Library/Application Support/`
 /// — simpler than Keychain for a single-user developer tool.
-protocol AgentSecretStorage: Sendable {
+public protocol AgentSecretStorage: Sendable {
   func read(service: String, account: String) throws -> String?
   func write(_ value: String, service: String, account: String) throws
   func delete(service: String, account: String) throws
 }
 
-enum AgentSecretStorageError: LocalizedError, Equatable {
+public enum AgentSecretStorageError: LocalizedError, Equatable {
   case invalidIdentifier(String)
   case invalidData
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .invalidIdentifier(let detail):
       return "Secret storage identifier was invalid: \(detail)"
@@ -29,16 +29,16 @@ enum AgentSecretStorageError: LocalizedError, Equatable {
 
 /// File-backed `AgentSecretStorage` rooted at a directory the caller picks
 /// (defaults to `~/Library/Application Support/Compass/secrets/`).
-struct AgentFileSecretStorage: AgentSecretStorage, @unchecked Sendable {
-  let root: URL
+public struct AgentFileSecretStorage: AgentSecretStorage, @unchecked Sendable {
+  public let root: URL
   private let fileManager: FileManager
 
-  init(root: URL = AgentFileSecretStorage.defaultRoot(), fileManager: FileManager = .default) {
+  public init(root: URL = AgentFileSecretStorage.defaultRoot(), fileManager: FileManager = .default) {
     self.root = root.standardizedFileURL
     self.fileManager = fileManager
   }
 
-  static func defaultRoot() -> URL {
+  public static func defaultRoot() -> URL {
     let base =
       FileManager.default
       .urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -51,7 +51,7 @@ struct AgentFileSecretStorage: AgentSecretStorage, @unchecked Sendable {
       .appendingPathComponent("secrets", isDirectory: true)
   }
 
-  func read(service: String, account: String) throws -> String? {
+  public func read(service: String, account: String) throws -> String? {
     let url = try fileURL(service: service, account: account)
     guard fileManager.fileExists(atPath: url.path) else { return nil }
     let data = try Data(contentsOf: url)
@@ -61,7 +61,7 @@ struct AgentFileSecretStorage: AgentSecretStorage, @unchecked Sendable {
     return value.trimmingCharacters(in: ["\n", "\r"])
   }
 
-  func write(_ value: String, service: String, account: String) throws {
+  public func write(_ value: String, service: String, account: String) throws {
     let url = try fileURL(service: service, account: account)
     let parent = url.deletingLastPathComponent()
     try fileManager.createDirectory(
@@ -75,7 +75,7 @@ struct AgentFileSecretStorage: AgentSecretStorage, @unchecked Sendable {
     try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
   }
 
-  func delete(service: String, account: String) throws {
+  public func delete(service: String, account: String) throws {
     let url = try fileURL(service: service, account: account)
     guard fileManager.fileExists(atPath: url.path) else { return }
     try fileManager.removeItem(at: url)
@@ -110,7 +110,7 @@ struct AgentFileSecretStorage: AgentSecretStorage, @unchecked Sendable {
 }
 
 /// In-memory `AgentSecretStorage` for tests. Thread-safe via `NSLock`.
-final class InMemoryAgentSecretStorage: AgentSecretStorage, @unchecked Sendable {
+public final class InMemoryAgentSecretStorage: AgentSecretStorage, @unchecked Sendable {
   private let lock = NSLock()
   private var storage: [String: String] = [:]
 
@@ -118,19 +118,19 @@ final class InMemoryAgentSecretStorage: AgentSecretStorage, @unchecked Sendable 
     "\(service)\u{1F}\(account)"
   }
 
-  func read(service: String, account: String) throws -> String? {
+  public func read(service: String, account: String) throws -> String? {
     lock.lock()
     defer { lock.unlock() }
     return storage[key(service: service, account: account)]
   }
 
-  func write(_ value: String, service: String, account: String) throws {
+  public func write(_ value: String, service: String, account: String) throws {
     lock.lock()
     defer { lock.unlock() }
     storage[key(service: service, account: account)] = value
   }
 
-  func delete(service: String, account: String) throws {
+  public func delete(service: String, account: String) throws {
     lock.lock()
     defer { lock.unlock() }
     storage.removeValue(forKey: key(service: service, account: account))

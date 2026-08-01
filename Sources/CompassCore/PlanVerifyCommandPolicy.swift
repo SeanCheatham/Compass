@@ -1,12 +1,12 @@
 import Foundation
 
-enum PlanVerifyCommandPolicy {
-  static let placeholderExamples =
+public enum PlanVerifyCommandPolicy {
+  public static let placeholderExamples =
     "`true`, `exit 0`, `echo no tests`, `none`, `n/a`, or `not-running-tests`"
-  static let failureMaskingExamples =
+  public static let failureMaskingExamples =
     "`swift test || true`, `swift test; true`, or `swift test || echo no tests`"
 
-  static func normalizedCommand(_ rawCommand: String?) -> String? {
+  public static func normalizedCommand(_ rawCommand: String?) -> String? {
     let command = rawCommand?
       .replacingOccurrences(of: "\r", with: " ")
       .replacingOccurrences(of: "\n", with: " ")
@@ -15,7 +15,7 @@ enum PlanVerifyCommandPolicy {
     return command?.isEmpty == false ? command : nil
   }
 
-  static func isPlaceholder(_ command: String) -> Bool {
+  public static func isPlaceholder(_ command: String) -> Bool {
     let key = placeholderKey(command)
     if placeholderCommandKeys.contains(key) {
       return true
@@ -27,7 +27,7 @@ enum PlanVerifyCommandPolicy {
     return placeholderMessageKeys.contains(echoMessage)
   }
 
-  static func masksFailures(_ command: String) -> Bool {
+  public static func masksFailures(_ command: String) -> Bool {
     let key = placeholderKey(command)
     return hasFallbackMask(in: key) || hasTrailingSequenceMask(in: key)
   }

@@ -1,6 +1,6 @@
 import Foundation
 
-extension Prompts {
+public extension Prompts {
   static func pendingChangesCommitSystemPrompt(workingDirectoryPath: String) -> String {
     """
     You are the Compass preflight commit agent. Compass is about to run its

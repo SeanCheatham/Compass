@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import Compass
+@testable import CompassCore
 
 @Suite("Factory pivot")
 struct FactoryPivotTests {

@@ -37,7 +37,7 @@ public struct HeadlessCompassEvent: Codable, Equatable, Sendable {
   }()
 }
 
-extension HeadlessCompassEvent {
+public extension HeadlessCompassEvent {
   init(live event: LiveEvent, phase: AgentPhase) {
     let metadata = event.metadata
     let mappedKind: String
@@ -67,7 +67,7 @@ extension HeadlessCompassEvent {
   }
 }
 
-extension LiveLine.Level {
+public extension LiveLine.Level {
   var jsonName: String {
     switch self {
     case .info: return "info"
@@ -79,7 +79,7 @@ extension LiveLine.Level {
   }
 }
 
-extension LiveLine.Kind {
+public extension LiveLine.Kind {
   var jsonName: String {
     switch self {
     case .message: return "message"
@@ -91,7 +91,7 @@ extension LiveLine.Kind {
   }
 }
 
-extension LiveLine.Status {
+public extension LiveLine.Status {
   var jsonName: String? {
     switch self {
     case .none: return nil

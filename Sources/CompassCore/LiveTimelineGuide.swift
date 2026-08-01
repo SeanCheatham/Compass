@@ -1,10 +1,10 @@
 import Foundation
 
-struct LiveTimelineGuide: Equatable, Sendable {
-  static let detailLimit = 240
-  static let identifierLimit = 1_200
+public struct LiveTimelineGuide: Equatable, Sendable {
+  public static let detailLimit = 240
+  public static let identifierLimit = 1_200
 
-  enum Tone: String, Equatable, Sendable {
+  public enum Tone: String, Equatable, Sendable {
     case idle
     case running
     case paused
@@ -12,55 +12,55 @@ struct LiveTimelineGuide: Equatable, Sendable {
     case attention
   }
 
-  struct Checkpoint: Identifiable, Equatable, Sendable {
-    var id: String
-    var label: String
-    var detail: String
-    var systemImageName: String
+  public struct Checkpoint: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var label: String
+    public var detail: String
+    public var systemImageName: String
   }
 
-  struct EventSummary: Identifiable, Equatable, Sendable {
-    var id: String
-    var level: String
-    var kind: String
-    var status: String
-    var text: String
-    var detail: String?
+  public struct EventSummary: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var level: String
+    public var kind: String
+    public var status: String
+    public var text: String
+    public var detail: String?
   }
 
-  struct EvidenceCoverage: Equatable, Sendable {
-    var coveredCount: Int
-    var totalCount: Int
-    var fraction: Double
-    var label: String
-    var detail: String
-    var missingLabels: [String]
+  public struct EvidenceCoverage: Equatable, Sendable {
+    public var coveredCount: Int
+    public var totalCount: Int
+    public var fraction: Double
+    public var label: String
+    public var detail: String
+    public var missingLabels: [String]
   }
 
-  static let latestEventLimit = 5
-  static let eventTextLimit = 140
-  static let eventDetailLimit = 220
+  public static let latestEventLimit = 5
+  public static let eventTextLimit = 140
+  public static let eventDetailLimit = 220
 
-  var shouldShow: Bool
-  var title: String
-  var detail: String
-  var statusLabel: String
-  var tone: Tone
-  var systemImageName: String
-  var checkpoints: [Checkpoint]
-  var phaseLabel: String
-  var eventCount: Int
-  var runningEventCount: Int
-  var failedEventCount: Int
-  var latestEvents: [EventSummary]
-  var evidenceCoverage: EvidenceCoverage
-  var narrationIdentifier: String
+  public var shouldShow: Bool
+  public var title: String
+  public var detail: String
+  public var statusLabel: String
+  public var tone: Tone
+  public var systemImageName: String
+  public var checkpoints: [Checkpoint]
+  public var phaseLabel: String
+  public var eventCount: Int
+  public var runningEventCount: Int
+  public var failedEventCount: Int
+  public var latestEvents: [EventSummary]
+  public var evidenceCoverage: EvidenceCoverage
+  public var narrationIdentifier: String
 
-  var allowsNarration: Bool {
+  public var allowsNarration: Bool {
     shouldShow && tone != .running
   }
 
-  init(
+  public init(
     phase: LoopPhase,
     isRunning: Bool,
     isAutoPlaying: Bool,
@@ -495,12 +495,12 @@ struct LiveTimelineGuide: Equatable, Sendable {
   }
 }
 
-struct LiveTimelineClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_200
+public struct LiveTimelineClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 3_200
 
-  var text: String
+  public var text: String
 
-  init(guide: LiveTimelineGuide) {
+  public init(guide: LiveTimelineGuide) {
     guard guide.shouldShow else {
       text = ""
       return
@@ -546,7 +546,7 @@ struct LiveTimelineClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -562,7 +562,7 @@ struct LiveTimelineClipboardPayload: Equatable, Sendable {
 }
 
 private enum LiveTimelineClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  public static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

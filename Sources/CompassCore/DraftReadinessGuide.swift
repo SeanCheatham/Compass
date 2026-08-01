@@ -1,41 +1,41 @@
 import Foundation
 
-struct DraftReadinessGuide: Equatable, Sendable {
-  static let detailLimit = 160
-  static let draftPreviewLimit = 220
-  static let identifierLimit = 1_000
-  static let entryPlaceholder = "Describe the change, why it matters, and how success should look"
+public struct DraftReadinessGuide: Equatable, Sendable {
+  public static let detailLimit = 160
+  public static let draftPreviewLimit = 220
+  public static let identifierLimit = 1_000
+  public static let entryPlaceholder = "Describe the change, why it matters, and how success should look"
 
-  var status: Status
-  var title: String
-  var detail: String
-  var scoreLabel: String
-  var cues: [Cue]
-  var coachingPrompts: [CoachingPrompt]
-  var draftPreview: String
-  var narrationIdentifier: String
+  public var status: Status
+  public var title: String
+  public var detail: String
+  public var scoreLabel: String
+  public var cues: [Cue]
+  public var coachingPrompts: [CoachingPrompt]
+  public var draftPreview: String
+  public var narrationIdentifier: String
 
-  var allowsNarration: Bool {
+  public var allowsNarration: Bool {
     status != .ready && !draftPreview.isEmpty
   }
 
-  var missingSignalTitles: [String] {
+  public var missingSignalTitles: [String] {
     cues.filter { !$0.isSatisfied }.map(\.title)
   }
 
-  var satisfiedSignalTitles: [String] {
+  public var satisfiedSignalTitles: [String] {
     cues.filter(\.isSatisfied).map(\.title)
   }
 
-  var missingSignalText: String {
+  public var missingSignalText: String {
     missingSignalTitles.isEmpty ? "none" : missingSignalTitles.joined(separator: ", ")
   }
 
-  var satisfiedSignalText: String {
+  public var satisfiedSignalText: String {
     satisfiedSignalTitles.isEmpty ? "none" : satisfiedSignalTitles.joined(separator: ", ")
   }
 
-  init(draft rawDraft: String) {
+  public init(draft rawDraft: String) {
     let draft = DraftRefinementService.normalizeDraft(rawDraft)
     draftPreview = StringUtils.boundedText(draft, limit: Self.draftPreviewLimit)
     let outcome = Self.hasOutcomeSignal(in: draft)
@@ -95,34 +95,34 @@ struct DraftReadinessGuide: Equatable, Sendable {
     )
   }
 
-  enum Status: Equatable, Sendable {
+  public enum Status: Equatable, Sendable {
     case empty
     case needsDetail
     case ready
   }
 
-  struct Cue: Identifiable, Equatable, Sendable {
-    var kind: Kind
-    var isSatisfied: Bool
-    var detail: String
+  public struct Cue: Identifiable, Equatable, Sendable {
+    public var kind: Kind
+    public var isSatisfied: Bool
+    public var detail: String
 
-    var id: Kind { kind }
+    public var id: Kind { kind }
 
-    var title: String {
+    public var title: String {
       kind.title
     }
 
-    var systemImage: String {
+    public var systemImage: String {
       isSatisfied ? "checkmark.circle.fill" : kind.systemImage
     }
   }
 
-  struct CoachingPrompt: Identifiable, Equatable, Sendable {
-    var kind: Kind
+  public struct CoachingPrompt: Identifiable, Equatable, Sendable {
+    public var kind: Kind
 
-    var id: Kind { kind }
+    public var id: Kind { kind }
 
-    var question: String {
+    public var question: String {
       switch kind {
       case .outcome:
         return "What should change?"
@@ -133,7 +133,7 @@ struct DraftReadinessGuide: Equatable, Sendable {
       }
     }
 
-    var detail: String {
+    public var detail: String {
       switch kind {
       case .outcome:
         return "Name the screen, workflow, behavior, or problem Compass should improve."
@@ -144,17 +144,17 @@ struct DraftReadinessGuide: Equatable, Sendable {
       }
     }
 
-    var systemImage: String {
+    public var systemImage: String {
       kind.systemImage
     }
   }
 
-  enum Kind: CaseIterable, Equatable, Sendable {
+  public enum Kind: CaseIterable, Equatable, Sendable {
     case outcome
     case why
     case success
 
-    var title: String {
+    public var title: String {
       switch self {
       case .outcome:
         return "Outcome"
@@ -165,7 +165,7 @@ struct DraftReadinessGuide: Equatable, Sendable {
       }
     }
 
-    var systemImage: String {
+    public var systemImage: String {
       switch self {
       case .outcome:
         return "target"
@@ -294,36 +294,36 @@ struct DraftReadinessGuide: Equatable, Sendable {
   }
 }
 
-struct DraftIntakeGuide: Equatable, Sendable {
-  static let maxEntries = 6
-  static let draftTextLimit = 220
-  static let identifierLimit = 1_200
-  static let planScopeDetailLimit = 260
+public struct DraftIntakeGuide: Equatable, Sendable {
+  public static let maxEntries = 6
+  public static let draftTextLimit = 220
+  public static let identifierLimit = 1_200
+  public static let planScopeDetailLimit = 260
 
   private var allEntries: [Entry]
-  var entries: [Entry]
+  public var entries: [Entry]
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     allEntries.isEmpty
   }
 
-  var allowsNarration: Bool {
+  public var allowsNarration: Bool {
     !allEntries.isEmpty
   }
 
-  var totalEntryCount: Int {
+  public var totalEntryCount: Int {
     allEntries.count
   }
 
-  var hiddenEntryCount: Int {
+  public var hiddenEntryCount: Int {
     max(0, totalEntryCount - entries.count)
   }
 
-  var isCapped: Bool {
+  public var isCapped: Bool {
     hiddenEntryCount > 0
   }
 
-  var narrationIdentifier: String {
+  public var narrationIdentifier: String {
     let raw = [
       "title:\(title)",
       "detail:\(detail)",
@@ -337,12 +337,12 @@ struct DraftIntakeGuide: Equatable, Sendable {
     return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 
-  var status: Status {
+  public var status: Status {
     guard !allEntries.isEmpty else { return .empty }
     return readyCount == totalEntryCount ? .ready : .needsDetail
   }
 
-  var title: String {
+  public var title: String {
     switch status {
     case .empty:
       return "No queued drafts"
@@ -353,7 +353,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  var detail: String {
+  public var detail: String {
     switch status {
     case .empty:
       return "Add one clear direction above when you are ready."
@@ -377,27 +377,27 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  var scoreLabel: String {
+  public var scoreLabel: String {
     guard !allEntries.isEmpty else { return "0 queued" }
     return "\(readyCount) of \(totalEntryCount) ready"
   }
 
-  var entryCountLabel: String {
+  public var entryCountLabel: String {
     Self.countLabel(totalEntryCount, singular: "queued draft", plural: "queued drafts")
   }
 
-  var hiddenCountSentence: String {
+  public var hiddenCountSentence: String {
     hiddenEntryCount == 1 ? "1 more draft remains" : "\(hiddenEntryCount) more drafts remain"
   }
 
-  var planScope: PlanScope {
+  public var planScope: PlanScope {
     PlanScope(
       entries: allEntries,
       visibleEntryNumbers: Set(entries.map(\.number))
     )
   }
 
-  var nextAction: NextAction {
+  public var nextAction: NextAction {
     switch status {
     case .empty:
       return NextAction(
@@ -433,11 +433,11 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  var readyCount: Int {
+  public var readyCount: Int {
     planScope.readyCount
   }
 
-  var missingSignalTitles: [String] {
+  public var missingSignalTitles: [String] {
     DraftReadinessGuide.Kind.allCases.compactMap { kind in
       let isMissing = allEntries.contains { entry in
         entry.readiness.cues.contains { $0.kind == kind && !$0.isSatisfied }
@@ -446,7 +446,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  init(drafts: String) {
+  public init(drafts: String) {
     allEntries = Self.extractDraftEntries(from: drafts)
       .enumerated()
       .map { offset, text in
@@ -455,7 +455,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
     entries = Array(allEntries.prefix(Self.maxEntries))
   }
 
-  var promptText: String {
+  public var promptText: String {
     guard !allEntries.isEmpty else {
       return "_(no draft readiness signals)_"
     }
@@ -471,40 +471,40 @@ struct DraftIntakeGuide: Equatable, Sendable {
     return sections.joined(separator: "\n\n")
   }
 
-  enum Status: Equatable, Sendable {
+  public enum Status: Equatable, Sendable {
     case empty
     case needsDetail
     case ready
   }
 
-  struct NextAction: Equatable, Sendable {
-    var kind: NextActionKind
-    var title: String
-    var detail: String
-    var systemImage: String
+  public struct NextAction: Equatable, Sendable {
+    public var kind: NextActionKind
+    public var title: String
+    public var detail: String
+    public var systemImage: String
   }
 
-  enum NextActionKind: Equatable, Sendable {
+  public enum NextActionKind: Equatable, Sendable {
     case startDraft
     case clarifyDrafts
     case planReadyDrafts
     case sendToPlan
   }
 
-  struct Entry: Identifiable, Equatable, Sendable {
-    var number: Int
-    var draft: String
-    var readiness: DraftReadinessGuide
+  public struct Entry: Identifiable, Equatable, Sendable {
+    public var number: Int
+    public var draft: String
+    public var readiness: DraftReadinessGuide
 
-    var id: Int { number }
+    public var id: Int { number }
 
-    init(number: Int, draft: String) {
+    public init(number: Int, draft: String) {
       self.number = number
       self.draft = StringUtils.boundedText(draft, limit: DraftIntakeGuide.draftTextLimit)
       readiness = DraftReadinessGuide(draft: draft)
     }
 
-    var promptText: String {
+    public var promptText: String {
       """
       Draft \(number): \(readiness.title) (\(readiness.scoreLabel))
       Text: \(draft)
@@ -513,23 +513,23 @@ struct DraftIntakeGuide: Equatable, Sendable {
       """
     }
 
-    var satisfiedSignalTitles: [String] {
+    public var satisfiedSignalTitles: [String] {
       signalTitles(satisfied: true)
     }
 
-    var missingSignalTitles: [String] {
+    public var missingSignalTitles: [String] {
       signalTitles(satisfied: false)
     }
 
-    var satisfiedSignalText: String {
+    public var satisfiedSignalText: String {
       signalList(satisfied: true)
     }
 
-    var missingSignalText: String {
+    public var missingSignalText: String {
       signalList(satisfied: false)
     }
 
-    var isReadyForPlan: Bool {
+    public var isReadyForPlan: Bool {
       readiness.status == .ready
     }
 
@@ -557,21 +557,21 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
   }
 
-  struct PlanScope: Equatable, Sendable {
-    var readyEntryNumbers: [Int]
-    var waitingEntries: [WaitingEntry]
-    var summary: String
-    var detail: String
+  public struct PlanScope: Equatable, Sendable {
+    public var readyEntryNumbers: [Int]
+    public var waitingEntries: [WaitingEntry]
+    public var summary: String
+    public var detail: String
 
-    var readyCount: Int {
+    public var readyCount: Int {
       readyEntryNumbers.count
     }
 
-    var waitingCount: Int {
+    public var waitingCount: Int {
       waitingEntries.count
     }
 
-    var hasReadyEntries: Bool {
+    public var hasReadyEntries: Bool {
       readyCount > 0
     }
 
@@ -603,10 +603,10 @@ struct DraftIntakeGuide: Equatable, Sendable {
       )
     }
 
-    struct WaitingEntry: Equatable, Sendable {
-      var number: Int
-      var missingSignalText: String
-      var isVisible: Bool
+    public struct WaitingEntry: Equatable, Sendable {
+      public var number: Int
+      public var missingSignalText: String
+      public var isVisible: Bool
     }
 
     private static func summary(readyCount: Int, waitingCount: Int) -> String {
@@ -766,12 +766,12 @@ struct DraftIntakeGuide: Equatable, Sendable {
   }
 }
 
-struct DraftIntakeClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_500
+public struct DraftIntakeClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 3_500
 
-  var text: String
+  public var text: String
 
-  init(guide: DraftIntakeGuide) {
+  public init(guide: DraftIntakeGuide) {
     guard !guide.isEmpty else {
       text = ""
       return
@@ -829,13 +829,13 @@ struct DraftIntakeClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum DraftIntakeClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  public static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

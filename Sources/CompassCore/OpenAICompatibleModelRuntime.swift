@@ -1,23 +1,23 @@
 import Foundation
 
-struct OpenAICompatibleEndpoint: Sendable, Equatable {
-  var baseURL: URL
-  var apiKey: String
-  var model: String
+public struct OpenAICompatibleEndpoint: Sendable, Equatable {
+  public var baseURL: URL
+  public var apiKey: String
+  public var model: String
 
-  var trimmedAPIKey: String {
+  public var trimmedAPIKey: String {
     apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  var trimmedModel: String {
+  public var trimmedModel: String {
     model.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  var isConfigured: Bool {
+  public var isConfigured: Bool {
     !trimmedAPIKey.isEmpty && !trimmedModel.isEmpty
   }
 
-  func chatCompletionsURL() throws -> URL {
+  public func chatCompletionsURL() throws -> URL {
     var normalized = baseURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines)
     while normalized.hasSuffix("/") {
       normalized.removeLast()
@@ -29,14 +29,14 @@ struct OpenAICompatibleEndpoint: Sendable, Equatable {
   }
 }
 
-enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
+public enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
   case notConfigured
   case invalidBaseURL(String)
   case httpStatus(Int, String)
   case emptyResponse
   case decodeFailed(String)
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .notConfigured:
       return "OpenAI-compatible cloud provider is not configured (need API key, base URL, and model)."
@@ -55,16 +55,16 @@ enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
 }
 
 /// Thin non-streaming OpenAI chat-completions client used as a `LocalModelGenerating` backend.
-actor OpenAICompatibleModelRuntime: LocalModelGenerating {
+public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
   private let endpoint: OpenAICompatibleEndpoint
   private let session: URLSession
 
-  init(endpoint: OpenAICompatibleEndpoint, session: URLSession = .shared) {
+  public init(endpoint: OpenAICompatibleEndpoint, session: URLSession = .shared) {
     self.endpoint = endpoint
     self.session = session
   }
 
-  init(settings: AgentRuntimeSettings, session: URLSession = .shared) {
+  public init(settings: AgentRuntimeSettings, session: URLSession = .shared) {
     self.init(
       endpoint: OpenAICompatibleEndpoint(
         baseURL: settings.baseURL,
@@ -75,7 +75,7 @@ actor OpenAICompatibleModelRuntime: LocalModelGenerating {
     )
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
     guard endpoint.isConfigured else {
       throw OpenAICompatibleRuntimeError.notConfigured
     }
@@ -89,7 +89,7 @@ actor OpenAICompatibleModelRuntime: LocalModelGenerating {
     urlRequest.httpMethod = "POST"
     urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
     urlRequest.setValue("Bearer \(endpoint.trimmedAPIKey)", forHTTPHeaderField: "Authorization")
-    urlRequest.timeoutInterval = 300
+    urlRequest.timeoutInterval = 900
 
     let body = OpenAIChatCompletionsRequest(
       model: modelID,
@@ -145,18 +145,209 @@ actor OpenAICompatibleModelRuntime: LocalModelGenerating {
   }
 }
 
-struct OpenAIChatCompletionsRequest: Encodable, Equatable, Sendable {
-  struct Message: Encodable, Equatable, Sendable {
-    var role: String
-    var content: String
+extension OpenAICompatibleModelRuntime: AgentChatGenerating {
+  /// Streams one chat-completions turn with native tool calling. Streaming
+  /// keeps long cloud turns alive (proxies idle-kill non-streaming requests)
+  /// and surfaces provider token usage for real context-window accounting.
+  public func generateChat(request: AgentChatRequest) async throws -> AgentChatResponse {
+    guard endpoint.isConfigured else {
+      throw OpenAICompatibleRuntimeError.notConfigured
+    }
+
+    let modelID =
+      request.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? endpoint.trimmedModel
+      : request.modelID
+    let url = try endpoint.chatCompletionsURL()
+    var urlRequest = URLRequest(url: url)
+    urlRequest.httpMethod = "POST"
+    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    urlRequest.setValue("Bearer \(endpoint.trimmedAPIKey)", forHTTPHeaderField: "Authorization")
+    urlRequest.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+    urlRequest.timeoutInterval = 900
+
+    let toolObjects = request.tools.compactMap { $0.nativeToolJSONObject }
+    var bodyObject: [String: Any] = [
+      "model": modelID,
+      "messages": request.messages.map { Self.wireMessage($0) },
+      "max_tokens": request.maxOutputTokens,
+      "stream": true,
+      "stream_options": ["include_usage": true],
+    ]
+    if !toolObjects.isEmpty {
+      bodyObject["tools"] = toolObjects
+      bodyObject["tool_choice"] = "auto"
+    }
+    guard JSONSerialization.isValidJSONObject(bodyObject) else {
+      throw OpenAICompatibleRuntimeError.decodeFailed("Request body is not valid JSON.")
+    }
+    urlRequest.httpBody = try JSONSerialization.data(withJSONObject: bodyObject)
+
+    let startedAt = Date()
+    let (bytes, response) = try await session.bytes(for: urlRequest)
+    guard let http = response as? HTTPURLResponse else {
+      throw OpenAICompatibleRuntimeError.decodeFailed("Missing HTTP response.")
+    }
+    guard (200..<300).contains(http.statusCode) else {
+      var errorBody = ""
+      for try await line in bytes.lines {
+        errorBody += line
+        if errorBody.count > 4_000 { break }
+      }
+      throw OpenAICompatibleRuntimeError.httpStatus(http.statusCode, errorBody)
+    }
+
+    var content = ""
+    var toolCalls: [Int: (id: String, name: String, arguments: String)] = [:]
+    var usage: OpenAIChatCompletionsResponse.Usage?
+    var sawFinishReason = false
+
+    for try await line in bytes.lines {
+      guard line.hasPrefix("data:") else { continue }
+      let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+      if payload == "[DONE]" { break }
+      guard let data = payload.data(using: .utf8),
+        let chunk = try? JSONDecoder().decode(OpenAIChatStreamChunk.self, from: data)
+      else {
+        continue
+      }
+      if let chunkUsage = chunk.usage {
+        usage = chunkUsage
+      }
+      for choice in chunk.choices {
+        if choice.finishReason != nil {
+          sawFinishReason = true
+        }
+        guard let delta = choice.delta else { continue }
+        if let text = delta.content {
+          content += text
+        }
+        for toolDelta in delta.toolCalls ?? [] {
+          let index = toolDelta.index ?? 0
+          var accumulated = toolCalls[index] ?? (id: "", name: "", arguments: "")
+          if let id = toolDelta.id, !id.isEmpty {
+            accumulated.id = id
+          }
+          if let name = toolDelta.function?.name, !name.isEmpty {
+            accumulated.name = name
+          }
+          if let arguments = toolDelta.function?.arguments {
+            accumulated.arguments += arguments
+          }
+          toolCalls[index] = accumulated
+        }
+      }
+    }
+
+    let resolvedToolCalls: [AgentChatToolCall] = toolCalls
+      .sorted { $0.key < $1.key }
+      .map { index, accumulated in
+        AgentChatToolCall(
+          id: accumulated.id.isEmpty ? "toolcall_\(index)" : accumulated.id,
+          name: accumulated.name,
+          argumentsJSON: accumulated.arguments
+        )
+      }
+
+    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+    if resolvedToolCalls.isEmpty && trimmed.isEmpty && !sawFinishReason {
+      throw OpenAICompatibleRuntimeError.emptyResponse
+    }
+
+    var tokenUsage = AgentRunTokenUsage()
+    let inputTokens = usage?.promptTokens ?? 0
+    let outputTokens = usage?.completionTokens ?? 0
+    let totalTokens = usage?.totalTokens ?? (inputTokens + outputTokens)
+    tokenUsage.recordTurn(
+      inputTokens: inputTokens,
+      outputTokens: outputTokens,
+      totalTokens: totalTokens,
+      isEstimated: usage == nil,
+      streamedUsageAvailable: usage != nil
+    )
+    tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
+    return AgentChatResponse(text: trimmed, toolCalls: resolvedToolCalls, tokenUsage: tokenUsage)
   }
 
-  var model: String
-  var messages: [Message]
-  var maxTokens: Int
-  var stream: Bool
+  private static func wireMessage(_ message: AgentChatMessage) -> [String: Any] {
+    var object: [String: Any] = ["role": message.role.rawValue]
+    switch message.role {
+    case .assistant:
+      object["content"] = message.content.isEmpty ? NSNull() : message.content
+      if !message.toolCalls.isEmpty {
+        object["tool_calls"] = message.toolCalls.map { call in
+          [
+            "id": call.id,
+            "type": "function",
+            "function": [
+              "name": call.name,
+              "arguments": call.argumentsJSON,
+            ],
+          ] as [String: Any]
+        }
+      }
+    case .tool:
+      object["content"] = message.content
+      if let toolCallID = message.toolCallID {
+        object["tool_call_id"] = toolCallID
+      }
+    case .system, .user:
+      object["content"] = message.content
+    }
+    return object
+  }
+}
 
-  enum CodingKeys: String, CodingKey {
+public struct OpenAIChatStreamChunk: Decodable, Equatable, Sendable {
+  public struct Choice: Decodable, Equatable, Sendable {
+    public struct Delta: Decodable, Equatable, Sendable {
+      public struct ToolCall: Decodable, Equatable, Sendable {
+        public struct Function: Decodable, Equatable, Sendable {
+          public var name: String?
+          public var arguments: String?
+        }
+
+        public var index: Int?
+        public var id: String?
+        public var function: Function?
+      }
+
+      public var role: String?
+      public var content: String?
+      public var toolCalls: [ToolCall]?
+
+      public enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case toolCalls = "tool_calls"
+      }
+    }
+
+    public var delta: Delta?
+    public var finishReason: String?
+
+    public enum CodingKeys: String, CodingKey {
+      case delta
+      case finishReason = "finish_reason"
+    }
+  }
+
+  public var choices: [Choice]
+  public var usage: OpenAIChatCompletionsResponse.Usage?
+}
+
+public struct OpenAIChatCompletionsRequest: Encodable, Equatable, Sendable {
+  public struct Message: Encodable, Equatable, Sendable {
+    public var role: String
+    public var content: String
+  }
+
+  public var model: String
+  public var messages: [Message]
+  public var maxTokens: Int
+  public var stream: Bool
+
+  public enum CodingKeys: String, CodingKey {
     case model
     case messages
     case maxTokens = "max_tokens"
@@ -164,28 +355,28 @@ struct OpenAIChatCompletionsRequest: Encodable, Equatable, Sendable {
   }
 }
 
-struct OpenAIChatCompletionsResponse: Decodable, Equatable, Sendable {
-  struct Choice: Decodable, Equatable, Sendable {
-    struct Message: Decodable, Equatable, Sendable {
-      var role: String?
-      var content: String?
+public struct OpenAIChatCompletionsResponse: Decodable, Equatable, Sendable {
+  public struct Choice: Decodable, Equatable, Sendable {
+    public struct Message: Decodable, Equatable, Sendable {
+      public var role: String?
+      public var content: String?
     }
 
-    var message: Message?
+    public var message: Message?
   }
 
-  struct Usage: Decodable, Equatable, Sendable {
-    var promptTokens: Int?
-    var completionTokens: Int?
-    var totalTokens: Int?
+  public struct Usage: Decodable, Equatable, Sendable {
+    public var promptTokens: Int?
+    public var completionTokens: Int?
+    public var totalTokens: Int?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case promptTokens = "prompt_tokens"
       case completionTokens = "completion_tokens"
       case totalTokens = "total_tokens"
     }
   }
 
-  var choices: [Choice]
-  var usage: Usage?
+  public var choices: [Choice]
+  public var usage: Usage?
 }

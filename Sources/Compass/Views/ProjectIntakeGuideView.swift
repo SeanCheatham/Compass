@@ -1,4 +1,5 @@
 import SwiftUI
+import CompassCore
 
 struct ProjectIntakeGuideCard: View {
   var guide: ProjectIntakeGuide

@@ -4,18 +4,18 @@ import Foundation
 /// Develop uses it to apply changes; Plan and Critic get it for
 /// probing only (build, test, git inspection) and must not mutate tracked
 /// files — enforcement of that intent lives in the system prompt.
-struct AgentBashTool: AgentTool {
-  static let toolName = "bash"
-  static let defaultTimeoutMs = 120_000
-  static let maxTimeoutMs = 1_800_000
-  static let maxOutputBytes = 100_000
+public struct AgentBashTool: AgentTool {
+  public static let toolName = "bash"
+  public static let defaultTimeoutMs = 120_000
+  public static let maxTimeoutMs = 1_800_000
+  public static let maxOutputBytes = 100_000
 
-  struct Arguments: Decodable {
-    let command: String
-    let timeoutMs: Int?
-    let cwd: String?
+  public struct Arguments: Decodable {
+    public let command: String
+    public let timeoutMs: Int?
+    public let cwd: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case command
       case cmd
       case commands
@@ -33,7 +33,7 @@ struct AgentBashTool: AgentTool {
       case dir
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       command = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -54,9 +54,9 @@ struct AgentBashTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -89,7 +89,7 @@ struct AgentBashTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -180,7 +180,7 @@ struct AgentBashTool: AgentTool {
     return sections.joined(separator: "\n\n")
   }
 
-  static func isVerifyCommand(_ command: String) -> Bool {
+  public static func isVerifyCommand(_ command: String) -> Bool {
     let normalized = command
       .lowercased()
       .components(separatedBy: .whitespacesAndNewlines)
@@ -211,7 +211,7 @@ struct AgentBashTool: AgentTool {
       "[next]\n`\(command)` exited 0. If the requested implementation and tests are complete, do not keep editing, do not rerun the same verify command, and submit status=succeeded now with feedback that names this verified command. Continue only if a specific acceptance requirement is still missing."
   }
 
-  func truncateOutput(_ text: String, label: String) -> String {
+  public func truncateOutput(_ text: String, label: String) -> String {
     let stripped = text.trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
     guard stripped.utf8.count > Self.maxOutputBytes else { return stripped }
     let truncatedBytes = Data(stripped.utf8.prefix(Self.maxOutputBytes))

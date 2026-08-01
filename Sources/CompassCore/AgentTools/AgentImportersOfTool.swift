@@ -7,14 +7,14 @@ import Foundation
 /// target file's basename and extensionless path. Useful for the question
 /// "who depends on this?" without modeling each language's module
 /// resolution rules.
-struct AgentImportersOfTool: AgentTool {
-  static let toolName = "importers_of"
-  static let maxResults = 200
+public struct AgentImportersOfTool: AgentTool {
+  public static let toolName = "importers_of"
+  public static let maxResults = 200
 
-  struct Arguments: Decodable {
-    let path: String
+  public struct Arguments: Decodable {
+    public let path: String
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case path
       case filePath
       case filePathSnake = "file_path"
@@ -23,7 +23,7 @@ struct AgentImportersOfTool: AgentTool {
       case relativePathSnake = "relative_path"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -34,9 +34,9 @@ struct AgentImportersOfTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -57,7 +57,7 @@ struct AgentImportersOfTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -111,7 +111,7 @@ struct AgentImportersOfTool: AgentTool {
   /// across language module-resolution rules, so we generate the
   /// plausible representations and accept any hit. Lowercased by the
   /// caller before set lookup.
-  static func candidates(for relativePath: String) -> [String] {
+  public static func candidates(for relativePath: String) -> [String] {
     let stem = AgentCodemapPath.stripExtension(relativePath)
     let basename = AgentCodemapPath.basenameWithoutExtension(relativePath)
     var values: [String] = [

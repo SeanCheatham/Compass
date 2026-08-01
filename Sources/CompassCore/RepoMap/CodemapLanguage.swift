@@ -3,13 +3,13 @@ import Foundation
 /// Source languages the codemap can parse. Kept narrow on purpose — adding
 /// a language requires a tree-sitter grammar dependency plus a `.scm` query,
 /// so the registry stays explicit about what it supports.
-enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
+public enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
   case swift
   case rust
 
   /// Stable display name used in tool output. Distinct from `rawValue` so
   /// renaming the case (e.g. `typescript` → `ts`) doesn't churn cached files.
-  var displayName: String {
+  public var displayName: String {
     switch self {
     case .swift: return "Swift"
     case .rust: return "Rust"
@@ -17,7 +17,7 @@ enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
   }
 }
 
-extension CodemapLanguage {
+public extension CodemapLanguage {
   /// Map a file path's extension to a language. Returns nil for unsupported
   /// extensions so the indexer can skip them without a separate allow-list.
   static func forFile(at path: String) -> CodemapLanguage? {

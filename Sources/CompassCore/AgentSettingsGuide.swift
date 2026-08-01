@@ -1,51 +1,51 @@
 import Foundation
 
-struct AgentSettingsGuide: Equatable, Sendable {
-  static let detailLimit = 280
-  static let rowDetailLimit = 190
-  static let identifierLimit = 1_600
+public struct AgentSettingsGuide: Equatable, Sendable {
+  public static let detailLimit = 280
+  public static let rowDetailLimit = 190
+  public static let identifierLimit = 1_600
 
-  enum Tone: String, Equatable, Sendable {
+  public enum Tone: String, Equatable, Sendable {
     case ready
     case blocked
     case optionalAttention
   }
 
-  enum RowStatus: String, Equatable, Sendable {
+  public enum RowStatus: String, Equatable, Sendable {
     case ready
     case blocked
     case off
     case attention
   }
 
-  struct Row: Identifiable, Equatable, Sendable {
-    var id: String
-    var label: String
-    var detail: String
-    var status: RowStatus
+  public struct Row: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var label: String
+    public var detail: String
+    public var status: RowStatus
   }
 
-  struct RuntimeCoverage: Equatable, Sendable {
-    static let labelLimit = 52
-    static let detailLimit = 190
+  public struct RuntimeCoverage: Equatable, Sendable {
+    public static let labelLimit = 52
+    public static let detailLimit = 190
 
-    var readyCount: Int
-    var selectedCount: Int
-    var fraction: Double
-    var label: String
-    var detail: String
+    public var readyCount: Int
+    public var selectedCount: Int
+    public var fraction: Double
+    public var label: String
+    public var detail: String
   }
 
-  var title: String
-  var detail: String
-  var actionLabel: String
-  var tone: Tone
-  var systemImageName: String
-  var runtimeCoverage: RuntimeCoverage
-  var rows: [Row]
-  var narrationIdentifier: String
+  public var title: String
+  public var detail: String
+  public var actionLabel: String
+  public var tone: Tone
+  public var systemImageName: String
+  public var runtimeCoverage: RuntimeCoverage
+  public var rows: [Row]
+  public var narrationIdentifier: String
 
-  init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
+  public init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
     let cloudReady = settings.isCloudConfigured || (
       settings.textProvider == .openAICompatible && settings.hasCloudCredentials
     )
@@ -216,12 +216,12 @@ struct AgentSettingsGuide: Equatable, Sendable {
   }
 }
 
-struct AgentSettingsClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_800
+public struct AgentSettingsClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 3_800
 
-  var text: String
+  public var text: String
 
-  init(
+  public init(
     settings: AgentRuntimeSettings,
     guide: AgentSettingsGuide,
     modelSnapshot: LocalModelSnapshot
@@ -271,7 +271,7 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -281,7 +281,7 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
 }
 
 private enum AgentSettingsClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  public static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

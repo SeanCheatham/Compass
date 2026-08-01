@@ -4,16 +4,16 @@ import Foundation
 /// Supports `**` (any number of path components), `*` (any chars within a
 /// component), and `?` (single char within a component). Results are
 /// returned newest-first by modification time.
-struct AgentGlobTool: AgentTool {
-  static let toolName = "glob"
-  static let maxResults = 200
-  static let walkCap = 10_000
+public struct AgentGlobTool: AgentTool {
+  public static let toolName = "glob"
+  public static let maxResults = 200
+  public static let walkCap = 10_000
 
-  struct Arguments: Decodable {
-    let pattern: String
-    let path: String?
+  public struct Arguments: Decodable {
+    public let pattern: String
+    public let path: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case pattern
       case glob
       case query
@@ -23,7 +23,7 @@ struct AgentGlobTool: AgentTool {
       case root
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       pattern = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -39,9 +39,9 @@ struct AgentGlobTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -67,7 +67,7 @@ struct AgentGlobTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

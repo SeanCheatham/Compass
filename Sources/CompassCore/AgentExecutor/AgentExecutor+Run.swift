@@ -1,6 +1,6 @@
 import Foundation
 
-extension AgentExecutor {
+public extension AgentExecutor {
   func run(_ configuration: AgentExecutionConfiguration) async throws -> AgentExecutionResult {
     try AgentExecutor.ensureUniqueToolNames(configuration.tools)
 
@@ -8,6 +8,22 @@ extension AgentExecutor {
     let runtime =
       configuration.modelRuntime
       ?? ModelRuntimeFactory.makeRouted(settings: configuration.settings)
+
+    if configuration.promptMode == .nativeTools {
+      let chatBackend: (any AgentChatGenerating)?
+      if let routed = runtime as? RoutedModelRuntime {
+        chatBackend = routed.chatBackend(for: .cloudPrimary)
+      } else {
+        chatBackend = runtime as? AgentChatGenerating
+      }
+      if let chatBackend {
+        return try await runNative(
+          configuration,
+          chatRuntime: chatBackend,
+          textRuntime: runtime
+        )
+      }
+    }
     let toolContext = AgentToolContext(
       workingDirectory: configuration.workingDirectory,
       agentVisibleWorkspacePath: configuration.agentVisibleWorkspacePath,
@@ -687,22 +703,22 @@ extension AgentExecutor {
   }
 
   private struct ContinuationTranscriptEntry: Equatable {
-    var title: String
-    var body: String
+    public var title: String
+    public var body: String
 
-    static func assistant(_ body: String) -> Self {
+    public static func assistant(_ body: String) -> Self {
       Self(title: "Assistant JSON", body: body)
     }
 
-    static func toolObservation(_ body: String) -> Self {
+    public static func toolObservation(_ body: String) -> Self {
       Self(title: "Compass Observation", body: body)
     }
 
-    static func assistantNote(_ body: String) -> Self {
+    public static func assistantNote(_ body: String) -> Self {
       Self(title: "Assistant Note (unverified)", body: body)
     }
 
-    static func repair(_ body: String) -> Self {
+    public static func repair(_ body: String) -> Self {
       Self(title: "Compass Repair", body: body)
     }
   }
@@ -713,29 +729,29 @@ extension AgentExecutor {
   }
 
   private struct ContinuationCompactionResult {
-    var summary: String
-    var tokenUsage: AgentRunTokenUsage
+    public var summary: String
+    public var tokenUsage: AgentRunTokenUsage
   }
 
   private struct ToolCallSignature: Equatable, Hashable {
-    var toolName: String
-    var arguments: String
+    public var toolName: String
+    public var arguments: String
   }
 
   private struct ToolFailureFamilySignature: Equatable, Hashable {
-    var toolName: String
-    var path: String
-    var family: String
+    public var toolName: String
+    public var path: String
+    public var family: String
   }
 
   private struct PendingSubmitRepair: Equatable {
-    var submitKind: String
-    var rejectionDescription: String
-    var malformedJSON: Bool
-    var repairMessage: String
+    public var submitKind: String
+    public var rejectionDescription: String
+    public var malformedJSON: Bool
+    public var repairMessage: String
   }
 
-  private static func isFileMutationTool(_ toolName: String) -> Bool {
+  static func isFileMutationTool(_ toolName: String) -> Bool {
     toolName == AgentWriteFileTool.toolName || toolName == AgentEditFileTool.toolName
   }
 
@@ -810,7 +826,7 @@ extension AgentExecutor {
       || text.contains("repair")
   }
 
-  private static func successfulVerifyCommand(
+  static func successfulVerifyCommand(
     toolName: String,
     arguments: Data,
     result: AgentToolInvocationResult
@@ -823,7 +839,7 @@ extension AgentExecutor {
     return verifyCommand(arguments: arguments)
   }
 
-  private static func failedVerifyCommand(
+  static func failedVerifyCommand(
     toolName: String,
     arguments: Data,
     result: AgentToolInvocationResult
@@ -836,7 +852,7 @@ extension AgentExecutor {
     return verifyCommand(arguments: arguments)
   }
 
-  private static func verifyCommand(arguments: Data) -> String? {
+  static func verifyCommand(arguments: Data) -> String? {
     guard let object = try? JSONSerialization.jsonObject(with: arguments) as? [String: Any] else {
       return nil
     }
@@ -980,7 +996,7 @@ extension AgentExecutor {
 
   private static func continuationCompactionSystemPrompt() -> String {
     """
-    You compact Compass continuation history for a small local coding agent.
+    You compact Compass continuation history for a coding agent.
     Preserve only useful resumable state. Do not invent facts. Return plain text only.
     """
   }
@@ -1571,17 +1587,18 @@ extension AgentExecutor {
     """
   }
 
-  private static func toolObservationJSON(
+  static func toolObservationJSON(
     toolName: String,
     result: AgentToolInvocationResult,
     reason: String?,
-    pathSanitizer: ((String) -> String)? = nil
+    pathSanitizer: ((String) -> String)? = nil,
+    limit: Int = 6_000
   ) -> String {
     let content = pathSanitizer?(result.content) ?? result.content
     var object: [String: Any] = [
       "tool": toolName,
       "isError": result.isError,
-      "content": boundedObservation(content),
+      "content": boundedObservation(content, limit: limit),
     ]
     if let reason, !reason.isEmpty {
       object["reason"] = reason
@@ -1600,7 +1617,7 @@ extension AgentExecutor {
     return String(decoding: data, as: UTF8.self)
   }
 
-  private static func boundedObservation(_ text: String, limit: Int = 6_000) -> String {
+  static func boundedObservation(_ text: String, limit: Int = 6_000) -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.count > limit else { return trimmed }
     let headCount = max(0, (limit / 2) - 80)
@@ -1614,7 +1631,7 @@ extension AgentExecutor {
     """
   }
 
-  private static func fencedContinuationText(_ text: String, limit: Int) -> String {
+  static func fencedContinuationText(_ text: String, limit: Int) -> String {
     let bounded: String
     if text.count <= limit {
       bounded = text
@@ -1629,7 +1646,7 @@ extension AgentExecutor {
     """
   }
 
-  private static func rejectSubmitResultIfNeeded(
+  static func rejectSubmitResultIfNeeded(
     _ submitResultJSON: Data,
     configuration: AgentExecutionConfiguration
   ) -> InvalidToolArgumentsNudge? {
@@ -1684,7 +1701,7 @@ extension AgentExecutor {
     )
   }
 
-  private static func rejectFailedDevelopSubmitAfterInvalidatedVerify(
+  static func rejectFailedDevelopSubmitAfterInvalidatedVerify(
     _ submitResultJSON: Data,
     invalidatedVerifyCommand: String?,
     configuration: AgentExecutionConfiguration
@@ -1758,7 +1775,7 @@ extension AgentExecutor {
       .joined(separator: " ")
   }
 
-  private static func rejectDevelopSubmitAfterSuccessfulVerify(
+  static func rejectDevelopSubmitAfterSuccessfulVerify(
     _ submitResultJSON: Data,
     successfulVerifyCommand: String?,
     configuration: AgentExecutionConfiguration

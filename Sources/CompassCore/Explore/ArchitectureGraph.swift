@@ -33,19 +33,19 @@ import Foundation
 
 /// A directed graph of files and their import relationships, built from
 /// all ``CodemapEntry`` records in a ``CodemapStore``.
-struct ImportGraph: Sendable {
+public struct ImportGraph: Sendable {
   /// Node: a file path relative to the repo root.
-  struct Node: Hashable, Sendable {
-    let path: String
+  public struct Node: Hashable, Sendable {
+    public let path: String
   }
 
   /// A directed edge from one file to another (i.e. `source` imports `target`).
-  struct Edge: Hashable, Sendable {
-    let source: Node
-    let target: Node
+  public struct Edge: Hashable, Sendable {
+    public let source: Node
+    public let target: Node
     /// The raw import string that produced this edge. Stored so callers
     /// can distinguish local-path imports from system/module imports.
-    let rawImport: String
+    public let rawImport: String
   }
 
   /// Every distinct node in the graph.
@@ -58,7 +58,7 @@ struct ImportGraph: Sendable {
 
   /// Nodes that have outgoing edges but no incoming edges — likely entry
   /// points or top-level modules.
-  var likelyEntryPoints: [Node] {
+  public var likelyEntryPoints: [Node] {
     let sinks = Set(edges.map { $0.target })
     return nodes.filter { node in
       !sinks.contains(node) && edges.contains(where: { $0.source == node })
@@ -67,7 +67,7 @@ struct ImportGraph: Sendable {
 
   /// Nodes sorted by their incoming edge count (descending) — files that
   /// many other files depend on are architecturally central.
-  var mostDependedOn: [Node] {
+  public var mostDependedOn: [Node] {
     var counts: [Node: Int] = [:]
     for edge in edges {
       counts[edge.target, default: 0] += 1
@@ -83,7 +83,7 @@ struct ImportGraph: Sendable {
       }
   }
 
-  mutating func addEdge(from source: Node, to target: Node, rawImport: String) {
+  public mutating func addEdge(from source: Node, to target: Node, rawImport: String) {
     addNode(source)
     addNode(target)
     let edge = Edge(source: source, target: target, rawImport: rawImport)
@@ -93,7 +93,7 @@ struct ImportGraph: Sendable {
     adjacency[source, default: .init()].insert(target)
   }
 
-  mutating func addNode(_ node: Node) {
+  public mutating func addNode(_ node: Node) {
     if !nodes.contains(node) {
       nodes.append(node)
     }
@@ -102,7 +102,7 @@ struct ImportGraph: Sendable {
   /// Returns a plain-text representation of the graph grouped by top-level
   /// directory (module cluster), with each cluster's internal edges elided
   /// and inter-cluster edges shown with indentation.
-  func textGraph() -> String {
+  public func textGraph() -> String {
     // Group nodes by top-level directory (module)
     var clusters: [String: [Node]] = [:]
     for node in nodes {
@@ -163,7 +163,7 @@ struct ImportGraph: Sendable {
 ///
 /// This function is available on all macOS versions so callers can inspect
 /// the raw graph without requiring generated narration.
-func buildGraph(codemapDirectory: URL) -> ImportGraph {
+public func buildGraph(codemapDirectory: URL) -> ImportGraph {
   let store = CodemapStore(directory: codemapDirectory)
   let entries = store.loadAllEntries()
 
@@ -251,7 +251,7 @@ func buildGraph(codemapDirectory: URL) -> ImportGraph {
 /// analysis prompt. Output is capped at ~1 000 tokens. Returns `nil` when
 /// narration is unavailable or produces no content.
 @available(macOS 26.0, *)
-enum ArchitectureGraph {
+public enum ArchitectureGraph {
   /// Generates a plain-English architectural description of the given graph.
   ///
   /// The description covers:
@@ -262,7 +262,7 @@ enum ArchitectureGraph {
   ///
   /// Returns `nil` when generated narration is unavailable or produces no
   /// content.
-  static func explain(graph: ImportGraph, repoURL: URL) async -> String? {
+  public static func explain(graph: ImportGraph, repoURL: URL) async -> String? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     let nodeCount = graph.nodes.count
@@ -334,14 +334,14 @@ enum ArchitectureGraph {
   /// show directed import arrows.
   ///
   /// Returns `nil` when the codemap directory is empty (no files indexed).
-  static func exportSVG(from codemapDirectory: URL) -> String? {
+  public static func exportSVG(from codemapDirectory: URL) -> String? {
     let graph = buildGraph(codemapDirectory: codemapDirectory)
     return exportSVG(from: graph)
   }
 
   /// Renders the given import graph as an SVG image.
   /// Returns `nil` when the graph has no nodes.
-  static func exportSVG(from graph: ImportGraph) -> String? {
+  public static func exportSVG(from graph: ImportGraph) -> String? {
     guard !graph.nodes.isEmpty else { return nil }
 
     let nodeWidth: CGFloat = 130

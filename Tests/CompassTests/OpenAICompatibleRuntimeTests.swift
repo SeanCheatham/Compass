@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import Compass
+@testable import CompassCore
 
 @Suite("OpenAI-compatible runtime")
 struct OpenAICompatibleRuntimeTests {

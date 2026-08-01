@@ -1,10 +1,10 @@
 import Foundation
 
-enum RustProjectScaffold {
-  struct Options: Equatable, Sendable {
-    var projectName: String
+public enum RustProjectScaffold {
+  public struct Options: Equatable, Sendable {
+    public var projectName: String
 
-    init(projectName: String) {
+    public init(projectName: String) {
       self.projectName = Self.displayName(projectName)
     }
 
@@ -18,12 +18,12 @@ enum RustProjectScaffold {
     }
   }
 
-  struct ScaffoldFile: Equatable, Sendable {
-    var path: String
-    var contents: String
+  public struct ScaffoldFile: Equatable, Sendable {
+    public var path: String
+    public var contents: String
   }
 
-  static func files(options: Options) -> [ScaffoldFile] {
+  public static func files(options: Options) -> [ScaffoldFile] {
     let name = options.projectName
     return [
       ScaffoldFile(path: ".gitignore", contents: gitignore),
@@ -38,7 +38,7 @@ enum RustProjectScaffold {
     ]
   }
 
-  static func write(to url: URL, options: Options) throws {
+  public static func write(to url: URL, options: Options) throws {
     let fm = FileManager.default
     try fm.createDirectory(at: url, withIntermediateDirectories: true)
     for file in files(options: options) {
@@ -52,7 +52,7 @@ enum RustProjectScaffold {
     }
   }
 
-  static func isGeneratedWorkspace(at url: URL) -> Bool {
+  public static func isGeneratedWorkspace(at url: URL) -> Bool {
     let fm = FileManager.default
     return fm.fileExists(atPath: url.appending(path: "Cargo.toml").path)
       && fm.fileExists(atPath: url.appending(path: "crates/app-core/Cargo.toml").path)

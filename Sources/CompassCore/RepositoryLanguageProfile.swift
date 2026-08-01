@@ -1,13 +1,13 @@
 import Foundation
 
-enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
+public enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   case rust
   case swift
   case markdown
   case other
   case unknown
 
-  var displayName: String {
+  public var displayName: String {
     switch self {
     case .rust: return "Rust"
     case .swift: return "Swift"
@@ -17,7 +17,7 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
     }
   }
 
-  var sourceNoun: String {
+  public var sourceNoun: String {
     switch self {
     case .rust: return "Rust files"
     case .swift: return "Swift files"
@@ -28,17 +28,17 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   }
 }
 
-struct RepositoryLanguageCounts: Codable, Equatable {
-  var rust = 0
-  var swift = 0
-  var markdown = 0
-  var other = 0
+public struct RepositoryLanguageCounts: Codable, Equatable {
+  public var rust = 0
+  public var swift = 0
+  public var markdown = 0
+  public var other = 0
 
-  var total: Int {
+  public var total: Int {
     rust + swift + markdown + other
   }
 
-  subscript(language: RepositoryLanguage) -> Int {
+  public subscript(language: RepositoryLanguage) -> Int {
     get {
       switch language {
       case .rust: return rust
@@ -64,16 +64,16 @@ struct RepositoryLanguageCounts: Codable, Equatable {
     }
   }
 
-  mutating func increment(_ language: RepositoryLanguage) {
+  public mutating func increment(_ language: RepositoryLanguage) {
     self[language] += 1
   }
 }
 
-enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable {
+public enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable {
   case cargoToml = "Cargo.toml"
   case packageSwift = "Package.swift"
 
-  init?(fileName: String) {
+  public init?(fileName: String) {
     switch fileName {
     case Self.cargoToml.rawValue:
       self = .cargoToml
@@ -84,7 +84,7 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
     }
   }
 
-  var language: RepositoryLanguage {
+  public var language: RepositoryLanguage {
     switch self {
     case .cargoToml: return .rust
     case .packageSwift: return .swift
@@ -92,15 +92,15 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
   }
 }
 
-struct RepositoryLanguageProfile: Codable, Equatable {
-  var counts: RepositoryLanguageCounts
-  var manifestHints: [RepositoryManifestHint]
-  var primaryLanguage: RepositoryLanguage
-  var scannedFileCount: Int
-  var scannedDirectoryCount: Int
-  var wasTruncated: Bool
+public struct RepositoryLanguageProfile: Codable, Equatable {
+  public var counts: RepositoryLanguageCounts
+  public var manifestHints: [RepositoryManifestHint]
+  public var primaryLanguage: RepositoryLanguage
+  public var scannedFileCount: Int
+  public var scannedDirectoryCount: Int
+  public var wasTruncated: Bool
 
-  static let empty = RepositoryLanguageProfile(
+  public static let empty = RepositoryLanguageProfile(
     counts: RepositoryLanguageCounts(),
     manifestHints: [],
     primaryLanguage: .unknown,
@@ -109,7 +109,7 @@ struct RepositoryLanguageProfile: Codable, Equatable {
     wasTruncated: false
   )
 
-  var hudSummary: String? {
+  public var hudSummary: String? {
     guard primaryLanguage != .unknown else { return nil }
 
     let count = counts[primaryLanguage]
@@ -148,8 +148,8 @@ struct RepositoryLanguageProfile: Codable, Equatable {
 
 /// Shared rules for walking a repository tree without descending into
 /// build artifacts, dependency caches, or other generated directories.
-enum RepositoryWalkRules {
-  static let ignoredDirectoryNames: Set<String> = [
+public enum RepositoryWalkRules {
+  public static let ignoredDirectoryNames: Set<String> = [
     ".build",
     ".compass",
     ".git",
@@ -166,7 +166,7 @@ enum RepositoryWalkRules {
     "target",
   ]
 
-  static func shouldInclude(name: String, isDirectory: Bool, isTopLevel: Bool = false) -> Bool {
+  public static func shouldInclude(name: String, isDirectory: Bool, isTopLevel: Bool = false) -> Bool {
     if name.hasPrefix(".") { return false }
     if isTopLevel && name == "Compass" { return false }
     if isDirectory && name.hasSuffix(".xcodeproj") { return false }
@@ -174,7 +174,7 @@ enum RepositoryWalkRules {
     return true
   }
 
-  static func shouldInclude(relativePath: String) -> Bool {
+  public static func shouldInclude(relativePath: String) -> Bool {
     let components = relativePath.split(separator: "/").map(String.init)
     guard !components.isEmpty else { return false }
     for (index, component) in components.enumerated() {
@@ -193,8 +193,8 @@ enum RepositoryWalkRules {
   }
 }
 
-enum RepositoryLanguageProfileService {
-  static func scan(repoURL: URL) -> RepositoryLanguageProfile {
+public enum RepositoryLanguageProfileService {
+  public static func scan(repoURL: URL) -> RepositoryLanguageProfile {
     RepositoryLanguageProfileScanner(repoURL: repoURL).scan()
   }
 }
@@ -206,11 +206,11 @@ private struct RepositoryLanguageProfileScanner {
   private let repoURL: URL
   private let fileManager = FileManager.default
 
-  init(repoURL: URL) {
+  public init(repoURL: URL) {
     self.repoURL = repoURL.standardizedFileURL
   }
 
-  func scan() -> RepositoryLanguageProfile {
+  public func scan() -> RepositoryLanguageProfile {
     var counts = RepositoryLanguageCounts()
     var manifestHints = Set<RepositoryManifestHint>()
     var scannedFiles = 0

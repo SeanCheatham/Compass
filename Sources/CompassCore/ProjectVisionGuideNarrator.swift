@@ -1,14 +1,14 @@
 import Foundation
 
-struct ProjectVisionGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+public struct ProjectVisionGuideNarration: Equatable, Sendable {
+  public var guideIdentifier: String
+  public var text: String
 }
 
-enum ProjectVisionGuideNarrator {
-  static let maxCharacters = 320
+public enum ProjectVisionGuideNarrator {
+  public static let maxCharacters = 320
 
-  static func narrate(guide: ProjectVisionGuide) async -> ProjectVisionGuideNarration? {
+  public static func narrate(guide: ProjectVisionGuide) async -> ProjectVisionGuideNarration? {
     guard guide.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -32,7 +32,7 @@ enum ProjectVisionGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: ProjectVisionGuide) -> String {
+  public static func prompt(for guide: ProjectVisionGuide) -> String {
     """
     You are Compass coaching a project vision for a non-engineer.
     Use only the facts below. Do not invent users, requirements, constraints, outcomes, files, commands, or timing.

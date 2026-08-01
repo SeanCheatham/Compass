@@ -3,13 +3,13 @@ import Foundation
 /// Return the symbol outline for a single file from the on-disk codemap.
 /// Faster (and cheaper) than `read_file` when the model only needs to know
 /// what a file defines, not its full contents.
-struct AgentOutlineTool: AgentTool {
-  static let toolName = "outline"
+public struct AgentOutlineTool: AgentTool {
+  public static let toolName = "outline"
 
-  struct Arguments: Decodable {
-    let path: String
+  public struct Arguments: Decodable {
+    public let path: String
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case path
       case filePath
       case filePathSnake = "file_path"
@@ -18,7 +18,7 @@ struct AgentOutlineTool: AgentTool {
       case relativePathSnake = "relative_path"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -29,9 +29,9 @@ struct AgentOutlineTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -52,7 +52,7 @@ struct AgentOutlineTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

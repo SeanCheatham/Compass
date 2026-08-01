@@ -4,14 +4,14 @@ import Foundation
 /// created automatically. The model uses this for net-new files; existing file
 /// edits should go through `AgentEditFileTool`, which preserves the rest of
 /// the file and uses line ranges from `read_file`.
-struct AgentWriteFileTool: AgentTool {
-  static let toolName = "write_file"
+public struct AgentWriteFileTool: AgentTool {
+  public static let toolName = "write_file"
 
-  struct Arguments: Decodable {
-    let path: String
-    let content: String
+  public struct Arguments: Decodable {
+    public let path: String
+    public let content: String
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case path
       case filePath
       case filePathSnake = "file_path"
@@ -22,7 +22,7 @@ struct AgentWriteFileTool: AgentTool {
       case body
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -40,19 +40,19 @@ struct AgentWriteFileTool: AgentTool {
   }
 
   private struct EditFileRepairPayload: Encodable {
-    let path: String
-    let edits: [EditFileRepairEdit]
+    public let path: String
+    public let edits: [EditFileRepairEdit]
   }
 
   private struct EditFileRepairEdit: Encodable {
-    let startLine: Int
-    let endLine: Int
-    let content: String
+    public let startLine: Int
+    public let endLine: Int
+    public let content: String
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -78,7 +78,7 @@ struct AgentWriteFileTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -226,9 +226,9 @@ struct AgentWriteFileTool: AgentTool {
   }
 
   private struct PackageEntryPointConflict {
-    let manifestPath: String
-    let declaredPath: String
-    let field: String
+    public let manifestPath: String
+    public let declaredPath: String
+    public let field: String
   }
 
   private func packageEntryPointConflict(forNewURL url: URL, context: AgentToolContext) async
@@ -349,12 +349,12 @@ struct AgentWriteFileTool: AgentTool {
   }
 
   private struct SelfRelativeModuleReference {
-    let specifier: String
+    public let specifier: String
   }
 
   private struct MissingRelativeModuleReference {
-    let specifier: String
-    let expectedDescription: String
+    public let specifier: String
+    public let expectedDescription: String
   }
 
   private static func selfRelativeModuleReference(
@@ -468,12 +468,12 @@ struct AgentWriteFileTool: AgentTool {
   }
 
   private struct PlaceholderImplementationMarker {
-    let lineNumber: Int
-    let preview: String
+    public let lineNumber: Int
+    public let preview: String
   }
 
   private struct EmptyOrCommentOnlySourceContent {
-    let preview: String
+    public let preview: String
   }
 
   private static func inappropriateRustTestCode(in text: String, url: URL) -> String? {

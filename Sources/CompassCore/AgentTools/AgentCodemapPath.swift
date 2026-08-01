@@ -4,14 +4,14 @@ import Foundation
 /// loose path forms a model is likely to send (absolute, leading "./",
 /// trailing "/") and normalize them to the repo-relative form the store
 /// keys on.
-enum AgentCodemapPath {
+public enum AgentCodemapPath {
   /// Reduce `raw` to the repo-relative form `CodemapStore` indexes on.
   /// - Absolute paths under `workingDirectory` are made relative.
   /// - Leading `./` and trailing slashes are trimmed.
   /// - Anything not under the working directory is returned trimmed but
   ///   otherwise as-is; the caller will get a "no entry" miss, which is
   ///   the right behavior.
-  static func normalize(_ raw: String, workingDirectory: URL) -> String {
+  public static func normalize(_ raw: String, workingDirectory: URL) -> String {
     var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     if s.isEmpty { return s }
     if s.hasPrefix("./") { s.removeFirst(2) }
@@ -30,7 +30,7 @@ enum AgentCodemapPath {
 
   /// Strip the file extension from a relative path. Used by
   /// `importers_of` to match import strings that omit the suffix.
-  static func stripExtension(_ relative: String) -> String {
+  public static func stripExtension(_ relative: String) -> String {
     let ns = relative as NSString
     let stem = ns.deletingPathExtension
     return stem
@@ -38,7 +38,7 @@ enum AgentCodemapPath {
 
   /// Last component (filename) without its extension. Used by
   /// `importers_of` to match bare-module imports against a file's name.
-  static func basenameWithoutExtension(_ relative: String) -> String {
+  public static func basenameWithoutExtension(_ relative: String) -> String {
     let ns = (relative as NSString).lastPathComponent as NSString
     return ns.deletingPathExtension
   }
@@ -46,7 +46,7 @@ enum AgentCodemapPath {
   /// Normalize a raw import string for matching. Strips `./`/`../`
   /// prefixes, trailing `/`, quotes the parser left behind, and known
   /// extensions. Lowercase-comparison is done by the caller.
-  static func normalizeImportSource(_ raw: String) -> String {
+  public static func normalizeImportSource(_ raw: String) -> String {
     var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     while s.hasPrefix("\"") || s.hasPrefix("'") || s.hasPrefix("`") { s.removeFirst() }
     while s.hasSuffix("\"") || s.hasSuffix("'") || s.hasSuffix("`") { s.removeLast() }

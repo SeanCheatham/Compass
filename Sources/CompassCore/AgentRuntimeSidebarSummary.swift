@@ -1,17 +1,17 @@
 import Foundation
 
-struct AgentRuntimeSidebarSummary: Equatable, Sendable {
-  static let valueLimit = 160
+public struct AgentRuntimeSidebarSummary: Equatable, Sendable {
+  public static let valueLimit = 160
 
-  struct Line: Identifiable, Equatable, Sendable {
-    var id: String
-    var label: String
-    var value: String
+  public struct Line: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var label: String
+    public var value: String
   }
 
-  var lines: [Line]
+  public var lines: [Line]
 
-  init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
+  public init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
     let primaryModel: String
     switch settings.textProvider {
     case .openAICompatible:

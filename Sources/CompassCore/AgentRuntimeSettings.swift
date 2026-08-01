@@ -1,28 +1,28 @@
 import Foundation
 
-enum AgentPhase: String, Sendable, CaseIterable {
+public enum AgentPhase: String, Sendable, CaseIterable {
   case plan
   case develop
   case critic
 }
 
-struct AgentRuntimeSettings: Equatable, Sendable {
-  static let defaultTextProvider: AgentProviderKind = .openAICompatible
-  static let defaultContextWindowTokens =
+public struct AgentRuntimeSettings: Equatable, Sendable {
+  public static let defaultTextProvider: AgentProviderKind = .openAICompatible
+  public static let defaultContextWindowTokens =
     AgentProviderKind.openAICompatible.defaultTextContextWindowTokens
-  static let defaultBaseURLString =
+  public static let defaultBaseURLString =
     AgentProviderKind.openAICompatible.defaultBaseURLString ?? "https://api.kimi.com/coding/v1"
-  static var defaultBaseURL: URL {
+  public static var defaultBaseURL: URL {
     URL(string: defaultBaseURLString) ?? URL(fileURLWithPath: "/")
   }
 
-  var textProvider: AgentProviderKind
-  var baseURL: URL
-  var apiKey: String
-  var model: String
-  var contextWindowTokens: Int
+  public var textProvider: AgentProviderKind
+  public var baseURL: URL
+  public var apiKey: String
+  public var model: String
+  public var contextWindowTokens: Int
 
-  init(
+  public init(
     textProvider: AgentProviderKind = AgentRuntimeSettings.defaultTextProvider,
     baseURL: URL = AgentRuntimeSettings.defaultBaseURL,
     apiKey: String = "",
@@ -36,44 +36,44 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     self.contextWindowTokens = max(0, contextWindowTokens)
   }
 
-  static func defaultFromEnvironment(
+  public static func defaultFromEnvironment(
     _ environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> Self {
     AgentSettingsStore(environment: environment).load()
   }
 
-  var trimmedAPIKey: String {
+  public var trimmedAPIKey: String {
     apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  var trimmedModel: String {
+  public var trimmedModel: String {
     model.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  var hasCloudCredentials: Bool {
+  public var hasCloudCredentials: Bool {
     !trimmedAPIKey.isEmpty && !trimmedModel.isEmpty && !baseURL.absoluteString.isEmpty
   }
 
-  var isCloudConfigured: Bool {
+  public var isCloudConfigured: Bool {
     textProvider == .openAICompatible && hasCloudCredentials
   }
 
-  var isLocalAssistReady: Bool {
+  public var isLocalAssistReady: Bool {
     LocalModelCatalog.isBlessedModelReady()
   }
 
-  var codemapModel: String {
+  public var codemapModel: String {
     if isLocalAssistReady {
       return LocalModelCatalog.blessedModelID
     }
     return model(for: .plan)
   }
 
-  var isTextCapabilityReady: Bool {
+  public var isTextCapabilityReady: Bool {
     isTextCapabilityRunnable(localModelReady: LocalModelCatalog.isBlessedModelReady())
   }
 
-  func isTextCapabilityRunnable(localModelReady: Bool) -> Bool {
+  public func isTextCapabilityRunnable(localModelReady: Bool) -> Bool {
     switch textProvider {
     case .openAICompatible:
       return hasCloudCredentials
@@ -82,7 +82,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     }
   }
 
-  func model(for phase: AgentPhase, sidebarOverride: String = "") -> String {
+  public func model(for phase: AgentPhase, sidebarOverride: String = "") -> String {
     let override = sidebarOverride.trimmingCharacters(in: .whitespacesAndNewlines)
     if !override.isEmpty { return override }
     switch textProvider {
@@ -93,12 +93,12 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     }
   }
 
-  func cloudEndpointDisplay() -> String {
+  public func cloudEndpointDisplay() -> String {
     baseURL.absoluteString
   }
 }
 
-extension Dictionary where Key == String, Value == String {
+public extension Dictionary where Key == String, Value == String {
   func trimmedValue(_ key: String) -> String? {
     let trimmed = self[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return trimmed.isEmpty ? nil : trimmed

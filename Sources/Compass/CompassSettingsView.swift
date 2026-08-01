@@ -1,4 +1,5 @@
 import SwiftUI
+import CompassCore
 
 struct CompassSettingsView: View {
   @EnvironmentObject var model: AppModel

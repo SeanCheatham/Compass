@@ -1,44 +1,44 @@
 import Foundation
 
-struct ProjectVisionGuide: Equatable, Sendable {
-  static let detailLimit = 220
-  static let visionPreviewLimit = 1_200
-  static let identifierLimit = 1_200
+public struct ProjectVisionGuide: Equatable, Sendable {
+  public static let detailLimit = 220
+  public static let visionPreviewLimit = 1_200
+  public static let identifierLimit = 1_200
 
-  var status: Status
-  var title: String
-  var detail: String
-  var scoreLabel: String
-  var nextAction: NextAction
-  var cues: [Cue]
-  var visionPreview: String
-  var narrationIdentifier: String
+  public var status: Status
+  public var title: String
+  public var detail: String
+  public var scoreLabel: String
+  public var nextAction: NextAction
+  public var cues: [Cue]
+  public var visionPreview: String
+  public var narrationIdentifier: String
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     status == .empty
   }
 
-  var allowsNarration: Bool {
+  public var allowsNarration: Bool {
     status != .empty
   }
 
-  var satisfiedSignalTitles: [String] {
+  public var satisfiedSignalTitles: [String] {
     cues.filter(\.isSatisfied).map(\.title)
   }
 
-  var missingSignalTitles: [String] {
+  public var missingSignalTitles: [String] {
     cues.filter { !$0.isSatisfied }.map(\.title)
   }
 
-  var satisfiedSignalText: String {
+  public var satisfiedSignalText: String {
     satisfiedSignalTitles.isEmpty ? "none" : satisfiedSignalTitles.joined(separator: ", ")
   }
 
-  var missingSignalText: String {
+  public var missingSignalText: String {
     missingSignalTitles.isEmpty ? "none" : missingSignalTitles.joined(separator: ", ")
   }
 
-  init(vision rawVision: String) {
+  public init(vision rawVision: String) {
     let vision = Self.normalizedVision(rawVision)
     visionPreview = StringUtils.boundedText(vision, limit: Self.visionPreviewLimit)
 
@@ -129,42 +129,42 @@ struct ProjectVisionGuide: Equatable, Sendable {
     )
   }
 
-  enum Status: Equatable, Sendable {
+  public enum Status: Equatable, Sendable {
     case empty
     case needsFocus
     case grounded
     case ready
   }
 
-  struct Cue: Identifiable, Equatable, Sendable {
-    var kind: Kind
-    var isSatisfied: Bool
-    var detail: String
+  public struct Cue: Identifiable, Equatable, Sendable {
+    public var kind: Kind
+    public var isSatisfied: Bool
+    public var detail: String
 
-    var id: Kind { kind }
+    public var id: Kind { kind }
 
-    var title: String {
+    public var title: String {
       kind.title
     }
 
-    var systemImage: String {
+    public var systemImage: String {
       isSatisfied ? "checkmark.circle.fill" : kind.systemImage
     }
   }
 
-  struct NextAction: Equatable, Sendable {
-    var title: String
-    var detail: String
-    var systemImage: String
+  public struct NextAction: Equatable, Sendable {
+    public var title: String
+    public var detail: String
+    public var systemImage: String
   }
 
-  enum Kind: CaseIterable, Equatable, Sendable {
+  public enum Kind: CaseIterable, Equatable, Sendable {
     case audience
     case problem
     case success
     case guardrails
 
-    var title: String {
+    public var title: String {
       switch self {
       case .audience:
         return "Audience"
@@ -177,7 +177,7 @@ struct ProjectVisionGuide: Equatable, Sendable {
       }
     }
 
-    var systemImage: String {
+    public var systemImage: String {
       switch self {
       case .audience:
         return "person.2"
@@ -328,12 +328,12 @@ struct ProjectVisionGuide: Equatable, Sendable {
   }
 }
 
-struct ProjectVisionClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_500
+public struct ProjectVisionClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 3_500
 
-  var text: String
+  public var text: String
 
-  init(guide: ProjectVisionGuide) {
+  public init(guide: ProjectVisionGuide) {
     guard !guide.isEmpty else {
       text = ""
       return
@@ -376,13 +376,13 @@ struct ProjectVisionClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum ProjectVisionClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  public static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

@@ -1,18 +1,34 @@
 import CompassSandbox
 import Foundation
 
-extension Prompts {
+public extension Prompts {
   static func subAgentSystemPrompt(
     parentPhase: AgentPhase,
     workingDirectoryPath: String,
     toolNames: [String],
     executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
-    hostXcodeBuildTestEnabled: Bool = false
+    hostXcodeBuildTestEnabled: Bool = false,
+    promptMode: AgentPromptMode = .envelope
   ) -> String {
     let visibleWorkingDirectory = Self.visibleWorkingDirectory(
       workingDirectoryPath,
       executionEnvironment: executionEnvironment
     )
+    let protocolSection =
+      promptMode == .nativeTools
+      ? """
+      Response protocol:
+      - Use the provided Compass tools directly; do not write JSON envelopes.
+      - Finish by calling the `delegate_submit` tool with `{"findings": "<grounded findings>"}`.
+      Do not delegate further.
+      """
+      : """
+      Response protocol:
+      - Emit exactly one JSON object per turn, with no prose or Markdown fences.
+      - Request a tool with `{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, report the relevant verify command."}`.
+      - Finish with `{"kind":"delegate_submit","payload":{"findings":"<grounded findings>"}}`.
+      Do not delegate further.
+      """
     return """
     You are a focused sub-agent inside Compass's local software factory. Investigate the
     delegated task and return a self-contained `findings` string through `delegate_submit`.
@@ -25,11 +41,7 @@ extension Prompts {
 
     \(executionEnvironmentSection(executionEnvironment, hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled))
 
-    Response protocol:
-    - Emit exactly one JSON object per turn, with no prose or Markdown fences.
-    - Request a tool with `{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, report the relevant verify command."}`.
-    - Finish with `{"kind":"delegate_submit","payload":{"findings":"<grounded findings>"}}`.
-    Do not delegate further.
+    \(protocolSection)
     """
   }
 
@@ -43,7 +55,8 @@ extension Prompts {
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
     hostXcodeBuildTestEnabled: Bool = false,
-    externalToolNames: [String] = []
+    externalToolNames: [String] = [],
+    promptMode: AgentPromptMode = .envelope
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
@@ -83,6 +96,22 @@ extension Prompts {
       executionEnvironment: executionEnvironment
     )
 
+    let protocolSection =
+      promptMode == .nativeTools
+      ? """
+      Response protocol:
+      - Call the provided Compass tools directly; do not write JSON envelopes or prose turn protocols.
+      - Prefer batching independent reads in one turn when the provider allows parallel tool calls.
+      - Finish the phase by calling the `\(phaseSubmitKind(phase))` tool with arguments matching the phase schema in the user message.
+      """
+      : """
+      Response protocol:
+      - Emit exactly one JSON object per turn, with no prose or Markdown fences.
+      - Request one Compass tool with `{"kind":"\(phaseContinuationKind(phase))","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, choose the relevant verify command next."}`.
+      - Finish the phase with `{"kind":"\(phaseSubmitKind(phase))","payload":{...}}`, where `payload` matches the phase schema in the user message.
+      - Use `reason` for why the requested tool is needed now. Use optional `note` only for a short unverified next-step hint after the real tool observation.
+      """
+
     return """
     You are operating inside Compass's local software factory.
 
@@ -110,11 +139,7 @@ extension Prompts {
     Tools available:
     \(toolList)
 
-    Response protocol:
-    - Emit exactly one JSON object per turn, with no prose or Markdown fences.
-    - Request one Compass tool with `{"kind":"\(phaseContinuationKind(phase))","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, choose the relevant verify command next."}`.
-    - Finish the phase with `{"kind":"\(phaseSubmitKind(phase))","payload":{...}}`, where `payload` matches the phase schema in the user message.
-    - Use `reason` for why the requested tool is needed now. Use optional `note` only for a short unverified next-step hint after the real tool observation.
+    \(protocolSection)
 
     Use codemap tools before broad file reads when possible.
     """

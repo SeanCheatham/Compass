@@ -1,7 +1,7 @@
 import Foundation
 
 /// Execution backend for `AgentBashTool`.
-protocol AgentBashRunner: Sendable {
+public protocol AgentBashRunner: Sendable {
   func run(
     command: String,
     workingDirectory: URL,
@@ -12,14 +12,14 @@ protocol AgentBashRunner: Sendable {
 /// Runs the command in a `/bin/zsh -lc` subshell on the host, in the given
 /// working directory. Used for host-side maintenance (codemap listing,
 /// preflight commit) while factory phases use `AgentContainerBashRunner`.
-struct AgentHostBashRunner: AgentBashRunner {
-  let shellPath: String
+public struct AgentHostBashRunner: AgentBashRunner {
+  public let shellPath: String
 
-  init(shellPath: String = "/bin/zsh") {
+  public init(shellPath: String = "/bin/zsh") {
     self.shellPath = shellPath
   }
 
-  func run(
+  public func run(
     command: String,
     workingDirectory: URL,
     timeout: TimeInterval

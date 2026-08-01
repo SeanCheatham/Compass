@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import CompassCore
 @testable import CompassSandbox
 
 @Suite("ContainerSandbox")

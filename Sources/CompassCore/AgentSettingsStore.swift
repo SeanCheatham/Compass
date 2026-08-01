@@ -1,16 +1,16 @@
 import Foundation
 
-final class AgentSettingsStore: @unchecked Sendable {
-  static let secretService = "com.seancheatham.Compass.agent"
-  static let textAPIKeyAccount = "api_key.text.openAICompatible"
+public final class AgentSettingsStore: @unchecked Sendable {
+  public static let secretService = "com.seancheatham.Compass.agent"
+  public static let textAPIKeyAccount = "api_key.text.openAICompatible"
 
-  enum Key: Hashable, CaseIterable {
+  public enum Key: Hashable, CaseIterable {
     case textProvider
     case baseURL
     case model
     case contextWindowTokens
 
-    var rawValue: String {
+    public var rawValue: String {
       switch self {
       case .textProvider:
         return "compass.capability.text.provider"
@@ -23,7 +23,7 @@ final class AgentSettingsStore: @unchecked Sendable {
       }
     }
 
-    static var allCases: [Key] {
+    public static var allCases: [Key] {
       [.textProvider, .baseURL, .model, .contextWindowTokens]
     }
   }
@@ -32,7 +32,7 @@ final class AgentSettingsStore: @unchecked Sendable {
   private let secrets: AgentSecretStorage
   private let environment: [String: String]
 
-  init(
+  public init(
     defaults: UserDefaults = .standard,
     secrets: AgentSecretStorage = AgentFileSecretStorage(),
     environment: [String: String] = ProcessInfo.processInfo.environment
@@ -42,7 +42,7 @@ final class AgentSettingsStore: @unchecked Sendable {
     self.environment = environment
   }
 
-  func load() -> AgentRuntimeSettings {
+  public func load() -> AgentRuntimeSettings {
     let textProvider = resolveTextProvider()
     let baseURL = resolveBaseURL()
     let apiKey = resolveAPIKey()
@@ -62,19 +62,19 @@ final class AgentSettingsStore: @unchecked Sendable {
     )
   }
 
-  func setTextProvider(_ provider: AgentProviderKind) {
+  public func setTextProvider(_ provider: AgentProviderKind) {
     defaults.set(provider.rawValue, forKey: Key.textProvider.rawValue)
   }
 
-  func setBaseURL(_ url: URL) {
+  public func setBaseURL(_ url: URL) {
     defaults.set(url.absoluteString, forKey: Key.baseURL.rawValue)
   }
 
-  func setModel(_ model: String) {
+  public func setModel(_ model: String) {
     defaults.set(model, forKey: Key.model.rawValue)
   }
 
-  func setAPIKey(_ key: String) throws {
+  public func setAPIKey(_ key: String) throws {
     let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty {
       try secrets.delete(service: Self.secretService, account: Self.textAPIKeyAccount)
@@ -83,7 +83,7 @@ final class AgentSettingsStore: @unchecked Sendable {
     }
   }
 
-  func setContextWindowTokens(_ tokens: Int) {
+  public func setContextWindowTokens(_ tokens: Int) {
     defaults.set(String(max(0, tokens)), forKey: Key.contextWindowTokens.rawValue)
   }
 

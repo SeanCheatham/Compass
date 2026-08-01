@@ -1,27 +1,27 @@
 import Foundation
 
-struct AssumptionDraft: Codable, Equatable, Sendable {
-  var text: String
-  var rationale: String?
-  var evidence: [String]?
-  var impact: String?
-  var invalidation: String?
-  var scope: AssumptionRecord.Scope?
+public struct AssumptionDraft: Codable, Equatable, Sendable {
+  public var text: String
+  public var rationale: String?
+  public var evidence: [String]?
+  public var impact: String?
+  public var invalidation: String?
+  public var scope: AssumptionRecord.Scope?
 }
 
-struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
-  static let textLimit = 420
-  static let detailLimit = 360
-  static let commentLimit = 520
-  static let evidenceLimit = 5
+public struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
+  public static let textLimit = 420
+  public static let detailLimit = 360
+  public static let commentLimit = 520
+  public static let evidenceLimit = 5
 
-  enum Status: String, Codable, CaseIterable, Sendable {
+  public enum Status: String, Codable, CaseIterable, Sendable {
     case implicit
     case affirmed
     case denied
     case superseded
 
-    var displayName: String {
+    public var displayName: String {
       switch self {
       case .implicit: return "Implicit"
       case .affirmed: return "Affirmed"
@@ -30,7 +30,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
       }
     }
 
-    var promptLabel: String {
+    public var promptLabel: String {
       switch self {
       case .implicit:
         return "Implicit assumption, treated as true with lower confidence"
@@ -44,32 +44,32 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     }
   }
 
-  enum Scope: String, Codable, CaseIterable, Sendable {
+  public enum Scope: String, Codable, CaseIterable, Sendable {
     case project
     case feature
     case session
 
-    var displayName: String {
+    public var displayName: String {
       rawValue.capitalized
     }
   }
 
-  var id: String
-  var text: String
-  var rationale: String
-  var evidence: [String]
-  var impact: String
-  var invalidation: String
-  var scope: Scope
-  var status: Status
-  var createdByPhase: String
-  var createdInSession: Int?
-  var createdAt: Double
-  var updatedAt: Double
-  var userComment: String?
-  var supersededBy: String?
+  public var id: String
+  public var text: String
+  public var rationale: String
+  public var evidence: [String]
+  public var impact: String
+  public var invalidation: String
+  public var scope: Scope
+  public var status: Status
+  public var createdByPhase: String
+  public var createdInSession: Int?
+  public var createdAt: Double
+  public var updatedAt: Double
+  public var userComment: String?
+  public var supersededBy: String?
 
-  init(
+  public init(
     id: String = UUID().uuidString,
     text: String,
     rationale: String = "",
@@ -101,7 +101,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     self.supersededBy = Self.optionalSanitized(supersededBy, limit: 80)
   }
 
-  init(draft: AssumptionDraft, phase: AgentPhase, sessionNumber: Int?, now: Date = Date()) throws {
+  public init(draft: AssumptionDraft, phase: AgentPhase, sessionNumber: Int?, now: Date = Date()) throws {
     let text = Self.sanitized(draft.text, limit: Self.textLimit)
     guard !text.isEmpty else {
       throw AssumptionLedgerError.emptyAssumption
@@ -130,19 +130,19 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     )
   }
 
-  var normalizedTextKey: String {
+  public var normalizedTextKey: String {
     Self.normalizedKey(text)
   }
 
-  var createdAtDate: Date {
+  public var createdAtDate: Date {
     Date(timeIntervalSince1970: createdAt)
   }
 
-  var updatedAtDate: Date {
+  public var updatedAtDate: Date {
     Date(timeIntervalSince1970: updatedAt)
   }
 
-  mutating func mergeNewObservation(from draft: AssumptionDraft, phase: AgentPhase, now: Date) {
+  public mutating func mergeNewObservation(from draft: AssumptionDraft, phase: AgentPhase, now: Date) {
     let incoming = try? AssumptionRecord(
       draft: draft,
       phase: phase,
@@ -163,7 +163,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     updatedAt = now.timeIntervalSince1970
   }
 
-  func reviewed(
+  public func reviewed(
     status: Status,
     comment: String?,
     now: Date = Date()
@@ -178,7 +178,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     return copy
   }
 
-  func removed(
+  public func removed(
     comment: String?,
     now: Date = Date()
   ) -> AssumptionRecord {
@@ -189,14 +189,14 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     return copy
   }
 
-  static func normalizedKey(_ text: String) -> String {
+  public static func normalizedKey(_ text: String) -> String {
     sanitized(text, limit: textLimit)
       .lowercased()
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  static func sanitized(_ value: String, limit: Int) -> String {
+  public static func sanitized(_ value: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     let normalized =
       value
@@ -208,7 +208,7 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 
-  static func optionalSanitized(_ value: String?, limit: Int) -> String? {
+  public static func optionalSanitized(_ value: String?, limit: Int) -> String? {
     let sanitized = sanitized(value ?? "", limit: limit)
     return sanitized.isEmpty ? nil : sanitized
   }
@@ -228,38 +228,38 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
   }
 }
 
-struct AssumptionLedger: Codable, Equatable, Sendable {
-  static let empty = AssumptionLedger()
-  static let emptyJSON = "{\n  \"assumptions\" : []\n}\n"
-  static let promptBucketLimit = 10
+public struct AssumptionLedger: Codable, Equatable, Sendable {
+  public static let empty = AssumptionLedger()
+  public static let emptyJSON = "{\n  \"assumptions\" : []\n}\n"
+  public static let promptBucketLimit = 10
 
-  var assumptions: [AssumptionRecord]
+  public var assumptions: [AssumptionRecord]
 
-  init(assumptions: [AssumptionRecord] = []) {
+  public init(assumptions: [AssumptionRecord] = []) {
     self.assumptions = assumptions
   }
 
-  var activeAssumptions: [AssumptionRecord] {
+  public var activeAssumptions: [AssumptionRecord] {
     assumptions.filter { $0.status != .superseded }
   }
 
-  var archivedCount: Int {
+  public var archivedCount: Int {
     assumptions.filter { $0.status == .superseded }.count
   }
 
-  var implicitCount: Int {
+  public var implicitCount: Int {
     activeAssumptions.filter { $0.status == .implicit }.count
   }
 
-  var affirmedCount: Int {
+  public var affirmedCount: Int {
     activeAssumptions.filter { $0.status == .affirmed }.count
   }
 
-  var deniedCount: Int {
+  public var deniedCount: Int {
     activeAssumptions.filter { $0.status == .denied }.count
   }
 
-  mutating func record(
+  public mutating func record(
     draft: AssumptionDraft,
     phase: AgentPhase,
     sessionNumber: Int?,
@@ -281,7 +281,7 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
     return candidate
   }
 
-  mutating func review(
+  public mutating func review(
     id: String,
     status: AssumptionRecord.Status,
     comment: String?,
@@ -295,7 +295,7 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
     return reviewed
   }
 
-  mutating func remove(
+  public mutating func remove(
     id: String,
     comment: String?,
     now: Date = Date()
@@ -308,7 +308,7 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
     return removed
   }
 
-  func formattedForPrompt() -> String {
+  public func formattedForPrompt() -> String {
     let affirmed = promptRecords(status: .affirmed)
     let implicit = promptRecords(status: .implicit)
     let denied = promptRecords(status: .denied)
@@ -376,10 +376,10 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
   }
 }
 
-struct AssumptionLedgerStore: Sendable {
-  var url: URL
+public struct AssumptionLedgerStore: Sendable {
+  public var url: URL
 
-  func read() throws -> AssumptionLedger {
+  public func read() throws -> AssumptionLedger {
     guard FileManager.default.fileExists(atPath: url.path) else {
       return .empty
     }
@@ -393,7 +393,7 @@ struct AssumptionLedgerStore: Sendable {
     return AssumptionLedger(assumptions: legacyRecords)
   }
 
-  func write(_ ledger: AssumptionLedger) throws {
+  public func write(_ ledger: AssumptionLedger) throws {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(ledger)
@@ -404,7 +404,7 @@ struct AssumptionLedgerStore: Sendable {
     try data.write(to: url, options: .atomic)
   }
 
-  func record(
+  public func record(
     draft: AssumptionDraft,
     phase: AgentPhase,
     sessionNumber: Int?,
@@ -421,7 +421,7 @@ struct AssumptionLedgerStore: Sendable {
     return record
   }
 
-  func review(
+  public func review(
     id: String,
     status: AssumptionRecord.Status,
     comment: String?,
@@ -433,7 +433,7 @@ struct AssumptionLedgerStore: Sendable {
     return record
   }
 
-  func remove(
+  public func remove(
     id: String,
     comment: String?,
     now: Date = Date()
@@ -445,14 +445,14 @@ struct AssumptionLedgerStore: Sendable {
   }
 }
 
-enum AssumptionLedgerError: LocalizedError, Equatable {
+public enum AssumptionLedgerError: LocalizedError, Equatable {
   case emptyAssumption
   case emptyRationale
   case emptyImpact
   case assumptionNotFound(String)
   case unsupportedReviewStatus(String)
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .emptyAssumption:
       return "Assumption text cannot be empty."
@@ -468,7 +468,7 @@ enum AssumptionLedgerError: LocalizedError, Equatable {
   }
 }
 
-extension CompassWorkspace {
+public extension CompassWorkspace {
   func readAssumptionLedger() throws -> AssumptionLedger {
     try AssumptionLedgerStore(url: assumptionsURL).read()
   }

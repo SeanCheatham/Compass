@@ -1,34 +1,5 @@
 import Foundation
-
-enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
-  case containerizedLinux = "containerized_linux"
-
-  var id: Self { self }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    let raw = try container.decode(String.self)
-    switch raw {
-    case Self.containerizedLinux.rawValue, "shared_vm", "native_macos", "devcontainer_preferred":
-      self = .containerizedLinux
-    default:
-      self = .containerizedLinux
-    }
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(rawValue)
-  }
-
-  var title: String {
-    "Containerized Linux"
-  }
-
-  var systemImage: String {
-    "shippingbox"
-  }
-}
+import CompassCore
 
 struct AgentExecutionEnvironmentPresentation: Equatable {
   static let titleLimit = 48

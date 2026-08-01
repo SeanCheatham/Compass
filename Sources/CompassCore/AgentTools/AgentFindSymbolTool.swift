@@ -3,15 +3,15 @@ import Foundation
 /// Locate every codemap entry that defines a symbol with a matching name.
 /// Faster than greping for "func foo" / "class Foo" — the codemap already
 /// knows what's a declaration vs. a reference.
-struct AgentFindSymbolTool: AgentTool {
-  static let toolName = "find_symbol"
-  static let maxResults = 100
+public struct AgentFindSymbolTool: AgentTool {
+  public static let toolName = "find_symbol"
+  public static let maxResults = 100
 
-  struct Arguments: Decodable {
-    let name: String
-    let kind: String?
+  public struct Arguments: Decodable {
+    public let name: String
+    public let kind: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case name
       case symbol
       case symbolName
@@ -23,7 +23,7 @@ struct AgentFindSymbolTool: AgentTool {
       case type
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       name = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -39,9 +39,9 @@ struct AgentFindSymbolTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let kindValues = CodemapSymbolKind.allRawValues
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
@@ -69,7 +69,7 @@ struct AgentFindSymbolTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -126,7 +126,7 @@ struct AgentFindSymbolTool: AgentTool {
   }
 }
 
-extension CodemapSymbolKind {
+public extension CodemapSymbolKind {
   /// JSON-Schema-friendly list of allowed `kind` values for tool input
   /// validation. Stable order so the schema diff stays minimal across
   /// builds.

@@ -1,13 +1,13 @@
 import Foundation
 
-struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
-  static let textLimit = 6_500
+public struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 6_500
   private static let rowLimit = 7
   private static let draftHighlightLimit = 3
 
-  var text: String
+  public var text: String
 
-  init(
+  public init(
     projectName: String,
     runGuide: ProjectRunControlGuide,
     draftGuide: DraftIntakeGuide,
@@ -74,7 +74,7 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -231,7 +231,7 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
 }
 
 private enum ProjectSnapshotClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  public static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

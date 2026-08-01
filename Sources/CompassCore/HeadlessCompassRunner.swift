@@ -94,7 +94,7 @@ public struct HeadlessVerifyOptions: Equatable, Sendable {
 }
 
 public struct HeadlessCompassRunner: Sendable {
-  typealias BashRunnerFactory = @Sendable (URL, String) -> any AgentBashRunner
+  public typealias BashRunnerFactory = @Sendable (URL, String) -> any AgentBashRunner
 
   private let bashRunnerFactory: BashRunnerFactory
 
@@ -104,7 +104,7 @@ public struct HeadlessCompassRunner: Sendable {
     }
   }
 
-  init(bashRunnerFactory: @escaping BashRunnerFactory) {
+  public init(bashRunnerFactory: @escaping BashRunnerFactory) {
     self.bashRunnerFactory = bashRunnerFactory
   }
 
@@ -798,7 +798,7 @@ public struct HeadlessCompassRunner: Sendable {
     try workspace.writeState(seeded)
   }
 
-  static func stateBySeedingHeadlessBrief(_ state: PlanState, brief: String) -> PlanState {
+  public static func stateBySeedingHeadlessBrief(_ state: PlanState, brief: String) -> PlanState {
     let rawSummary = Self.compactBriefSummary(brief)
     guard !rawSummary.isEmpty else { return state }
 
@@ -849,6 +849,7 @@ public struct HeadlessCompassRunner: Sendable {
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
   ) async throws -> PlanRunResult {
     let current = try workspace.readState()
+    let promptMode = ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
     let prompt = try Prompts.planPrompt(
       state: current.proposal,
       completedCount: current.completed.count,
@@ -861,7 +862,8 @@ public struct HeadlessCompassRunner: Sendable {
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
       focus: .feature,
-      coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace)
+      coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
+      promptMode: promptMode
     )
     _ = try workspace.writeSessionAuditArtifact(
       session: sessionNumber,
@@ -896,13 +898,15 @@ public struct HeadlessCompassRunner: Sendable {
     maxIterations: Int,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
   ) async throws -> DevelopSummary {
+    let promptMode = ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
     let prompt = Prompts.developPrompt(
       next: immediate,
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
       attempt: attempt,
-      priorIssues: priorIssues
+      priorIssues: priorIssues,
+      promptMode: promptMode
     )
     _ = try workspace.writeSessionAuditArtifact(
       session: sessionNumber,
@@ -939,6 +943,7 @@ public struct HeadlessCompassRunner: Sendable {
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
   ) async throws -> CriticVerdict {
     let diff = await gitDiffSinceSHA(beforeSha, repoURL: workspace.repoURL)
+    let promptMode = ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
     let prompt = Prompts.criticPrompt(
       next: immediate,
       developSummary: develop,
@@ -951,7 +956,8 @@ public struct HeadlessCompassRunner: Sendable {
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
       iteration: 1,
-      maxIterations: 1
+      maxIterations: 1,
+      promptMode: promptMode
     )
     _ = try workspace.writeSessionAuditArtifact(
       session: sessionNumber,
@@ -1006,10 +1012,15 @@ public struct HeadlessCompassRunner: Sendable {
         phase: phase,
         workingDirectoryPath: workspace.repoURL.path,
         executionEnvironment: .containerizedLinux,
-        externalToolNames: []
+        externalToolNames: [],
+        promptMode: ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
       ),
       userPrompt: userPrompt,
-      tools: ToolRegistry.tools(for: phase, settings: settings),
+      tools: ToolRegistry.tools(
+        for: phase,
+        settings: settings,
+        promptMode: ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
+      ),
       modelRuntime: runtime,
       agentVisibleWorkspacePath: ContainerSandboxConfiguration.defaultWorkspacePath,
       submitResultSchema: AgentToolParametersSchema(json: Data(schema.utf8)),
@@ -1026,6 +1037,7 @@ public struct HeadlessCompassRunner: Sendable {
         workspace: workspace,
         decode: T.self
       ),
+      promptMode: ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime),
       maxIterations: maxIterations,
       wallClockTimeout: 60 * 60
     )
@@ -1298,23 +1310,23 @@ public struct HeadlessCompassRunner: Sendable {
   }
 
   private struct CoverageTableRow {
-    let path: String
-    let statements: Double?
-    let functions: Double?
-    let lines: Double?
+    public let path: String
+    public let statements: Double?
+    public let functions: Double?
+    public let lines: Double?
   }
 
   private struct CoverageGap {
-    let changedPath: String
-    let coverageLine: String
-    let testTargetLines: [String]
+    public let changedPath: String
+    public let coverageLine: String
+    public let testTargetLines: [String]
   }
 
   private struct PackageEntryPointIssue {
-    let manifestPath: String
-    let field: String
-    let declaredPath: String
-    let targetPath: String
+    public let manifestPath: String
+    public let field: String
+    public let declaredPath: String
+    public let targetPath: String
   }
 
   private func successfulVerifyCoverageIssue(

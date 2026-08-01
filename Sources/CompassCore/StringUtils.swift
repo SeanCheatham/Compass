@@ -1,9 +1,9 @@
 import Foundation
 
-struct StringUtils {
+public struct StringUtils {
   /// Collapses whitespace and newlines, then truncates at `limit`, trimming
   /// any trailing whitespace from the result.
-  static func boundedText(_ text: String, limit: Int) -> String {
+  public static func boundedText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     let normalized =
       text

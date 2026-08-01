@@ -1,9 +1,9 @@
 import Foundation
 
-struct ProcessResult: Sendable, Equatable {
-  var exitCode: Int32
-  var stdout: String
-  var stderr: String
+public struct ProcessResult: Sendable, Equatable {
+  public var exitCode: Int32
+  public var stdout: String
+  public var stderr: String
 }
 
 private final class ProcessOutputStore: @unchecked Sendable {
@@ -12,25 +12,25 @@ private final class ProcessOutputStore: @unchecked Sendable {
   private var stderr = ""
   private var finished = false
 
-  func appendStdout(_ text: String) {
+  public func appendStdout(_ text: String) {
     lock.lock()
     stdout += text
     lock.unlock()
   }
 
-  func appendStderr(_ text: String) {
+  public func appendStderr(_ text: String) {
     lock.lock()
     stderr += text
     lock.unlock()
   }
 
-  func snapshot() -> (stdout: String, stderr: String) {
+  public func snapshot() -> (stdout: String, stderr: String) {
     lock.lock()
     defer { lock.unlock() }
     return (stdout, stderr)
   }
 
-  func claimFinish() -> Bool {
+  public func claimFinish() -> Bool {
     lock.lock()
     defer { lock.unlock() }
     guard !finished else { return false }
@@ -43,13 +43,13 @@ private final class TimeoutStore: @unchecked Sendable {
   private let lock = NSLock()
   private var workItem: DispatchWorkItem?
 
-  func set(_ workItem: DispatchWorkItem) {
+  public func set(_ workItem: DispatchWorkItem) {
     lock.lock()
     self.workItem = workItem
     lock.unlock()
   }
 
-  func cancel() {
+  public func cancel() {
     lock.lock()
     workItem?.cancel()
     workItem = nil
@@ -57,7 +57,7 @@ private final class TimeoutStore: @unchecked Sendable {
   }
 }
 
-enum ProcessRunner {
+public enum ProcessRunner {
   private static let timeoutQueue = DispatchQueue(
     label: "Compass.ProcessRunner.timeout",
     qos: .userInitiated
@@ -68,7 +68,7 @@ enum ProcessRunner {
     attributes: .concurrent
   )
 
-  typealias InvocationRunner = (
+  public typealias InvocationRunner = (
     _ invocation: AgentExecutionInvocation,
     _ input: String?,
     _ timeout: TimeInterval?,
@@ -76,7 +76,7 @@ enum ProcessRunner {
     _ onStderr: ((String) -> Void)?
   ) async throws -> ProcessResult
 
-  static func run(
+  public static func run(
     executable: String,
     arguments: [String],
     workingDirectory: URL? = nil,
@@ -198,7 +198,7 @@ enum ProcessRunner {
     }
   }
 
-  static func run(
+  public static func run(
     invocation: AgentExecutionInvocation,
     input: String? = nil,
     timeout: TimeInterval? = nil,
@@ -216,7 +216,7 @@ enum ProcessRunner {
     )
   }
 
-  static func runEnv(
+  public static func runEnv(
     _ command: String,
     _ arguments: [String],
     workingDirectory: URL? = nil,
@@ -236,7 +236,7 @@ enum ProcessRunner {
     )
   }
 
-  static func runShell(
+  public static func runShell(
     _ command: String,
     workingDirectory: URL,
     timeout: TimeInterval? = nil,

@@ -1,14 +1,14 @@
 import Foundation
 
-struct DraftIdeaTemplate: Identifiable, Equatable, Sendable {
-  var id: String
-  var title: String
-  var systemImage: String
-  var text: String
+public struct DraftIdeaTemplate: Identifiable, Equatable, Sendable {
+  public var id: String
+  public var title: String
+  public var systemImage: String
+  public var text: String
 }
 
-enum DraftIdeaLibrary {
-  static func ideas(for profile: RepositoryLanguageProfile) -> [DraftIdeaTemplate] {
+public enum DraftIdeaLibrary {
+  public static func ideas(for profile: RepositoryLanguageProfile) -> [DraftIdeaTemplate] {
     [
       rustFactoryIdea,
       feedbackIdea,

@@ -1,5 +1,6 @@
 import CompassSandbox
 import SwiftUI
+import CompassCore
 
 struct ContainerRuntimeView: View {
   @State private var status: ContainerRuntimeStatus?

@@ -21,19 +21,19 @@ import Foundation
 
 /// Reads `repoURL` and produces a tree of `FileTreeNode`s mirroring the
 /// source directory layout under `rootURL`.
-struct CodemapFileSystem {
-  let rootURL: URL
+public struct CodemapFileSystem {
+  public let rootURL: URL
   private let fileManager = FileManager.default
 
   /// Build the full tree from the repo root.
-  func buildTree() -> [FileTreeNode] {
+  public func buildTree() -> [FileTreeNode] {
     let keys = topLevelKeys()
     let nodes = keys.map { buildNode(relativePath: $0) }
     return sortNodes(nodes)
   }
 
   /// Build a tree containing only supported source files and their parent folders.
-  func buildSourceTree() -> [FileTreeNode] {
+  public func buildSourceTree() -> [FileTreeNode] {
     pruneSourceNodes(buildTree())
   }
 

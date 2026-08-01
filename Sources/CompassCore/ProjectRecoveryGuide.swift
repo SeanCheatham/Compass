@@ -1,22 +1,22 @@
 import Foundation
 
-struct ProjectRecoveryGuide: Equatable {
-  static let detailLimit = 180
-  static let identifierLimit = 1_200
+public struct ProjectRecoveryGuide: Equatable {
+  public static let detailLimit = 180
+  public static let identifierLimit = 1_200
 
-  var title: String
-  var steps: [Step]
-  var narrationIdentifier: String
+  public var title: String
+  public var steps: [Step]
+  public var narrationIdentifier: String
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     steps.isEmpty
   }
 
-  var allowsNarration: Bool {
+  public var allowsNarration: Bool {
     !isEmpty
   }
 
-  init(status: ProjectReliabilityStatus) {
+  public init(status: ProjectReliabilityStatus) {
     guard let kind = status.primaryKind else {
       title = ""
       steps = []
@@ -126,19 +126,19 @@ struct ProjectRecoveryGuide: Equatable {
     narrationIdentifier = Self.narrationIdentifier(title: title, steps: steps)
   }
 
-  struct Step: Identifiable, Equatable {
-    var title: String
-    var detail: String
+  public struct Step: Identifiable, Equatable {
+    public var title: String
+    public var detail: String
 
-    var id: String {
+    public var id: String {
       "\(title)\n\(detail)"
     }
   }
 
   private struct RejectedPlanRecovery: Equatable {
-    var title: String
-    var detail: String
-    var retryDetail: String
+    public var title: String
+    public var detail: String
+    public var retryDetail: String
   }
 
   private static func rejectedPlanRecovery(for detail: String) -> RejectedPlanRecovery {
@@ -266,12 +266,12 @@ struct ProjectRecoveryGuide: Equatable {
   }
 }
 
-struct ProjectRecoveryClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_000
+public struct ProjectRecoveryClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 3_000
 
-  var text: String
+  public var text: String
 
-  init(status: ProjectReliabilityStatus, guide: ProjectRecoveryGuide) {
+  public init(status: ProjectReliabilityStatus, guide: ProjectRecoveryGuide) {
     guard !status.isEmpty, !guide.isEmpty else {
       text = ""
       return
@@ -313,13 +313,13 @@ struct ProjectRecoveryClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum ProjectRecoveryClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  public static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

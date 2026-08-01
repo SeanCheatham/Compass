@@ -3,13 +3,13 @@ import Foundation
 /// Return the cached LLM summary for a single file. Reads from the
 /// codemap; does not trigger a new summary generation pass (that runs once
 /// at session start in `AppModel.refreshCodemapIfNeeded`).
-struct AgentSummaryTool: AgentTool {
-  static let toolName = "summary"
+public struct AgentSummaryTool: AgentTool {
+  public static let toolName = "summary"
 
-  struct Arguments: Decodable {
-    let path: String
+  public struct Arguments: Decodable {
+    public let path: String
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case path
       case filePath
       case filePathSnake = "file_path"
@@ -18,7 +18,7 @@ struct AgentSummaryTool: AgentTool {
       case relativePathSnake = "relative_path"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -29,9 +29,9 @@ struct AgentSummaryTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -52,7 +52,7 @@ struct AgentSummaryTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

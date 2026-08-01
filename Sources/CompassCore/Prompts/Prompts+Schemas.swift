@@ -1,6 +1,6 @@
 import Foundation
 
-extension Prompts {
+public extension Prompts {
   /// Phase output schemas live as standalone `.json` files under
   /// `Resources/Schemas/`. They are loaded once on first access and
   /// cached for the lifetime of the process. If a schema is missing or

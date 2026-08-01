@@ -1,7 +1,7 @@
 import Foundation
 
-enum FlexibleModelDecoder {
-  static func decodeRequiredString<Key: CodingKey>(
+public enum FlexibleModelDecoder {
+  public static func decodeRequiredString<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key
   ) throws -> String {
@@ -32,7 +32,7 @@ enum FlexibleModelDecoder {
     return try container.decode(String.self, forKey: key)
   }
 
-  static func decodeRequiredString<Key: CodingKey>(
+  public static func decodeRequiredString<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
     aliases: [Key],
@@ -65,7 +65,7 @@ enum FlexibleModelDecoder {
     return ""
   }
 
-  static func decodeStringIfPresent<Key: CodingKey>(
+  public static func decodeStringIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key
   ) throws -> String? {
@@ -80,7 +80,7 @@ enum FlexibleModelDecoder {
     return try container.decode(String.self, forKey: key)
   }
 
-  static func decodeStringIfPresent<Key: CodingKey>(
+  public static func decodeStringIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
     aliases: [Key]
@@ -103,7 +103,7 @@ enum FlexibleModelDecoder {
     return nil
   }
 
-  static func decodeStringArrayIfPresent<Key: CodingKey>(
+  public static func decodeStringArrayIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key
   ) throws -> [String]? {
@@ -123,7 +123,7 @@ enum FlexibleModelDecoder {
     return try container.decode([String].self, forKey: key)
   }
 
-  static func decodeRequiredValue<Value: Decodable, Key: CodingKey>(
+  public static func decodeRequiredValue<Value: Decodable, Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
     aliases: [Key],
@@ -164,7 +164,7 @@ enum FlexibleModelDecoder {
     )
   }
 
-  static func decodeRequiredEnum<Value, Key>(
+  public static func decodeRequiredEnum<Value, Key>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key,
     aliases: [String: Value] = [:],
@@ -195,7 +195,7 @@ enum FlexibleModelDecoder {
     )
   }
 
-  static func decodeValueIfPresent<Value: Decodable, Key: CodingKey>(
+  public static func decodeValueIfPresent<Value: Decodable, Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
     aliases: [Key]
@@ -218,7 +218,7 @@ enum FlexibleModelDecoder {
     return nil
   }
 
-  static func decodeIntIfPresent<Key: CodingKey>(
+  public static func decodeIntIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
     aliases: [Key]
@@ -273,7 +273,7 @@ enum FlexibleModelDecoder {
     return try container.decode(Int.self, forKey: key)
   }
 
-  static func decodeBool<Key: CodingKey>(
+  public static func decodeBool<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key
   ) -> Bool? {
@@ -298,7 +298,7 @@ enum FlexibleModelDecoder {
     }
   }
 
-  static func normalizedIdentifier(_ rawValue: String) -> String {
+  public static func normalizedIdentifier(_ rawValue: String) -> String {
     let camelSeparated =
       rawValue
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -339,9 +339,9 @@ enum FlexibleModelDecoder {
   }
 
   private struct LossyStringArrayValue: Decodable {
-    var values: [String]
+    public var values: [String]
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let value = try LossyJSONValue(from: decoder)
       values = value.stringArrayValue
     }
@@ -355,7 +355,7 @@ enum FlexibleModelDecoder {
     case array([LossyJSONValue])
     case object([String: LossyJSONValue])
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.singleValueContainer()
       if container.decodeNil() {
         self = .null
@@ -374,7 +374,7 @@ enum FlexibleModelDecoder {
       }
     }
 
-    var stringArrayValue: [String] {
+    public var stringArrayValue: [String] {
       switch self {
       case .null:
         return []
@@ -419,23 +419,23 @@ enum FlexibleModelDecoder {
   }
 }
 
-struct PlanNext: Codable, Equatable {
-  var plan: String
-  var verify: String
-  var verifyTimeoutMs: Int?
-  var estimatedDifficulty: Difficulty?
-  var requiresHostXcode: Bool
-  var selectedBecause: String?
-  var source: Source?
-  var candidateID: String?
+public struct PlanNext: Codable, Equatable {
+  public var plan: String
+  public var verify: String
+  public var verifyTimeoutMs: Int?
+  public var estimatedDifficulty: Difficulty?
+  public var requiresHostXcode: Bool
+  public var selectedBecause: String?
+  public var source: Source?
+  public var candidateID: String?
 
-  enum Difficulty: String, Codable, CaseIterable {
+  public enum Difficulty: String, Codable, CaseIterable {
     case low
     case medium
     case high
   }
 
-  enum Source: String, Codable, CaseIterable {
+  public enum Source: String, Codable, CaseIterable {
     case draft
     case feedback
     case candidate
@@ -444,7 +444,7 @@ struct PlanNext: Codable, Equatable {
     case repair
   }
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case plan
     case implementationPlan
     case implementationPlanSnake = "implementation_plan"
@@ -482,7 +482,7 @@ struct PlanNext: Codable, Equatable {
     case candidateIDSnake = "candidate_id"
   }
 
-  init(
+  public init(
     plan: String,
     verify: String,
     verifyTimeoutMs: Int? = nil,
@@ -504,7 +504,7 @@ struct PlanNext: Codable, Equatable {
     self.candidateID = candidateID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let plan = try Self.decodeRequiredTrimmedString(
       from: container,
@@ -556,7 +556,7 @@ struct PlanNext: Codable, Equatable {
     )?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(plan, forKey: .plan)
     try container.encode(verify, forKey: .verify)
@@ -706,20 +706,20 @@ struct PlanNext: Codable, Equatable {
   }
 }
 
-struct PlanCandidate: Codable, Equatable, Identifiable {
-  var id: String
-  var title: String
-  var outcome: String
-  var why: String
-  var category: Category
-  var origin: Origin
-  var priority: Priority
-  var status: Status
-  var evidence: [String]
-  var blockedBy: [String]
-  var risk: String?
+public struct PlanCandidate: Codable, Equatable, Identifiable {
+  public var id: String
+  public var title: String
+  public var outcome: String
+  public var why: String
+  public var category: Category
+  public var origin: Origin
+  public var priority: Priority
+  public var status: Status
+  public var evidence: [String]
+  public var blockedBy: [String]
+  public var risk: String?
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case id
     case title
     case outcome
@@ -733,7 +733,7 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     case risk
   }
 
-  enum Category: String, Codable, CaseIterable {
+  public enum Category: String, Codable, CaseIterable {
     case feature
     case test
     case cleanup
@@ -742,7 +742,7 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     case reliability
     case exploration
 
-    static let modelAliases: [String: Category] = [
+    public static let modelAliases: [String: Category] = [
       "bug": .bugHunt,
       "bug_fix": .bugHunt,
       "bugfix": .bugHunt,
@@ -757,7 +757,7 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     ]
   }
 
-  enum Origin: String, Codable, CaseIterable {
+  public enum Origin: String, Codable, CaseIterable {
     case draft
     case feedback
     case repository
@@ -765,7 +765,7 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     case lesson
     case user
 
-    static let modelAliases: [String: Origin] = [
+    public static let modelAliases: [String: Origin] = [
       "current_brief": .user,
       "current_request": .user,
       "repo": .repository,
@@ -774,15 +774,15 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     ]
   }
 
-  enum Priority: String, Codable, CaseIterable {
+  public enum Priority: String, Codable, CaseIterable {
     case low
     case medium
     case high
 
-    static let modelAliases: [String: Priority] = [:]
+    public static let modelAliases: [String: Priority] = [:]
   }
 
-  enum Status: String, Codable, CaseIterable {
+  public enum Status: String, Codable, CaseIterable {
     case available
     case active
     case blocked
@@ -790,7 +790,7 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     case done
     case stale
 
-    static let modelAliases: [String: Status] = [
+    public static let modelAliases: [String: Status] = [
       "closed": .done,
       "complete": .done,
       "completed": .done,
@@ -801,7 +801,7 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
       "to_do": .available,
     ]
 
-    var isActionable: Bool {
+    public var isActionable: Bool {
       switch self {
       case .available, .active:
         return true
@@ -811,7 +811,7 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     }
   }
 
-  init(
+  public init(
     id: String,
     title: String,
     outcome: String,
@@ -837,7 +837,7 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     self.risk = risk.map(Self.trimmed)?.nilIfEmpty
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let id = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .id)
     let title = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .title)
@@ -903,34 +903,34 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
   }
 }
 
-struct PlanStrategicContext: Codable, Equatable {
-  var summary: String
-  var targetUsers: [String]
-  var desiredOutcomes: [String]
-  var constraints: [String]
-  var acceptanceSignals: [String]
+public struct PlanStrategicContext: Codable, Equatable {
+  public var summary: String
+  public var targetUsers: [String]
+  public var desiredOutcomes: [String]
+  public var constraints: [String]
+  public var acceptanceSignals: [String]
 
-  var thesis: String {
+  public var thesis: String {
     get { summary }
     set { summary = newValue.trimmingCharacters(in: .whitespacesAndNewlines) }
   }
 
-  var principles: [String] {
+  public var principles: [String] {
     get { desiredOutcomes }
     set { desiredOutcomes = Self.cleaned(newValue) }
   }
 
-  var nonGoals: [String] {
+  public var nonGoals: [String] {
     get { [] }
     set { _ = newValue }
   }
 
-  var risks: [String] {
+  public var risks: [String] {
     get { acceptanceSignals }
     set { acceptanceSignals = Self.cleaned(newValue) }
   }
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case summary
     case targetUsers
     case targetUsersSnake = "target_users"
@@ -947,7 +947,7 @@ struct PlanStrategicContext: Codable, Equatable {
     case risks
   }
 
-  static let empty = PlanStrategicContext(
+  public static let empty = PlanStrategicContext(
     summary: "",
     targetUsers: [],
     desiredOutcomes: [],
@@ -955,7 +955,7 @@ struct PlanStrategicContext: Codable, Equatable {
     acceptanceSignals: []
   )
 
-  init(
+  public init(
     summary: String = "",
     targetUsers: [String] = [],
     desiredOutcomes: [String] = [],
@@ -975,7 +975,7 @@ struct PlanStrategicContext: Codable, Equatable {
     _ = nonGoals
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     if let container = try? decoder.container(keyedBy: CodingKeys.self) {
       let summary =
         try FlexibleModelDecoder.decodeStringIfPresent(
@@ -1024,7 +1024,7 @@ struct PlanStrategicContext: Codable, Equatable {
     self.init(thesis: thesis)
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(summary, forKey: .summary)
     try container.encode(targetUsers, forKey: .targetUsers)
@@ -1033,7 +1033,7 @@ struct PlanStrategicContext: Codable, Equatable {
     try container.encode(acceptanceSignals, forKey: .acceptanceSignals)
   }
 
-  var digestLines: [String] {
+  public var digestLines: [String] {
     var lines: [String] = []
     if !summary.isEmpty {
       lines.append("Summary: \(summary)")
@@ -1045,7 +1045,7 @@ struct PlanStrategicContext: Codable, Equatable {
     return lines
   }
 
-  var markdownSummary: String {
+  public var markdownSummary: String {
     var sections: [String] = []
     if !summary.isEmpty {
       sections.append(summary)
@@ -1095,12 +1095,12 @@ struct PlanStrategicContext: Codable, Equatable {
   }
 }
 
-struct PlanQuestion: Codable, Equatable, Identifiable {
-  var id: String
-  var question: String
-  var impact: String
+public struct PlanQuestion: Codable, Equatable, Identifiable {
+  public var id: String
+  public var question: String
+  public var impact: String
 
-  init(id: String, question: String, impact: String = "") {
+  public init(id: String, question: String, impact: String = "") {
     self.id =
       id.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
       ?? UUID().uuidString.lowercased()
@@ -1109,21 +1109,21 @@ struct PlanQuestion: Codable, Equatable, Identifiable {
   }
 }
 
-extension String {
+public extension String {
   fileprivate var nilIfEmpty: String? {
     isEmpty ? nil : self
   }
 }
 
-struct PlanState: Codable, Equatable {
-  var schemaVersion: Int
-  var completed: [String]
-  var immediate: PlanNext?
-  var queue: [PlanCandidate]
-  var brief: PlanStrategicContext
-  var openQuestions: [PlanQuestion]
+public struct PlanState: Codable, Equatable {
+  public var schemaVersion: Int
+  public var completed: [String]
+  public var immediate: PlanNext?
+  public var queue: [PlanCandidate]
+  public var brief: PlanStrategicContext
+  public var openQuestions: [PlanQuestion]
 
-  static let empty = PlanState(
+  public static let empty = PlanState(
     schemaVersion: 1,
     completed: [],
     immediate: nil,
@@ -1132,7 +1132,7 @@ struct PlanState: Codable, Equatable {
     openQuestions: []
   )
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case schemaVersion
     case brief
     case queue
@@ -1143,7 +1143,7 @@ struct PlanState: Codable, Equatable {
     case openQuestions
   }
 
-  init(
+  public init(
     schemaVersion: Int = 1,
     completed: [String],
     immediate: PlanNext?,
@@ -1161,7 +1161,7 @@ struct PlanState: Codable, Equatable {
     self.openQuestions = openQuestions
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     schemaVersion = max(1, try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1)
     let completedValues =
@@ -1177,7 +1177,7 @@ struct PlanState: Codable, Equatable {
     openQuestions = try container.decodeIfPresent([PlanQuestion].self, forKey: .openQuestions) ?? []
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(schemaVersion, forKey: .schemaVersion)
     try container.encode(brief, forKey: .brief)
@@ -1190,17 +1190,17 @@ struct PlanState: Codable, Equatable {
     try container.encode(openQuestions, forKey: .openQuestions)
   }
 
-  var candidates: [PlanCandidate] {
+  public var candidates: [PlanCandidate] {
     get { queue }
     set { queue = newValue }
   }
 
-  var strategicContext: PlanStrategicContext {
+  public var strategicContext: PlanStrategicContext {
     get { brief }
     set { brief = newValue }
   }
 
-  var candidatesMarkdown: String {
+  public var candidatesMarkdown: String {
     candidates.map { candidate in
       let statusPrefix = candidate.status == .available ? "" : "[\(candidate.status.rawValue)] "
       let title = candidate.title.isEmpty ? candidate.outcome : candidate.title
@@ -1212,35 +1212,35 @@ struct PlanState: Codable, Equatable {
     }.joined(separator: "\n")
   }
 
-  var strategicContextMarkdown: String {
+  public var strategicContextMarkdown: String {
     strategicContext.markdownSummary
   }
 
-  var actionableCandidates: [PlanCandidate] {
+  public var actionableCandidates: [PlanCandidate] {
     candidates.filter { $0.status.isActionable }
   }
 
-  var proposal: PlanProposal {
+  public var proposal: PlanProposal {
     PlanProposal(from: self)
   }
 
-  func applying(proposal: PlanProposal) -> PlanState {
+  public func applying(proposal: PlanProposal) -> PlanState {
     proposal.applying(to: self)
   }
 }
 
-typealias FactoryState = PlanState
-typealias FactoryBrief = PlanStrategicContext
-typealias FactoryWorkItem = PlanCandidate
-typealias FactoryImmediate = PlanNext
-typealias FactoryQuestion = PlanQuestion
+public typealias FactoryState = PlanState
+public typealias FactoryBrief = PlanStrategicContext
+public typealias FactoryWorkItem = PlanCandidate
+public typealias FactoryImmediate = PlanNext
+public typealias FactoryQuestion = PlanQuestion
 
-struct LessonEdit: Codable, Equatable {
-  var find: String
-  var replace: String
-  var replaceAll: Bool?
+public struct LessonEdit: Codable, Equatable {
+  public var find: String
+  public var replace: String
+  public var replaceAll: Bool?
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case find
     case old
     case oldText
@@ -1263,13 +1263,13 @@ struct LessonEdit: Codable, Equatable {
     case global
   }
 
-  init(find: String, replace: String, replaceAll: Bool?) {
+  public init(find: String, replace: String, replaceAll: Bool?) {
     self.find = find
     self.replace = replace
     self.replaceAll = replaceAll
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     find = try FlexibleModelDecoder.decodeRequiredString(
       from: container,
@@ -1290,7 +1290,7 @@ struct LessonEdit: Codable, Equatable {
     replaceAll = Self.decodeReplaceAll(from: container)
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(find, forKey: .find)
     try container.encode(replace, forKey: .replace)
@@ -1314,7 +1314,7 @@ struct LessonEdit: Codable, Equatable {
   }
 }
 
-extension FlexibleModelDecoder {
+public extension FlexibleModelDecoder {
   static func decodeLessonEditsIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
@@ -1366,9 +1366,9 @@ extension FlexibleModelDecoder {
   }
 
   private struct LessonEditsEnvelope: Decodable {
-    var lessonEdits: [LessonEdit]?
+    public var lessonEdits: [LessonEdit]?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case lessonEdits
       case lessonEditsSnake = "lesson_edits"
       case edits
@@ -1376,7 +1376,7 @@ extension FlexibleModelDecoder {
       case items
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       for key in [
         CodingKeys.lessonEdits,
@@ -1409,11 +1409,11 @@ extension FlexibleModelDecoder {
   }
 }
 
-struct PlanRunResult: Codable, Equatable {
-  var state: PlanProposal
-  var lessonEdits: [LessonEdit]
+public struct PlanRunResult: Codable, Equatable {
+  public var state: PlanProposal
+  public var lessonEdits: [LessonEdit]
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case state
     case planState
     // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -1426,7 +1426,7 @@ struct PlanRunResult: Codable, Equatable {
     case lessonEditsSnake = "lesson_edits"
   }
 
-  init(
+  public init(
     state: PlanProposal,
     lessonEdits: [LessonEdit] = []
   ) {
@@ -1434,7 +1434,7 @@ struct PlanRunResult: Codable, Equatable {
     self.lessonEdits = lessonEdits
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     state = try Self.decodeRequiredPlanProposal(
       from: container,
@@ -1450,7 +1450,7 @@ struct PlanRunResult: Codable, Equatable {
       ) ?? []
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(state, forKey: .state)
     try container.encode(lessonEdits, forKey: .lessonEdits)
@@ -1497,59 +1497,71 @@ struct PlanRunResult: Codable, Equatable {
 }
 
 private struct LossyString: Decodable {
-  var value: String?
+  public var value: String?
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     value = try? container.decode(String.self)
   }
 }
 
-struct SessionCommit: Codable, Identifiable, Equatable {
-  var id: String { sha }
-  var sha: String
-  var short: String
-  var subject: String
+public struct SessionCommit: Codable, Identifiable, Equatable {
+  public var id: String { sha }
+  public var sha: String
+  public var short: String
+  public var subject: String
+
+  public init(sha: String, short: String, subject: String) {
+    self.sha = sha
+    self.short = short
+    self.subject = subject
+  }
 }
 
-struct VerifyOutput: Codable, Equatable {
-  var command: String
-  var exitCode: Int?
-  var tail: String
+public struct VerifyOutput: Codable, Equatable {
+  public var command: String
+  public var exitCode: Int?
+  public var tail: String
+
+  public init(command: String, exitCode: Int? = nil, tail: String) {
+    self.command = command
+    self.exitCode = exitCode
+    self.tail = tail
+  }
 }
 
-struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
-  static let phaseLimit = 24
-  static let fieldLimit = 120
-  static let summaryLimit = 280
+public struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
+  public static let phaseLimit = 24
+  public static let fieldLimit = 120
+  public static let summaryLimit = 280
   /// Stable identifier retained for older snapshot schema compatibility.
   /// constant so consumers don't grow another magic string.
-  static let vmBuildActionIdentifier = "shared-vm.build"
+  public static let vmBuildActionIdentifier = "shared-vm.build"
 
-  var phase: String
-  var phaseIdentifier: String
-  var attempt: Int?
-  var selectedPreferenceIdentifier: String
-  var selectedPreferenceTitle: String
-  var effectiveRouteIdentifier: String
-  var effectiveRouteTitle: String
+  public var phase: String
+  public var phaseIdentifier: String
+  public var attempt: Int?
+  public var selectedPreferenceIdentifier: String
+  public var selectedPreferenceTitle: String
+  public var effectiveRouteIdentifier: String
+  public var effectiveRouteTitle: String
   /// Captures the runtime readiness classification. Field name retained so on-disk
   /// snapshots remain decodable.
-  var supportClassificationIdentifier: String
+  public var supportClassificationIdentifier: String
   /// Retained for forward-compatibility with the previous snapshot schema; always empty.
-  var visibleSupportTokens: [String]
-  var omittedSupportTokenCount: Int
-  var imageLabel: String
-  var workspaceLabel: String
-  var fallbackReason: String?
+  public var visibleSupportTokens: [String]
+  public var omittedSupportTokenCount: Int
+  public var imageLabel: String
+  public var workspaceLabel: String
+  public var fallbackReason: String?
   /// Runtime availability. Field name retained from the old provisioning slot.
-  var provisioningAvailabilityIdentifier: String?
+  public var provisioningAvailabilityIdentifier: String?
   /// Runtime status. Field name retained.
-  var provisioningStatusIdentifier: String?
+  public var provisioningStatusIdentifier: String?
   /// Runtime action identifier. Field name retained.
-  var provisioningActionIdentifier: String?
+  public var provisioningActionIdentifier: String?
 
-  var id: String {
+  public var id: String {
     [
       phaseIdentifier,
       attempt.map { "attempt-\($0)" } ?? "attempt-none",
@@ -1559,11 +1571,11 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
     ].joined(separator: ".")
   }
 
-  var replacementKey: String {
+  public var replacementKey: String {
     "\(phaseIdentifier)#\(attempt.map(String.init) ?? "none")"
   }
 
-  init(
+  public init(
     phase: String,
     attempt: Int? = nil,
     launchPlan: AgentExecutionLaunchPlan
@@ -1596,7 +1608,7 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
     provisioningActionIdentifier = nil
   }
 
-  var routeSummary: String {
+  public var routeSummary: String {
     var pieces = [
       "\(phase)\(attempt.map { " attempt \($0)" } ?? "")",
       effectiveRouteTitle,
@@ -1684,18 +1696,18 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
   }
 }
 
-struct AgentRunTokenUsage: Codable, Equatable, Sendable {
-  var inputTokens: Int
-  var outputTokens: Int
-  var totalTokens: Int
-  var estimatedTokens: Int
-  var streamedUsageAvailable: Bool
-  var compactionCount: Int
-  var summaryTokens: Int
-  var retryCount: Int
-  var durationMs: Int?
+public struct AgentRunTokenUsage: Codable, Equatable, Sendable {
+  public var inputTokens: Int
+  public var outputTokens: Int
+  public var totalTokens: Int
+  public var estimatedTokens: Int
+  public var streamedUsageAvailable: Bool
+  public var compactionCount: Int
+  public var summaryTokens: Int
+  public var retryCount: Int
+  public var durationMs: Int?
 
-  init(
+  public init(
     inputTokens: Int = 0,
     outputTokens: Int = 0,
     totalTokens: Int = 0,
@@ -1717,16 +1729,16 @@ struct AgentRunTokenUsage: Codable, Equatable, Sendable {
     self.durationMs = durationMs.map { max(0, $0) }
   }
 
-  var hasUsage: Bool {
+  public var hasUsage: Bool {
     totalTokens > 0 || inputTokens > 0 || outputTokens > 0
       || estimatedTokens > 0 || compactionCount > 0 || summaryTokens > 0
   }
 
-  var usesEstimate: Bool {
+  public var usesEstimate: Bool {
     estimatedTokens > 0 || !streamedUsageAvailable
   }
 
-  mutating func recordTurn(
+  public mutating func recordTurn(
     inputTokens: Int,
     outputTokens: Int,
     totalTokens: Int,
@@ -1745,12 +1757,12 @@ struct AgentRunTokenUsage: Codable, Equatable, Sendable {
     self.streamedUsageAvailable = self.streamedUsageAvailable || streamedUsageAvailable
   }
 
-  mutating func recordCompaction(summaryTokens: Int) {
+  public mutating func recordCompaction(summaryTokens: Int) {
     compactionCount += 1
     self.summaryTokens += max(0, summaryTokens)
   }
 
-  static func estimated(
+  public static func estimated(
     inputCharacters: Int,
     outputCharacters: Int,
     charsPerToken: Int = 4,
@@ -1768,15 +1780,15 @@ struct AgentRunTokenUsage: Codable, Equatable, Sendable {
     )
   }
 
-  static func estimateTokens(characters: Int, charsPerToken: Int) -> Int {
+  public static func estimateTokens(characters: Int, charsPerToken: Int) -> Int {
     guard characters > 0 else { return 0 }
     let divisor = max(1, charsPerToken)
     return (characters + divisor - 1) / divisor
   }
 }
 
-struct SessionPhaseTokenUsage: Codable, Equatable, Sendable, Identifiable {
-  var id: String {
+public struct SessionPhaseTokenUsage: Codable, Equatable, Sendable, Identifiable {
+  public var id: String {
     [
       phase,
       proofActionKind ?? "",
@@ -1786,21 +1798,21 @@ struct SessionPhaseTokenUsage: Codable, Equatable, Sendable, Identifiable {
     .joined(separator: "|")
   }
 
-  var phase: String
-  var inputTokens: Int
-  var outputTokens: Int
-  var totalTokens: Int
-  var estimatedTokens: Int
-  var streamedUsageAvailable: Bool
-  var compactionCount: Int
-  var summaryTokens: Int
-  var proofActionKind: String?
-  var outcome: String?
-  var retryCount: Int
-  var durationMs: Int?
-  var createdAt: Double
+  public var phase: String
+  public var inputTokens: Int
+  public var outputTokens: Int
+  public var totalTokens: Int
+  public var estimatedTokens: Int
+  public var streamedUsageAvailable: Bool
+  public var compactionCount: Int
+  public var summaryTokens: Int
+  public var proofActionKind: String?
+  public var outcome: String?
+  public var retryCount: Int
+  public var durationMs: Int?
+  public var createdAt: Double
 
-  init(
+  public init(
     phase: String,
     usage: AgentRunTokenUsage,
     proofActionKind: String? = nil,
@@ -1822,11 +1834,11 @@ struct SessionPhaseTokenUsage: Codable, Equatable, Sendable, Identifiable {
     self.createdAt = createdAt.timeIntervalSince1970 * 1000
   }
 
-  var usesEstimate: Bool {
+  public var usesEstimate: Bool {
     estimatedTokens > 0 || !streamedUsageAvailable
   }
 
-  var compactLabel: String {
+  public var compactLabel: String {
     let suffix = usesEstimate ? " est." : ""
     return "\(Self.formatTokens(totalTokens)) tokens\(suffix)"
   }
@@ -1838,7 +1850,7 @@ struct SessionPhaseTokenUsage: Codable, Equatable, Sendable, Identifiable {
     return String(trimmed.prefix(limit - 3)) + "..."
   }
 
-  static func formatTokens(_ count: Int) -> String {
+  public static func formatTokens(_ count: Int) -> String {
     let count = max(0, count)
     if count >= 1_000_000 {
       let value = Double(count) / 1_000_000
@@ -1852,44 +1864,44 @@ struct SessionPhaseTokenUsage: Codable, Equatable, Sendable, Identifiable {
   }
 }
 
-struct SessionTokenSummary: Codable, Equatable, Sendable {
-  var phases: [SessionPhaseTokenUsage]
+public struct SessionTokenSummary: Codable, Equatable, Sendable {
+  public var phases: [SessionPhaseTokenUsage]
 
-  init(phases: [SessionPhaseTokenUsage] = []) {
+  public init(phases: [SessionPhaseTokenUsage] = []) {
     self.phases = phases
   }
 
-  var isEmpty: Bool { phases.isEmpty }
-  var totalInputTokens: Int { phases.reduce(0) { $0 + $1.inputTokens } }
-  var totalOutputTokens: Int { phases.reduce(0) { $0 + $1.outputTokens } }
-  var totalTokens: Int { phases.reduce(0) { $0 + $1.totalTokens } }
-  var estimatedTokens: Int { phases.reduce(0) { $0 + $1.estimatedTokens } }
-  var compactionCount: Int { phases.reduce(0) { $0 + $1.compactionCount } }
-  var summaryTokens: Int { phases.reduce(0) { $0 + $1.summaryTokens } }
-  var retryCount: Int { phases.reduce(0) { $0 + $1.retryCount } }
-  var usesEstimate: Bool { phases.contains { $0.usesEstimate } }
+  public var isEmpty: Bool { phases.isEmpty }
+  public var totalInputTokens: Int { phases.reduce(0) { $0 + $1.inputTokens } }
+  public var totalOutputTokens: Int { phases.reduce(0) { $0 + $1.outputTokens } }
+  public var totalTokens: Int { phases.reduce(0) { $0 + $1.totalTokens } }
+  public var estimatedTokens: Int { phases.reduce(0) { $0 + $1.estimatedTokens } }
+  public var compactionCount: Int { phases.reduce(0) { $0 + $1.compactionCount } }
+  public var summaryTokens: Int { phases.reduce(0) { $0 + $1.summaryTokens } }
+  public var retryCount: Int { phases.reduce(0) { $0 + $1.retryCount } }
+  public var usesEstimate: Bool { phases.contains { $0.usesEstimate } }
 
-  var latestProofActionKind: String? {
+  public var latestProofActionKind: String? {
     phases.reversed().compactMap(\.proofActionKind).first
   }
 
-  var latestPhase: SessionPhaseTokenUsage? {
+  public var latestPhase: SessionPhaseTokenUsage? {
     phases.max { $0.createdAt < $1.createdAt }
   }
 
-  var compactLabel: String? {
+  public var compactLabel: String? {
     guard !isEmpty else { return nil }
     let suffix = usesEstimate ? " est." : ""
     return "\(SessionPhaseTokenUsage.formatTokens(totalTokens)) tokens\(suffix)"
   }
 
-  mutating func record(_ usage: SessionPhaseTokenUsage) {
+  public mutating func record(_ usage: SessionPhaseTokenUsage) {
     guard usage.totalTokens > 0 || usage.compactionCount > 0 else { return }
     phases.append(usage)
   }
 }
 
-enum SessionStatus: String, Codable, CaseIterable {
+public enum SessionStatus: String, Codable, CaseIterable {
   case planning
   case awaitingApproval = "awaiting_approval"
   case developing
@@ -1900,24 +1912,24 @@ enum SessionStatus: String, Codable, CaseIterable {
   case skipped
 }
 
-struct SessionRecord: Codable, Identifiable, Equatable {
-  var id: Int { session }
-  var session: Int
-  var startedAt: Double
-  var endedAt: Double?
-  var plan: String?
-  var verify: String?
-  var beforeSha: String?
-  var afterSha: String?
-  var commits: [SessionCommit]
-  var status: SessionStatus
-  var notes: [String]
-  var verifyOutput: VerifyOutput?
-  var feedback: String?
-  var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
-  var tokenSummary: SessionTokenSummary
+public struct SessionRecord: Codable, Identifiable, Equatable {
+  public var id: Int { session }
+  public var session: Int
+  public var startedAt: Double
+  public var endedAt: Double?
+  public var plan: String?
+  public var verify: String?
+  public var beforeSha: String?
+  public var afterSha: String?
+  public var commits: [SessionCommit]
+  public var status: SessionStatus
+  public var notes: [String]
+  public var verifyOutput: VerifyOutput?
+  public var feedback: String?
+  public var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
+  public var tokenSummary: SessionTokenSummary
 
-  static func started(_ number: Int) -> SessionRecord {
+  public static func started(_ number: Int) -> SessionRecord {
     SessionRecord(
       session: number,
       startedAt: Date().timeIntervalSince1970 * 1000,
@@ -1936,9 +1948,9 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     )
   }
 
-  static let executionEnvironmentSnapshotLimit = 24
+  public static let executionEnvironmentSnapshotLimit = 24
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case session
     case startedAt
     case endedAt
@@ -1955,7 +1967,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case tokenSummary
   }
 
-  init(
+  public init(
     session: Int,
     startedAt: Double,
     endedAt: Double?,
@@ -1989,7 +2001,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     self.tokenSummary = tokenSummary
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     session = try container.decodeIfPresent(Int.self, forKey: .session) ?? 0
     startedAt = try container.decodeIfPresent(Double.self, forKey: .startedAt) ?? 0
@@ -2014,7 +2026,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       ?? SessionTokenSummary()
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(session, forKey: .session)
     try container.encode(startedAt, forKey: .startedAt)
@@ -2036,11 +2048,11 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     }
   }
 
-  var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {
+  public var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {
     executionEnvironmentSnapshots.last
   }
 
-  mutating func recordExecutionEnvironmentSnapshot(_ snapshot: SessionExecutionEnvironmentSnapshot)
+  public mutating func recordExecutionEnvironmentSnapshot(_ snapshot: SessionExecutionEnvironmentSnapshot)
   {
     executionEnvironmentSnapshots = Self.recording(
       snapshot,
@@ -2071,19 +2083,19 @@ struct SessionRecord: Codable, Identifiable, Equatable {
 
 }
 
-struct DevelopSummary: Codable, Equatable {
-  var status: Status
-  var summary: String
-  var feedback: String
-  var bypassVerify: Bool?
-  var lessonEdits: [LessonEdit]
+public struct DevelopSummary: Codable, Equatable {
+  public var status: Status
+  public var summary: String
+  public var feedback: String
+  public var bypassVerify: Bool?
+  public var lessonEdits: [LessonEdit]
 
-  enum Status: String, Codable {
+  public enum Status: String, Codable {
     case succeeded
     case blocked
     case failed
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.singleValueContainer()
       let rawValue = try container.decode(String.self)
       switch FlexibleModelDecoder.normalizedIdentifier(rawValue) {
@@ -2103,13 +2115,13 @@ struct DevelopSummary: Codable, Equatable {
       }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
       var container = encoder.singleValueContainer()
       try container.encode(rawValue)
     }
   }
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case status
     case result
     case outcome
@@ -2136,7 +2148,7 @@ struct DevelopSummary: Codable, Equatable {
     case lessonEditsSnake = "lesson_edits"
   }
 
-  init(
+  public init(
     status: Status,
     summary: String,
     feedback: String,
@@ -2150,7 +2162,7 @@ struct DevelopSummary: Codable, Equatable {
     self.lessonEdits = lessonEdits
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     status = try FlexibleModelDecoder.decodeRequiredValue(
       from: container,
@@ -2179,7 +2191,7 @@ struct DevelopSummary: Codable, Equatable {
       ) ?? []
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(status, forKey: .status)
     try container.encode(summary, forKey: .summary)
@@ -2216,12 +2228,12 @@ struct DevelopSummary: Codable, Equatable {
 /// iteration; `.requestChanges` causes Develop to re-run with the
 /// critic's `feedback` appended to its prior-issues list. The outer
 /// Develop loop bounds the number of critic-driven retries.
-struct CriticVerdict: Codable, Equatable {
-  enum Verdict: String, Codable {
+public struct CriticVerdict: Codable, Equatable {
+  public enum Verdict: String, Codable {
     case approve
     case requestChanges = "request_changes"
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.singleValueContainer()
       let rawValue = try container.decode(String.self)
       switch FlexibleModelDecoder.normalizedIdentifier(rawValue) {
@@ -2241,23 +2253,23 @@ struct CriticVerdict: Codable, Equatable {
       }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
       var container = encoder.singleValueContainer()
       try container.encode(rawValue)
     }
   }
 
-  var verdict: Verdict
-  var summary: String
-  var feedback: String
+  public var verdict: Verdict
+  public var summary: String
+  public var feedback: String
 
-  init(verdict: Verdict, summary: String, feedback: String) {
+  public init(verdict: Verdict, summary: String, feedback: String) {
     self.verdict = verdict
     self.summary = summary
     self.feedback = feedback
   }
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case verdict
     case decision
     case status
@@ -2278,7 +2290,7 @@ struct CriticVerdict: Codable, Equatable {
     case issues
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     verdict = try FlexibleModelDecoder.decodeRequiredValue(
       from: container,
@@ -2303,7 +2315,7 @@ struct CriticVerdict: Codable, Equatable {
       ) ?? ""
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(verdict, forKey: .verdict)
     try container.encode(summary, forKey: .summary)
@@ -2311,18 +2323,40 @@ struct CriticVerdict: Codable, Equatable {
   }
 }
 
-struct LiveLine: Identifiable, Equatable {
-  var id = UUID()
-  var date = Date()
-  var level: Level
-  var text: String
-  var detail: String?
-  var kind: Kind = .message
-  var status: Status = .none
-  var correlationID: String?
-  var completedAt: Date?
+public struct LiveLine: Identifiable, Equatable {
+  public var id = UUID()
+  public var date = Date()
+  public var level: Level
+  public var text: String
+  public var detail: String?
+  public var kind: Kind = .message
+  public var status: Status = .none
+  public var correlationID: String?
+  public var completedAt: Date?
 
-  enum Level {
+  public init(
+    id: UUID = UUID(),
+    date: Date = Date(),
+    level: Level,
+    text: String,
+    detail: String? = nil,
+    kind: Kind = .message,
+    status: Status = .none,
+    correlationID: String? = nil,
+    completedAt: Date? = nil
+  ) {
+    self.id = id
+    self.date = date
+    self.level = level
+    self.text = text
+    self.detail = detail
+    self.kind = kind
+    self.status = status
+    self.correlationID = correlationID
+    self.completedAt = completedAt
+  }
+
+  public enum Level {
     case info
     case success
     case warning
@@ -2330,7 +2364,7 @@ struct LiveLine: Identifiable, Equatable {
     case raw
   }
 
-  enum Kind {
+  public enum Kind {
     case message
     case lifecycle
     case command
@@ -2338,7 +2372,7 @@ struct LiveLine: Identifiable, Equatable {
     case fileChange
   }
 
-  enum Status {
+  public enum Status {
     case none
     case running
     case completed
@@ -2346,16 +2380,16 @@ struct LiveLine: Identifiable, Equatable {
   }
 }
 
-struct LiveEvent: Equatable {
-  var level: LiveLine.Level
-  var text: String
-  var detail: String?
-  var kind: LiveLine.Kind
-  var status: LiveLine.Status
-  var correlationID: String?
-  var metadata: [String: String]?
+public struct LiveEvent: Equatable {
+  public var level: LiveLine.Level
+  public var text: String
+  public var detail: String?
+  public var kind: LiveLine.Kind
+  public var status: LiveLine.Status
+  public var correlationID: String?
+  public var metadata: [String: String]?
 
-  init(
+  public init(
     level: LiveLine.Level = .info,
     text: String,
     detail: String? = nil,
@@ -2374,13 +2408,13 @@ struct LiveEvent: Equatable {
   }
 }
 
-enum PauseMode: String, Codable, CaseIterable, Identifiable {
+public enum PauseMode: String, Codable, CaseIterable, Identifiable {
   case immediate
   case afterIteration = "after_iteration"
 
-  var id: Self { self }
+  public var id: Self { self }
 
-  var label: String {
+  public var label: String {
     switch self {
     case .immediate:
       return "Pause Now"
@@ -2389,7 +2423,7 @@ enum PauseMode: String, Codable, CaseIterable, Identifiable {
     }
   }
 
-  var hint: String {
+  public var hint: String {
     switch self {
     case .immediate:
       return "Stop before the next phase gate."
@@ -2399,7 +2433,7 @@ enum PauseMode: String, Codable, CaseIterable, Identifiable {
   }
 }
 
-enum LoopPhase: String, CaseIterable {
+public enum LoopPhase: String, CaseIterable {
   case idle = "Idle"
   case planning = "Planning"
   case developing = "Developing"

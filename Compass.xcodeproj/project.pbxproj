@@ -7,16 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		100000000000000000000082 /* SwiftTreeSitter in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000081 /* SwiftTreeSitter */; };
-		100000000000000000000084 /* TreeSitterSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000083 /* TreeSitterSwift */; };
-		100000000000000000000086 /* TreeSitterRust in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000085 /* TreeSitterRust */; };
-				1000000000000000000000A6 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 1000000000000000000000A1 /* MLXLLM */; };
-		1000000000000000000000A7 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 1000000000000000000000A2 /* MLXLMCommon */; };
-		1000000000000000000000A9 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 1000000000000000000000A4 /* HuggingFace */; };
-		1000000000000000000000AA /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 1000000000000000000000A5 /* Tokenizers */; };
-		1000000000000000000000B1 /* javascript_scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000AF /* javascript_scanner.c */; };
-		1000000000000000000000B2 /* python_scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000B0 /* python_scanner.c */; };
 		1000000000000000000000B4 /* CompassSandbox in Frameworks */ = {isa = PBXBuildFile; productRef = 1000000000000000000000B3 /* CompassSandbox */; };
+		1000000000000000000000B7 /* CompassCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1000000000000000000000B6 /* CompassCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,8 +20,6 @@
 		100000000000000000000031 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		100000000000000000000032 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		100000000000000000000033 /* LocalSigning.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = LocalSigning.example.xcconfig; sourceTree = "<group>"; };
-		1000000000000000000000AF /* javascript_scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Sources/TreeSitterScanners/javascript_scanner.c; sourceTree = "<group>"; };
-		1000000000000000000000B0 /* python_scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Sources/TreeSitterScanners/python_scanner.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -42,13 +32,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1000000000000000000000B4 /* CompassSandbox in Frameworks */,
-				100000000000000000000082 /* SwiftTreeSitter in Frameworks */,
-				100000000000000000000084 /* TreeSitterSwift in Frameworks */,
-				100000000000000000000086 /* TreeSitterRust in Frameworks */,
-				1000000000000000000000A6 /* MLXLLM in Frameworks */,
-				1000000000000000000000A7 /* MLXLMCommon in Frameworks */,
-				1000000000000000000000A9 /* HuggingFace in Frameworks */,
-				1000000000000000000000AA /* Tokenizers in Frameworks */,
+				1000000000000000000000B7 /* CompassCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -107,13 +91,7 @@
 			name = Compass;
 			packageProductDependencies = (
 				1000000000000000000000B3 /* CompassSandbox */,
-				100000000000000000000081 /* SwiftTreeSitter */,
-				100000000000000000000083 /* TreeSitterSwift */,
-				100000000000000000000085 /* TreeSitterRust */,
-				1000000000000000000000A1 /* MLXLLM */,
-				1000000000000000000000A2 /* MLXLMCommon */,
-				1000000000000000000000A4 /* HuggingFace */,
-				1000000000000000000000A5 /* Tokenizers */,
+				1000000000000000000000B6 /* CompassCore */,
 			);
 			productName = Compass;
 			productReference = 100000000000000000000008 /* Compass.app */;
@@ -145,12 +123,6 @@
 			mainGroup = 100000000000000000000002;
 			packageReferences = (
 				100000000000000000000070 /* XCLocalSwiftPackageReference "." */,
-				100000000000000000000080 /* XCRemoteSwiftPackageReference "SwiftTreeSitter" */,
-				100000000000000000000090 /* XCRemoteSwiftPackageReference "tree-sitter-swift" */,
-				100000000000000000000091 /* XCRemoteSwiftPackageReference "tree-sitter-rust" */,
-				1000000000000000000000A0 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
-				1000000000000000000000AB /* XCRemoteSwiftPackageReference "swift-huggingface" */,
-				1000000000000000000000AC /* XCRemoteSwiftPackageReference "swift-transformers" */,
 			);
 			productRefGroup = 100000000000000000000005 /* Products */;
 			projectDirPath = "";
@@ -176,8 +148,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1000000000000000000000B1 /* javascript_scanner.c in Sources */,
-				1000000000000000000000B2 /* python_scanner.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,97 +322,16 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		100000000000000000000080 /* XCRemoteSwiftPackageReference "SwiftTreeSitter" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ChimeHQ/SwiftTreeSitter";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.9.0;
-			};
-		};
-		100000000000000000000090 /* XCRemoteSwiftPackageReference "tree-sitter-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/alex-pinkus/tree-sitter-swift";
-			requirement = {
-				kind = revision;
-				revision = 7b7909f2f6b9414be0958275f4c8e5d69c3bca43;
-			};
-		};
-		100000000000000000000091 /* XCRemoteSwiftPackageReference "tree-sitter-rust" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/tree-sitter/tree-sitter-rust";
-			requirement = {
-				kind = revision;
-				revision = 77a3747266f4d621d0757825e6b11edcbf991ca5;
-			};
-		};
-		1000000000000000000000A0 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-		1000000000000000000000AB /* XCRemoteSwiftPackageReference "swift-huggingface" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/huggingface/swift-huggingface";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.9.0;
-			};
-		};
-		1000000000000000000000AC /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/huggingface/swift-transformers";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.3.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
 		1000000000000000000000B3 /* CompassSandbox */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 100000000000000000000070 /* XCLocalSwiftPackageReference "." */;
 			productName = CompassSandbox;
 		};
-		100000000000000000000081 /* SwiftTreeSitter */ = {
+		1000000000000000000000B6 /* CompassCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000080 /* XCRemoteSwiftPackageReference "SwiftTreeSitter" */;
-			productName = SwiftTreeSitter;
-		};
-		100000000000000000000083 /* TreeSitterSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000090 /* XCRemoteSwiftPackageReference "tree-sitter-swift" */;
-			productName = TreeSitterSwift;
-		};
-		100000000000000000000085 /* TreeSitterRust */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000091 /* XCRemoteSwiftPackageReference "tree-sitter-rust" */;
-			productName = TreeSitterRust;
-		};
-		1000000000000000000000A1 /* MLXLLM */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1000000000000000000000A0 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
-			productName = MLXLLM;
-		};
-		1000000000000000000000A2 /* MLXLMCommon */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1000000000000000000000A0 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
-			productName = MLXLMCommon;
-		};
-		1000000000000000000000A4 /* HuggingFace */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1000000000000000000000AB /* XCRemoteSwiftPackageReference "swift-huggingface" */;
-			productName = HuggingFace;
-		};
-		1000000000000000000000A5 /* Tokenizers */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1000000000000000000000AC /* XCRemoteSwiftPackageReference "swift-transformers" */;
-			productName = Tokenizers;
+			package = 100000000000000000000070 /* XCLocalSwiftPackageReference "." */;
+			productName = CompassCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -5,7 +5,7 @@ import Foundation
 /// feature work and lets tests, cleanup, and docs drift; sampling
 /// a focus per Plan pass forces the other categories to get airtime
 /// over a run.
-enum PlanFocus: String, CaseIterable, Equatable {
+public enum PlanFocus: String, CaseIterable, Equatable {
   case feature
   case test
   case cleanup
@@ -16,7 +16,7 @@ enum PlanFocus: String, CaseIterable, Equatable {
   /// feature work still dominates a single pass in expectation but
   /// not by enough to starve the other categories over a session.
   /// Feature-forward split: feature 50 / test 15 / cleanup 15 / docs 10 / bugHunt 10.
-  var weight: Double {
+  public var weight: Double {
     switch self {
     case .feature: return 50
     case .test: return 15
@@ -28,7 +28,7 @@ enum PlanFocus: String, CaseIterable, Equatable {
 
   /// Short label used in logs and session history so the user can
   /// see what was rolled.
-  var displayName: String {
+  public var displayName: String {
     switch self {
     case .feature: return "feature"
     case .test: return "tests"
@@ -42,7 +42,7 @@ enum PlanFocus: String, CaseIterable, Equatable {
   /// the focus — the language here mirrors the "Strong steer"
   /// interaction model: when the planner has discretion, it picks a
   /// candidate that matches the focus or originates work in that category.
-  var promptGuidance: String {
+  public var promptGuidance: String {
     let header = "## Focus for this iteration: \(displayName)"
     let interaction = """
       Drafts always win — if the user supplied drafts, honor them and
@@ -118,7 +118,7 @@ enum PlanFocus: String, CaseIterable, Equatable {
 
   /// Samples a focus by weight. Takes a generator so tests can
   /// drive the distribution deterministically.
-  static func weightedRandom<G: RandomNumberGenerator>(
+  public static func weightedRandom<G: RandomNumberGenerator>(
     using generator: inout G
   ) -> PlanFocus {
     let total = allCases.reduce(0.0) { $0 + $1.weight }
@@ -131,7 +131,7 @@ enum PlanFocus: String, CaseIterable, Equatable {
     return allCases.last ?? .feature
   }
 
-  static func weightedRandom() -> PlanFocus {
+  public static func weightedRandom() -> PlanFocus {
     var generator = SystemRandomNumberGenerator()
     return weightedRandom(using: &generator)
   }

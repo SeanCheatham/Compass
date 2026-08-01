@@ -5,56 +5,59 @@ import Foundation
 /// `submitResultArguments` holds the JSON payload the model returned in the
 /// terminal phase submit envelope: the structured response Compass decodes
 /// into `PlanRunResult`, `DevelopSummary`, or `CriticVerdict`.
-struct AgentExecutionResult: Equatable {
-  var submitResultArguments: Data
-  var iterations: Int
-  var assistantText: String
-  var reasoningText: String
-  var tokenUsage: AgentRunTokenUsage
+public struct AgentExecutionResult: Equatable {
+  public var submitResultArguments: Data
+  public var iterations: Int
+  public var assistantText: String
+  public var reasoningText: String
+  public var tokenUsage: AgentRunTokenUsage
 }
 
 /// Configuration for a single AgentExecutor.run() invocation.
-struct AgentExecutionConfiguration {
-  var settings: AgentRuntimeSettings
-  var phase: AgentPhase
-  var continuationPhase: AgentContinuationPhase
-  var modelOverride: String
-  var systemPrompt: String
-  var userPrompt: String
-  var tools: [AgentTool]
-  var modelRuntime: (any LocalModelGenerating)?
+public struct AgentExecutionConfiguration {
+  public var settings: AgentRuntimeSettings
+  public var phase: AgentPhase
+  public var continuationPhase: AgentContinuationPhase
+  public var modelOverride: String
+  public var systemPrompt: String
+  public var userPrompt: String
+  public var tools: [AgentTool]
+  public var modelRuntime: (any LocalModelGenerating)?
   /// Virtual workspace root presented to the model (typically `/workspace`
   /// for containerized Linux factory phases). `nil` keeps host-native paths.
-  var agentVisibleWorkspacePath: String?
-  var submitResultSchema: AgentToolParametersSchema
-  var workingDirectory: URL
-  var filesystem: AgentFilesystem
-  var bashRunner: AgentBashRunner
+  public var agentVisibleWorkspacePath: String?
+  public var submitResultSchema: AgentToolParametersSchema
+  public var workingDirectory: URL
+  public var filesystem: AgentFilesystem
+  public var bashRunner: AgentBashRunner
   /// Host-side codemap directory. When the agent runs in the containerized Linux runtime,
   /// `workingDirectory` is the container workspace path and is *not* where
   /// the codemap lives — the caller must supply the actual store
   /// location so codemap-backed tools see real entries. `nil` falls
   /// back to `<workingDirectory>/.compass/codemap`, which is correct
   /// only for host-route runs against a canonical repo-local workspace.
-  var codemapStoreDirectory: URL?
+  public var codemapStoreDirectory: URL?
   /// Host-side completed plan summaries for the `plan_history` tool.
-  var planHistoryEntries: [String]
+  public var planHistoryEntries: [String]
   /// Host-side assumptions ledger URL for assumption-management tools.
-  var assumptionsURL: URL?
+  public var assumptionsURL: URL?
   /// Compass session number associated with this phase, when one exists.
-  var sessionNumber: Int?
+  public var sessionNumber: Int?
   /// Optional prefix for prompt-log artifact labels, such as `develop-attempt-2`.
-  var promptLogLabelPrefix: String?
+  public var promptLogLabelPrefix: String?
   /// Optional post-decode guard for the phase submit payload. When it throws,
   /// the executor rolls back the turn and reprompts — same remediation
   /// path as malformed tool JSON. `runAgent` uses this to reject lesson
   /// edits that don't match lessons.md, payloads that don't decode into
   /// the phase result model, and phase-specific weak handoffs.
-  var validateSubmitResult: (@Sendable (Data) throws -> Void)?
-  var maxIterations: Int
-  var wallClockTimeout: TimeInterval
+  public var validateSubmitResult: (@Sendable (Data) throws -> Void)?
+  /// Which loop protocol the prompts were built for. `.nativeTools` runs the
+  /// native tool-calling loop when the resolved backend supports it.
+  public var promptMode: AgentPromptMode
+  public var maxIterations: Int
+  public var wallClockTimeout: TimeInterval
 
-  init(
+  public init(
     settings: AgentRuntimeSettings,
     phase: AgentPhase,
     continuationPhase: AgentContinuationPhase? = nil,
@@ -74,6 +77,7 @@ struct AgentExecutionConfiguration {
     sessionNumber: Int? = nil,
     promptLogLabelPrefix: String? = nil,
     validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil,
+    promptMode: AgentPromptMode = .envelope,
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
   ) {
@@ -96,16 +100,17 @@ struct AgentExecutionConfiguration {
     self.sessionNumber = sessionNumber
     self.promptLogLabelPrefix = promptLogLabelPrefix
     self.validateSubmitResult = validateSubmitResult
+    self.promptMode = promptMode
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout
   }
 
   /// Effective context window from the runtime settings. `0` means
   /// auto-compaction is disabled.
-  var contextWindowTokens: Int { settings.contextWindowTokens }
+  public var contextWindowTokens: Int { settings.contextWindowTokens }
 }
 
-enum AgentExecutionError: LocalizedError, Equatable {
+public enum AgentExecutionError: LocalizedError, Equatable {
   case streamFailed(String)
   case maxIterationsExceeded(Int)
   case wallClockExceeded(TimeInterval)
@@ -114,7 +119,7 @@ enum AgentExecutionError: LocalizedError, Equatable {
   case duplicateToolName(String)
   case cancelled
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .streamFailed(let detail): return "Model generation failed: \(detail)"
     case .maxIterationsExceeded(let n): return "Agent exceeded max iterations (\(n))"
@@ -135,7 +140,7 @@ enum AgentExecutionError: LocalizedError, Equatable {
   /// Develop treats these as a retryable "failed attempt" so the next
   /// attempt gets a fresh budget; everything else surfaces as a session
   /// failure.
-  var isAgentBudgetExhaustion: Bool {
+  public var isAgentBudgetExhaustion: Bool {
     switch self {
     case .wallClockExceeded, .maxIterationsExceeded:
       return true
@@ -148,19 +153,19 @@ enum AgentExecutionError: LocalizedError, Equatable {
 /// Runs the local MLX loop with Compass-owned JSON continuations. Terminates when
 /// the model emits the phase's `*_submit` envelope, whose `payload` matches
 /// the phase's output schema.
-final class AgentExecutor {
+public final class AgentExecutor {
   /// Retained as the recovery prompt budget for compatibility with existing
   /// remediation text.
-  static let maxCompletionTokensPerTurn = 65_536
+  public static let maxCompletionTokensPerTurn = 65_536
 
   /// Retained for older budget summaries; the local runtime owns retry policy.
-  static let maxStreamAttempts = 5
+  public static let maxStreamAttempts = 5
 
   /// Base delay for exponential backoff between retries (seconds). The
   /// effective delay is `base * 2^(attempt-1)` with ±20% jitter, capped
   /// at `maxStreamRetryDelay`.
-  static let baseStreamRetryDelay: TimeInterval = 1.0
-  static let maxStreamRetryDelay: TimeInterval = 30.0
+  public static let baseStreamRetryDelay: TimeInterval = 1.0
+  public static let maxStreamRetryDelay: TimeInterval = 30.0
 
   /// Fraction of the configured context window at which the executor
   /// runs auto-compaction. We measure against a chars-per-token estimate
@@ -168,25 +173,25 @@ final class AgentExecutor {
   /// next turn also adds tool-result messages, so triggering at 0.75
   /// leaves headroom for one more full turn before the request itself
   /// would exceed the window.
-  static let compactionThresholdFraction: Double = 0.75
+  public static let compactionThresholdFraction: Double = 0.75
 
   /// Conventional chars-per-token divisor for local token estimates.
-  static let estimatedCharsPerToken: Int = 4
+  public static let estimatedCharsPerToken: Int = 4
 
   /// Per-call output cap for the summarization request. The summary
   /// replaces the entire mid-conversation history, so we let it run
   /// long enough to capture pending file paths / errors / next steps
   /// without bumping into the model's hard ceiling.
-  static let maxSummaryCompletionTokens: Int = 8_192
+  public static let maxSummaryCompletionTokens: Int = 8_192
 
-  let onEvent: @Sendable (LiveEvent) -> Void
-  var cancelled = false
+  public let onEvent: @Sendable (LiveEvent) -> Void
+  public var cancelled = false
 
-  init(onEvent: @Sendable @escaping (LiveEvent) -> Void = { _ in }) {
+  public init(onEvent: @Sendable @escaping (LiveEvent) -> Void = { _ in }) {
     self.onEvent = onEvent
   }
 
-  func cancel() {
+  public func cancel() {
     cancelled = true
   }
 }

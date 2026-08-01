@@ -1,46 +1,46 @@
 import Foundation
 
-struct PlanSessionHistoryGuide: Equatable, Sendable {
-  static let detailLimit = 260
-  static let identifierLimit = 1_400
+public struct PlanSessionHistoryGuide: Equatable, Sendable {
+  public static let detailLimit = 260
+  public static let identifierLimit = 1_400
 
-  enum Tone: String, Equatable, Sendable {
+  public enum Tone: String, Equatable, Sendable {
     case empty
     case steady
     case active
     case attention
   }
 
-  struct Fact: Identifiable, Equatable, Sendable {
-    var id: String
-    var label: String
-    var detail: String
-    var systemImageName: String
+  public struct Fact: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var label: String
+    public var detail: String
+    public var systemImageName: String
   }
 
-  struct AuditCoverage: Equatable, Sendable {
-    var coveredCount: Int
-    var totalCount: Int
-    var fraction: Double
-    var label: String
-    var detail: String
-    var missingLabels: [String]
+  public struct AuditCoverage: Equatable, Sendable {
+    public var coveredCount: Int
+    public var totalCount: Int
+    public var fraction: Double
+    public var label: String
+    public var detail: String
+    public var missingLabels: [String]
   }
 
-  var title: String
-  var detail: String
-  var statusLabel: String
-  var tone: Tone
-  var systemImageName: String
-  var facts: [Fact]
-  var auditCoverage: AuditCoverage
-  var narrationIdentifier: String
+  public var title: String
+  public var detail: String
+  public var statusLabel: String
+  public var tone: Tone
+  public var systemImageName: String
+  public var facts: [Fact]
+  public var auditCoverage: AuditCoverage
+  public var narrationIdentifier: String
 
-  var allowsNarration: Bool {
+  public var allowsNarration: Bool {
     tone != .empty && !facts.isEmpty
   }
 
-  init(
+  public init(
     display: PlanSessionHistoryDisplay,
     runCues: [Int: PlanReliabilityFeedback.RunCue] = [:]
   ) {
@@ -372,15 +372,15 @@ struct PlanSessionHistoryGuide: Equatable, Sendable {
   }
 }
 
-struct PlanSessionHistoryGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+public struct PlanSessionHistoryGuideNarration: Equatable, Sendable {
+  public var guideIdentifier: String
+  public var text: String
 }
 
-enum PlanSessionHistoryGuideNarrator {
-  static let maxCharacters = 360
+public enum PlanSessionHistoryGuideNarrator {
+  public static let maxCharacters = 360
 
-  static func narrate(
+  public static func narrate(
     guide: PlanSessionHistoryGuide
   ) async -> PlanSessionHistoryGuideNarration? {
     guard guide.allowsNarration else { return nil }
@@ -405,7 +405,7 @@ enum PlanSessionHistoryGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: PlanSessionHistoryGuide) -> String {
+  public static func prompt(for guide: PlanSessionHistoryGuide) -> String {
     """
     You are Compass explaining Run History to a non-engineer.
     Use only the facts below. Do not invent files, commands, outcomes, errors, or next steps.

@@ -1,12 +1,12 @@
 import Foundation
 
-enum AgentContinuationPhase: String, Equatable, Sendable, CaseIterable {
+public enum AgentContinuationPhase: String, Equatable, Sendable, CaseIterable {
   case plan
   case develop
   case critic
   case delegate
 
-  init(agentPhase: AgentPhase) {
+  public init(agentPhase: AgentPhase) {
     switch agentPhase {
     case .plan:
       self = .plan
@@ -17,22 +17,22 @@ enum AgentContinuationPhase: String, Equatable, Sendable, CaseIterable {
     }
   }
 
-  var continueKind: String { "\(rawValue)_continue" }
-  var submitKind: String { "\(rawValue)_submit" }
+  public var continueKind: String { "\(rawValue)_continue" }
+  public var submitKind: String { "\(rawValue)_submit" }
 }
 
-struct AgentContinuation: Equatable, Sendable {
-  enum Action: Equatable, Sendable {
+public struct AgentContinuation: Equatable, Sendable {
+  public enum Action: Equatable, Sendable {
     case continueTool(toolName: String, arguments: Data, reason: String?, note: String?)
     case submit(payload: Data)
   }
 
-  var kind: String
-  var phase: AgentContinuationPhase
-  var action: Action
+  public var kind: String
+  public var phase: AgentContinuationPhase
+  public var action: Action
 }
 
-enum AgentContinuationParseError: LocalizedError, Equatable {
+public enum AgentContinuationParseError: LocalizedError, Equatable {
   case malformedJSON(String)
   case topLevelNotObject
   case missingKind
@@ -45,7 +45,7 @@ enum AgentContinuationParseError: LocalizedError, Equatable {
   case payloadNotObject
   case invalidJSONObject
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .malformedJSON(let detail):
       return "Malformed JSON continuation: \(detail)"
@@ -73,10 +73,10 @@ enum AgentContinuationParseError: LocalizedError, Equatable {
   }
 }
 
-enum AgentContinuationParser {
-  static let noteCharacterLimit = 800
+public enum AgentContinuationParser {
+  public static let noteCharacterLimit = 800
 
-  static func parse(
+  public static func parse(
     _ text: String,
     phase: AgentContinuationPhase,
     availableToolNames: Set<String>

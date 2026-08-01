@@ -1,6 +1,6 @@
 import Foundation
 
-extension Prompts {
+public extension Prompts {
   static func criticPrompt(
     next: PlanNext,
     developSummary: DevelopSummary,
@@ -13,7 +13,8 @@ extension Prompts {
     assumptions: String = "",
     vision: String,
     iteration: Int,
-    maxIterations: Int
+    maxIterations: Int,
+    promptMode: AgentPromptMode = .envelope
   ) -> String {
     let verifyStatus =
       verifyExitCode.map { $0 == 0 ? "passed (exit 0)" : "exited with code \($0)" }
@@ -24,6 +25,45 @@ extension Prompts {
       : priorCritiques.enumerated()
         .map { "Review \($0.offset + 1):\n\($0.element)" }
         .joined(separator: "\n\n")
+
+    let approvePayload = """
+      {
+        "verdict": "approve",
+        "summary": "<why no blocker remains>",
+        "feedback": ""
+      }
+      """
+    let requestChangesPayload = """
+      {
+        "verdict": "request_changes",
+        "summary": "<blocking review summary>",
+        "feedback": "- <specific issue>\\n- <smallest Develop recovery action>"
+      }
+      """
+    let submitSection =
+      promptMode == .nativeTools
+      ? """
+      Finish by calling the `critic_submit` tool with one of these argument payloads:
+      \(approvePayload)
+      \(requestChangesPayload)
+
+      """
+      : """
+      Finish with exactly one of these envelopes:
+      {
+        "kind": "critic_submit",
+        "payload": \(approvePayload)
+      }
+      {
+        "kind": "critic_submit",
+        "payload": \(requestChangesPayload)
+      }
+
+      """
+    let closingLine =
+      promptMode == .nativeTools
+      ? "Use the read-only Compass tools for any checks you need, then call `critic_submit`."
+      : "Use `critic_continue` for any read-only tool you need. Use `critic_submit` when decided."
 
     return """
       You are the Critic agent in Compass, a local software factory. Review the diff against
@@ -39,25 +79,7 @@ extension Prompts {
         generated artifacts, and ignored lessons or denied assumptions.
       - You may use read-only tools and `bash` probes. Do not edit, commit, or push.
 
-      Finish with exactly one of these envelopes:
-      {
-        "kind": "critic_submit",
-        "payload": {
-          "verdict": "approve",
-          "summary": "<why no blocker remains>",
-          "feedback": ""
-        }
-      }
-      {
-        "kind": "critic_submit",
-        "payload": {
-          "verdict": "request_changes",
-          "summary": "<blocking review summary>",
-          "feedback": "- <specific issue>\\n- <smallest Develop recovery action>"
-        }
-      }
-
-      ## Plan
+      \(submitSection)## Plan
       \(next.plan)
 
       ## Verify
@@ -89,7 +111,7 @@ extension Prompts {
       ## Project context
       \(fencedOrEmpty(vision, empty: "_(no project context set)_"))
 
-      Use `critic_continue` for any read-only tool you need. Use `critic_submit` when decided.
+      \(closingLine)
       """
   }
 }

@@ -1,14 +1,14 @@
 import Foundation
 
-struct ProjectRecoveryGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+public struct ProjectRecoveryGuideNarration: Equatable, Sendable {
+  public var guideIdentifier: String
+  public var text: String
 }
 
-enum ProjectRecoveryGuideNarrator {
-  static let maxCharacters = 340
+public enum ProjectRecoveryGuideNarrator {
+  public static let maxCharacters = 340
 
-  static func narrate(guide: ProjectRecoveryGuide) async -> ProjectRecoveryGuideNarration? {
+  public static func narrate(guide: ProjectRecoveryGuide) async -> ProjectRecoveryGuideNarration? {
     guard guide.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -31,7 +31,7 @@ enum ProjectRecoveryGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: ProjectRecoveryGuide) -> String {
+  public static func prompt(for guide: ProjectRecoveryGuide) -> String {
     """
     You are Compass explaining how to recover a stalled local software-factory run to a non-engineer.
     Use only the facts below. Do not invent files, commands, credentials, outcomes, or next steps.

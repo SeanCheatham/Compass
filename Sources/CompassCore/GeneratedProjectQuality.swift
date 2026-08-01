@@ -4,19 +4,19 @@ import Foundation
 ///
 /// Mutation testing is prepared here (`mutationTestCommand`) but not yet wired into
 /// the factory loop — the intended call site is post-verify / `runPostChecks`.
-enum GeneratedProjectQuality {
-  static let standardVerifyCommand =
+public enum GeneratedProjectQuality {
+  public static let standardVerifyCommand =
     "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
 
-  static let coverageCollectCommand = "cargo llvm-cov --workspace --summary-only"
+  public static let coverageCollectCommand = "cargo llvm-cov --workspace --summary-only"
 
   /// Future post-verify mutation gate. Not invoked by the factory loop yet.
-  static let mutationTestCommand = "cargo mutants --no-shuffle -j 1"
+  public static let mutationTestCommand = "cargo mutants --no-shuffle -j 1"
 
-  static let coverageRequirementHint =
+  public static let coverageRequirementHint =
     "use `\(standardVerifyCommand)` for standard checks, or `cargo llvm-cov --workspace` / `cargo test --workspace` for test-focused slices. Documentation-only README/docs slices may use a simple `grep -q` content check."
 
-  static let planningGuidance = """
+  public static let planningGuidance = """
     Generated Compass projects are Rust Cargo workspaces:
     - Layout: root `Cargo.toml` workspace plus `crates/app-core` and `crates/app-cli`.
     - No web or desktop UI packages — backend/CLI only.
@@ -27,7 +27,7 @@ enum GeneratedProjectQuality {
       check against the edited Markdown/text file instead of cargo.
     """
 
-  static func isCompileOnlyVerify(_ verify: String) -> Bool {
+  public static func isCompileOnlyVerify(_ verify: String) -> Bool {
     let normalized = verify.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     guard !normalized.isEmpty else { return false }
     if normalized.contains(" test") || normalized.hasPrefix("test ")
@@ -41,7 +41,7 @@ enum GeneratedProjectQuality {
       || normalized.contains("cargo fmt")
   }
 
-  static func verifyDeclaresCoverage(_ verify: String) -> Bool {
+  public static func verifyDeclaresCoverage(_ verify: String) -> Bool {
     let normalized = verify.lowercased()
     return normalized.contains("llvm-cov")
       || normalized.contains("cargo test")
@@ -50,19 +50,19 @@ enum GeneratedProjectQuality {
         && normalized.contains("cargo test"))
   }
 
-  static func parseCoverageReport(output: String) -> CoverageSnapshot {
+  public static func parseCoverageReport(output: String) -> CoverageSnapshot {
     CoverageSnapshotParser.parseLLVMCovReport(output)
   }
 }
 
-struct CoverageSnapshot: Codable, Equatable, Sendable {
-  var collectedAt: Date
-  var sessionNumber: Int?
-  var overallLineCoveragePercent: Double?
-  var files: [CoverageFileEntry]
-  var rawSummary: String?
+public struct CoverageSnapshot: Codable, Equatable, Sendable {
+  public var collectedAt: Date
+  public var sessionNumber: Int?
+  public var overallLineCoveragePercent: Double?
+  public var files: [CoverageFileEntry]
+  public var rawSummary: String?
 
-  func formattedForPrompt(maxFiles: Int = 12) -> String {
+  public func formattedForPrompt(maxFiles: Int = 12) -> String {
     guard !files.isEmpty || overallLineCoveragePercent != nil else {
       return "_(no coverage data collected yet - ensure verify enables coverage)_"
     }
@@ -87,17 +87,17 @@ struct CoverageSnapshot: Codable, Equatable, Sendable {
   }
 }
 
-struct CoverageFileEntry: Codable, Equatable, Sendable {
-  var path: String
-  var lineCoveragePercent: Double?
+public struct CoverageFileEntry: Codable, Equatable, Sendable {
+  public var path: String
+  public var lineCoveragePercent: Double?
 }
 
-enum CoverageSnapshotStore {
-  static func coverageSnapshotURL(in workspace: CompassWorkspace) -> URL {
+public enum CoverageSnapshotStore {
+  public static func coverageSnapshotURL(in workspace: CompassWorkspace) -> URL {
     workspace.compassURL.appending(path: "coverage-snapshot.json")
   }
 
-  static func readCoverageSnapshot(from workspace: CompassWorkspace) -> CoverageSnapshot? {
+  public static func readCoverageSnapshot(from workspace: CompassWorkspace) -> CoverageSnapshot? {
     let url = coverageSnapshotURL(in: workspace)
     guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
     let decoder = JSONDecoder()
@@ -105,7 +105,7 @@ enum CoverageSnapshotStore {
     return try? decoder.decode(CoverageSnapshot.self, from: data)
   }
 
-  static func writeCoverageSnapshot(_ snapshot: CoverageSnapshot, workspace: CompassWorkspace)
+  public static func writeCoverageSnapshot(_ snapshot: CoverageSnapshot, workspace: CompassWorkspace)
     throws
   {
     let url = coverageSnapshotURL(in: workspace)
@@ -116,8 +116,8 @@ enum CoverageSnapshotStore {
   }
 }
 
-enum CoverageSnapshotParser {
-  static func parseLLVMCovReport(_ output: String) -> CoverageSnapshot {
+public enum CoverageSnapshotParser {
+  public static func parseLLVMCovReport(_ output: String) -> CoverageSnapshot {
     var files: [CoverageFileEntry] = []
     var totalPercent: Double?
     for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -143,7 +143,7 @@ enum CoverageSnapshotParser {
     )
   }
 
-  static func readJSONFile(_ url: URL) -> String? {
+  public static func readJSONFile(_ url: URL) -> String? {
     guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
     return String(decoding: data, as: UTF8.self)
   }
@@ -162,8 +162,8 @@ enum CoverageSnapshotParser {
   }
 }
 
-enum GeneratedVerifyValidator {
-  static func coverageViolation(verify: String) -> String? {
+public enum GeneratedVerifyValidator {
+  public static func coverageViolation(verify: String) -> String? {
     let trimmed = verify.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
     if GeneratedProjectQuality.isCompileOnlyVerify(trimmed) { return nil }

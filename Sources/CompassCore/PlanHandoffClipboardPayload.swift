@@ -1,11 +1,11 @@
 import Foundation
 
-struct PlanHandoffClipboardPayload: Equatable, Sendable {
-  static let textLimit = 4_000
+public struct PlanHandoffClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 4_000
 
-  var text: String
+  public var text: String
 
-  init(
+  public init(
     plan rawPlan: String,
     verify rawVerify: String?,
     languageProfile: RepositoryLanguageProfile
@@ -90,7 +90,7 @@ struct PlanHandoffClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -102,12 +102,12 @@ struct PlanHandoffClipboardPayload: Equatable, Sendable {
   }
 }
 
-struct PlanHandoffRepairClipboardPayload: Equatable, Sendable {
-  static let textLimit = 3_000
+public struct PlanHandoffRepairClipboardPayload: Equatable, Sendable {
+  public static let textLimit = 3_000
 
-  var text: String
+  public var text: String
 
-  init(guide: PlanHandoffRepairGuide) {
+  public init(guide: PlanHandoffRepairGuide) {
     var sections: [String] = [
       "Compass Plan Repair Handoff",
       "",
@@ -156,13 +156,13 @@ struct PlanHandoffRepairClipboardPayload: Equatable, Sendable {
     )
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
 private enum PlanClipboardText {
-  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+  public static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

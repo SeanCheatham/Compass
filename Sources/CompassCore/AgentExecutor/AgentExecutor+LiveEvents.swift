@@ -1,6 +1,6 @@
 import Foundation
 
-extension AgentExecutor {
+public extension AgentExecutor {
   // MARK: - LiveEvent mapping
 
   func emit(

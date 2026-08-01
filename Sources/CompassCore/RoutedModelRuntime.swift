@@ -1,17 +1,17 @@
 import Foundation
 
-enum ModelRuntimeFactory {
-  static func makeCloud(settings: AgentRuntimeSettings) -> OpenAICompatibleModelRuntime? {
+public enum ModelRuntimeFactory {
+  public static func makeCloud(settings: AgentRuntimeSettings) -> OpenAICompatibleModelRuntime? {
     guard settings.hasCloudCredentials else { return nil }
     return OpenAICompatibleModelRuntime(settings: settings)
   }
 
-  static func makeLocal() -> (any LocalModelGenerating)? {
+  public static func makeLocal() -> (any LocalModelGenerating)? {
     guard LocalModelCatalog.isBlessedModelReady() else { return nil }
     return MLXLocalModelRuntime.shared
   }
 
-  static func makeRouted(
+  public static func makeRouted(
     settings: AgentRuntimeSettings,
     cloud: (any LocalModelGenerating)? = nil,
     local: (any LocalModelGenerating)? = nil
@@ -40,10 +40,10 @@ enum ModelRuntimeFactory {
   }
 }
 
-enum RoutedModelRuntimeError: LocalizedError, Equatable {
+public enum RoutedModelRuntimeError: LocalizedError, Equatable {
   case noBackend(ModelRoutingHint)
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .noBackend(let hint):
       switch hint {
@@ -59,12 +59,12 @@ enum RoutedModelRuntimeError: LocalizedError, Equatable {
 }
 
 /// Routes generation requests between cloud (OpenAI-compatible) and local MLX.
-struct RoutedModelRuntime: LocalModelGenerating, Sendable {
-  var cloud: (any LocalModelGenerating)?
-  var local: (any LocalModelGenerating)?
-  var preferCloudWhenAvailable: Bool
+public struct RoutedModelRuntime: LocalModelGenerating, Sendable {
+  public var cloud: (any LocalModelGenerating)?
+  public var local: (any LocalModelGenerating)?
+  public var preferCloudWhenAvailable: Bool
 
-  init(
+  public init(
     cloud: (any LocalModelGenerating)?,
     local: (any LocalModelGenerating)?,
     preferCloudWhenAvailable: Bool = true
@@ -74,7 +74,7 @@ struct RoutedModelRuntime: LocalModelGenerating, Sendable {
     self.preferCloudWhenAvailable = preferCloudWhenAvailable
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
     let runtime = try selectRuntime(for: request.routingHint)
     var resolvedRequest = request
     if let local, isSameBackend(runtime, local) {
@@ -90,7 +90,7 @@ struct RoutedModelRuntime: LocalModelGenerating, Sendable {
     (lhs as AnyObject) === (rhs as AnyObject)
   }
 
-  func selectRuntime(for hint: ModelRoutingHint) throws -> any LocalModelGenerating {
+  public func selectRuntime(for hint: ModelRoutingHint) throws -> any LocalModelGenerating {
     switch hint {
     case .cloudPrimary:
       if preferCloudWhenAvailable, let cloud {
@@ -112,5 +112,37 @@ struct RoutedModelRuntime: LocalModelGenerating, Sendable {
       }
       throw RoutedModelRuntimeError.noBackend(hint)
     }
+  }
+
+  /// The backend a `.cloudPrimary` turn would use, cast to the native
+  /// tool-calling interface when it supports one. Returns `nil` for
+  /// text-only backends (fixtures, legacy runtimes), which keeps those
+  /// callers on the envelope loop.
+  public func chatBackend(for hint: ModelRoutingHint = .cloudPrimary) -> (any AgentChatGenerating)? {
+    try? selectRuntime(for: hint) as? AgentChatGenerating
+  }
+}
+
+public extension ModelRuntimeFactory {
+  /// Prompt mode callers should use when building phase prompts for the
+  /// runtime this configuration will resolve to. Both real backends (cloud,
+  /// MLX) support native tool calling; injected text-only runtimes stay on
+  /// the envelope protocol.
+  static func promptMode(
+    settings: AgentRuntimeSettings,
+    modelRuntime: (any LocalModelGenerating)? = nil
+  ) -> AgentPromptMode {
+    if let modelRuntime {
+      if let logging = modelRuntime as? PromptLoggingLocalModelRuntime {
+        return logging.chatBase != nil ? .nativeTools : .envelope
+      }
+      if let routed = modelRuntime as? RoutedModelRuntime {
+        return routed.chatBackend(for: .cloudPrimary) != nil ? .nativeTools : .envelope
+      }
+      return modelRuntime is any AgentChatGenerating ? .nativeTools : .envelope
+    }
+    return makeRouted(settings: settings).chatBackend(for: .cloudPrimary) != nil
+      ? .nativeTools
+      : .envelope
   }
 }

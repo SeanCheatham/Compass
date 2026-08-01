@@ -1,14 +1,14 @@
 import Foundation
 
-struct AgentSettingsGuideNarration: Equatable, Sendable {
-  var guideIdentifier: String
-  var text: String
+public struct AgentSettingsGuideNarration: Equatable, Sendable {
+  public var guideIdentifier: String
+  public var text: String
 }
 
-enum AgentSettingsGuideNarrator {
-  static let maxCharacters = 360
+public enum AgentSettingsGuideNarrator {
+  public static let maxCharacters = 360
 
-  static func narrate(guide: AgentSettingsGuide) async -> AgentSettingsGuideNarration? {
+  public static func narrate(guide: AgentSettingsGuide) async -> AgentSettingsGuideNarration? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     if #available(macOS 26.0, *) {
@@ -30,7 +30,7 @@ enum AgentSettingsGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: AgentSettingsGuide) -> String {
+  public static func prompt(for guide: AgentSettingsGuide) -> String {
     """
     You are Compass explaining agent settings to a non-engineer.
     Use only the facts below. Do not invent commands, files, accounts, costs, timing, or outcomes.

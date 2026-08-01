@@ -6,14 +6,14 @@ import Foundation
 /// `endLine == startLine - 1`). All edits succeed atomically — if any one
 /// fails, the file is not written. A prior `read_file` for the path is
 /// required so line numbers come from content the model has actually seen.
-struct AgentEditFileTool: AgentTool {
-  static let toolName = "edit_file"
+public struct AgentEditFileTool: AgentTool {
+  public static let toolName = "edit_file"
 
-  struct Arguments: Decodable {
-    let path: String
-    let edits: [EditOperation]
+  public struct Arguments: Decodable {
+    public let path: String
+    public let edits: [EditOperation]
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case path
       case filePath
       case filePathSnake = "file_path"
@@ -41,7 +41,7 @@ struct AgentEditFileTool: AgentTool {
       case insertion
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -125,13 +125,13 @@ struct AgentEditFileTool: AgentTool {
     }
   }
 
-  struct EditOperation: Decodable {
-    let startLine: Int
-    let endLine: Int
-    let replacementLines: [String]
-    let usesInsertionAlias: Bool
+  public struct EditOperation: Decodable {
+    public let startLine: Int
+    public let endLine: Int
+    public let replacementLines: [String]
+    public let usesInsertionAlias: Bool
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case startLine
       case startLineSnake = "start_line"
       case start
@@ -152,7 +152,7 @@ struct AgentEditFileTool: AgentTool {
       case insertion
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       startLine = try Self.decodeRequiredLine(
         from: container,
@@ -274,35 +274,35 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private struct WriteFileRepairPayload: Encodable {
-    let path: String
-    let content: String
+    public let path: String
+    public let content: String
   }
 
   private struct EditFileContentRepairPayload: Encodable {
-    let path: String
-    let edits: [EditFileContentRepairEdit]
+    public let path: String
+    public let edits: [EditFileContentRepairEdit]
   }
 
   private struct EditFileContentRepairEdit: Encodable {
-    let startLine: Int
-    let endLine: Int
-    let content: String
+    public let startLine: Int
+    public let endLine: Int
+    public let content: String
   }
 
   private struct EditFileInsertRepairPayload: Encodable {
-    let path: String
-    let edits: [EditFileInsertRepairEdit]
+    public let path: String
+    public let edits: [EditFileInsertRepairEdit]
   }
 
   private struct EditFileInsertRepairEdit: Encodable {
-    let startLine: Int
-    let endLine: Int
-    let insert: String
+    public let startLine: Int
+    public let endLine: Int
+    public let insert: String
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -354,7 +354,7 @@ struct AgentEditFileTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -428,7 +428,7 @@ struct AgentEditFileTool: AgentTool {
       return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
     }
 
-    if await !context.readTracker.wasRead(url) {
+    if context.enforceReadBeforeWrite, await !context.readTracker.wasRead(url) {
       if !FileManager.default.fileExists(atPath: url.path) {
         return .failure(
           .readNotTracked(
@@ -901,9 +901,9 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private struct ReplacementLineContamination {
-    let kind: String
-    let lineNumber: Int
-    let preview: String
+    public let kind: String
+    public let lineNumber: Int
+    public let preview: String
   }
 
   private static func replacementLineContamination(in lines: [String])
@@ -936,8 +936,8 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private struct EmbeddedNewline {
-    let lineIndex: Int
-    let preview: String
+    public let lineIndex: Int
+    public let preview: String
   }
 
   private static func embeddedNewline(in lines: [String]) -> EmbeddedNewline? {
@@ -1020,8 +1020,8 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private struct TestCodeMarker {
-    let lineNumber: Int
-    let preview: String
+    public let lineNumber: Int
+    public let preview: String
   }
 
   private static func firstTestCodeMarker(in lines: [String]) -> TestCodeMarker? {
@@ -1327,8 +1327,8 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private struct FunctionDeclarationLine {
-    let name: String
-    let lineNumber: Int
+    public let name: String
+    public let lineNumber: Int
   }
 
   private static func suspiciousDeclarationBodyReplacementMessage(
@@ -1386,8 +1386,8 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private struct OpenBlockLine {
-    let lineNumber: Int
-    let preview: String
+    public let lineNumber: Int
+    public let preview: String
   }
 
   private static func suspiciousNestedTopLevelDeclarationMessage(
@@ -1593,14 +1593,14 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private struct MissingRelativeModuleReference {
-    let specifier: String
-    let expectedDescription: String
+    public let specifier: String
+    public let expectedDescription: String
   }
 
   private struct PlaceholderImplementationMarker {
-    let lineNumber: Int
-    let preview: String
-    let fingerprint: String
+    public let lineNumber: Int
+    public let preview: String
+    public let fingerprint: String
   }
 
   private static func newPlaceholderImplementationMarker(
@@ -1669,7 +1669,7 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private struct SelfRelativeModuleReference {
-    let specifier: String
+    public let specifier: String
   }
 
   private static func newSelfRelativeModuleReference(

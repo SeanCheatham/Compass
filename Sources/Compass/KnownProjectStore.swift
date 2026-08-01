@@ -1,23 +1,6 @@
 import AppKit
 import Foundation
-
-enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiable {
-  case repoLocal = "repo_local"
-  case applicationSupport = "application_support"
-
-  var id: Self { self }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    let rawValue = try container.decode(String.self)
-    self = KnownProjectActiveStorage(rawValue: rawValue) ?? .repoLocal
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(rawValue)
-  }
-}
+import CompassCore
 
 struct CompassProjectStorageResolver: Equatable {
   var repoURL: URL

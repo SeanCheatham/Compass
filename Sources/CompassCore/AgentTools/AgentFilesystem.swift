@@ -5,7 +5,7 @@ import Foundation
 /// tools learning about the container transport layer. The host implementation in this file mirrors the
 /// `FileManager` calls the tools used to make directly, so behavior is
 /// unchanged when no containerized Linux runtime route is active.
-protocol AgentFilesystem: Sendable {
+public protocol AgentFilesystem: Sendable {
   /// Read a regular file's contents. Throws `.notFound` / `.notRegularFile`
   /// so the calling tool can surface a precise error.
   func readFile(at url: URL) async throws -> Data
@@ -37,33 +37,33 @@ protocol AgentFilesystem: Sendable {
   ) async throws -> ProcessResult
 }
 
-struct FileMetadata: Sendable, Equatable {
-  var url: URL
-  var isDirectory: Bool
-  var isRegularFile: Bool
-  var size: Int?
-  var modificationDate: Date?
+public struct FileMetadata: Sendable, Equatable {
+  public var url: URL
+  public var isDirectory: Bool
+  public var isRegularFile: Bool
+  public var size: Int?
+  public var modificationDate: Date?
 }
 
-struct DirectoryEntry: Sendable, Equatable {
-  var url: URL
-  var name: String
-  var isDirectory: Bool
+public struct DirectoryEntry: Sendable, Equatable {
+  public var url: URL
+  public var name: String
+  public var isDirectory: Bool
 }
 
-struct GlobMatch: Sendable, Equatable {
-  var url: URL
-  var modificationDate: Date?
+public struct GlobMatch: Sendable, Equatable {
+  public var url: URL
+  public var modificationDate: Date?
 }
 
-enum AgentFilesystemError: LocalizedError, Equatable {
+public enum AgentFilesystemError: LocalizedError, Equatable {
   case notFound(URL)
   case notRegularFile(URL)
   case notDirectory(URL)
   case ioFailure(String)
   case transportFailure(String)
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .notFound(let url): return "File not found: \(url.path)"
     case .notRegularFile(let url): return "Not a regular file: \(url.path)"
@@ -77,14 +77,14 @@ enum AgentFilesystemError: LocalizedError, Equatable {
 /// Host-side `FileManager` implementation. Used when Compass runs entirely
 /// on the host (no containerized Linux runtime route) and as the implicit default for unit
 /// tests, which construct `AgentToolContext` with just a working directory.
-struct AgentHostFilesystem: AgentFilesystem {
-  let grepExecutable: AgentGrepExecutable
+public struct AgentHostFilesystem: AgentFilesystem {
+  public let grepExecutable: AgentGrepExecutable
 
-  init(grepExecutable: AgentGrepExecutable = AgentGrepExecutable.locate()) {
+  public init(grepExecutable: AgentGrepExecutable = AgentGrepExecutable.locate()) {
     self.grepExecutable = grepExecutable
   }
 
-  func readFile(at url: URL) async throws -> Data {
+  public func readFile(at url: URL) async throws -> Data {
     let fileManager = FileManager.default
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
@@ -100,7 +100,7 @@ struct AgentHostFilesystem: AgentFilesystem {
     }
   }
 
-  func writeFile(_ data: Data, at url: URL) async throws {
+  public func writeFile(_ data: Data, at url: URL) async throws {
     let fileManager = FileManager.default
     let parent = url.deletingLastPathComponent()
     do {
@@ -119,7 +119,7 @@ struct AgentHostFilesystem: AgentFilesystem {
     }
   }
 
-  func metadata(of url: URL) async throws -> FileMetadata? {
+  public func metadata(of url: URL) async throws -> FileMetadata? {
     let fileManager = FileManager.default
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
@@ -139,7 +139,7 @@ struct AgentHostFilesystem: AgentFilesystem {
     )
   }
 
-  func listDirectory(at url: URL) async throws -> [DirectoryEntry] {
+  public func listDirectory(at url: URL) async throws -> [DirectoryEntry] {
     let fileManager = FileManager.default
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
@@ -169,7 +169,7 @@ struct AgentHostFilesystem: AgentFilesystem {
     }
   }
 
-  func glob(pattern: String, under rootURL: URL, walkCap: Int) async throws -> [GlobMatch] {
+  public func glob(pattern: String, under rootURL: URL, walkCap: Int) async throws -> [GlobMatch] {
     let fileManager = FileManager.default
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDirectory),
@@ -231,7 +231,7 @@ struct AgentHostFilesystem: AgentFilesystem {
     return matches
   }
 
-  func grep(
+  public func grep(
     pattern: String,
     in url: URL,
     glob: String?,
@@ -290,18 +290,18 @@ struct AgentHostFilesystem: AgentFilesystem {
 
 /// Which grep-style executable to invoke. Picked once at startup so the
 /// tool implementations don't re-stat `/opt/homebrew/bin/rg` on every call.
-enum AgentGrepExecutable: Sendable, Equatable {
+public enum AgentGrepExecutable: Sendable, Equatable {
   case ripgrep(String)
   case grep(String)
 
-  var path: String {
+  public var path: String {
     switch self {
     case .ripgrep(let p): return p
     case .grep(let p): return p
     }
   }
 
-  static func locate() -> AgentGrepExecutable {
+  public static func locate() -> AgentGrepExecutable {
     let rgCandidates = ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"]
     for path in rgCandidates where FileManager.default.isExecutableFile(atPath: path) {
       return .ripgrep(path)
@@ -313,13 +313,13 @@ enum AgentGrepExecutable: Sendable, Equatable {
 /// Glob pattern → regex translator, factored out of `AgentGlobTool` so
 /// other filesystem implementations (e.g. the containerized Linux runtime one) can share
 /// the same pattern semantics without depending on the tool type.
-enum AgentGlobPattern {
+public enum AgentGlobPattern {
   /// Translate a glob pattern into an anchored regex.
   /// - `**` matches any sequence of characters (including `/`).
   /// - `*` matches any characters except `/`.
   /// - `?` matches a single character except `/`.
   /// - All other regex metacharacters are escaped.
-  static func regex(forGlob pattern: String) throws -> NSRegularExpression {
+  public static func regex(forGlob pattern: String) throws -> NSRegularExpression {
     var regex = "^"
     var i = pattern.startIndex
     while i < pattern.endIndex {

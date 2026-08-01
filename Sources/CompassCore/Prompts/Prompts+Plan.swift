@@ -1,6 +1,6 @@
 import Foundation
 
-extension Prompts {
+public extension Prompts {
   static func planPrompt(
     state: PlanProposal,
     completedCount: Int,
@@ -11,9 +11,54 @@ extension Prompts {
     vision: String,
     focus: PlanFocus,
     coverageSnapshot: CoverageSnapshot? = nil,
-    hostXcodeBuildTestEnabled: Bool = false
+    hostXcodeBuildTestEnabled: Bool = false,
+    promptMode: AgentPromptMode = .envelope
   ) throws -> String {
     let stateJSON = try CompassWorkspace.encodeProposal(state.promptDigest())
+    let submitExample = """
+      {
+        "state": {
+          "immediate": {
+            "plan": "## Outcome\\n<what changes>\\n\\n## Why it matters\\n<why now>\\n\\n## Acceptance checks\\n- <observable result>",
+            "verify": "\(GeneratedProjectQuality.standardVerifyCommand)",
+            "verifyTimeoutMs": 600000,
+            "estimatedDifficulty": "low",
+            "selectedBecause": "<why this is next>",
+            "source": "candidate",
+            "candidateID": null
+          },
+          "queue": [],
+          "brief": {
+            "summary": "<software task context>",
+            "targetUsers": [],
+            "desiredOutcomes": [],
+            "constraints": [],
+            "acceptanceSignals": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """
+    let submitSection =
+      promptMode == .nativeTools
+      ? """
+      Finish by calling the `plan_submit` tool with these arguments:
+      \(submitExample)
+
+      """
+      : """
+      Finish with exactly this envelope:
+      {
+        "kind": "plan_submit",
+        "payload": \(submitExample)
+      }
+
+      """
+    let closingLine =
+      promptMode == .nativeTools
+      ? "Use the read-only Compass tools to ground your choice, then call `plan_submit`."
+      : "Use `plan_continue` for any read-only tool you need. Use `plan_submit` when you have selected the next packet."
     return """
       You are the Plan agent in Compass, a local software factory. Compass does most of the
       deterministic work; your job is narrow decomposition and selection.
@@ -70,35 +115,7 @@ extension Prompts {
 
       \(focus.promptGuidance)
 
-      Finish with exactly this envelope:
-      {
-        "kind": "plan_submit",
-        "payload": {
-          "state": {
-            "immediate": {
-              "plan": "## Outcome\\n<what changes>\\n\\n## Why it matters\\n<why now>\\n\\n## Acceptance checks\\n- <observable result>",
-              "verify": "\(GeneratedProjectQuality.standardVerifyCommand)",
-              "verifyTimeoutMs": 600000,
-              "estimatedDifficulty": "low",
-              "selectedBecause": "<why this is next>",
-              "source": "candidate",
-              "candidateID": null
-            },
-            "queue": [],
-            "brief": {
-              "summary": "<software task context>",
-              "targetUsers": [],
-              "desiredOutcomes": [],
-              "constraints": [],
-              "acceptanceSignals": []
-            },
-            "openQuestions": []
-          },
-          "lessonEdits": []
-        }
-      }
-
-      ## Current factory state
+      \(submitSection)## Current factory state
       ```json
       \(stateJSON)
       ```
@@ -121,7 +138,7 @@ extension Prompts {
       ## Coverage
       \(coverageSnapshot?.formattedForPrompt() ?? "_(no coverage snapshot yet)_")
 
-      Use `plan_continue` for any read-only tool you need. Use `plan_submit` when you have selected the next packet.
+      \(closingLine)
       """
   }
 

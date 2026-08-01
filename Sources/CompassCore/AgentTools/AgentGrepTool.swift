@@ -4,18 +4,18 @@ import Foundation
 /// `AgentFilesystem.grep`, so the host backend (rg / BSD grep) and any
 /// future Shared-VM backend share this tool unchanged. The model does not
 /// get a generic shell through this tool — only this narrow filter.
-struct AgentGrepTool: AgentTool {
-  static let toolName = "grep"
-  static let maxBytes = 50_000
-  static let timeoutSeconds: TimeInterval = 30
+public struct AgentGrepTool: AgentTool {
+  public static let toolName = "grep"
+  public static let maxBytes = 50_000
+  public static let timeoutSeconds: TimeInterval = 30
 
-  struct Arguments: Decodable {
-    let pattern: String
-    let path: String?
-    let glob: String?
-    let caseInsensitive: Bool?
+  public struct Arguments: Decodable {
+    public let pattern: String
+    public let path: String?
+    public let glob: String?
+    public let caseInsensitive: Bool?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case pattern
       case query
       case regex
@@ -36,7 +36,7 @@ struct AgentGrepTool: AgentTool {
       case ignoreCaseSnake = "ignore_case"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       pattern = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -62,9 +62,9 @@ struct AgentGrepTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -96,7 +96,7 @@ struct AgentGrepTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -173,6 +173,6 @@ struct AgentGrepTool: AgentTool {
   }
 }
 
-extension String {
+public extension String {
   fileprivate var nilIfEmpty: String? { isEmpty ? nil : self }
 }

@@ -1,24 +1,24 @@
 import Foundation
 
-struct SessionAuditEvent: Codable, Equatable {
-  static let schemaVersion = 1
+public struct SessionAuditEvent: Codable, Equatable {
+  public static let schemaVersion = 1
 
-  var schemaVersion: Int = Self.schemaVersion
-  var session: Int
-  var sequence: Int
-  var timestamp: Double
-  var phase: String?
-  var kind: String
-  var level: String?
-  var liveKind: String?
-  var status: String?
-  var correlationID: String?
-  var text: String?
-  var detail: String?
-  var artifactPath: String?
-  var metadata: [String: String]?
+  public var schemaVersion: Int = Self.schemaVersion
+  public var session: Int
+  public var sequence: Int
+  public var timestamp: Double
+  public var phase: String?
+  public var kind: String
+  public var level: String?
+  public var liveKind: String?
+  public var status: String?
+  public var correlationID: String?
+  public var text: String?
+  public var detail: String?
+  public var artifactPath: String?
+  public var metadata: [String: String]?
 
-  init(
+  public init(
     session: Int,
     sequence: Int,
     timestamp: Date = Date(),
@@ -67,15 +67,15 @@ struct SessionAuditEvent: Codable, Equatable {
   }
 }
 
-struct SessionAuditArtifact: Codable, Equatable, Identifiable {
-  var id: String { path }
-  var path: String
-  var kind: String
-  var createdAt: Double
-  var byteCount: UInt64
-  var note: String?
+public struct SessionAuditArtifact: Codable, Equatable, Identifiable {
+  public var id: String { path }
+  public var path: String
+  public var kind: String
+  public var createdAt: Double
+  public var byteCount: UInt64
+  public var note: String?
 
-  init(
+  public init(
     path: String,
     kind: String,
     byteCount: UInt64,
@@ -91,19 +91,19 @@ struct SessionAuditArtifact: Codable, Equatable, Identifiable {
   }
 }
 
-struct SessionAuditManifest: Codable, Equatable {
-  static let schemaVersion = 1
+public struct SessionAuditManifest: Codable, Equatable {
+  public static let schemaVersion = 1
 
-  var schemaVersion: Int = Self.schemaVersion
-  var session: Int
-  var createdAt: Double
-  var updatedAt: Double
-  var status: SessionStatus?
-  var startedAt: Double?
-  var endedAt: Double?
-  var artifacts: [SessionAuditArtifact]
+  public var schemaVersion: Int = Self.schemaVersion
+  public var session: Int
+  public var createdAt: Double
+  public var updatedAt: Double
+  public var status: SessionStatus?
+  public var startedAt: Double?
+  public var endedAt: Double?
+  public var artifacts: [SessionAuditArtifact]
 
-  init(
+  public init(
     session: Int,
     createdAt: Date = Date(),
     status: SessionStatus? = nil,
@@ -121,14 +121,14 @@ struct SessionAuditManifest: Codable, Equatable {
     self.artifacts = artifacts
   }
 
-  mutating func update(status: SessionStatus?, startedAt: Double?, endedAt: Double?) {
+  public mutating func update(status: SessionStatus?, startedAt: Double?, endedAt: Double?) {
     if let status { self.status = status }
     if let startedAt { self.startedAt = startedAt }
     if let endedAt { self.endedAt = endedAt }
     updatedAt = Date().timeIntervalSince1970 * 1000
   }
 
-  mutating func recordArtifact(_ artifact: SessionAuditArtifact) {
+  public mutating func recordArtifact(_ artifact: SessionAuditArtifact) {
     if let index = artifacts.firstIndex(where: { $0.path == artifact.path }) {
       artifacts[index] = artifact
     } else {

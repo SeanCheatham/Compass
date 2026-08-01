@@ -9,7 +9,7 @@ public enum CompassCLI {
     exit(Int32(code))
   }
 
-  static func run(arguments: [String]) async -> Int {
+  public static func run(arguments: [String]) async -> Int {
     var selectedFormat = CompassCLIOutputFormat.json
     do {
       let command = try CompassCLICommand.parse(arguments)
@@ -99,12 +99,12 @@ public enum CompassCLI {
   }
 }
 
-enum CompassCLIOutputFormat: String, Equatable {
+public enum CompassCLIOutputFormat: String, Equatable {
   case json
   case text
 }
 
-enum CompassCLICommand: Equatable {
+public enum CompassCLICommand: Equatable {
   case doctor(repo: URL, format: CompassCLIOutputFormat)
   case scaffoldRust(path: URL, name: String?, format: CompassCLIOutputFormat)
   case run(options: HeadlessRunOptions, format: CompassCLIOutputFormat)
@@ -119,7 +119,7 @@ enum CompassCLICommand: Equatable {
   )
   case verify(repo: URL, command: String?, format: CompassCLIOutputFormat)
 
-  var format: CompassCLIOutputFormat {
+  public var format: CompassCLIOutputFormat {
     switch self {
     case .doctor(_, let format),
       .scaffoldRust(_, _, let format),
@@ -130,7 +130,7 @@ enum CompassCLICommand: Equatable {
     }
   }
 
-  static func parse(_ arguments: [String]) throws -> CompassCLICommand {
+  public static func parse(_ arguments: [String]) throws -> CompassCLICommand {
     var parser = CompassCLIParser(arguments)
     let command = try parser.requireCommand()
     switch command {
@@ -212,14 +212,14 @@ enum CompassCLICommand: Equatable {
   }
 }
 
-struct CompassCLIParser {
+public struct CompassCLIParser {
   private var arguments: [String]
 
-  init(_ arguments: [String]) {
+  public init(_ arguments: [String]) {
     self.arguments = arguments
   }
 
-  mutating func requireCommand() throws -> String {
+  public mutating func requireCommand() throws -> String {
     guard !arguments.isEmpty else {
       throw CompassCLIError.usage("Missing command.")
     }
@@ -230,7 +230,7 @@ struct CompassCLIParser {
     return value
   }
 
-  mutating func requireValue(_ name: String) throws -> String {
+  public mutating func requireValue(_ name: String) throws -> String {
     guard let index = arguments.firstIndex(of: name) else {
       throw CompassCLIError.usage("Missing required option \(name).")
     }
@@ -247,7 +247,7 @@ struct CompassCLIParser {
     return value
   }
 
-  mutating func optionalValue(_ name: String) throws -> String? {
+  public mutating func optionalValue(_ name: String) throws -> String? {
     guard let index = arguments.firstIndex(of: name) else { return nil }
     let valueIndex = arguments.index(after: index)
     guard valueIndex < arguments.endIndex else {
@@ -262,15 +262,15 @@ struct CompassCLIParser {
     return value
   }
 
-  mutating func requireURLOption(_ name: String) throws -> URL {
+  public mutating func requireURLOption(_ name: String) throws -> URL {
     try normalizeURL(requireValue(name))
   }
 
-  mutating func optionalURLOption(_ name: String) throws -> URL? {
+  public mutating func optionalURLOption(_ name: String) throws -> URL? {
     try optionalValue(name).map(normalizeURL)
   }
 
-  mutating func requirePositionalURL(_ label: String) throws -> URL {
+  public mutating func requirePositionalURL(_ label: String) throws -> URL {
     guard let index = arguments.firstIndex(where: { !$0.hasPrefix("--") }) else {
       throw CompassCLIError.usage("Missing \(label).")
     }
@@ -278,14 +278,14 @@ struct CompassCLIParser {
     return try normalizeURL(value)
   }
 
-  mutating func requireInt(_ name: String) throws -> Int {
+  public mutating func requireInt(_ name: String) throws -> Int {
     guard let value = Int(try requireValue(name)), value > 0 else {
       throw CompassCLIError.usage("\(name) must be a positive integer.")
     }
     return value
   }
 
-  mutating func optionalInt(_ name: String, allowingZero: Bool = false) throws -> Int? {
+  public mutating func optionalInt(_ name: String, allowingZero: Bool = false) throws -> Int? {
     guard let raw = try optionalValue(name) else { return nil }
     let isValid: (Int) -> Bool = allowingZero ? { $0 >= 0 } : { $0 > 0 }
     guard let value = Int(raw), isValid(value) else {
@@ -295,13 +295,13 @@ struct CompassCLIParser {
     return value
   }
 
-  mutating func consumeFlag(_ name: String) -> Bool {
+  public mutating func consumeFlag(_ name: String) -> Bool {
     guard let index = arguments.firstIndex(of: name) else { return false }
     arguments.remove(at: index)
     return true
   }
 
-  mutating func outputFormat() throws -> CompassCLIOutputFormat {
+  public mutating func outputFormat() throws -> CompassCLIOutputFormat {
     guard let raw = try optionalValue("--format") else { return .json }
     guard let format = CompassCLIOutputFormat(rawValue: raw) else {
       throw CompassCLIError.usage("--format must be json or text.")
@@ -309,7 +309,7 @@ struct CompassCLIParser {
     return format
   }
 
-  mutating func modelMode() throws -> HeadlessModelMode {
+  public mutating func modelMode() throws -> HeadlessModelMode {
     guard let raw = try optionalValue("--mode") else { return .auto }
     guard let mode = HeadlessModelMode(rawValue: raw) else {
       throw CompassCLIError.usage("--mode must be auto, fixture, mlx, or cloud.")
@@ -317,7 +317,7 @@ struct CompassCLIParser {
     return mode
   }
 
-  func briefText(from raw: String) throws -> String {
+  public func briefText(from raw: String) throws -> String {
     let url = try normalizeURL(raw)
     if FileManager.default.fileExists(atPath: url.path) {
       return try String(contentsOf: url, encoding: .utf8)
@@ -325,7 +325,7 @@ struct CompassCLIParser {
     return raw
   }
 
-  func rejectRemaining() throws {
+  public func rejectRemaining() throws {
     guard arguments.isEmpty else {
       throw CompassCLIError.usage("Unexpected argument(s): \(arguments.joined(separator: " ")).")
     }
@@ -339,10 +339,10 @@ struct CompassCLIParser {
   }
 }
 
-struct CompassCLIOutput: Sendable {
-  var format: CompassCLIOutputFormat
+public struct CompassCLIOutput: Sendable {
+  public var format: CompassCLIOutputFormat
 
-  func emit(_ event: HeadlessCompassEvent) {
+  public func emit(_ event: HeadlessCompassEvent) {
     switch format {
     case .json:
       let encoder = JSONEncoder()
@@ -368,16 +368,16 @@ struct CompassCLIOutput: Sendable {
   }
 }
 
-enum CompassCLIError: LocalizedError, Equatable {
+public enum CompassCLIError: LocalizedError, Equatable {
   case usage(String)
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .usage(let message): return message
     }
   }
 
-  var usage: String {
+  public var usage: String {
     """
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
@@ -390,10 +390,10 @@ enum CompassCLIError: LocalizedError, Equatable {
     """
   }
 
-  var exitCode: Int { 64 }
+  public var exitCode: Int { 64 }
 }
 
-extension String {
+public extension String {
   fileprivate var nilIfBlank: String? {
     let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed

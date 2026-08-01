@@ -1,7 +1,7 @@
 import Foundation
 
-struct PlanTransitionValidationError: LocalizedError, Equatable {
-  enum Reason: Equatable, Sendable {
+public struct PlanTransitionValidationError: LocalizedError, Equatable {
+  public enum Reason: Equatable, Sendable {
     case unknown
     case invalidStateMutation
     case noImmediateWork
@@ -12,14 +12,14 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
     case weakVerifyCoverage
   }
 
-  var message: String
-  var reason: Reason
-  var missingLabels: [String]
-  var rejectedVerify: String?
-  var rejectedAcceptanceChecks: [String]
-  var vagueAcceptanceChecks: [String]
+  public var message: String
+  public var reason: Reason
+  public var missingLabels: [String]
+  public var rejectedVerify: String?
+  public var rejectedAcceptanceChecks: [String]
+  public var vagueAcceptanceChecks: [String]
 
-  init(
+  public init(
     message: String,
     reason: Reason = .unknown,
     missingLabels: [String] = [],
@@ -35,13 +35,13 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
     self.vagueAcceptanceChecks = vagueAcceptanceChecks
   }
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     message
   }
 }
 
-enum PlanTransitionValidator {
-  static func validate(
+public enum PlanTransitionValidator {
+  public static func validate(
     from current: PlanState,
     to next: PlanState,
     repoURL: URL? = nil
@@ -507,9 +507,9 @@ enum PlanTransitionValidator {
   }
 
   private struct PackageEntryPointConflict {
-    let manifestPath: String
-    let declaredPath: String
-    let field: String
+    public let manifestPath: String
+    public let declaredPath: String
+    public let field: String
   }
 
   private static func packageEntryPointConflict(forNewPath path: String, repoURL: URL)

@@ -1,6 +1,6 @@
 import Foundation
 
-extension Prompts {
+public extension Prompts {
   static func sharedVMApplePlatformPlanningRule() -> String {
     ""
   }

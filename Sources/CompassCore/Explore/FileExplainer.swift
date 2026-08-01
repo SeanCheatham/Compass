@@ -25,21 +25,21 @@ import Foundation
 /// into the model-driven components downstream.
 
 /// Represents a single changed file with its metadata and optional codemap summary.
-struct FileChange: Identifiable, Equatable {
-  let id: String
-  let relativePath: String
-  let language: CodemapLanguage?
-  let additions: Int
-  let deletions: Int
-  let summary: String?
-  let explanation: String?
-  let explanationReason: ExplainUnavailableReason?
+public struct FileChange: Identifiable, Equatable {
+  public let id: String
+  public let relativePath: String
+  public let language: CodemapLanguage?
+  public let additions: Int
+  public let deletions: Int
+  public let summary: String?
+  public let explanation: String?
+  public let explanationReason: ExplainUnavailableReason?
 
-  var category: FileChangeCategory {
+  public var category: FileChangeCategory {
     FileChangeCategory.categorize(relativePath)
   }
 
-  init(
+  public init(
     relativePath: String,
     additions: Int,
     deletions: Int,
@@ -59,12 +59,12 @@ struct FileChange: Identifiable, Equatable {
   }
 
   /// One-line file name without any directory prefix.
-  var fileName: String {
+  public var fileName: String {
     (relativePath as NSString).lastPathComponent
   }
 
   /// Short "+N/-N" line-count label.
-  var lineCountLabel: String {
+  public var lineCountLabel: String {
     "\(Self.additionLabel(additions))/\(Self.deletionLabel(deletions))"
   }
 
@@ -78,7 +78,7 @@ struct FileChange: Identifiable, Equatable {
 }
 
 /// Category for grouping file changes in the explore popover.
-enum FileChangeCategory: String, CaseIterable {
+public enum FileChangeCategory: String, CaseIterable {
   case source = "Sources"
   case test = "Tests"
   case config = "Config"
@@ -86,7 +86,7 @@ enum FileChangeCategory: String, CaseIterable {
 
   /// Stable display name used in tool output. Distinct from the `rawValue`
   /// so renaming the case (e.g. `source` → `src`) doesn't churn cached files.
-  var displayName: String {
+  public var displayName: String {
     switch self {
     case .source: return "Sources"
     case .test: return "Tests"
@@ -96,7 +96,7 @@ enum FileChangeCategory: String, CaseIterable {
   }
 
   /// Sort order used for consistent presentation ordering.
-  var sortOrder: Int {
+  public var sortOrder: Int {
     switch self {
     case .source: return 0
     case .test: return 1
@@ -106,7 +106,7 @@ enum FileChangeCategory: String, CaseIterable {
   }
 
   /// Classify a file path into a category.
-  static func categorize(_ relativePath: String) -> FileChangeCategory {
+  public static func categorize(_ relativePath: String) -> FileChangeCategory {
     let dir = (relativePath as NSString).deletingLastPathComponent
     let lower = relativePath.lowercased()
     let dirLower = dir.lowercased()
@@ -183,7 +183,7 @@ enum FileChangeCategory: String, CaseIterable {
 /// ``explain(file:repoURL:commits:)`` crosses into generated narration via
 /// ``CommitExplainer``. ``changes(for:commits:)`` is purely a git/codemap
 /// operation and never calls the model.
-enum FileExplainer {
+public enum FileExplainer {
   /// Returns a plain-English explanation for a single changed file by running
   /// `git diff` over the relevant commit range and passing the result to
   /// `CommitExplainer.summarize(diff:)`.
@@ -197,7 +197,7 @@ enum FileExplainer {
   ///   AI-generated plain-English string, or `nil` when unavailable. The
   ///   `reason` carries a user-facing message explaining why the feature
   ///   did not activate (e.g. `.foundationModelsUnavailable`).
-  static func explain(
+  public static func explain(
     file relativePath: String,
     repoURL: URL,
     commits: [SessionCommit]
@@ -226,7 +226,7 @@ enum FileExplainer {
   ///   AI-generated plain-English string, or `nil` when unavailable. The
   ///   `reason` carries a user-facing message explaining why the feature
   ///   did not activate (e.g. `.foundationModelsUnavailable`).
-  static func whyGenerated(
+  public static func whyGenerated(
     file relativePath: String,
     repoURL: URL,
     commits: [SessionCommit]
@@ -258,7 +258,7 @@ enum FileExplainer {
   /// - Note: This method is purely a git/codemap operation. It never invokes
   ///   generated narration — the AI-powered explanations are produced by
   ///   ``explain(file:repoURL:commits:)`` instead.
-  static func changes(for repoURL: URL, commits: [SessionCommit]) async -> [FileChange] {
+  public static func changes(for repoURL: URL, commits: [SessionCommit]) async -> [FileChange] {
     guard let first = commits.first, let oldestCommit = commits.last else { return [] }
 
     let diffStat: String
@@ -287,7 +287,7 @@ enum FileExplainer {
 
   // MARK: - Private
 
-  static func explainDiff(
+  public static func explainDiff(
     _ diff: String?,
     using summarize: (String) async -> (String?, ExplainUnavailableReason?)
   ) async -> (String?, ExplainUnavailableReason?) {
@@ -304,7 +304,7 @@ enum FileExplainer {
   /// or for renames:
   ///   old/path.rs => new/path.rs           |   4 ++-
   // MARK: - parseGitDiffStat
-  static func parseGitDiffStat(_ diffStat: String) -> [FileChange] {
+  public static func parseGitDiffStat(_ diffStat: String) -> [FileChange] {
     var changes: [FileChange] = []
 
     for line in diffStat.split(whereSeparator: \.isNewline) {
@@ -359,7 +359,7 @@ enum FileExplainer {
   // MARK: - extractLineCounts
 
   /// Extract addition/deletion counts from a stat line like "24 +++++++++++++++------"
-  static func extractLineCounts(from statPart: String) -> (additions: Int, deletions: Int) {
+  public static func extractLineCounts(from statPart: String) -> (additions: Int, deletions: Int) {
     if statPart.localizedCaseInsensitiveContains("bin") {
       return (0, 0)
     }
@@ -386,7 +386,7 @@ enum FileExplainer {
 
   /// Returns the diff stat output for a single commit using `--first-parent`.
   /// Returns an empty string if git fails or the commit has no changes on the mainline.
-  static func gitDiffStat(sha: String, repoURL: URL) async -> String {
+  public static func gitDiffStat(sha: String, repoURL: URL) async -> String {
     await gitDiffStatImpl(sha: sha, repoURL: repoURL)
   }
 

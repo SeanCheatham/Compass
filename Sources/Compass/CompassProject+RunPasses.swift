@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import CompassCore
 
 @MainActor
 extension CompassProject {
@@ -84,7 +85,8 @@ extension CompassProject {
         vision: visionText,
         focus: focus,
         coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
-        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
+        promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)
       )
       let promptURL = try workspace.writeSessionArtifact(
         session: sessionNumber,
@@ -333,7 +335,8 @@ extension CompassProject {
             attempt: attempt,
             priorIssues: priorIssues,
             criticFeedback: criticFeedbacks,
-            hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+            hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
+            promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)
           )
 
           let launchPlan = agentLaunchPlan(for: workspace.repoURL)
@@ -600,7 +603,8 @@ extension CompassProject {
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
       iteration: iteration,
-      maxIterations: maxCriticAttempts
+      maxIterations: maxCriticAttempts,
+      promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)
     )
 
     let verdict: CriticVerdict

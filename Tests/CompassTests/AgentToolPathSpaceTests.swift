@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import Compass
+@testable import CompassCore
 
 @Suite("Agent tool path space")
 struct AgentToolPathSpaceTests {

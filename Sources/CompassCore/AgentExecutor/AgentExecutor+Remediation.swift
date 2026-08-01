@@ -1,10 +1,10 @@
 import Foundation
 
-extension AgentExecutor {
+public extension AgentExecutor {
   struct InvalidToolArgumentsNudge: Equatable {
-    var eventText: String
-    var eventDetail: String
-    var userMessage: String
+    public var eventText: String
+    public var eventDetail: String
+    public var userMessage: String
   }
 
   static func submitResultValidationNudge(

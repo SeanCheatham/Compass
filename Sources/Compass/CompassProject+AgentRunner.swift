@@ -1,6 +1,7 @@
 import AppKit
 import CompassSandbox
 import Foundation
+import CompassCore
 
 @MainActor
 extension CompassProject {
@@ -76,7 +77,12 @@ extension CompassProject {
       hostRepoURL: workingDirectory,
       decode: T.self
     )
-    let tools = ToolRegistry.tools(for: phase, settings: agentSettings)
+    let modelRuntime = ModelRuntimeFactory.makeRouted(settings: agentSettings)
+    let promptMode = ModelRuntimeFactory.promptMode(
+      settings: agentSettings,
+      modelRuntime: modelRuntime
+    )
+    let tools = ToolRegistry.tools(for: phase, settings: agentSettings, promptMode: promptMode)
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: phase,
@@ -86,11 +92,12 @@ extension CompassProject {
         workingDirectoryPath: environment.workingDirectory.path,
         executionEnvironment: .containerizedLinux,
         hostXcodeBuildTestEnabled: false,
-        externalToolNames: []
+        externalToolNames: [],
+        promptMode: promptMode
       ),
       userPrompt: userPrompt,
       tools: tools,
-      modelRuntime: ModelRuntimeFactory.makeRouted(settings: agentSettings),
+      modelRuntime: modelRuntime,
       agentVisibleWorkspacePath: ContainerSandboxConfiguration.defaultWorkspacePath,
       submitResultSchema: schema,
       workingDirectory: environment.workingDirectory,
@@ -100,7 +107,8 @@ extension CompassProject {
       planHistoryEntries: planHistoryEntries,
       assumptionsURL: makeWorkspace(repoURL: workingDirectory).assumptionsURL,
       sessionNumber: sessionNumber,
-      validateSubmitResult: validateSubmitResult
+      validateSubmitResult: validateSubmitResult,
+      promptMode: promptMode
     )
     log("\(phase.rawValue.capitalized): starting agent loop.", level: .info)
     let agent = AgentExecutor { [weak self] event in

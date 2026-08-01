@@ -3,17 +3,17 @@ import Foundation
 /// Read a UTF-8 text file from the working directory with optional line
 /// offset/limit. Mirrors the line-numbered output the model is used to from
 /// other agent Read tools so prompt fragments stay consistent across runtimes.
-struct AgentReadFileTool: AgentTool {
-  static let toolName = "read_file"
-  static let defaultLineCount = 2_000
-  static let maxLineLength = 2_000
+public struct AgentReadFileTool: AgentTool {
+  public static let toolName = "read_file"
+  public static let defaultLineCount = 2_000
+  public static let maxLineLength = 2_000
 
-  struct Arguments: Decodable {
-    let path: String
-    let offset: Int?
-    let limit: Int?
+  public struct Arguments: Decodable {
+    public let path: String
+    public let offset: Int?
+    public let limit: Int?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
       case path
       case filePath
       case filePathSnake = "file_path"
@@ -30,7 +30,7 @@ struct AgentReadFileTool: AgentTool {
       case maxLinesSnake = "max_lines"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       path = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
@@ -76,9 +76,9 @@ struct AgentReadFileTool: AgentTool {
     }
   }
 
-  let spec: AgentToolSpec
+  public let spec: AgentToolSpec
 
-  init() {
+  public init() {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
@@ -109,7 +109,7 @@ struct AgentReadFileTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

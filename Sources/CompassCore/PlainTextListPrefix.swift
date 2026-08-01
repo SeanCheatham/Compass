@@ -1,7 +1,7 @@
 import Foundation
 
-enum PlainTextListPrefix {
-  static func strippedEntry(from rawLine: String) -> String? {
+public enum PlainTextListPrefix {
+  public static func strippedEntry(from rawLine: String) -> String? {
     let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !line.isEmpty else { return nil }
 
@@ -21,7 +21,7 @@ enum PlainTextListPrefix {
     return task
   }
 
-  static func cleanedLine(_ rawLine: String) -> String {
+  public static func cleanedLine(_ rawLine: String) -> String {
     strippedEntry(from: rawLine)
       ?? rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
   }
