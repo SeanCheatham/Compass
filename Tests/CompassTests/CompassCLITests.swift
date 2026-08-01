@@ -7,13 +7,35 @@ import Testing
 struct CompassCLITests {
   @Test
   func parsesSupportedCommands() throws {
-    if case .doctor(let repo, let format) = try CompassCLICommand.parse([
+    if case .doctor(let repo, let checkCloud, let format) = try CompassCLICommand.parse([
       "doctor", "--repo", "/tmp/project", "--format", "text",
     ]) {
       #expect(repo.path == "/tmp/project")
+      #expect(!checkCloud)
       #expect(format == .text)
     } else {
       Issue.record("Expected doctor command.")
+    }
+
+    if case .doctor(_, let checkCloud, _) = try CompassCLICommand.parse([
+      "doctor", "--repo", "/tmp/project", "--check-cloud",
+    ]) {
+      #expect(checkCloud)
+    } else {
+      Issue.record("Expected doctor command with --check-cloud.")
+    }
+
+    if case .help(let format) = try CompassCLICommand.parse(["help", "--format", "text"]) {
+      #expect(format == .text)
+    } else {
+      Issue.record("Expected help command.")
+    }
+
+    for flag in ["--help", "-h"] {
+      if case .help = try CompassCLICommand.parse([flag]) {
+      } else {
+        Issue.record("Expected \(flag) to parse as help command.")
+      }
     }
 
     if case .scaffoldRust(let path, let name, let format) = try CompassCLICommand.parse([
@@ -183,6 +205,97 @@ struct CompassCLITests {
     #expect(throws: CompassCLIError.self) {
       try CompassCLICommand.parse(["replay", "--repo", "/tmp/project", "--session", "nope"])
     }
+  }
+
+  @Test
+  func helpCommandExitsZero() async {
+    let exitCode = await CompassCLI.run(arguments: ["help"])
+    #expect(exitCode == 0)
+  }
+
+  @Test
+  func requestedOutputFormatScansRawArguments() {
+    #expect(
+      CompassCLIParser.requestedOutputFormat(in: ["run", "--format", "text"]) == .text)
+    #expect(CompassCLIParser.requestedOutputFormat(in: ["run"]) == .json)
+    #expect(
+      CompassCLIParser.requestedOutputFormat(in: ["run", "--format"]) == .json)
+    #expect(
+      CompassCLIParser.requestedOutputFormat(in: ["run", "--format", "yaml"]) == .json)
+  }
+
+  @Test
+  func cloudConnectivityCheckReportsPingOutcome() async {
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let settings = AgentRuntimeSettings(
+      baseURL: URL(string: "https://example.invalid/v1")!,
+      apiKey: "test-key",
+      model: "test-model"
+    )
+
+    let healthy = HeadlessCompassRunner(
+      bashRunnerFactory: { _, _ in FixtureBashRunner() },
+      cloudPing: { endpoint in
+        #expect(endpoint.trimmedAPIKey == "test-key")
+        #expect(endpoint.trimmedModel == "test-model")
+        return OpenAICompatiblePingResult(
+          ok: true, statusCode: 200, latencyMs: 12, message: "ok")
+      }
+    )
+    let healthyOK = await healthy.runCloudConnectivityCheck(
+      settings: settings, onEvent: record)
+    #expect(healthyOK)
+
+    let failing = HeadlessCompassRunner(
+      bashRunnerFactory: { _, _ in FixtureBashRunner() },
+      cloudPing: { _ in
+        OpenAICompatiblePingResult(
+          ok: false, statusCode: 401, latencyMs: 8, message: "unauthorized")
+      }
+    )
+    let failingOK = await failing.runCloudConnectivityCheck(
+      settings: settings, onEvent: record)
+    #expect(!failingOK)
+
+    let snapshot = events.snapshot()
+    #expect(snapshot.contains { $0.kind == "cloud_connectivity" && $0.status == "checking" })
+    #expect(
+      snapshot.contains {
+        $0.kind == "cloud_connectivity" && $0.status == "ready"
+          && $0.metadata?["statusCode"] == "200"
+      })
+    #expect(
+      snapshot.contains {
+        $0.kind == "cloud_connectivity" && $0.status == "failed" && $0.level == "error"
+          && ($0.detail ?? "").contains("unauthorized")
+      })
+  }
+
+  @Test
+  func cloudConnectivityCheckSkipsWhenNotConfigured() async {
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner(
+      bashRunnerFactory: { _, _ in FixtureBashRunner() },
+      cloudPing: { _ in
+        Issue.record("Ping handler should not run without cloud credentials.")
+        return OpenAICompatiblePingResult(ok: false, statusCode: nil, latencyMs: 0, message: "")
+      }
+    )
+    let ok = await runner.runCloudConnectivityCheck(
+      settings: AgentRuntimeSettings(apiKey: "", model: ""),
+      onEvent: record
+    )
+    #expect(ok)
+    #expect(
+      events.snapshot().contains {
+        $0.kind == "cloud_connectivity" && $0.status == "skipped" && $0.level == "warning"
+      })
   }
 
   @Test

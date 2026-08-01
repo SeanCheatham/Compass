@@ -23,8 +23,20 @@ public enum CompassCLI {
       }
       let runner = HeadlessCompassRunner()
       switch command {
-      case .doctor(let repo, _):
-        let ok = await runner.doctor(repoURL: repo, onEvent: emit)
+      case .help(let format):
+        CompassCLIOutput(format: format).emit(
+          HeadlessCompassEvent(
+            kind: "help",
+            level: "info",
+            status: "completed",
+            message: "Compass headless CLI usage.",
+            detail: CompassCLI.usageText
+          )
+        )
+        return 0
+
+      case .doctor(let repo, let checkCloud, _):
+        let ok = await runner.doctor(repoURL: repo, checkCloud: checkCloud, onEvent: emit)
         return ok ? 0 : 1
 
       case .scaffoldRust(let path, let name, _):
@@ -78,7 +90,8 @@ public enum CompassCLI {
         return ok ? 0 : 1
       }
     } catch let error as CompassCLIError {
-      CompassCLIOutput(format: .json).emit(
+      let format = CompassCLIParser.requestedOutputFormat(in: arguments)
+      CompassCLIOutput(format: format).emit(
         HeadlessCompassEvent(
           kind: "error",
           level: "error",
@@ -108,7 +121,8 @@ public enum CompassCLIOutputFormat: String, Equatable {
 }
 
 public enum CompassCLICommand: Equatable {
-  case doctor(repo: URL, format: CompassCLIOutputFormat)
+  case help(format: CompassCLIOutputFormat)
+  case doctor(repo: URL, checkCloud: Bool, format: CompassCLIOutputFormat)
   case scaffoldRust(path: URL, name: String?, format: CompassCLIOutputFormat)
   case run(options: HeadlessRunOptions, format: CompassCLIOutputFormat)
   case replay(
@@ -124,7 +138,8 @@ public enum CompassCLICommand: Equatable {
 
   public var format: CompassCLIOutputFormat {
     switch self {
-    case .doctor(_, let format),
+    case .help(let format),
+      .doctor(_, _, let format),
       .scaffoldRust(_, _, let format),
       .run(_, let format),
       .replay(_, _, _, _, _, _, let format),
@@ -134,14 +149,21 @@ public enum CompassCLICommand: Equatable {
   }
 
   public static func parse(_ arguments: [String]) throws -> CompassCLICommand {
+    if let first = arguments.first, ["help", "--help", "-h"].contains(first) {
+      var helpParser = CompassCLIParser(Array(arguments.dropFirst()))
+      let format = try helpParser.outputFormat()
+      try helpParser.rejectRemaining()
+      return .help(format: format)
+    }
     var parser = CompassCLIParser(arguments)
     let command = try parser.requireCommand()
     switch command {
     case "doctor":
       let repo = try parser.requireURLOption("--repo")
+      let checkCloud = parser.consumeFlag("--check-cloud")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
-      return .doctor(repo: repo, format: format)
+      return .doctor(repo: repo, checkCloud: checkCloud, format: format)
 
     case "scaffold":
       let kind = try parser.requireCommand()
@@ -338,6 +360,13 @@ public struct CompassCLIParser {
     }
   }
 
+  public static func requestedOutputFormat(in arguments: [String]) -> CompassCLIOutputFormat {
+    guard let index = arguments.firstIndex(of: "--format") else { return .json }
+    let valueIndex = arguments.index(after: index)
+    guard valueIndex < arguments.endIndex else { return .json }
+    return CompassCLIOutputFormat(rawValue: arguments[valueIndex]) ?? .json
+  }
+
   private func normalizeURL(_ path: String) throws -> URL {
     guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw CompassCLIError.usage("Path cannot be empty.")
@@ -386,18 +415,25 @@ public enum CompassCLIError: LocalizedError, Equatable {
 
   public var usage: String {
     """
-    Usage:
-      compass-cli doctor --repo <path> [--format json|text]
-      compass-cli scaffold rust <path> [--name <name>] [--format json|text]
-      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--commit] [--format json|text]
-      compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
-      compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
+    \(CompassCLI.usageText)
 
     \(localizedDescription)
     """
   }
 
   public var exitCode: Int { 64 }
+}
+
+public extension CompassCLI {
+  static let usageText = """
+    Usage:
+      compass-cli help [--format json|text]
+      compass-cli doctor --repo <path> [--check-cloud] [--format json|text]
+      compass-cli scaffold rust <path> [--name <name>] [--format json|text]
+      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--commit] [--format json|text]
+      compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
+      compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
+    """
 }
 
 public extension String {

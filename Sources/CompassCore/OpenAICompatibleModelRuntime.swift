@@ -54,6 +54,20 @@ public enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
   }
 }
 
+public struct OpenAICompatiblePingResult: Sendable, Equatable {
+  public var ok: Bool
+  public var statusCode: Int?
+  public var latencyMs: Int
+  public var message: String
+
+  public init(ok: Bool, statusCode: Int?, latencyMs: Int, message: String) {
+    self.ok = ok
+    self.statusCode = statusCode
+    self.latencyMs = latencyMs
+    self.message = message
+  }
+}
+
 /// Thin non-streaming OpenAI chat-completions client used as a `LocalModelGenerating` backend.
 public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
   private let endpoint: OpenAICompatibleEndpoint
@@ -73,6 +87,59 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
       ),
       session: session
     )
+  }
+
+  /// Minimal 1-token chat completion used by `doctor --check-cloud` to prove the
+  /// configured base URL, API key, and model actually work before a factory run.
+  public static func ping(
+    endpoint: OpenAICompatibleEndpoint,
+    session: URLSession = .shared,
+    timeout: TimeInterval = 30
+  ) async -> OpenAICompatiblePingResult {
+    let startedAt = Date()
+    func result(ok: Bool, statusCode: Int?, message: String) -> OpenAICompatiblePingResult {
+      OpenAICompatiblePingResult(
+        ok: ok,
+        statusCode: statusCode,
+        latencyMs: Int(Date().timeIntervalSince(startedAt) * 1_000),
+        message: message
+      )
+    }
+    do {
+      guard endpoint.isConfigured else {
+        throw OpenAICompatibleRuntimeError.notConfigured
+      }
+      let url = try endpoint.chatCompletionsURL()
+      var urlRequest = URLRequest(url: url)
+      urlRequest.httpMethod = "POST"
+      urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      urlRequest.setValue("Bearer \(endpoint.trimmedAPIKey)", forHTTPHeaderField: "Authorization")
+      urlRequest.timeoutInterval = timeout
+      urlRequest.httpBody = try JSONEncoder().encode(
+        OpenAIChatCompletionsRequest(
+          model: endpoint.trimmedModel,
+          messages: [.init(role: "user", content: "ping")],
+          maxTokens: 1,
+          stream: false
+        )
+      )
+      let (data, response) = try await session.data(for: urlRequest)
+      guard let http = response as? HTTPURLResponse else {
+        throw OpenAICompatibleRuntimeError.decodeFailed("Missing HTTP response.")
+      }
+      guard (200..<300).contains(http.statusCode) else {
+        let bodyText = String(data: data, encoding: .utf8) ?? ""
+        let error = OpenAICompatibleRuntimeError.httpStatus(http.statusCode, bodyText)
+        return result(ok: false, statusCode: http.statusCode, message: error.localizedDescription)
+      }
+      return result(
+        ok: true,
+        statusCode: http.statusCode,
+        message: "Cloud endpoint answered a 1-token chat completion."
+      )
+    } catch {
+      return result(ok: false, statusCode: nil, message: error.localizedDescription)
+    }
   }
 
   public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {

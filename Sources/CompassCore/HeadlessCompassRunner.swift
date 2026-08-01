@@ -101,8 +101,11 @@ public struct HeadlessVerifyOptions: Equatable, Sendable {
 
 public struct HeadlessCompassRunner: Sendable {
   public typealias BashRunnerFactory = @Sendable (URL, String) -> any AgentBashRunner
+  public typealias CloudPingHandler = @Sendable (OpenAICompatibleEndpoint) async
+    -> OpenAICompatiblePingResult
 
   private let bashRunnerFactory: BashRunnerFactory
+  private let cloudPingHandler: CloudPingHandler
 
   public init() {
     self.init { repoURL, label in
@@ -128,13 +131,22 @@ public struct HeadlessCompassRunner: Sendable {
     bashRuntimePrefersHost() ? "host shell" : "containerized Linux runtime"
   }
 
-  public init(bashRunnerFactory: @escaping BashRunnerFactory) {
+  public init(
+    bashRunnerFactory: @escaping BashRunnerFactory,
+    cloudPing: CloudPingHandler? = nil
+  ) {
     self.bashRunnerFactory = bashRunnerFactory
+    self.cloudPingHandler =
+      cloudPing
+      ?? { endpoint in
+        await OpenAICompatibleModelRuntime.ping(endpoint: endpoint)
+      }
   }
 
   @discardableResult
   public func doctor(
     repoURL: URL,
+    checkCloud: Bool = false,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) async -> Bool {
     let repoURL = repoURL.standardizedFileURL
@@ -261,7 +273,71 @@ public struct HeadlessCompassRunner: Sendable {
         )
       )
     }
-    return textReady && runtimeReady
+    let cloudConnectivityOK =
+      checkCloud
+      ? await runCloudConnectivityCheck(settings: settings, onEvent: onEvent)
+      : true
+    return textReady && runtimeReady && cloudConnectivityOK
+  }
+
+  /// Live-pings the configured OpenAI-compatible endpoint with a 1-token request.
+  /// Returns true when the check is skipped (cloud not configured) so doctor's
+  /// existing readiness signals keep their meaning; a failed ping returns false.
+  @discardableResult
+  public func runCloudConnectivityCheck(
+    settings: AgentRuntimeSettings,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+  ) async -> Bool {
+    guard settings.hasCloudCredentials else {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "cloud_connectivity",
+          level: "warning",
+          status: "skipped",
+          message: "Cloud endpoint is not configured; skipping connectivity check."
+        )
+      )
+      return true
+    }
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "cloud_connectivity",
+        status: "checking",
+        message: "Pinging OpenAI-compatible cloud endpoint.",
+        metadata: [
+          "baseURL": settings.cloudEndpointDisplay(),
+          "model": settings.trimmedModel,
+        ]
+      )
+    )
+    let ping = await cloudPingHandler(
+      OpenAICompatibleEndpoint(
+        baseURL: settings.baseURL,
+        apiKey: settings.apiKey,
+        model: settings.model
+      )
+    )
+    var metadata = [
+      "baseURL": settings.cloudEndpointDisplay(),
+      "model": settings.trimmedModel,
+      "latencyMs": "\(ping.latencyMs)",
+    ]
+    if let statusCode = ping.statusCode {
+      metadata["statusCode"] = "\(statusCode)"
+    }
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "cloud_connectivity",
+        level: ping.ok ? "success" : "error",
+        status: ping.ok ? "ready" : "failed",
+        message: ping.ok
+          ? "Cloud endpoint connectivity check passed."
+          : "Cloud endpoint connectivity check failed.",
+        detail: ping.message,
+        metadata: metadata
+      )
+    )
+    return ping.ok
   }
 
   public func scaffoldRust(
