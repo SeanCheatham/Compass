@@ -300,6 +300,7 @@ public enum PlanTransitionValidator {
 
     let missingPaths = explicitPaths.filter { path in
       guard !isExplicitNewFilePath(path, in: plan) else { return false }
+      guard anchorsAtExistingRepoRoot(path, repoURL: repoURL) else { return false }
       return !FileManager.default.fileExists(atPath: repoURL.appending(path: path).path)
     }
     guard !missingPaths.isEmpty else { return }
@@ -435,6 +436,15 @@ public enum PlanTransitionValidator {
       }
     }
     return false
+  }
+
+  private static func anchorsAtExistingRepoRoot(_ path: String, repoURL: URL) -> Bool {
+    guard let first = path.split(separator: "/", omittingEmptySubsequences: true).first else {
+      return false
+    }
+    return FileManager.default.fileExists(
+      atPath: repoURL.appending(path: String(first)).path
+    )
   }
 
   private static func missingPathDetail(_ path: String, repoURL: URL) -> String {

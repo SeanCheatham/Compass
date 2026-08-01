@@ -97,4 +97,10 @@ swift test
 
 Headless CLI modes: `auto` (cloud when configured, else MLX), `cloud`, `mlx`, `fixture`.
 
+Each `compass-cli run` executes one factory session (Plan → Develop → Verify → optional Critic). Useful `run` flags:
+
+- `--sessions <n>` — run `n` factory sessions back-to-back in one invocation (stops on the first failed session; prompt logs are scoped per iteration).
+- `--max-iterations <n>` — agent tool-turn budget per phase (Plan / Develop / Critic), not the number of factory sessions. Default 24.
+- `--max-develop-attempts <n>` / `--max-verify-repairs <n>` — retry budgets when Develop post-checks or verify fail.
+
 Legacy project files in existing user workspaces are ignored rather than deleted.

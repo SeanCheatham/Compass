@@ -196,6 +196,51 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test
+  func acceptsPathsNotAnchoredAtExistingRepoRoot() throws {
+    let tempURL = try makePlanValidatorTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let cliSrc = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
+    try "pub fn main() {}\n".write(
+      to: cliSrc.appending(path: "main.rs"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let crateRelativeManifestPath = planState(
+      """
+      ## Outcome
+      Update `crates/app-cli/src/main.rs` and rename the binary via `path = "src/main.rs"` in the crate manifest.
+
+      ## Acceptance checks
+      - `crates/app-cli/src/main.rs` still compiles after the rename.
+      """
+    )
+
+    try PlanTransitionValidator.validate(
+      from: .empty,
+      to: crateRelativeManifestPath,
+      repoURL: tempURL
+    )
+
+    let fixtureExamplePath = planState(
+      """
+      ## Outcome
+      Update `crates/app-cli/src/main.rs` so integration tests create `sub/two.md` inside a temp fixture directory.
+
+      ## Acceptance checks
+      - `crates/app-cli/src/main.rs` handles a fixture note at `sub/two.md`.
+      """
+    )
+
+    try PlanTransitionValidator.validate(
+      from: .empty,
+      to: fixtureExamplePath,
+      repoURL: tempURL
+    )
+  }
+
+  @Test
   func rejectsGenericVerifyForCLIBehaviorWithoutTestProof() throws {
     let weak = planState(
       """

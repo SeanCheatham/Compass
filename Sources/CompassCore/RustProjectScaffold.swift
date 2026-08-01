@@ -61,6 +61,7 @@ public enum RustProjectScaffold {
 
   private static let gitignore = """
     /target/
+    /mutants.out*/
     .DS_Store
     *.log
     """

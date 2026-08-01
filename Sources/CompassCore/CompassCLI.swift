@@ -39,7 +39,7 @@ public enum CompassCLI {
         return ok ? 0 : 1
 
       case .run(let options, _):
-        let ok = try await runner.run(options: options, onEvent: emit)
+        let ok = try await runner.runSessions(options: options, onEvent: emit)
         return ok ? 0 : 1
 
       case .replay(
@@ -165,6 +165,7 @@ public enum CompassCLICommand: Equatable {
       let maxDevelopAttempts = try parser.optionalInt("--max-develop-attempts") ?? 2
       let maxVerifyRepairAttempts =
         try parser.optionalInt("--max-verify-repairs", allowingZero: true) ?? 1
+      let sessionCount = try parser.optionalInt("--sessions") ?? 1
       let runCritic = parser.consumeFlag("--critic")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
@@ -178,6 +179,7 @@ public enum CompassCLICommand: Equatable {
           maxIterations: maxIterations,
           maxDevelopAttempts: maxDevelopAttempts,
           maxVerifyRepairAttempts: maxVerifyRepairAttempts,
+          sessionCount: sessionCount,
           runCritic: runCritic
         ),
         format: format
@@ -385,7 +387,7 @@ public enum CompassCLIError: LocalizedError, Equatable {
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
       compass-cli scaffold rust <path> [--name <name>] [--format json|text]
-      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
+      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
 

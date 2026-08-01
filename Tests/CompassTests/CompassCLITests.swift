@@ -29,7 +29,8 @@ struct CompassCLITests {
     if case .run(let options, let format) = try CompassCLICommand.parse([
       "run", "--repo", "/tmp/project", "--brief", "Add a slice", "--mode", "auto",
       "--fixture", "/tmp/fixture.jsonl", "--max-iterations", "3", "--max-develop-attempts", "4",
-      "--max-verify-repairs", "0", "--prompt-log", "/tmp/prompts", "--critic", "--format", "text",
+      "--max-verify-repairs", "0", "--sessions", "2", "--prompt-log", "/tmp/prompts", "--critic",
+      "--format", "text",
     ]) {
       #expect(options.repoURL.path == "/tmp/project")
       #expect(options.brief == "Add a slice")
@@ -39,10 +40,19 @@ struct CompassCLITests {
       #expect(options.maxIterations == 3)
       #expect(options.maxDevelopAttempts == 4)
       #expect(options.maxVerifyRepairAttempts == 0)
+      #expect(options.sessionCount == 2)
       #expect(options.runCritic)
       #expect(format == .text)
     } else {
       Issue.record("Expected run command.")
+    }
+
+    if case .run(let options, _) = try CompassCLICommand.parse([
+      "run", "--repo", "/tmp/project", "--brief", "Add a slice",
+    ]) {
+      #expect(options.sessionCount == 1)
+    } else {
+      Issue.record("Expected run command with default session count.")
     }
 
     if case .replay(let repo, let session, let mode, let fixture, _, let maxIterations, _) =
@@ -254,6 +264,45 @@ struct CompassCLITests {
     #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
     #expect(
       FileManager.default.fileExists(atPath: tempURL.appending(path: ".compass/state.json").path))
+  }
+
+  @Test
+  func fixtureRunnerRunsMultipleSessionsAndRecordsCompletions() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldRust(at: tempURL, name: "cli-multi-session-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "multi-session-fixture.jsonl")
+    try fixtureJSONL.write(to: fixtureURL, atomically: true, encoding: .utf8)
+
+    let ok = try await runner.runSessions(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a fixture smoke note to the README",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        sessionCount: 2,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let readme = try String(contentsOf: tempURL.appending(path: "README.md"), encoding: .utf8)
+    #expect(readme.contains("Fixture smoke note."))
+    let snapshot = events.snapshot()
+    #expect(snapshot.filter { $0.kind == "factory_iteration" && $0.status == "running" }.count == 2)
+    #expect(snapshot.filter { $0.kind == "session_end" && $0.status == "completed" }.count == 2)
+    let state = try CompassWorkspace(repoURL: tempURL).readState()
+    #expect(state.completed.count == 2)
   }
 
   @Test

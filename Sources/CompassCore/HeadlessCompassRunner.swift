@@ -49,6 +49,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
   public var maxIterations: Int
   public var maxDevelopAttempts: Int
   public var maxVerifyRepairAttempts: Int
+  public var sessionCount: Int
   public var runDevelop: Bool
   public var runCritic: Bool
 
@@ -61,6 +62,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     maxIterations: Int = 24,
     maxDevelopAttempts: Int = 2,
     maxVerifyRepairAttempts: Int = 1,
+    sessionCount: Int = 1,
     runDevelop: Bool = true,
     runCritic: Bool = false
   ) {
@@ -72,6 +74,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     self.maxIterations = max(1, maxIterations)
     self.maxDevelopAttempts = max(1, maxDevelopAttempts)
     self.maxVerifyRepairAttempts = max(0, maxVerifyRepairAttempts)
+    self.sessionCount = max(1, sessionCount)
     self.runDevelop = runDevelop
     self.runCritic = runCritic
   }
@@ -100,13 +103,26 @@ public struct HeadlessCompassRunner: Sendable {
 
   public init() {
     self.init { repoURL, label in
-      if ProcessInfo.processInfo.environment["COMPASS_BASH_RUNTIME"]?
-        .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "host"
-      {
+      if Self.bashRuntimePrefersHost() {
         return AgentHostBashRunner()
       }
       return AgentContainerBashRunner(repoRoot: repoURL, label: label)
     }
+  }
+
+  public static func bashRuntimePrefersHost(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> Bool {
+    environment["COMPASS_BASH_RUNTIME"]?
+      .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "host"
+  }
+
+  public static var bashRuntimeName: String {
+    bashRuntimePrefersHost() ? "host" : "containerized_linux"
+  }
+
+  public static var bashRuntimeDescription: String {
+    bashRuntimePrefersHost() ? "host shell" : "containerized Linux runtime"
   }
 
   public init(bashRunnerFactory: @escaping BashRunnerFactory) {
@@ -124,22 +140,78 @@ public struct HeadlessCompassRunner: Sendable {
     let modelReady = LocalModelCatalog.isBlessedModelReady()
     let cloudReady = settings.hasCloudCredentials
     let textReady = settings.isTextCapabilityRunnable(localModelReady: modelReady)
+    let hostRuntime = Self.bashRuntimePrefersHost()
+    let runtimeName = hostRuntime ? "host" : "containerized_linux"
     let sandboxConfiguration = ContainerSandboxConfiguration()
     onEvent(
       HeadlessCompassEvent(
         kind: "container_runtime",
         status: "checking",
-        message: "Checking containerized Linux runtime.",
+        message: hostRuntime
+          ? "Checking host bash runtime."
+          : "Checking containerized Linux runtime.",
         metadata: [
-          "runtime": "containerized_linux",
+          "runtime": runtimeName,
           "stateRoot": sandboxConfiguration.stateRoot.path,
           "runtimeImage": sandboxConfiguration.runtimeImage,
           "initfsReference": sandboxConfiguration.initfsReference,
         ]
       )
     )
-    let sandboxStatus = await ContainerizedLinuxSandbox.shared.smokeTest()
-
+    let runtimeReady: Bool
+    if hostRuntime {
+      let hostReady: Bool
+      let hostMessage: String
+      do {
+        let probe = try await AgentHostBashRunner().run(
+          command: "true",
+          workingDirectory: repoURL,
+          timeout: 30
+        )
+        hostReady = probe.exitCode == 0
+        hostMessage =
+          hostReady
+          ? "Host bash runtime is ready (COMPASS_BASH_RUNTIME=host)."
+          : "Host bash runtime probe exited with code \(probe.exitCode)."
+      } catch {
+        hostReady = false
+        hostMessage = "Host bash runtime probe failed: \(error.localizedDescription)"
+      }
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "container_runtime",
+          level: hostReady ? "success" : "error",
+          status: hostReady ? "ready" : "failed",
+          message: hostMessage,
+          metadata: ["runtime": runtimeName]
+        )
+      )
+      runtimeReady = hostReady
+    } else {
+      let sandboxStatus = await ContainerizedLinuxSandbox.shared.smokeTest()
+      var runtimeMetadata = [
+        "runtime": runtimeName,
+        "stateRoot": sandboxStatus.stateRoot.path,
+        "runtimeImage": sandboxStatus.runtimeImage,
+        "initfsReference": sandboxStatus.initfsReference,
+        "message": sandboxStatus.message,
+      ]
+      if let kernelURL = sandboxStatus.kernelURL {
+        runtimeMetadata["kernel"] = kernelURL.path
+      }
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "container_runtime",
+          level: sandboxStatus.ok ? "success" : "error",
+          status: sandboxStatus.ok ? "ready" : "failed",
+          message: sandboxStatus.ok
+            ? "Containerized Linux runtime is ready."
+            : "Containerized Linux runtime smoke test failed.",
+          metadata: runtimeMetadata
+        )
+      )
+      runtimeReady = sandboxStatus.ok
+    }
     onEvent(
       HeadlessCompassEvent(
         kind: "doctor",
@@ -156,28 +228,8 @@ public struct HeadlessCompassRunner: Sendable {
           "localAssistReady": modelReady ? "true" : "false",
           "localAssistDirectory": LocalModelCatalog.blessedModelDirectory.path,
           "textReady": textReady ? "true" : "false",
+          "bashRuntime": runtimeName,
         ]
-      )
-    )
-    var runtimeMetadata = [
-      "runtime": "containerized_linux",
-      "stateRoot": sandboxStatus.stateRoot.path,
-      "runtimeImage": sandboxStatus.runtimeImage,
-      "initfsReference": sandboxStatus.initfsReference,
-      "message": sandboxStatus.message,
-    ]
-    if let kernelURL = sandboxStatus.kernelURL {
-      runtimeMetadata["kernel"] = kernelURL.path
-    }
-    onEvent(
-      HeadlessCompassEvent(
-        kind: "container_runtime",
-        level: sandboxStatus.ok ? "success" : "error",
-        status: sandboxStatus.ok ? "ready" : "failed",
-        message: sandboxStatus.ok
-          ? "Containerized Linux runtime is ready."
-          : "Containerized Linux runtime smoke test failed.",
-        metadata: runtimeMetadata
       )
     )
     onEvent(
@@ -206,7 +258,7 @@ public struct HeadlessCompassRunner: Sendable {
         )
       )
     }
-    return textReady && sandboxStatus.ok
+    return textReady && runtimeReady
   }
 
   public func scaffoldRust(
@@ -284,6 +336,53 @@ public struct HeadlessCompassRunner: Sendable {
   }
 
   @discardableResult
+  public func runSessions(
+    options: HeadlessRunOptions,
+    onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
+  ) async throws -> Bool {
+    for iteration in 1...options.sessionCount {
+      var iterationOptions = options
+      if options.sessionCount > 1, let promptLog = options.promptLogDirectory {
+        iterationOptions.promptLogDirectory =
+          promptLog.appending(path: String(format: "iteration-%03d", iteration))
+      }
+      if options.sessionCount > 1 {
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "factory_iteration",
+            status: "running",
+            message: "Factory iteration \(iteration) of \(options.sessionCount) started.",
+            metadata: [
+              "iteration": "\(iteration)",
+              "sessionCount": "\(options.sessionCount)",
+            ]
+          )
+        )
+      }
+      let ok = try await run(options: iterationOptions, onEvent: onEvent)
+      guard ok else {
+        if options.sessionCount > 1 {
+          onEvent(
+            HeadlessCompassEvent(
+              kind: "factory_iteration",
+              level: "error",
+              status: "failed",
+              message: "Factory iteration \(iteration) of \(options.sessionCount) failed; "
+                + "stopping.",
+              metadata: [
+                "iteration": "\(iteration)",
+                "sessionCount": "\(options.sessionCount)",
+              ]
+            )
+          )
+        }
+        return false
+      }
+    }
+    return true
+  }
+
+  @discardableResult
   public func run(
     options: HeadlessRunOptions,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
@@ -337,6 +436,7 @@ public struct HeadlessCompassRunner: Sendable {
 
     do {
       _ = try? await refreshCodemap(workspace: workspace, settings: settings, onEvent: onEvent)
+      try recordShippedIterations(workspace: workspace, onEvent: onEvent)
       let plan = try await runPlan(
         workspace: workspace,
         settings: settings,
@@ -798,6 +898,9 @@ public struct HeadlessCompassRunner: Sendable {
       session.status = ok ? .succeeded : .failed
       session.endedAt = Date().timeIntervalSince1970 * 1000
       try persist(session: session, workspace: workspace)
+      if ok {
+        try? recordShippedIterations(workspace: workspace, onEvent: onEvent)
+      }
       onEvent(
         HeadlessCompassEvent(
           kind: "session_end",
@@ -873,6 +976,27 @@ public struct HeadlessCompassRunner: Sendable {
     guard compact.count > limit else { return compact }
     guard limit > 3 else { return String(compact.prefix(limit)) }
     return compact.prefix(limit - 3).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+
+  private func recordShippedIterations(
+    workspace: CompassWorkspace,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+  ) throws {
+    let current = try workspace.readState()
+    let recorded = PlanCompletionRecorder.recordingShippedIterations(
+      into: current,
+      sessions: workspace.readSessions()
+    )
+    guard recorded != current else { return }
+    try workspace.writeState(recorded)
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "state_recorded",
+        status: "completed",
+        message: "Recorded \(recorded.completed.count) completed iteration(s) into factory state.",
+        metadata: ["completedCount": "\(recorded.completed.count)"]
+      )
+    )
   }
 
   private func runPlan(
@@ -1195,8 +1319,8 @@ public struct HeadlessCompassRunner: Sendable {
         kind: "verify_start",
         status: "running",
         phase: "verify",
-        message: "Running verify command in containerized Linux runtime.",
-        metadata: ["command": command, "runtime": "containerized_linux"]
+        message: "Running verify command in \(Self.bashRuntimeDescription).",
+        metadata: ["command": command, "runtime": Self.bashRuntimeName]
       )
     )
     let started = Date()
