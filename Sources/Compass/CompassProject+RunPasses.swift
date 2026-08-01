@@ -1005,10 +1005,19 @@ extension CompassProject {
       var changedFiles: [String] = []
       let diffCommand: String
       if let beforeSha, !beforeSha.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        diffCommand = "git -c core.quotepath=false diff --name-only \(beforeSha)..HEAD"
+        diffCommand = """
+          git -c core.quotepath=false diff --name-only \(beforeSha)..HEAD
+          git -c core.quotepath=false diff --name-only
+          git -c core.quotepath=false diff --cached --name-only
+          git -c core.quotepath=false ls-files --others --exclude-standard
+          """
       } else {
-        diffCommand =
-          "git -c core.quotepath=false diff-tree --root --no-commit-id --name-only -r HEAD"
+        diffCommand = """
+          git -c core.quotepath=false diff-tree --root --no-commit-id --name-only -r HEAD
+          git -c core.quotepath=false diff --name-only
+          git -c core.quotepath=false diff --cached --name-only
+          git -c core.quotepath=false ls-files --others --exclude-standard
+          """
       }
       let diff = try await runVerifyCommand(
         command: diffCommand,
@@ -1017,7 +1026,9 @@ extension CompassProject {
         launchPlan: launchPlan
       )
       if diff.exitCode == 0 {
-        changedFiles = diff.stdout.split(whereSeparator: \.isNewline).map(String.init)
+        changedFiles = Array(
+          Set(diff.stdout.split(whereSeparator: \.isNewline).map(String.init))
+        ).sorted()
       }
       let command = GeneratedProjectQuality.mutationTestCommand(forChangedFiles: changedFiles)
       let result = try await runVerifyCommand(

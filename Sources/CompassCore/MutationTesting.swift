@@ -123,18 +123,47 @@ public enum MutationReportParser {
         }
       }
       let lowered = line.lowercased()
-      guard line.contains(".rs"),
-        lowered.hasSuffix("missed") || lowered.hasSuffix("not caught")
-          || lowered.contains("... missed") || lowered.contains("... not caught")
-      else { continue }
-      let cleaned =
-        line
-        .replacingOccurrences(of: #"\s*\.\.\.\s*(missed|not caught).*$"#, with: "", options: .regularExpression)
+      guard line.contains(".rs") else { continue }
+      let cleaned: String
+      if let prefixed = stripStatusPrefix(["missed", "not caught", "not_caught"], from: lowered, original: line) {
+        cleaned = strippingTimingSuffix(from: prefixed)
+      } else if lowered.hasSuffix("missed") || lowered.hasSuffix("not caught")
+        || lowered.contains("... missed") || lowered.contains("... not caught")
+      {
+        cleaned =
+          line
+          .replacingOccurrences(of: #"\s*\.\.\.\s*(missed|not caught).*$"#, with: "", options: .regularExpression)
+      } else {
+        continue
+      }
       if !cleaned.isEmpty, !descriptions.contains(cleaned) {
         descriptions.append(cleaned)
       }
     }
     return descriptions
+  }
+
+  /// Matches lines like `MISSED   crates/app.rs:1:1: replace ...` emitted by
+  /// `cargo mutants`, returning the description with the status prefix removed.
+  private static func stripStatusPrefix(
+    _ prefixes: [String], from lowered: String, original: String
+  ) -> String? {
+    for prefix in prefixes {
+      guard lowered.hasPrefix(prefix) else { continue }
+      let rest = original.dropFirst(prefix.count)
+      guard rest.first?.isWhitespace == true else { continue }
+      return rest.trimmingCharacters(in: .whitespaces)
+    }
+    return nil
+  }
+
+  /// Removes the trailing ` in <t> build + <t> test` timing cargo-mutants appends.
+  private static func strippingTimingSuffix(from text: String) -> String {
+    text.replacingOccurrences(
+      of: #"\s+in\s+[\d.]+[a-z]*\s+build\s*\+\s*[\d.]+[a-z]*\s+test\s*$"#,
+      with: "",
+      options: [.regularExpression, .caseInsensitive]
+    )
   }
 }
 

@@ -102,5 +102,6 @@ Each `compass-cli run` executes one factory session (Plan → Develop → Verify
 - `--sessions <n>` — run `n` factory sessions back-to-back in one invocation (stops on the first failed session; prompt logs are scoped per iteration).
 - `--max-iterations <n>` — agent tool-turn budget per phase (Plan / Develop / Critic), not the number of factory sessions. Default 24.
 - `--max-develop-attempts <n>` / `--max-verify-repairs <n>` — retry budgets when Develop post-checks or verify fail.
+- `--commit` — after each successful session, commit the iteration's changes to Git (`Compass iteration <n>: <summary>`), giving you per-iteration history and easy rollback.
 
 Legacy project files in existing user workspaces are ignored rather than deleted.

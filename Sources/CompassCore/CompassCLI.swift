@@ -167,6 +167,7 @@ public enum CompassCLICommand: Equatable {
         try parser.optionalInt("--max-verify-repairs", allowingZero: true) ?? 1
       let sessionCount = try parser.optionalInt("--sessions") ?? 1
       let runCritic = parser.consumeFlag("--critic")
+      let commitIterations = parser.consumeFlag("--commit")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
       return .run(
@@ -180,7 +181,8 @@ public enum CompassCLICommand: Equatable {
           maxDevelopAttempts: maxDevelopAttempts,
           maxVerifyRepairAttempts: maxVerifyRepairAttempts,
           sessionCount: sessionCount,
-          runCritic: runCritic
+          runCritic: runCritic,
+          commitIterations: commitIterations
         ),
         format: format
       )
@@ -387,7 +389,7 @@ public enum CompassCLIError: LocalizedError, Equatable {
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
       compass-cli scaffold rust <path> [--name <name>] [--format json|text]
-      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
+      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--commit] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
 

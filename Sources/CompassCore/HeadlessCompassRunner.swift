@@ -52,6 +52,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
   public var sessionCount: Int
   public var runDevelop: Bool
   public var runCritic: Bool
+  public var commitIterations: Bool
 
   public init(
     repoURL: URL,
@@ -64,7 +65,8 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     maxVerifyRepairAttempts: Int = 1,
     sessionCount: Int = 1,
     runDevelop: Bool = true,
-    runCritic: Bool = false
+    runCritic: Bool = false,
+    commitIterations: Bool = false
   ) {
     self.repoURL = repoURL.standardizedFileURL
     self.brief = brief
@@ -77,6 +79,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     self.sessionCount = max(1, sessionCount)
     self.runDevelop = runDevelop
     self.runCritic = runCritic
+    self.commitIterations = commitIterations
   }
 }
 
@@ -900,6 +903,14 @@ public struct HeadlessCompassRunner: Sendable {
       try persist(session: session, workspace: workspace)
       if ok {
         try? recordShippedIterations(workspace: workspace, onEvent: onEvent)
+        if options.commitIterations {
+          commitIterationChanges(
+            repoURL: repoURL,
+            workspace: workspace,
+            sessionNumber: sessionNumber,
+            onEvent: onEvent
+          )
+        }
       }
       onEvent(
         HeadlessCompassEvent(
@@ -1387,6 +1398,14 @@ public struct HeadlessCompassRunner: Sendable {
         workingDirectory: repoURL,
         timeout: collectionTimeout
       )
+      _ = try? workspace.writeSessionAuditArtifact(
+        session: sessionNumber,
+        name: "coverage.log",
+        kind: "log",
+        contents: "$ \(GeneratedProjectQuality.coverageCollectCommand)\n\n" + result.stdout + "\n"
+          + result.stderr,
+        note: "Coverage collection output."
+      )
       var snapshot = GeneratedProjectQuality.parseCoverageReport(
         output: result.stdout + "\n" + result.stderr
       )
@@ -1441,6 +1460,13 @@ public struct HeadlessCompassRunner: Sendable {
         output: result.stdout + "\n" + result.stderr,
         exitCode: Int(result.exitCode),
         command: command
+      )
+      _ = try? workspace.writeSessionAuditArtifact(
+        session: sessionNumber,
+        name: "mutation.log",
+        kind: "log",
+        contents: "$ \(command)\n\n" + result.stdout + "\n" + result.stderr,
+        note: "Mutation testing output."
       )
       guard snapshot.tested > 0 || result.exitCode == 0 else {
         onEvent(
@@ -2333,6 +2359,48 @@ public struct HeadlessCompassRunner: Sendable {
       status: session.status,
       startedAt: session.startedAt,
       endedAt: session.endedAt
+    )
+  }
+
+  private func commitIterationChanges(
+    repoURL: URL,
+    workspace: CompassWorkspace,
+    sessionNumber: Int,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+  ) {
+    let lastCompleted = (try? workspace.readState().completed.last) ?? nil
+    let title = lastCompleted.map { Self.compactBriefSummary($0, limit: 72) }
+      ?? "iteration \(sessionNumber)"
+    let message = "Compass iteration \(sessionNumber): \(title)"
+    let escaped = message.replacingOccurrences(of: "'", with: "'\\''")
+    let result = Self.runShellSync(
+      """
+      if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "not a Git worktree" >&2
+        exit 3
+      fi
+      git add -A
+      if git diff --cached --quiet; then
+        echo "nothing to commit"
+        exit 0
+      fi
+      git -c user.name='Compass Factory' \
+        -c user.email='compass-factory@localhost' \
+        commit -m '\(escaped)'
+      """,
+      workingDirectory: repoURL
+    )
+    let committed = result.exitCode == 0 && !result.stdout.contains("nothing to commit")
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "iteration_commit",
+        level: result.exitCode == 0 ? "info" : "warning",
+        status: result.exitCode == 0 ? "completed" : "failed",
+        message:
+          result.exitCode == 0
+          ? (committed ? "Committed iteration \(sessionNumber) changes." : "Nothing to commit for iteration \(sessionNumber).")
+          : "Iteration commit failed (session still succeeded): \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))"
+      )
     )
   }
 

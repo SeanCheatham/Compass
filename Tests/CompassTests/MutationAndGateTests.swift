@@ -43,6 +43,26 @@ struct MutationReportParserTests {
   }
 
   @Test
+  func parsesRealCargoMutantsPrefixedOutput() {
+    let output = """
+      MISSED   crates/app-cli/src/main.rs:214:42: replace - with / in today in 0s build + 0s test
+      MISSED   crates/app-cli/src/main.rs:214:32: replace + with - in today in 0s build + 0s test
+      CAUGHT   crates/app-core/src/lib.rs:18:5: replace is_empty -> bool with true in 1.0s build + 0.2s test
+      NOT CAUGHT   crates/app-core/src/lib.rs:44:20: replace match guard !p.is_empty() with true in load in 0s build + 0s test
+      148 mutants tested in 42s: 72 caught, 76 missed
+      """
+
+    let snapshot = MutationReportParser.parse(
+      output: output, exitCode: 3, command: "cargo mutants --no-shuffle -j 1")
+
+    #expect(snapshot.caught == 72)
+    #expect(snapshot.missed == 76)
+    #expect(snapshot.missedMutants.count == 3)
+    #expect(snapshot.missedMutants[0] == "crates/app-cli/src/main.rs:214:42: replace - with / in today")
+    #expect(snapshot.missedMutants[2] == "crates/app-core/src/lib.rs:44:20: replace match guard !p.is_empty() with true in load")
+  }
+
+  @Test
   func emptyOutputYieldsNoScore() {
     let snapshot = MutationReportParser.parse(
       output: "error: could not compile", exitCode: 2, command: "cargo mutants")
