@@ -10,6 +10,9 @@ public enum CompassCLI {
   }
 
   public static func run(arguments: [String]) async -> Int {
+    _ = DotEnvLoader.loadIntoEnvironment(
+      from: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    )
     var selectedFormat = CompassCLIOutputFormat.json
     do {
       let command = try CompassCLICommand.parse(arguments)

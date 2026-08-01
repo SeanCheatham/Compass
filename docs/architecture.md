@@ -28,6 +28,7 @@ There is no Cursor model provider in this build. Cursor’s SDK is an agent harn
 - `immediate`
 - `completed`
 - `openQuestions`
+- `acceptanceGates` (optional deterministic quality thresholds)
 
 Legacy state files from older projects are ignored in-place.
 
@@ -39,9 +40,11 @@ Quality conventions live in `GeneratedProjectQuality`:
 
 - `standardVerifyCommand` — fmt + clippy + test
 - `coverageCollectCommand` — `cargo llvm-cov --workspace --summary-only`
-- `mutationTestCommand` — `cargo mutants` (prepared for a future post-verify hook; not invoked by the factory loop yet)
+- `mutationTestCommand` — `cargo mutants`, run post-verify scoped to the iteration's changed Rust files
 
-Coverage snapshots are persisted via `CoverageSnapshotStore` after verify. Plan handoff validation uses `GeneratedVerifyValidator` for coverage-ready verify commands.
+Coverage snapshots are persisted via `CoverageSnapshotStore` after verify; mutation results via `MutationSnapshotStore` (`MutationReportParser` extracts kill-rate and surviving mutants from `cargo mutants` output). Both snapshots feed the next Plan prompt. Plan handoff validation uses `GeneratedVerifyValidator` for coverage-ready verify commands.
+
+`AcceptanceGates` (in `FactoryState.acceptanceGates`, falling back to `COMPASS_GATE_*` env vars) define deterministic thresholds — minimum line coverage, minimum mutation score, maximum surviving mutants. After a green verify, both the app loop (`runPostChecks`) and the headless loop collect coverage + mutation evidence and evaluate the gates; violations become structured retry issues (`acceptance_gate`), so iterations are accepted by evidence, not review.
 
 ## Containerized Linux
 

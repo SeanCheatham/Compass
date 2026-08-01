@@ -370,25 +370,34 @@ public struct ContainerizedLinuxSandbox: Sendable {
   }
 
   private func bootstrapScript(userCommand: String, containerWorkingDirectory: String) -> String {
-    """
-    set -euo pipefail
-    if ! grep -Eq '(^|[[:space:]])localhost([[:space:]]|$)' /etc/hosts 2>/dev/null; then
-      printf '\\n127.0.0.1 localhost\\n::1 localhost ip6-localhost ip6-loopback\\n' >> /etc/hosts || true
-    fi
-    cd \(shellQuote(containerWorkingDirectory))
-    command -v cargo >/dev/null
-    command -v rustc >/dev/null
-    command -v git >/dev/null
-    if ! command -v rustfmt >/dev/null || ! cargo clippy -V >/dev/null 2>&1; then
-      rustup component add rustfmt clippy
-    fi
-    command -v rustfmt >/dev/null
-    cargo clippy -V >/dev/null
-    if ! cargo llvm-cov --version >/dev/null 2>&1; then
-      cargo install cargo-llvm-cov --locked
-    fi
-    \(userCommand)
-    """
+    let mutationToolchainBootstrap =
+      userCommand.contains("cargo mutants")
+      ? """
+
+        if ! cargo mutants --version >/dev/null 2>&1; then
+          cargo install cargo-mutants --locked
+        fi
+        """
+      : ""
+    return """
+      set -euo pipefail
+      if ! grep -Eq '(^|[[:space:]])localhost([[:space:]]|$)' /etc/hosts 2>/dev/null; then
+        printf '\\n127.0.0.1 localhost\\n::1 localhost ip6-localhost ip6-loopback\\n' >> /etc/hosts || true
+      fi
+      cd \(shellQuote(containerWorkingDirectory))
+      command -v cargo >/dev/null
+      command -v rustc >/dev/null
+      command -v git >/dev/null
+      if ! command -v rustfmt >/dev/null || ! cargo clippy -V >/dev/null 2>&1; then
+        rustup component add rustfmt clippy
+      fi
+      command -v rustfmt >/dev/null
+      cargo clippy -V >/dev/null
+      if ! cargo llvm-cov --version >/dev/null 2>&1; then
+        cargo install cargo-llvm-cov --locked
+      fi
+      \(mutationToolchainBootstrap)\(userCommand)
+      """
   }
 
   private func ensureKernel() async throws -> URL {

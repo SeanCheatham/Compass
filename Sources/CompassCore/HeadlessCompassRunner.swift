@@ -100,7 +100,12 @@ public struct HeadlessCompassRunner: Sendable {
 
   public init() {
     self.init { repoURL, label in
-      AgentContainerBashRunner(repoRoot: repoURL, label: label)
+      if ProcessInfo.processInfo.environment["COMPASS_BASH_RUNTIME"]?
+        .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "host"
+      {
+        return AgentHostBashRunner()
+      }
+      return AgentContainerBashRunner(repoRoot: repoURL, label: label)
     }
   }
 
@@ -686,6 +691,36 @@ public struct HeadlessCompassRunner: Sendable {
         }
 
         if verify.exitCode == 0 {
+          await collectQualitySnapshotsAfterVerify(
+            workspace: workspace,
+            sessionNumber: sessionNumber,
+            beforeSha: session.beforeSha,
+            repoURL: repoURL,
+            onEvent: onEvent
+          )
+          if let issue = acceptanceGateIssue(state: plannedState, workspace: workspace) {
+            session.notes.append("Verify attempt \(attempt) passed but acceptance gates failed.")
+            let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
+            let canUseVerifyRepairAttempt =
+              !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
+            if canUseDevelopAttempt || canUseVerifyRepairAttempt {
+              if canUseVerifyRepairAttempt {
+                verifyRepairAttemptsUsed += 1
+              }
+              priorIssues = [issue]
+              try persist(session: session, workspace: workspace)
+              emitDevelopRetry(
+                attempt: attempt,
+                maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
+                issue: issue,
+                retryKind: "acceptance_gate",
+                onEvent: onEvent
+              )
+              attempt += 1
+              continue
+            }
+            break
+          }
           successfulDevelop = develop
           ok = true
           break
@@ -863,6 +898,7 @@ public struct HeadlessCompassRunner: Sendable {
       vision: workspace.readVision(),
       focus: .feature,
       coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
+      mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
       promptMode: promptMode
     )
     _ = try workspace.writeSessionAuditArtifact(
@@ -1208,6 +1244,148 @@ public struct HeadlessCompassRunner: Sendable {
       contents: contents,
       note: "CLI verify output for attempt \(attempt)."
     )
+  }
+
+  /// After a green verify, collect coverage and mutation evidence (scoped to
+  /// changed files) and persist snapshots for gate evaluation and the next
+  /// Plan pass. Collection failures are non-fatal warnings.
+  private func collectQualitySnapshotsAfterVerify(
+    workspace: CompassWorkspace,
+    sessionNumber: Int,
+    beforeSha: String?,
+    repoURL: URL,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+  ) async {
+    let collectionTimeout = Self.qualityCollectionTimeoutSeconds()
+    do {
+      let result = try await bashRunnerFactory(repoURL, "coverage").run(
+        command: GeneratedProjectQuality.coverageCollectCommand,
+        workingDirectory: repoURL,
+        timeout: collectionTimeout
+      )
+      var snapshot = GeneratedProjectQuality.parseCoverageReport(
+        output: result.stdout + "\n" + result.stderr
+      )
+      guard snapshot.overallLineCoveragePercent != nil || !snapshot.files.isEmpty else {
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "coverage_snapshot",
+            level: "warning",
+            status: "failed",
+            phase: "verify",
+            message: "Coverage collection produced no data (exit \(result.exitCode)); no snapshot saved.",
+            detail: tail(result.stdout + result.stderr, max: 2000)
+          )
+        )
+        return
+      }
+      snapshot.sessionNumber = sessionNumber
+      try CoverageSnapshotStore.writeCoverageSnapshot(snapshot, workspace: workspace)
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "coverage_snapshot",
+          status: "completed",
+          phase: "verify",
+          message: "Coverage snapshot saved.",
+          metadata: [
+            "overallLineCoveragePercent": snapshot.overallLineCoveragePercent.map { String($0) }
+              ?? "unknown"
+          ]
+        )
+      )
+    } catch {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "coverage_snapshot",
+          level: "warning",
+          status: "failed",
+          phase: "verify",
+          message: "Coverage collection failed (verify still passed): \(error.localizedDescription)"
+        )
+      )
+    }
+
+    do {
+      let changedFiles = await gitChangedPathsSince(beforeSha, repoURL: repoURL) ?? []
+      let command = GeneratedProjectQuality.mutationTestCommand(forChangedFiles: changedFiles)
+      let result = try await bashRunnerFactory(repoURL, "mutation").run(
+        command: command,
+        workingDirectory: repoURL,
+        timeout: collectionTimeout
+      )
+      var snapshot = MutationReportParser.parse(
+        output: result.stdout + "\n" + result.stderr,
+        exitCode: Int(result.exitCode),
+        command: command
+      )
+      guard snapshot.tested > 0 || result.exitCode == 0 else {
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "mutation_snapshot",
+            level: "warning",
+            status: "failed",
+            phase: "verify",
+            message:
+              "Mutation collection did not run (exit \(result.exitCode)); no snapshot saved.",
+            detail: tail(result.stdout + result.stderr, max: 2000)
+          )
+        )
+        return
+      }
+      snapshot.sessionNumber = sessionNumber
+      try MutationSnapshotStore.writeMutationSnapshot(snapshot, workspace: workspace)
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "mutation_snapshot",
+          level: snapshot.missed > 0 ? "warning" : "info",
+          status: "completed",
+          phase: "verify",
+          message:
+            "Mutation snapshot saved (\(snapshot.caught) caught, \(snapshot.missed) missed).",
+          metadata: [
+            "command": command,
+            "exitCode": "\(snapshot.exitCode)",
+            "mutationScorePercent": snapshot.mutationScorePercent.map { String($0) } ?? "unknown",
+          ]
+        )
+      )
+    } catch {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "mutation_snapshot",
+          level: "warning",
+          status: "failed",
+          phase: "verify",
+          message: "Mutation collection failed (verify still passed): \(error.localizedDescription)"
+        )
+      )
+    }
+  }
+
+  /// Evaluates persisted evidence against the active acceptance gates and
+  /// returns a retry issue when any gate fails. Returns nil when no gates are
+  /// configured or all gates pass.
+  private func acceptanceGateIssue(state: PlanState, workspace: CompassWorkspace) -> String? {
+    guard let gates = AcceptanceGates.active(from: state) else { return nil }
+    let violations = gates.violations(
+      coverage: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
+      mutation: MutationSnapshotStore.readMutationSnapshot(from: workspace)
+    )
+    guard !violations.isEmpty else { return nil }
+    return """
+      Verify passed, but the acceptance gates rejected this iteration:
+      \(violations.map { "- \($0)" }.joined(separator: "\n"))
+
+      Gates are deterministic quality thresholds (see `acceptanceGates` in .compass/state.json). \
+      Strengthen tests until the collected coverage/mutation evidence satisfies them; do not \
+      weaken or delete the gates to make the iteration pass.
+      """
+  }
+
+  private static func qualityCollectionTimeoutSeconds() -> TimeInterval {
+    let raw = ProcessInfo.processInfo.environment["COMPASS_QUALITY_COLLECTION_TIMEOUT_MS"]
+    guard let raw, let ms = Int(raw), ms > 0 else { return 600 }
+    return TimeInterval(ms) / 1000
   }
 
   private func emitDevelopRetry(

@@ -1122,6 +1122,7 @@ public struct PlanState: Codable, Equatable {
   public var queue: [PlanCandidate]
   public var brief: PlanStrategicContext
   public var openQuestions: [PlanQuestion]
+  public var acceptanceGates: AcceptanceGates?
 
   public static let empty = PlanState(
     schemaVersion: 1,
@@ -1141,6 +1142,7 @@ public struct PlanState: Codable, Equatable {
     case candidates
     case strategicContext
     case openQuestions
+    case acceptanceGates
   }
 
   public init(
@@ -1151,7 +1153,8 @@ public struct PlanState: Codable, Equatable {
     brief: PlanStrategicContext? = nil,
     candidates: [PlanCandidate] = [],
     strategicContext: PlanStrategicContext = .empty,
-    openQuestions: [PlanQuestion] = []
+    openQuestions: [PlanQuestion] = [],
+    acceptanceGates: AcceptanceGates? = nil
   ) {
     self.schemaVersion = max(1, schemaVersion)
     self.completed = completed
@@ -1159,6 +1162,7 @@ public struct PlanState: Codable, Equatable {
     self.queue = queue ?? candidates
     self.brief = brief ?? strategicContext
     self.openQuestions = openQuestions
+    self.acceptanceGates = acceptanceGates
   }
 
   public init(from decoder: Decoder) throws {
@@ -1175,6 +1179,7 @@ public struct PlanState: Codable, Equatable {
       try container.decodeIfPresent(PlanStrategicContext.self, forKey: .brief)
       ?? container.decodeIfPresent(PlanStrategicContext.self, forKey: .strategicContext) ?? .empty
     openQuestions = try container.decodeIfPresent([PlanQuestion].self, forKey: .openQuestions) ?? []
+    acceptanceGates = try container.decodeIfPresent(AcceptanceGates.self, forKey: .acceptanceGates)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -1188,6 +1193,7 @@ public struct PlanState: Codable, Equatable {
     }
     try container.encode(completed, forKey: .completed)
     try container.encode(openQuestions, forKey: .openQuestions)
+    try container.encodeIfPresent(acceptanceGates, forKey: .acceptanceGates)
   }
 
   public var candidates: [PlanCandidate] {

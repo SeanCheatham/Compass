@@ -53,7 +53,9 @@ Coverage is collected after verify with:
 cargo llvm-cov --workspace --summary-only
 ```
 
-Mutation testing is planned (`cargo mutants`) but not wired into the factory loop yet.
+Mutation testing runs post-verify scoped to the Rust files changed in the iteration (`cargo mutants`), persisted to `.compass/mutation-snapshot.json` and fed into the next Plan pass.
+
+Acceptance gates (optional) live under `acceptanceGates` in `.compass/state.json` or via environment (`COMPASS_GATE_MIN_COVERAGE`, `COMPASS_GATE_MIN_MUTATION_SCORE`, `COMPASS_GATE_MAX_MISSED_MUTANTS`). When set, a green verify is not enough — the iteration is retried until the collected coverage/mutation evidence satisfies the gates.
 
 ## Runtime
 
@@ -67,7 +69,7 @@ Configure any OpenAI-compatible chat-completions endpoint in Settings or via env
 - `COMPASS_AGENT_MODEL`
 - `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS`
 
-Kimi/Moonshot, OpenAI, OpenRouter, and local proxies all work the same way as long as they speak `/v1/chat/completions`.
+Kimi/Moonshot, OpenAI, OpenRouter, and local proxies all work the same way as long as they speak `/v1/chat/completions`. For CLI use, copy `.env.example` to `.env` in the repo root — `compass-cli` loads it automatically (real environment variables win; `.env` is gitignored).
 
 ### Local assist (optional)
 
@@ -82,6 +84,8 @@ Factory bash/verify run in ephemeral Apple Containerization Linux VMs:
 - Bootstrap: Rust toolchain (cargo, rustc, rustfmt, clippy)
 
 File/search tools still operate on the host worktree, addressed through the same `/workspace` path space.
+
+For headless self-testing on machines where the container runtime is unavailable (but a host Rust toolchain exists), `COMPASS_BASH_RUNTIME=host` makes `compass-cli run` execute verify/coverage/mutation commands in a host shell instead of a container.
 
 ## Development
 

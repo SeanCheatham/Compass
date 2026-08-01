@@ -2,15 +2,16 @@ import Foundation
 
 /// Hardcoded quality conventions for Compass-generated Rust Cargo workspaces.
 ///
-/// Mutation testing is prepared here (`mutationTestCommand`) but not yet wired into
-/// the factory loop — the intended call site is post-verify / `runPostChecks`.
+/// Mutation testing (`mutationTestCommand`) runs post-verify, scoped to the Rust
+/// files changed in the current iteration; results persist as a `MutationSnapshot`
+/// in `.compass/mutation-snapshot.json` and feed the next Plan pass.
 public enum GeneratedProjectQuality {
   public static let standardVerifyCommand =
     "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
 
   public static let coverageCollectCommand = "cargo llvm-cov --workspace --summary-only"
 
-  /// Future post-verify mutation gate. Not invoked by the factory loop yet.
+  /// Post-verify mutation gate, scoped per iteration via `mutationTestCommand(forChangedFiles:)`.
   public static let mutationTestCommand = "cargo mutants --no-shuffle -j 1"
 
   public static let coverageRequirementHint =
@@ -23,6 +24,8 @@ public enum GeneratedProjectQuality {
     - Prefer `cargo fmt`, Clippy (`-D warnings`), and `cargo test` for verification.
     - Standard verify is `\(standardVerifyCommand)`.
     - Coverage is collected after verify with `\(coverageCollectCommand)`.
+    - Mutation testing runs post-verify scoped to changed files; surviving
+      mutants indicate weak tests and should drive test-strengthening work.
     - Documentation-only README/docs slices may use a simple `grep -q` content
       check against the edited Markdown/text file instead of cargo.
     """

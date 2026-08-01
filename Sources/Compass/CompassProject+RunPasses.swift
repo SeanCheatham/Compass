@@ -85,6 +85,7 @@ extension CompassProject {
         vision: visionText,
         focus: focus,
         coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
+        mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
         promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)
       )
@@ -753,6 +754,17 @@ extension CompassProject {
           launchPlan: launchPlan,
           sessionIndex: sessionIndex
         )
+        await collectMutationAfterVerify(
+          workingDirectory: workingDirectory,
+          launchPlan: launchPlan,
+          sessionIndex: sessionIndex,
+          beforeSha: beforeSha
+        )
+        let gateIssues = acceptanceGateIssues()
+        if !gateIssues.isEmpty {
+          verifyIssues.append(contentsOf: gateIssues)
+          log("Acceptance gates failed after a green verify.", level: .error)
+        }
       } else {
         let verifyTail = tail(verify.stdout + verify.stderr, max: 4000)
         let output = VerifyOutput(
@@ -950,6 +962,13 @@ extension CompassProject {
       var snapshot = GeneratedProjectQuality.parseCoverageReport(
         output: result.stdout + "\n" + result.stderr
       )
+      guard snapshot.overallLineCoveragePercent != nil || !snapshot.files.isEmpty else {
+        log(
+          "Coverage collection produced no data (exit \(result.exitCode)); no snapshot saved.",
+          level: .warning
+        )
+        return
+      }
       snapshot.sessionNumber = sessionNumber
       try CoverageSnapshotStore.writeCoverageSnapshot(snapshot, workspace: workspace)
       if let overall = snapshot.overallLineCoveragePercent {
@@ -968,6 +987,104 @@ extension CompassProject {
         level: .warning
       )
     }
+  }
+
+  /// After verify passes, run scoped mutation testing on changed Rust files
+  /// and persist the snapshot for gate evaluation and the next Plan pass.
+  func collectMutationAfterVerify(
+    workingDirectory: URL,
+    launchPlan: AgentExecutionLaunchPlan,
+    sessionIndex: Int,
+    beforeSha: String?
+  ) async {
+    guard let workspace else { return }
+    let sessionNumber =
+      sessions.indices.contains(sessionIndex) ? sessions[sessionIndex].session : nil
+    log("Post-check: running mutation testing.", level: .info)
+    do {
+      var changedFiles: [String] = []
+      let diffCommand: String
+      if let beforeSha, !beforeSha.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        diffCommand = "git -c core.quotepath=false diff --name-only \(beforeSha)..HEAD"
+      } else {
+        diffCommand =
+          "git -c core.quotepath=false diff-tree --root --no-commit-id --name-only -r HEAD"
+      }
+      let diff = try await runVerifyCommand(
+        command: diffCommand,
+        hostWorkingDirectory: workingDirectory,
+        timeoutSeconds: 30,
+        launchPlan: launchPlan
+      )
+      if diff.exitCode == 0 {
+        changedFiles = diff.stdout.split(whereSeparator: \.isNewline).map(String.init)
+      }
+      let command = GeneratedProjectQuality.mutationTestCommand(forChangedFiles: changedFiles)
+      let result = try await runVerifyCommand(
+        command: command,
+        hostWorkingDirectory: workingDirectory,
+        timeoutSeconds: Self.qualityCollectionTimeoutSeconds(),
+        launchPlan: launchPlan
+      )
+      var snapshot = MutationReportParser.parse(
+        output: result.stdout + "\n" + result.stderr,
+        exitCode: Int(result.exitCode),
+        command: command
+      )
+      guard snapshot.tested > 0 || result.exitCode == 0 else {
+        log(
+          "Mutation collection did not run (exit \(result.exitCode)); no snapshot saved.",
+          level: .warning
+        )
+        return
+      }
+      snapshot.sessionNumber = sessionNumber
+      try MutationSnapshotStore.writeMutationSnapshot(snapshot, workspace: workspace)
+      if let score = snapshot.mutationScorePercent {
+        log(
+          String(
+            format: "Mutation snapshot saved (score %.1f%%, %d caught, %d missed).",
+            score, snapshot.caught, snapshot.missed),
+          level: snapshot.missed > 0 ? .warning : .info
+        )
+      } else {
+        log("Mutation snapshot saved (no mutants tested).", level: .info)
+      }
+    } catch {
+      log(
+        "Mutation testing failed (verify still passed): \(error.localizedDescription)",
+        level: .warning
+      )
+    }
+  }
+
+  /// Evaluates persisted evidence against the active acceptance gates.
+  func acceptanceGateIssues() -> [String] {
+    guard let workspace,
+      let state = try? workspace.readState(),
+      let gates = AcceptanceGates.active(from: state)
+    else { return [] }
+    let violations = gates.violations(
+      coverage: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
+      mutation: MutationSnapshotStore.readMutationSnapshot(from: workspace)
+    )
+    guard !violations.isEmpty else { return [] }
+    return [
+      """
+      [acceptance-gate] Verify passed, but the acceptance gates rejected this iteration:
+      \(violations.map { "- \($0)" }.joined(separator: "\n"))
+
+      Gates are deterministic quality thresholds (see `acceptanceGates` in .compass/state.json). \
+      Strengthen tests until the collected coverage/mutation evidence satisfies them; do not \
+      weaken or delete the gates to make the iteration pass.
+      """
+    ]
+  }
+
+  static func qualityCollectionTimeoutSeconds() -> TimeInterval {
+    let raw = ProcessInfo.processInfo.environment["COMPASS_QUALITY_COLLECTION_TIMEOUT_MS"]
+    guard let raw, let ms = Int(raw), ms > 0 else { return 600 }
+    return TimeInterval(ms) / 1000
   }
 
   func verifyTimeoutMs(for next: PlanNext) -> Int {

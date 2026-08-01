@@ -11,6 +11,7 @@ public extension Prompts {
     vision: String,
     focus: PlanFocus,
     coverageSnapshot: CoverageSnapshot? = nil,
+    mutationSnapshot: MutationSnapshot? = nil,
     hostXcodeBuildTestEnabled: Bool = false,
     promptMode: AgentPromptMode = .envelope
   ) throws -> String {
@@ -137,6 +138,9 @@ public extension Prompts {
 
       ## Coverage
       \(coverageSnapshot?.formattedForPrompt() ?? "_(no coverage snapshot yet)_")
+
+      ## Mutation testing
+      \(mutationSnapshot?.formattedForPrompt() ?? "_(no mutation snapshot yet)_")
 
       \(closingLine)
       """
