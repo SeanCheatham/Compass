@@ -4,13 +4,19 @@ import CompassCore
 
 /// Top-level workspace selection driven by the sidebar.
 ///
-/// The sidebar has two kinds of entries: the singleton Runtime section
-/// (hosting the container runtime status view)
+/// The sidebar has two kinds of entries: the singleton Runtimes section
+/// (hosting the container runtime and macOS VM status views)
 /// and the per-project list. `WorkspaceSelection` lets the detail pane
 /// swap between them without losing track of which project was last
 /// viewed.
 enum WorkspaceSelection: Equatable {
-  case runtime
+  /// Which runtime the Runtimes detail pane shows.
+  enum RuntimePane: String, Equatable {
+    case container
+    case macOSVM
+  }
+
+  case runtime(RuntimePane)
   case project(UUID)
 
   var projectID: UUID? {
@@ -28,7 +34,7 @@ enum WorkspaceSelection: Equatable {
 final class AppModel: ObservableObject {
   @Published var projects: [CompassProject] = []
   @Published var selectedProjectID: UUID?
-  @Published var workspaceSelection: WorkspaceSelection = .runtime
+  @Published var workspaceSelection: WorkspaceSelection = .runtime(.container)
   @Published var modelOverride = ""
   @Published private(set) var agentSettings: AgentRuntimeSettings
   private let agentSettingsStore: AgentSettingsStore
@@ -76,9 +82,9 @@ final class AppModel: ObservableObject {
     projects.first { $0.id == selectedProjectID }
   }
 
-  /// Switches the detail pane to the runtime section.
-  func selectSandbox() {
-    workspaceSelection = .runtime
+  /// Switches the detail pane to the runtimes section.
+  func selectSandbox(_ pane: WorkspaceSelection.RuntimePane = .container) {
+    workspaceSelection = .runtime(pane)
     errorMessage = nil
   }
 
@@ -88,7 +94,7 @@ final class AppModel: ObservableObject {
     if let id = selectedProjectID {
       workspaceSelection = .project(id)
     } else {
-      workspaceSelection = .runtime
+      workspaceSelection = .runtime(.container)
     }
 
     if projects.isEmpty {
@@ -162,7 +168,7 @@ final class AppModel: ObservableObject {
       if let newID = selectedProjectID {
         workspaceSelection = .project(newID)
       } else {
-        workspaceSelection = .runtime
+        workspaceSelection = .runtime(.container)
       }
     }
     saveProjects()

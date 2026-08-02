@@ -24,9 +24,17 @@ struct SidebarView: View {
       .padding(.bottom, 4)
 
       SidebarSandboxRow(
-        isSelected: model.workspaceSelection.isSandbox
+        pane: .container,
+        isSelected: model.workspaceSelection == .runtime(.container)
       ) {
-        model.selectSandbox()
+        model.selectSandbox(.container)
+      }
+
+      SidebarSandboxRow(
+        pane: .macOSVM,
+        isSelected: model.workspaceSelection == .runtime(.macOSVM)
+      ) {
+        model.selectSandbox(.macOSVM)
       }
 
       HStack {
@@ -142,36 +150,76 @@ struct EmptyProjectList: View {
   }
 }
 
-/// Sidebar entry for the singleton runtime section.
+/// Sidebar entries for the singleton runtimes section — one row per
+/// runtime (containerized Linux, embedded macOS VM).
 
 struct SidebarSandboxRow: View {
+  let pane: WorkspaceSelection.RuntimePane
   let isSelected: Bool
   let action: () -> Void
+  @ObservedObject private var vm = SharedCompassVM.shared
 
   var statusText: String {
-    "Containerized Linux"
+    switch pane {
+    case .container:
+      return "Containerized Linux"
+    case .macOSVM:
+      switch vm.readiness {
+      case .ready: return "Ready"
+      case .notProvisioned: return "Not provisioned"
+      case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
+        return "Provisioning..."
+      case .error, .unavailable: return "Needs attention"
+      }
+    }
+  }
+
+  var statusColor: Color {
+    switch pane {
+    case .container:
+      return .green
+    case .macOSVM:
+      switch vm.readiness {
+      case .ready: return .green
+      case .error, .unavailable: return .red
+      default: return .secondary
+      }
+    }
+  }
+
+  var icon: String {
+    switch pane {
+    case .container: return "shippingbox"
+    case .macOSVM: return "desktopcomputer"
+    }
+  }
+
+  var title: String {
+    switch pane {
+    case .container: return "Linux Runtime"
+    case .macOSVM: return "macOS VM"
+    }
   }
 
   var helpText: String {
-    "Open container runtime status"
-  }
-
-  var accessibilityText: String {
-    "Container runtime, \(statusText)"
+    switch pane {
+    case .container: return "Open container runtime status"
+    case .macOSVM: return "Open macOS VM status"
+    }
   }
 
   var body: some View {
     Button(action: action) {
       HStack(spacing: 10) {
         Circle()
-          .fill(Color.green)
+          .fill(statusColor)
           .frame(width: 10, height: 10)
           .padding(.top, 1)
         VStack(alignment: .leading, spacing: 2) {
           HStack(spacing: 6) {
-            Image(systemName: "shippingbox")
+            Image(systemName: icon)
               .font(.callout)
-            Text("Runtime")
+            Text(title)
               .font(.callout.weight(.semibold))
           }
           Text(statusText)
@@ -196,7 +244,7 @@ struct SidebarSandboxRow: View {
     }
     .buttonStyle(.plain)
     .help(helpText)
-    .accessibilityLabel(accessibilityText)
+    .accessibilityLabel("\(title), \(statusText)")
   }
 }
 
