@@ -37,10 +37,10 @@ struct SidebarView: View {
         Button {
           Task { await model.createRustProject() }
         } label: {
-          Label("New Rust Project", systemImage: "plus.square.dashed")
+          Label("New Project", systemImage: "plus.square.dashed")
         }
         .labelStyle(.iconOnly)
-        .help("New Rust project")
+        .help("New project (Rust core + CLI/macOS)")
 
         Button {
           Task { await model.chooseRepository() }

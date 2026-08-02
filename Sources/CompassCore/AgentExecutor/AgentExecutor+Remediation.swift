@@ -57,22 +57,22 @@ public extension AgentExecutor {
             Do not call another tool to repair this. Return `plan_submit` again and choose
             exactly one repair:
             - Keep the CLI behavior and add an acceptance check that Develop updates
-              `crates/app-cli/tests/cli.rs` to execute the new CLI path.
+              `crates/cli/tests/cli.rs` to execute the new CLI path.
               If the rejection message includes "Required acceptance check to append",
               copy that bullet into `state.immediate.plan` under Acceptance checks.
               For flag parsing work, name the exact split argv shape in that check; for
               repeated flags include the flag token each time, for example:
-              `crates/app-cli/tests/cli.rs` runs the CLI with
+              `crates/cli/tests/cli.rs` runs the CLI with
               `["--signal", "api:green", "--signal", "db:red"]` and asserts the
               formatted output.
               For `--format json` work, include a concrete check like:
-              `crates/app-cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]`
+              `crates/cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]`
               and asserts the parsed JSON title is `Ship it`.
             - Or narrow the Outcome to core-only work and remove CLI/list/status-count claims
               from the Outcome and Acceptance checks.
 
             Do not resubmit the same Acceptance checks unchanged; add the missing
-            `crates/app-cli/tests/cli.rs` proof line or remove the CLI behavior claim.
+            `crates/cli/tests/cli.rs` proof line or remove the CLI behavior claim.
 
             Keep `state.immediate.verify` as `\(GeneratedProjectQuality.standardVerifyCommand)` after adding the CLI test proof.
 

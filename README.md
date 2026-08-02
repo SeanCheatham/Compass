@@ -7,7 +7,7 @@ The current direction:
 - Factory turns (Plan / Develop / Critic) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
 - Optional **MLX** local assist handles cheap/small work (narration, compaction, Explore helpers) when the blessed local model is downloaded.
 - Compass does deterministic work through local tools and the containerized Linux runtime.
-- Generated projects are Rust Cargo workspaces (backend/CLI only — no web UI).
+- Generated projects require Rust `crates/core` plus at least one product: `cli` and/or `macos` (default both). Domain logic stays in Rust; macOS uses UniFFI + a thin SwiftUI shell.
 
 ## Factory Loop
 
@@ -32,19 +32,23 @@ Activity/Live is the primary project surface.
 
 ## Generated Projects
 
-Compass-generated output is Rust only. New projects use a Cargo workspace:
+Compass-generated output requires a Rust `crates/core` library plus at least one product:
 
-- root `Cargo.toml` workspace manifest
-- `rust-toolchain.toml` (stable + rustfmt + clippy)
-- `crates/app-core` — shared library and domain logic
-- `crates/app-cli` — CLI entry point and integration tests
+- `cli` — `crates/cli` Cargo binary and integration tests
+- `macos` — `crates/ffi` (UniFFI) + `apps/macos` (thin SwiftUI shell)
 
-There is no web or desktop UI package in generated output.
+New projects default to **cli + macos**. Domain logic belongs only in `crates/core`.
 
-Standard verification:
+Standard Rust verification:
 
 ```bash
 cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace
+```
+
+When the `macos` product is enabled, Compass also runs host-side (temporary; macOS VM later):
+
+```bash
+bash scripts/verify-macos.sh
 ```
 
 Coverage is collected after verify with:

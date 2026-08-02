@@ -25,7 +25,7 @@ struct PlanTransitionValidatorTests {
       immediate: PlanNext(
         plan: """
           ## Outcome
-          Update `crates/app-cli/src/main.rs` and `crates/app-cli/tests/cli.rs` so the CLI prints a useful one-line ledger summary.
+          Update `crates/cli/src/main.rs` and `crates/cli/tests/cli.rs` so the CLI prints a useful one-line ledger summary.
 
           ## Acceptance checks
           - The CLI test asserts the one-line ledger summary from sample entries.
@@ -66,14 +66,14 @@ struct PlanTransitionValidatorTests {
   func rejectsMissingExplicitPathsUnlessMarkedAsNewFile() throws {
     let tempURL = try makePlanValidatorTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    let cliSrc = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
+    let cliSrc = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
     try "pub fn main() {}\n".write(
       to: cliSrc.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
-    let cliTests = tempURL.appending(path: "crates/app-cli/tests", directoryHint: .isDirectory)
+    let cliTests = tempURL.appending(path: "crates/cli/tests", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliTests, withIntermediateDirectories: true)
     try "#[test] fn cli() {}\n".write(
       to: cliTests.appending(path: "cli.rs"),
@@ -84,7 +84,7 @@ struct PlanTransitionValidatorTests {
     [package]
     name = "app-cli"
     """.write(
-      to: tempURL.appending(path: "crates/app-cli/Cargo.toml"),
+      to: tempURL.appending(path: "crates/cli/Cargo.toml"),
       atomically: true,
       encoding: .utf8
     )
@@ -92,7 +92,7 @@ struct PlanTransitionValidatorTests {
     let invalid = planState(
       """
       ## Outcome
-      Update `crates/app-cli/src/cli.rs` so the CLI prints a queue summary.
+      Update `crates/cli/src/cli.rs` so the CLI prints a queue summary.
 
       ## Acceptance checks
       - CLI output includes the queue summary.
@@ -108,17 +108,17 @@ struct PlanTransitionValidatorTests {
       Issue.record("Expected missing path rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .ungroundedPaths)
-      #expect(error.message.contains("crates/app-cli/src/cli.rs"))
+      #expect(error.message.contains("crates/cli/src/cli.rs"))
       #expect(error.message.contains("main.rs"))
     }
 
     let wrongTestPath = planState(
       """
       ## Outcome
-      Update `crates/app-cli/test/cli.rs` to cover loud CLI output.
+      Update `crates/cli/test/cli.rs` to cover loud CLI output.
 
       ## Acceptance checks
-      - `crates/app-cli/test/cli.rs` covers loud CLI output.
+      - `crates/cli/test/cli.rs` covers loud CLI output.
       """
     )
 
@@ -127,14 +127,14 @@ struct PlanTransitionValidatorTests {
       Issue.record("Expected missing test path rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .ungroundedPaths)
-      #expect(error.message.contains("crates/app-cli/test/cli.rs"))
-      #expect(error.message.contains("same filename exists at: crates/app-cli/tests/cli.rs"))
+      #expect(error.message.contains("crates/cli/test/cli.rs"))
+      #expect(error.message.contains("same filename exists at: crates/cli/tests/cli.rs"))
     }
 
     let explicitNewUtilityFile = planState(
       """
       ## Outcome
-      Create new file `crates/app-core/src/activity.rs` for reusable activity helpers.
+      Create new file `crates/core/src/activity.rs` for reusable activity helpers.
 
       ## Acceptance checks
       - The new activity helper file exists.
@@ -199,7 +199,7 @@ struct PlanTransitionValidatorTests {
   func acceptsPathsNotAnchoredAtExistingRepoRoot() throws {
     let tempURL = try makePlanValidatorTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    let cliSrc = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
+    let cliSrc = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
     try "pub fn main() {}\n".write(
       to: cliSrc.appending(path: "main.rs"),
@@ -210,10 +210,10 @@ struct PlanTransitionValidatorTests {
     let crateRelativeManifestPath = planState(
       """
       ## Outcome
-      Update `crates/app-cli/src/main.rs` and rename the binary via `path = "src/main.rs"` in the crate manifest.
+      Update `crates/cli/src/main.rs` and rename the binary via `path = "src/main.rs"` in the crate manifest.
 
       ## Acceptance checks
-      - `crates/app-cli/src/main.rs` still compiles after the rename.
+      - `crates/cli/src/main.rs` still compiles after the rename.
       """
     )
 
@@ -226,10 +226,10 @@ struct PlanTransitionValidatorTests {
     let fixtureExamplePath = planState(
       """
       ## Outcome
-      Update `crates/app-cli/src/main.rs` so integration tests create `sub/two.md` inside a temp fixture directory.
+      Update `crates/cli/src/main.rs` so integration tests create `sub/two.md` inside a temp fixture directory.
 
       ## Acceptance checks
-      - `crates/app-cli/src/main.rs` handles a fixture note at `sub/two.md`.
+      - `crates/cli/src/main.rs` handles a fixture note at `sub/two.md`.
       """
     )
 
@@ -258,13 +258,13 @@ struct PlanTransitionValidatorTests {
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
       #expect(error.message.contains("does not include a CLI test"))
-      #expect(error.message.contains("crates/app-cli/tests/cli.rs"))
+      #expect(error.message.contains("crates/cli/tests/cli.rs"))
     }
 
     let grounded = planState(
       """
       ## Outcome
-      Update the CLI and `crates/app-cli/tests/cli.rs` so it prints a useful one-line ledger summary.
+      Update the CLI and `crates/cli/tests/cli.rs` so it prints a useful one-line ledger summary.
 
       ## Acceptance checks
       - The CLI test asserts the one-line ledger summary from sample entries.
@@ -293,7 +293,7 @@ struct PlanTransitionValidatorTests {
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
       #expect(error.message.contains("does not include a CLI test or direct proof"))
-      #expect(error.message.contains("crates/app-cli/tests/cli.rs"))
+      #expect(error.message.contains("crates/cli/tests/cli.rs"))
       #expect(error.message.contains(#"["--streak", "value"]"#))
     }
   }
@@ -315,7 +315,7 @@ struct PlanTransitionValidatorTests {
       Issue.record("Expected weak verify rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
-      #expect(error.message.contains("crates/app-cli/tests/cli.rs"))
+      #expect(error.message.contains("crates/cli/tests/cli.rs"))
       #expect(error.message.contains(#"["--format", "json", "Ship", "it"]"#))
       #expect(error.message.contains("parsed JSON title is `Ship it`"))
     }
@@ -330,7 +330,7 @@ struct PlanTransitionValidatorTests {
 
       ## Acceptance checks
       - The CLI parses real split argv entries and returns `4 open / 4 total`.
-      - Update `crates/app-cli/tests/cli.rs` with the split argv assertion.
+      - Update `crates/cli/tests/cli.rs` with the split argv assertion.
       """,
       verify: "cargo test --workspace"
     )
@@ -351,7 +351,7 @@ struct PlanTransitionValidatorTests {
     let testOnly = planState(
       """
       ## Outcome
-      Add regression coverage in `crates/app-cli/tests/cli.rs` for the existing CLI split argv behavior.
+      Add regression coverage in `crates/cli/tests/cli.rs` for the existing CLI split argv behavior.
 
       ## Acceptance checks
       - The CLI test runs with `["--format", "json", "Ship", "it"]` and asserts the parsed title is `Ship it`.

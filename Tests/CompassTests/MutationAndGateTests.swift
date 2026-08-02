@@ -9,10 +9,10 @@ struct MutationReportParserTests {
   func parsesTallyAndMissedSection() {
     let output = """
       info: Running 1 job
-      crates/app-core/src/lib.rs:12: replace add -> i64 with 0 ... caught in 1.2s build + 0.3s test
-      crates/app-core/src/lib.rs:18: replace is_empty -> bool with true ... missed in 0.8s build + 0.2s test
+      crates/core/src/lib.rs:12: replace add -> i64 with 0 ... caught in 1.2s build + 0.3s test
+      crates/core/src/lib.rs:18: replace is_empty -> bool with true ... missed in 0.8s build + 0.2s test
       Missed mutants:
-      crates/app-core/src/lib.rs:18: replace is_empty -> bool with true
+      crates/core/src/lib.rs:18: replace is_empty -> bool with true
       2 mutants tested in 3.1s: 1 caught, 1 missed
       """
 
@@ -45,10 +45,10 @@ struct MutationReportParserTests {
   @Test
   func parsesRealCargoMutantsPrefixedOutput() {
     let output = """
-      MISSED   crates/app-cli/src/main.rs:214:42: replace - with / in today in 0s build + 0s test
-      MISSED   crates/app-cli/src/main.rs:214:32: replace + with - in today in 0s build + 0s test
-      CAUGHT   crates/app-core/src/lib.rs:18:5: replace is_empty -> bool with true in 1.0s build + 0.2s test
-      NOT CAUGHT   crates/app-core/src/lib.rs:44:20: replace match guard !p.is_empty() with true in load in 0s build + 0s test
+      MISSED   crates/cli/src/main.rs:214:42: replace - with / in today in 0s build + 0s test
+      MISSED   crates/cli/src/main.rs:214:32: replace + with - in today in 0s build + 0s test
+      CAUGHT   crates/core/src/lib.rs:18:5: replace is_empty -> bool with true in 1.0s build + 0.2s test
+      NOT CAUGHT   crates/core/src/lib.rs:44:20: replace match guard !p.is_empty() with true in load in 0s build + 0s test
       148 mutants tested in 42s: 72 caught, 76 missed
       """
 
@@ -58,8 +58,8 @@ struct MutationReportParserTests {
     #expect(snapshot.caught == 72)
     #expect(snapshot.missed == 76)
     #expect(snapshot.missedMutants.count == 3)
-    #expect(snapshot.missedMutants[0] == "crates/app-cli/src/main.rs:214:42: replace - with / in today")
-    #expect(snapshot.missedMutants[2] == "crates/app-core/src/lib.rs:44:20: replace match guard !p.is_empty() with true in load")
+    #expect(snapshot.missedMutants[0] == "crates/cli/src/main.rs:214:42: replace - with / in today")
+    #expect(snapshot.missedMutants[2] == "crates/core/src/lib.rs:44:20: replace match guard !p.is_empty() with true in load")
   }
 
   @Test
@@ -76,14 +76,14 @@ struct MutationReportParserTests {
   func scopesCommandToChangedRustSources() {
     let command = GeneratedProjectQuality.mutationTestCommand(
       forChangedFiles: [
-        "crates/app-core/src/lib.rs",
-        "crates/app-core/tests/lib.rs",
+        "crates/core/src/lib.rs",
+        "crates/core/tests/lib.rs",
         "README.md",
-        "crates/app-cli/src/main.rs",
+        "crates/cli/src/main.rs",
       ])
 
-    #expect(command.contains("-f 'crates/app-core/src/lib.rs'"))
-    #expect(command.contains("-f 'crates/app-cli/src/main.rs'"))
+    #expect(command.contains("-f 'crates/core/src/lib.rs'"))
+    #expect(command.contains("-f 'crates/cli/src/main.rs'"))
     #expect(!command.contains("tests/lib.rs"))
     #expect(!command.contains("README.md"))
     #expect(command.hasPrefix(GeneratedProjectQuality.mutationTestCommand))

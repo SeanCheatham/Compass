@@ -1806,8 +1806,8 @@ public struct AgentEditFileTool: AgentTool {
     """
     \(detail)
     edit_file requires path plus startLine, endLine, and replacement lines. Read the target file first, then use the returned line numbers.
-    Example replace: {"path":"crates/app-cli/src/main.rs","startLine":4,"endLine":6,"replacementLines":["new line"]}
-    Example insert after line 6: {"path":"crates/app-cli/src/main.rs","startLine":7,"endLine":6,"insert":["new line"]}
+    Example replace: {"path":"crates/cli/src/main.rs","startLine":4,"endLine":6,"replacementLines":["new line"]}
+    Example insert after line 6: {"path":"crates/cli/src/main.rs","startLine":7,"endLine":6,"insert":["new line"]}
     Use write_file instead only when creating a new file.
     """
   }

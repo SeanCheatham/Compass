@@ -16,12 +16,14 @@ struct FactoryPivotTests {
     #expect(state.immediate == nil)
     #expect(state.completed.isEmpty)
     #expect(state.openQuestions.isEmpty)
+    #expect(state.products == GeneratedProducts.default)
 
     let data = try JSONEncoder().encode(state)
     let json = String(decoding: data, as: UTF8.self)
     #expect(json.contains("\"brief\""))
     #expect(json.contains("\"queue\""))
     #expect(json.contains("\"immediate\""))
+    #expect(json.contains("\"products\""))
     #expect(!json.contains("\"strategicContext\""))
     #expect(!json.contains("\"candidates\""))
   }
@@ -280,11 +282,11 @@ struct FactoryPivotTests {
     let next = PlanNext(
       plan: """
         ## Outcome
-        Implement `--streak` in `crates/app-cli/src/main.rs` with a core helper.
+        Implement `--streak` in `crates/cli/src/main.rs` with a core helper.
 
         ## Acceptance checks
-        - `crates/app-core/src/lib.rs` covers the streak helper.
-        - `crates/app-cli/tests/cli.rs` calls `main(["--streak", "done", "done"])`.
+        - `crates/core/src/lib.rs` covers the streak helper.
+        - `crates/cli/tests/cli.rs` calls `main(["--streak", "done", "done"])`.
         """,
       verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
@@ -299,10 +301,10 @@ struct FactoryPivotTests {
     )
 
     #expect(prompt.contains("Inspect the files implied by the Outcome and Acceptance checks"))
-    #expect(prompt.contains("crates/app-cli/src/main.rs"))
-    #expect(prompt.contains("crates/app-cli/tests/cli.rs"))
-    #expect(prompt.contains("crates/app-core/src/lib.rs"))
-    #expect(prompt.contains("crates/app-core/src/lib.rs"))
+    #expect(prompt.contains("crates/cli/src/main.rs"))
+    #expect(prompt.contains("crates/cli/tests/cli.rs"))
+    #expect(prompt.contains("crates/core/src/lib.rs"))
+    #expect(prompt.contains("crates/core/src/lib.rs"))
     #expect(prompt.contains("source-only edit"))
   }
 
@@ -314,7 +316,7 @@ struct FactoryPivotTests {
         Add signal board formatting
 
         ## Acceptance checks
-        - `crates/app-cli/tests/cli.rs` calls `main(["--signal", "api:green"])`.
+        - `crates/cli/tests/cli.rs` calls `main(["--signal", "api:green"])`.
         """,
       verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
@@ -330,7 +332,7 @@ struct FactoryPivotTests {
         Verify passed for `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`, but coverage shows changed source files were not exercised.
 
         Suggested test targets:
-        - `crates/app-core/tests/signal_board.rs` (write_file) should import and execute `crates/app-core/src/signal_board.rs`.
+        - `crates/core/tests/signal_board.rs` (write_file) should import and execute `crates/core/src/signal_board.rs`.
         """
       ]
     )
@@ -341,7 +343,7 @@ struct FactoryPivotTests {
         || prompt.contains("Do not start a retry by rereading Cargo.toml")
     )
     #expect(prompt.contains("Do not submit success or rerun verify until you have changed a file"))
-    #expect(prompt.contains("crates/app-core/tests/signal_board.rs"))
+    #expect(prompt.contains("crates/core/tests/signal_board.rs"))
   }
 
   @Test
@@ -352,7 +354,7 @@ struct FactoryPivotTests {
         Add JSON output support to the CLI.
 
         ## Acceptance checks
-        - `crates/app-cli/tests/cli.rs` calls `main(["--format", "json", "Ship", "it"])`.
+        - `crates/cli/tests/cli.rs` calls `main(["--format", "json", "Ship", "it"])`.
         """,
       verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
@@ -368,7 +370,7 @@ struct FactoryPivotTests {
         Verify passed for `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`, but the accepted plan or brief explicitly requires test changes and no test/spec file changed.
 
         Requested test file(s):
-        - `crates/app-cli/tests/cli.rs`
+        - `crates/cli/tests/cli.rs`
         """
       ]
     )
@@ -376,7 +378,7 @@ struct FactoryPivotTests {
     #expect(prompt.contains("If the prior issue lists Requested test file(s)"))
     #expect(prompt.contains("make your first write/edit target"))
     #expect(prompt.contains("Do not edit source files again until that requested test"))
-    #expect(prompt.contains("crates/app-cli/tests/cli.rs"))
+    #expect(prompt.contains("crates/cli/tests/cli.rs"))
   }
 
   @Test
@@ -388,18 +390,48 @@ struct FactoryPivotTests {
 
     #expect(byPath.keys.contains("Cargo.toml"))
     #expect(byPath.keys.contains("rust-toolchain.toml"))
-    #expect(byPath.keys.contains("crates/app-core/Cargo.toml"))
-    #expect(byPath.keys.contains("crates/app-cli/Cargo.toml"))
-    #expect(byPath.keys.contains("crates/app-core/src/lib.rs"))
-    #expect(byPath.keys.contains("crates/app-cli/src/main.rs"))
-    #expect(byPath.keys.contains("crates/app-cli/tests/cli.rs"))
+    #expect(byPath.keys.contains("crates/core/Cargo.toml"))
+    #expect(byPath.keys.contains("crates/cli/Cargo.toml"))
+    #expect(byPath.keys.contains("crates/core/src/lib.rs"))
+    #expect(byPath.keys.contains("crates/cli/src/main.rs"))
+    #expect(byPath.keys.contains("crates/cli/tests/cli.rs"))
+    #expect(byPath.keys.contains("crates/ffi/Cargo.toml"))
+    #expect(byPath.keys.contains("apps/macos/Package.swift"))
+    #expect(byPath.keys.contains("scripts/verify-macos.sh"))
 
     let workspace = try #require(byPath["Cargo.toml"])
-    #expect(workspace.contains("crates/app-core"))
-    #expect(workspace.contains("crates/app-cli"))
+    #expect(workspace.contains("crates/core"))
+    #expect(workspace.contains("crates/cli"))
+    #expect(workspace.contains("crates/ffi"))
 
     let readme = try #require(byPath["README.md"])
     #expect(readme.contains("cargo llvm-cov"))
+    #expect(readme.contains("verify-macos"))
+  }
+
+  @Test
+  func rustScaffoldCliOnlyOmitsMacOS() throws {
+    let files = RustProjectScaffold.files(
+      options: .init(projectName: "CLI Only", products: [.cli])
+    )
+    let paths = Set(files.map(\.path))
+    #expect(paths.contains("crates/core/Cargo.toml"))
+    #expect(paths.contains("crates/cli/Cargo.toml"))
+    #expect(!paths.contains("crates/ffi/Cargo.toml"))
+    #expect(!paths.contains("apps/macos/Package.swift"))
+    #expect(!paths.contains("scripts/verify-macos.sh"))
+  }
+
+  @Test
+  func rustScaffoldMacOSOnlyOmitsCLI() throws {
+    let files = RustProjectScaffold.files(
+      options: .init(projectName: "Mac Only", products: [.macos])
+    )
+    let paths = Set(files.map(\.path))
+    #expect(paths.contains("crates/core/Cargo.toml"))
+    #expect(paths.contains("crates/ffi/Cargo.toml"))
+    #expect(paths.contains("apps/macos/Package.swift"))
+    #expect(!paths.contains("crates/cli/Cargo.toml"))
   }
 
   @Test
@@ -412,7 +444,10 @@ struct FactoryPivotTests {
       attributes: nil
     )
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try RustProjectScaffold.write(to: tempURL, options: .init(projectName: "Detected App"))
+    try RustProjectScaffold.write(
+      to: tempURL,
+      options: .init(projectName: "Detected App", products: [.cli])
+    )
 
     #expect(RustProjectScaffold.isGeneratedWorkspace(at: tempURL))
     #expect(RepositoryManifestHint.cargoToml.language == .rust)
@@ -467,7 +502,7 @@ struct FactoryPivotTests {
 
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not resubmit the same Acceptance checks unchanged"))
-    #expect(nudge.userMessage.contains("crates/app-cli/tests/cli.rs"))
+    #expect(nudge.userMessage.contains("crates/cli/tests/cli.rs"))
     #expect(
       nudge.userMessage.contains(
         #"["--signal", "api:green", "--signal", "db:red"]"#
@@ -503,7 +538,7 @@ struct FactoryPivotTests {
     let error = PlanTransitionValidationError(
       message: """
         Plan named file paths that do not exist in the repo:
-        - crates/app-cli/test/cli.rs (nearest existing directory: packages/cli; entries: package.json, src/, tsconfig.json; same filename exists at: crates/app-cli/tests/cli.rs)
+        - crates/cli/test/cli.rs (nearest existing directory: packages/cli; entries: package.json, src/, tsconfig.json; same filename exists at: crates/cli/tests/cli.rs)
 
         Repair the handoff without calling another tool.
         """,
@@ -515,7 +550,7 @@ struct FactoryPivotTests {
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
     #expect(nudge.userMessage.contains("same-filename match"))
-    #expect(nudge.userMessage.contains("crates/app-cli/tests/cli.rs"))
+    #expect(nudge.userMessage.contains("crates/cli/tests/cli.rs"))
     #expect(nudge.userMessage.contains("create new file <path>"))
   }
 
@@ -625,7 +660,7 @@ struct FactoryPivotTests {
       message: """
         Plan selected generic `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
 
-        `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `crates/app-cli/tests/cli.rs`.
+        `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `crates/cli/tests/cli.rs`.
         """,
       reason: .weakVerifyCoverage,
       rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
@@ -635,7 +670,7 @@ struct FactoryPivotTests {
 
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
-    #expect(nudge.userMessage.contains("crates/app-cli/tests/cli.rs"))
+    #expect(nudge.userMessage.contains("crates/cli/tests/cli.rs"))
     #expect(nudge.userMessage.contains(#"["--format", "json", "Ship", "it"]"#))
     #expect(nudge.userMessage.contains("parsed JSON title is `Ship it`"))
     #expect(nudge.userMessage.contains("Keep `state.immediate.verify` as `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`"))
@@ -853,7 +888,7 @@ struct FactoryPivotTests {
           "kind": "develop_continue",
           "tool": "edit_file",
           "arguments": {
-            "path": "crates/app-cli/src/main.rs",
+            "path": "crates/cli/src/main.rs",
             "startLine": 1,
             "endLine": 1,
             "content": `const one = 1;
@@ -1159,9 +1194,9 @@ struct FactoryPivotTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let readSource =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/src/main.rs"},"reason":"Need current CLI logic before editing."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/src/main.rs"},"reason":"Need current CLI logic before editing."}"#
     let readTest =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/tests/cli.rs"},"reason":"Need current tests before editing."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/tests/cli.rs"},"reason":"Need current tests before editing."}"#
     let runtime = FakeLocalModelRuntime(outputs: [
       readSource,
       readTest,
@@ -1191,7 +1226,7 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Do not keep calling\n`read_file`")
       || prompts[3].contains("Do not keep calling `read_file`"))
     #expect(prompts[3].contains("Call `edit_file` or `write_file`"))
-    #expect(prompts[3].contains(#""path":"crates/app-cli/src/main.rs""#))
+    #expect(prompts[3].contains(#""path":"crates/cli/src/main.rs""#))
   }
 
   @Test
@@ -1831,7 +1866,7 @@ struct FactoryPivotTests {
         "kind": "develop_continue",
         "tool": "edit_file",
         "arguments": {
-          "path": "crates/app-cli/src/main.rs",
+          "path": "crates/cli/src/main.rs",
           "startLine": 4,
           "endLine": 15,
           "content": `export function main() {
@@ -1885,7 +1920,7 @@ struct FactoryPivotTests {
         "kind": "develop_continue",
         "tool": "edit_file",
         "arguments": {
-          "path": "crates/app-cli/src/main.rs",
+          "path": "crates/cli/src/main.rs",
           "startLine": 4,
           "endLine": 15,
           "content": `export function main() {

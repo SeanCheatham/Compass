@@ -39,8 +39,14 @@ public enum CompassCLI {
         let ok = await runner.doctor(repoURL: repo, checkCloud: checkCloud, onEvent: emit)
         return ok ? 0 : 1
 
-      case .scaffoldRust(let path, let name, _):
-        try runner.scaffoldRust(at: path, name: name, initializeGit: true, onEvent: emit)
+      case .scaffoldRust(let path, let name, let products, _):
+        try runner.scaffoldRust(
+          at: path,
+          name: name,
+          products: products,
+          initializeGit: true,
+          onEvent: emit
+        )
         return 0
 
       case .verify(let repo, let verifyCommand, _):
@@ -123,7 +129,8 @@ public enum CompassCLIOutputFormat: String, Equatable {
 public enum CompassCLICommand: Equatable {
   case help(format: CompassCLIOutputFormat)
   case doctor(repo: URL, checkCloud: Bool, format: CompassCLIOutputFormat)
-  case scaffoldRust(path: URL, name: String?, format: CompassCLIOutputFormat)
+  case scaffoldRust(
+    path: URL, name: String?, products: [GeneratedProduct], format: CompassCLIOutputFormat)
   case run(options: HeadlessRunOptions, format: CompassCLIOutputFormat)
   case replay(
     repo: URL,
@@ -140,7 +147,7 @@ public enum CompassCLICommand: Equatable {
     switch self {
     case .help(let format),
       .doctor(_, _, let format),
-      .scaffoldRust(_, _, let format),
+      .scaffoldRust(_, _, _, let format),
       .run(_, let format),
       .replay(_, _, _, _, _, _, let format),
       .verify(_, _, let format):
@@ -172,9 +179,14 @@ public enum CompassCLICommand: Equatable {
       }
       let path = try parser.requirePositionalURL("path")
       let name = try parser.optionalValue("--name")
+      let productValues = try parser.consumeAllValues("--product")
+      let products =
+        productValues.isEmpty
+        ? GeneratedProducts.default
+        : try GeneratedProducts.parse(productValues)
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
-      return .scaffoldRust(path: path, name: name, format: format)
+      return .scaffoldRust(path: path, name: name, products: products, format: format)
 
     case "run":
       let repo = try parser.requireURLOption("--repo")
@@ -289,6 +301,14 @@ public struct CompassCLIParser {
     arguments.remove(at: valueIndex)
     arguments.remove(at: index)
     return value
+  }
+
+  public mutating func consumeAllValues(_ name: String) throws -> [String] {
+    var values: [String] = []
+    while let value = try optionalValue(name) {
+      values.append(value)
+    }
+    return values
   }
 
   public mutating func requireURLOption(_ name: String) throws -> URL {
@@ -429,7 +449,7 @@ public extension CompassCLI {
     Usage:
       compass-cli help [--format json|text]
       compass-cli doctor --repo <path> [--check-cloud] [--format json|text]
-      compass-cli scaffold rust <path> [--name <name>] [--format json|text]
+      compass-cli scaffold rust <path> [--name <name>] [--product cli|macos]... [--format json|text]
       compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--commit] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]

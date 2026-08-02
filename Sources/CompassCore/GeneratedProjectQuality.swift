@@ -1,6 +1,6 @@
 import Foundation
 
-/// Hardcoded quality conventions for Compass-generated Rust Cargo workspaces.
+/// Hardcoded quality conventions for Compass-generated projects.
 ///
 /// Mutation testing (`mutationTestCommand`) runs post-verify, scoped to the Rust
 /// files changed in the current iteration; results persist as a `MutationSnapshot`
@@ -14,21 +14,55 @@ public enum GeneratedProjectQuality {
   /// Post-verify mutation gate, scoped per iteration via `mutationTestCommand(forChangedFiles:)`.
   public static let mutationTestCommand = "cargo mutants --no-shuffle -j 1"
 
+  /// Temporary host-side macOS gate (stand-in for a future macOS VM runner).
+  public static let macosVerifyCommand = "bash scripts/verify-macos.sh"
+
   public static let coverageRequirementHint =
     "use `\(standardVerifyCommand)` for standard checks, or `cargo llvm-cov --workspace` / `cargo test --workspace` for test-focused slices. Documentation-only README/docs slices may use a simple `grep -q` content check."
 
   public static let planningGuidance = """
-    Generated Compass projects are Rust Cargo workspaces:
-    - Layout: root `Cargo.toml` workspace plus `crates/app-core` and `crates/app-cli`.
-    - No web or desktop UI packages — backend/CLI only.
-    - Prefer `cargo fmt`, Clippy (`-D warnings`), and `cargo test` for verification.
-    - Standard verify is `\(standardVerifyCommand)`.
+    Generated Compass projects require Rust `crates/core` plus at least one product:
+    - `cli` → `crates/cli` (Cargo binary over core)
+    - `macos` → `crates/ffi` (UniFFI) + `apps/macos` (thin SwiftUI shell)
+    - Domain logic lives only in `crates/core`. CLI and macOS are adapters.
+    - Prefer `cargo fmt`, Clippy (`-D warnings`), and `cargo test` for Rust verification.
+    - Standard Rust verify is `\(standardVerifyCommand)`.
+    - When the `macos` product is enabled, also run `\(macosVerifyCommand)` on the Mac host
+      (temporary; will move to a macOS VM later). Do not expect Xcode inside the Linux container.
     - Coverage is collected after verify with `\(coverageCollectCommand)`.
-    - Mutation testing runs post-verify scoped to changed files; surviving
+    - Mutation testing runs post-verify scoped to changed Rust files; surviving
       mutants indicate weak tests and should drive test-strengthening work.
     - Documentation-only README/docs slices may use a simple `grep -q` content
       check against the edited Markdown/text file instead of cargo.
     """
+
+  public static func planningGuidance(products: [GeneratedProduct]) -> String {
+    let normalized = GeneratedProducts.normalize(products)
+    let summary = GeneratedProducts.summary(normalized)
+    var lines = """
+      Generated Compass project products: `\(summary)` (required `crates/core` always present).
+      - Domain logic lives only in `crates/core`. Product crates/apps are adapters.
+      """
+    if GeneratedProducts.contains(normalized, .cli) {
+      lines += """
+        - CLI product: `crates/cli` (binary + `crates/cli/tests`).
+        """
+    }
+    if GeneratedProducts.contains(normalized, .macos) {
+      lines += """
+        - macOS product: `crates/ffi` (UniFFI over core) + `apps/macos` (SwiftUI only).
+        - macOS verify (host today / VM later): `\(macosVerifyCommand)`.
+        """
+    }
+    lines += """
+      - Prefer `cargo fmt`, Clippy (`-D warnings`), and `cargo test` for Rust verification.
+      - Standard Rust verify is `\(standardVerifyCommand)`.
+      - Coverage is collected after verify with `\(coverageCollectCommand)`.
+      - Mutation testing runs post-verify scoped to changed Rust files.
+      - Documentation-only README/docs slices may use a simple `grep -q` content check.
+      """
+    return lines
+  }
 
   public static func isCompileOnlyVerify(_ verify: String) -> Bool {
     let normalized = verify.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

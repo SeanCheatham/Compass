@@ -38,14 +38,23 @@ struct CompassCLITests {
       }
     }
 
-    if case .scaffoldRust(let path, let name, let format) = try CompassCLICommand.parse([
+    if case .scaffoldRust(let path, let name, let products, let format) = try CompassCLICommand.parse([
       "scaffold", "rust", "/tmp/new-project", "--name", "new-project",
     ]) {
       #expect(path.path == "/tmp/new-project")
       #expect(name == "new-project")
+      #expect(products == GeneratedProducts.default)
       #expect(format == .json)
     } else {
       Issue.record("Expected scaffold command.")
+    }
+
+    if case .scaffoldRust(_, _, let products, _) = try CompassCLICommand.parse([
+      "scaffold", "rust", "/tmp/cli-only", "--product", "cli",
+    ]) {
+      #expect(products == [.cli])
+    } else {
+      Issue.record("Expected scaffold with --product cli.")
     }
 
     if case .run(let options, let format) = try CompassCLICommand.parse([
@@ -350,7 +359,7 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "fixture.jsonl")
     try fixtureJSONL.write(to: fixtureURL, atomically: true, encoding: .utf8)
@@ -390,7 +399,7 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-multi-session-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-multi-session-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "multi-session-fixture.jsonl")
     try fixtureJSONL.write(to: fixtureURL, atomically: true, encoding: .utf8)
@@ -429,7 +438,7 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-retry-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-retry-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "retry-fixture.jsonl")
     try writeFixture(retryFixtureOutputs, to: fixtureURL)
@@ -472,7 +481,7 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       RustToolchainBootstrapFailureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-bootstrap-failure-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-bootstrap-failure-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "package-bootstrap-develop-fixture.jsonl")
     try writeFixture(packageBootstrapDevelopFailureFixtureOutputs, to: fixtureURL)
@@ -512,7 +521,7 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       RustToolchainBootstrapFailureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-bootstrap-verify-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-bootstrap-verify-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "package-bootstrap-verify-fixture.jsonl")
     try writeFixture(packageBootstrapVerifyFailureFixtureOutputs, to: fixtureURL)
@@ -552,7 +561,7 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-no-change-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-no-change-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "no-change-fixture.jsonl")
     try writeFixture(noChangeRetryFixtureOutputs, to: fixtureURL)
@@ -595,7 +604,7 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-verify-repair-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-verify-repair-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "verify-repair-fixture.jsonl")
     try writeFixture(verifyRepairFixtureOutputs, to: fixtureURL)
@@ -648,7 +657,7 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-coverage-gap-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-coverage-gap-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "coverage-gap-fixture.jsonl")
@@ -671,7 +680,7 @@ struct CompassCLITests {
     #expect(ok)
     #expect(
       FileManager.default.fileExists(
-        atPath: tempURL.appending(path: "crates/app-cli/tests/summarize.rs").path))
+        atPath: tempURL.appending(path: "crates/cli/tests/summarize.rs").path))
     let snapshot = events.snapshot()
     #expect(
       snapshot.contains {
@@ -687,11 +696,11 @@ struct CompassCLITests {
     #expect(coverageRetry?.detail?.contains("Suggested test targets") == true)
     #expect(
       coverageRetry?.detail?.contains(
-        "`crates/app-cli/tests/summarize.rs` (write_file)"
+        "`crates/cli/tests/summarize.rs` (write_file)"
       ) == true)
     #expect(
       coverageRetry?.detail?.contains(
-        "`crates/app-cli/tests/cli.rs` (read_file then edit_file)"
+        "`crates/cli/tests/cli.rs` (read_file then edit_file)"
       ) == true)
     #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
   }
@@ -711,7 +720,7 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-required-tests-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-required-tests-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "required-tests-fixture.jsonl")
@@ -720,7 +729,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a CLI --format json flag and update crates/app-cli/tests/cli.rs",
+        brief: "Add a CLI --format json flag and update crates/cli/tests/cli.rs",
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -733,7 +742,7 @@ struct CompassCLITests {
 
     #expect(ok)
     let mainTest = try String(
-      contentsOf: tempURL.appending(path: "crates/app-cli/tests/cli.rs"),
+      contentsOf: tempURL.appending(path: "crates/cli/tests/cli.rs"),
       encoding: .utf8
     )
     #expect(mainTest.contains("prints JSON output"))
@@ -742,8 +751,8 @@ struct CompassCLITests {
       $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "missing_required_tests"
     }
     #expect(requiredTestRetry?.detail?.contains("explicitly requires test changes") == true)
-    #expect(requiredTestRetry?.detail?.contains("crates/app-cli/tests/cli.rs") == true)
-    #expect(requiredTestRetry?.detail?.contains("crates/app-cli/src/main.rs") == true)
+    #expect(requiredTestRetry?.detail?.contains("crates/cli/tests/cli.rs") == true)
+    #expect(requiredTestRetry?.detail?.contains("crates/cli/src/main.rs") == true)
     #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
   }
 
@@ -761,7 +770,7 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-flag-split-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-flag-split-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "weak-cli-flag-fixture.jsonl")
@@ -770,7 +779,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a CLI --format json flag and update crates/app-cli/tests/cli.rs",
+        brief: "Add a CLI --format json flag and update crates/cli/tests/cli.rs",
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -783,7 +792,7 @@ struct CompassCLITests {
 
     #expect(ok)
     let mainTest = try String(
-      contentsOf: tempURL.appending(path: "crates/app-cli/tests/cli.rs"),
+      contentsOf: tempURL.appending(path: "crates/cli/tests/cli.rs"),
       encoding: .utf8
     )
     #expect(mainTest.contains(#"cli_args(["--format", "json", "Ship", "it"])"#))
@@ -793,7 +802,7 @@ struct CompassCLITests {
     }
     #expect(flagRetry?.detail?.contains("real argv splitting") == true)
     #expect(flagRetry?.detail?.contains(#"["--format", "json", "Ship", "it"]"#) == true)
-    #expect(flagRetry?.detail?.contains("crates/app-cli/tests/cli.rs") == true)
+    #expect(flagRetry?.detail?.contains("crates/cli/tests/cli.rs") == true)
     #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
   }
 
@@ -811,7 +820,7 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "missing-entry-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "missing-entry-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "missing-entry-fixture.jsonl")
@@ -833,7 +842,7 @@ struct CompassCLITests {
 
     #expect(ok)
     let cliPackage = try String(
-      contentsOf: tempURL.appending(path: "crates/app-cli/Cargo.toml"),
+      contentsOf: tempURL.appending(path: "crates/cli/Cargo.toml"),
       encoding: .utf8
     )
     #expect(cliPackage.contains(#"path = "src/main.rs""#))
@@ -842,8 +851,8 @@ struct CompassCLITests {
       $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "missing_package_entry"
     }
     #expect(entryRetry?.detail?.contains("package entry points") == true)
-    #expect(entryRetry?.detail?.contains("crates/app-cli/Cargo.toml") == true)
-    #expect(entryRetry?.detail?.contains("crates/app-cli/src/missing_entry.rs") == true)
+    #expect(entryRetry?.detail?.contains("crates/cli/Cargo.toml") == true)
+    #expect(entryRetry?.detail?.contains("crates/cli/src/missing_entry.rs") == true)
     #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
   }
 
@@ -861,7 +870,7 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "metadata-only-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "metadata-only-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "metadata-only-fixture.jsonl")
@@ -883,7 +892,7 @@ struct CompassCLITests {
 
     #expect(ok)
     let main = try String(
-      contentsOf: tempURL.appending(path: "crates/app-cli/src/main.rs"),
+      contentsOf: tempURL.appending(path: "crates/cli/src/main.rs"),
       encoding: .utf8
     )
     #expect(main.contains("weekly momentum"))
@@ -892,7 +901,7 @@ struct CompassCLITests {
       $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "metadata_only_implementation"
     }
     #expect(metadataRetry?.detail?.contains("changed only package metadata") == true)
-    #expect(metadataRetry?.detail?.contains("crates/app-cli/Cargo.toml") == true)
+    #expect(metadataRetry?.detail?.contains("crates/cli/Cargo.toml") == true)
     #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
   }
 
@@ -907,7 +916,7 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-budget-fixture", onEvent: record)
+    try runner.scaffoldRust(at: tempURL, name: "cli-budget-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "budget-fixture.jsonl")
     try writeFixture(budgetExhaustionFixtureOutputs, to: fixtureURL)
@@ -1249,16 +1258,16 @@ private let verifyRepairFixtureOutputs = [
 
 private let coverageGapFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nCreate new file `crates/app-cli/src/summarize.rs` with a `summarize_cli` helper and create new file `crates/app-cli/tests/summarize.rs` to cover it.\\n\\n## Acceptance checks\\n- Create new file `crates/app-cli/tests/summarize.rs` that exercises `summarize_cli`.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes with coverage for `summarize.rs`.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when changed source has 0% coverage.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise coverage-gap retry after a green verify.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Changed source with 0% coverage triggers another Develop pass."],"constraints":["Use cargo test coverage output."],"acceptanceSignals":["summarize.rs is covered by summarize.rs."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nCreate new file `crates/cli/src/summarize.rs` with a `summarize_cli` helper and create new file `crates/cli/tests/summarize.rs` to cover it.\\n\\n## Acceptance checks\\n- Create new file `crates/cli/tests/summarize.rs` that exercises `summarize_cli`.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes with coverage for `summarize.rs`.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when changed source has 0% coverage.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise coverage-gap retry after a green verify.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Changed source with 0% coverage triggers another Develop pass."],"constraints":["Use cargo test coverage output."],"acceptanceSignals":["summarize.rs is covered by summarize.rs."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"write_file","arguments":{"path":"crates/app-cli/src/summarize.rs","content":"pub fn summarize_cli() -> String {\\n    \\"Done: 0, Pending: 0\\".to_string()\\n}\\n"},"reason":"Create the new helper, intentionally without its test so coverage catches the gap."}
+  {"kind":"develop_continue","tool":"write_file","arguments":{"path":"crates/cli/src/summarize.rs","content":"pub fn summarize_cli() -> String {\\n    \\"Done: 0, Pending: 0\\".to_string()\\n}\\n"},"reason":"Create the new helper, intentionally without its test so coverage catches the gap."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added crates/app-cli/src/summarize.rs with summarize_cli.","feedback":"summarize.rs was added with summarize_cli.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added crates/cli/src/summarize.rs with summarize_cli.","feedback":"summarize.rs was added with summarize_cli.","bypassVerify":false,"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"write_file","arguments":{"path":"crates/app-cli/tests/summarize.rs","content":"#[test]\\nfn summarize_cli_reports_done_and_pending_counts() {\\n    let summary = format!(\\"Done: {}, Pending: {}\\", 0, 0);\\n    assert_eq!(summary, \\"Done: 0, Pending: 0\\");\\n}\\n"},"reason":"Add the missing test that exercises summarize_cli."}
+  {"kind":"develop_continue","tool":"write_file","arguments":{"path":"crates/cli/tests/summarize.rs","content":"#[test]\\nfn summarize_cli_reports_done_and_pending_counts() {\\n    let summary = format!(\\"Done: {}, Pending: {}\\", 0, 0);\\n    assert_eq!(summary, \\"Done: 0, Pending: 0\\");\\n}\\n"},"reason":"Add the missing test that exercises summarize_cli."}
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added summarize.rs so summarize_cli is executed by cargo test.","feedback":"summarize.rs exercises summarize_cli.","bypassVerify":false,"lessonEdits":[]}}
@@ -1267,121 +1276,121 @@ private let coverageGapFixtureOutputs = [
 
 private let requiredTestsFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `crates/app-cli/src/main.rs` to support `--format json` and update `crates/app-cli/tests/cli.rs` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `crates/app-cli/tests/cli.rs` covers default text output, JSON output, and a title containing multiple words.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when explicit test-file acceptance work is skipped.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["crates/app-cli/tests/cli.rs covers JSON output."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `crates/cli/src/main.rs` to support `--format json` and update `crates/cli/tests/cli.rs` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `crates/cli/tests/cli.rs` covers default text output, JSON output, and a title containing multiple words.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when explicit test-file acceptance work is skipped.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["crates/cli/tests/cli.rs covers JSON output."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/src/main.rs"},"reason":"Need current line numbers before editing the existing CLI entrypoint."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/src/main.rs"},"reason":"Need current line numbers before editing the existing CLI entrypoint."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/src/main.rs","startLine":1,"endLine":15,"content":"use app_core::greeting;\\n\\nfn main() {\\n    let args: Vec<String> = std::env::args().skip(1).collect();\\n    let format_requested = args.iter().any(|arg| arg == \\"--format\\")\\n        && args.iter().any(|arg| arg == \\"json\\");\\n    let title: Vec<String> = args\\n        .iter()\\n        .filter(|arg| arg.as_str() != \\"--format\\" && arg.as_str() != \\"json\\")\\n        .cloned()\\n        .collect();\\n    let title = if title.is_empty() {\\n        \\"First Compass task\\".to_string()\\n    } else {\\n        title.join(\\" \\")\\n    };\\n    if format_requested {\\n        println!(\\"json title {title}\\");\\n    } else {\\n        println!(\\"{}\\", greeting(&title));\\n    }\\n}"},"reason":"Add the new flag parsing in the existing CLI entrypoint."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/src/main.rs","startLine":1,"endLine":15,"content":"use app_core::greeting;\\n\\nfn main() {\\n    let args: Vec<String> = std::env::args().skip(1).collect();\\n    let format_requested = args.iter().any(|arg| arg == \\"--format\\")\\n        && args.iter().any(|arg| arg == \\"json\\");\\n    let title: Vec<String> = args\\n        .iter()\\n        .filter(|arg| arg.as_str() != \\"--format\\" && arg.as_str() != \\"json\\")\\n        .cloned()\\n        .collect();\\n    let title = if title.is_empty() {\\n        \\"First Compass task\\".to_string()\\n    } else {\\n        title.join(\\" \\")\\n    };\\n    if format_requested {\\n        println!(\\"json title {title}\\");\\n    } else {\\n        println!(\\"{}\\", greeting(&title));\\n    }\\n}"},"reason":"Add the new flag parsing in the existing CLI entrypoint."}
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added --format json support to the CLI entrypoint.","feedback":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace can pass for the CLI change.","bypassVerify":false,"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/tests/cli.rs"},"reason":"Need current line numbers before adding the required CLI assertions."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/tests/cli.rs"},"reason":"Need current line numbers before adding the required CLI assertions."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/tests/cli.rs","startLine":1,"endLine":12,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn status_prints_greeting() {\\n    assert!(cli_args(&[\\"status\\"]).contains(\\"hello, world\\"));\\n}\\n\\n// Covers: prints JSON output for a multi-word title.\\n#[test]\\nfn prints_json_output_for_multi_word_title() {\\n    assert!(cli_args(&[\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]).contains(\\"Ship it\\"));\\n}"},"reason":"Add the missing CLI-facing tests required by the plan."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/tests/cli.rs","startLine":1,"endLine":12,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn status_prints_greeting() {\\n    assert!(cli_args(&[\\"status\\"]).contains(\\"hello, world\\"));\\n}\\n\\n// Covers: prints JSON output for a multi-word title.\\n#[test]\\nfn prints_json_output_for_multi_word_title() {\\n    assert!(cli_args(&[\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]).contains(\\"Ship it\\"));\\n}"},"reason":"Add the missing CLI-facing tests required by the plan."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated cli.rs with the required CLI assertions.","feedback":"crates/app-cli/tests/cli.rs covers default and JSON CLI output; cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated cli.rs with the required CLI assertions.","feedback":"crates/cli/tests/cli.rs covers default and JSON CLI output; cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
 private let weakCLIFlagTestFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `crates/app-cli/src/main.rs` to support `--format json` and update `crates/app-cli/tests/cli.rs` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `crates/app-cli/tests/cli.rs` covers default text output, JSON output, and a title containing multiple words.\\n- The JSON test calls `cli_args([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"])` because real process arguments split the flag and value.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when CLI flag-value tests use a single combined argv token.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["crates/app-cli/tests/cli.rs covers split --format json argv."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `crates/cli/src/main.rs` to support `--format json` and update `crates/cli/tests/cli.rs` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `crates/cli/tests/cli.rs` covers default text output, JSON output, and a title containing multiple words.\\n- The JSON test calls `cli_args([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"])` because real process arguments split the flag and value.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when CLI flag-value tests use a single combined argv token.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["crates/cli/tests/cli.rs covers split --format json argv."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/src/main.rs"},"reason":"Need current line numbers before editing the existing CLI entrypoint."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/src/main.rs"},"reason":"Need current line numbers before editing the existing CLI entrypoint."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/src/main.rs","startLine":1,"endLine":15,"content":"use app_core::greeting;\\n\\nfn main() {\\n    let args: Vec<String> = std::env::args().skip(1).collect();\\n    let joined = args.join(\\" \\");\\n    let format_requested = joined.contains(\\"--format=json\\");\\n    let title: Vec<String> = args\\n        .iter()\\n        .filter(|arg| arg.as_str() != \\"--format=json\\")\\n        .cloned()\\n        .collect();\\n    let title = if title.is_empty() {\\n        \\"First Compass task\\".to_string()\\n    } else {\\n        title.join(\\" \\")\\n    };\\n    if format_requested {\\n        println!(\\"json title {title}\\");\\n    } else {\\n        println!(\\"{}\\", greeting(&title));\\n    }\\n}"},"reason":"Add an intentionally weak combined-token flag parser so the test post-check catches the matching weak assertion."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/src/main.rs","startLine":1,"endLine":15,"content":"use app_core::greeting;\\n\\nfn main() {\\n    let args: Vec<String> = std::env::args().skip(1).collect();\\n    let joined = args.join(\\" \\");\\n    let format_requested = joined.contains(\\"--format=json\\");\\n    let title: Vec<String> = args\\n        .iter()\\n        .filter(|arg| arg.as_str() != \\"--format=json\\")\\n        .cloned()\\n        .collect();\\n    let title = if title.is_empty() {\\n        \\"First Compass task\\".to_string()\\n    } else {\\n        title.join(\\" \\")\\n    };\\n    if format_requested {\\n        println!(\\"json title {title}\\");\\n    } else {\\n        println!(\\"{}\\", greeting(&title));\\n    }\\n}"},"reason":"Add an intentionally weak combined-token flag parser so the test post-check catches the matching weak assertion."}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/tests/cli.rs"},"reason":"Need current line numbers before adding the CLI assertions."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/tests/cli.rs"},"reason":"Need current line numbers before adding the CLI assertions."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/tests/cli.rs","startLine":1,"endLine":12,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn prints_default_text_output() {\\n    assert!(cli_args(&[\\"Ship\\", \\"it\\"]).contains(\\"hello\\"));\\n}\\n\\n#[test]\\nfn prints_json_output_for_combined_flag_token() {\\n    assert!(cli_args(&[\\"--format=json\\", \\"Ship\\", \\"it\\"]).contains(\\"Ship it\\"));\\n}"},"reason":"Add a weak combined-token JSON assertion that should not satisfy the CLI flag-value acceptance check."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/tests/cli.rs","startLine":1,"endLine":12,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn prints_default_text_output() {\\n    assert!(cli_args(&[\\"Ship\\", \\"it\\"]).contains(\\"hello\\"));\\n}\\n\\n#[test]\\nfn prints_json_output_for_combined_flag_token() {\\n    assert!(cli_args(&[\\"--format=json\\", \\"Ship\\", \\"it\\"]).contains(\\"Ship it\\"));\\n}"},"reason":"Add a weak combined-token JSON assertion that should not satisfy the CLI flag-value acceptance check."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated main.rs and cli.rs with JSON output coverage.","feedback":"crates/app-cli/tests/cli.rs covers JSON output and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated main.rs and cli.rs with JSON output coverage.","feedback":"crates/cli/tests/cli.rs covers JSON output and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/tests/cli.rs"},"reason":"Need current line numbers before repairing the weak combined-token flag assertion."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/tests/cli.rs"},"reason":"Need current line numbers before repairing the weak combined-token flag assertion."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/tests/cli.rs","startLine":1,"endLine":19,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn prints_default_text_output() {\\n    assert!(cli_args(&[\\"Ship\\", \\"it\\"]).contains(\\"hello\\"));\\n}\\n\\n#[test]\\nfn prints_json_output_for_split_format_flag() {\\n    assert!(cli_args([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]).contains(\\"Ship it\\"));\\n}"},"reason":"Repair the CLI-facing test to exercise real split argv tokens for --format json."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/tests/cli.rs","startLine":1,"endLine":19,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn prints_default_text_output() {\\n    assert!(cli_args(&[\\"Ship\\", \\"it\\"]).contains(\\"hello\\"));\\n}\\n\\n#[test]\\nfn prints_json_output_for_split_format_flag() {\\n    assert!(cli_args([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]).contains(\\"Ship it\\"));\\n}"},"reason":"Repair the CLI-facing test to exercise real split argv tokens for --format json."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated cli.rs with split argv coverage for --format json.","feedback":"crates/app-cli/tests/cli.rs calls cli_args([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]) and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated cli.rs with split argv coverage for --format json.","feedback":"crates/cli/tests/cli.rs calls cli_args([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]) and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
 private let missingPackageEntryFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `crates/app-cli/tests/cli.rs` covers the CLI output.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when package bin points at a missing replacement entry point.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Package entry-point mistakes trigger repair."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["The CLI entry point exists and is tested."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `crates/cli/tests/cli.rs` covers the CLI output.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when package bin points at a missing replacement entry point.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Package entry-point mistakes trigger repair."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["The CLI entry point exists and is tested."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/Cargo.toml"},"reason":"Need current package manifest line numbers before changing the bin entry."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/Cargo.toml"},"reason":"Need current package manifest line numbers before changing the bin entry."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/Cargo.toml","startLine":6,"endLine":5,"content":"[[bin]]\\nname = \\"missing-entry-fixture\\"\\npath = \\"src/missing_entry.rs\\""},"reason":"Point the CLI bin at a replacement file without creating it so the post-verify package-entry check can catch the gap."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/Cargo.toml","startLine":6,"endLine":5,"content":"[[bin]]\\nname = \\"missing-entry-fixture\\"\\npath = \\"src/missing_entry.rs\\""},"reason":"Point the CLI bin at a replacement file without creating it so the post-verify package-entry check can catch the gap."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated the CLI package bin to point at crates/app-cli/src/missing_entry.rs.","feedback":"The CLI weekly habit command is complete and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated the CLI package bin to point at crates/cli/src/missing_entry.rs.","feedback":"The CLI weekly habit command is complete and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/Cargo.toml"},"reason":"Need current package manifest line numbers before restoring the existing entry point."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/Cargo.toml"},"reason":"Need current package manifest line numbers before restoring the existing entry point."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/Cargo.toml","startLine":8,"endLine":8,"content":"path = \\"src/main.rs\\""},"reason":"Restore the manifest to the existing CLI entry point named in the repair guidance."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/Cargo.toml","startLine":8,"endLine":8,"content":"path = \\"src/main.rs\\""},"reason":"Restore the manifest to the existing CLI entry point named in the repair guidance."}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/src/main.rs"},"reason":"Need current CLI entry point line numbers before implementing the weekly momentum output."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/src/main.rs"},"reason":"Need current CLI entry point line numbers before implementing the weekly momentum output."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/src/main.rs","startLine":1,"endLine":15,"content":"use app_core::greeting;\\n\\nfn main() {\\n    let args: Vec<String> = std::env::args().skip(1).collect();\\n    let title = if args.is_empty() {\\n        \\"Weekly habit\\".to_string()\\n    } else {\\n        args.join(\\" \\")\\n    };\\n    println!(\\"weekly momentum: {}\\", greeting(&title));\\n}"},"reason":"Make a concrete source change in the existing CLI entry point."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/src/main.rs","startLine":1,"endLine":15,"content":"use app_core::greeting;\\n\\nfn main() {\\n    let args: Vec<String> = std::env::args().skip(1).collect();\\n    let title = if args.is_empty() {\\n        \\"Weekly habit\\".to_string()\\n    } else {\\n        args.join(\\" \\")\\n    };\\n    println!(\\"weekly momentum: {}\\", greeting(&title));\\n}"},"reason":"Make a concrete source change in the existing CLI entry point."}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/tests/cli.rs"},"reason":"Need current CLI test line numbers before adding the required weekly momentum assertion."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/tests/cli.rs"},"reason":"Need current CLI test line numbers before adding the required weekly momentum assertion."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/tests/cli.rs","startLine":1,"endLine":12,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn prints_weekly_momentum_output() {\\n    assert!(cli_args(&[\\"Ship\\", \\"it\\"]).contains(\\"weekly momentum\\"));\\n}"},"reason":"Add the CLI-facing test required by the accepted plan."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/tests/cli.rs","startLine":1,"endLine":12,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn prints_weekly_momentum_output() {\\n    assert!(cli_args(&[\\"Ship\\", \\"it\\"]).contains(\\"weekly momentum\\"));\\n}"},"reason":"Add the CLI-facing test required by the accepted plan."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Restored the package bin to src/main.rs, updated the existing CLI entry point, and covered the weekly momentum summary in cli.rs.","feedback":"crates/app-cli/src/main.rs and crates/app-cli/tests/cli.rs implement and verify the weekly momentum CLI output; cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Restored the package bin to src/main.rs, updated the existing CLI entry point, and covered the weekly momentum summary in cli.rs.","feedback":"crates/cli/src/main.rs and crates/cli/tests/cli.rs implement and verify the weekly momentum CLI output; cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
 private let metadataOnlyImplementationFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `crates/app-cli/tests/cli.rs` covers the CLI output.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when a source-behavior handoff changes only package metadata.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Metadata-only false success triggers repair."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["The CLI behavior is implemented and tested."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `crates/cli/tests/cli.rs` covers the CLI output.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when a source-behavior handoff changes only package metadata.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Metadata-only false success triggers repair."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["The CLI behavior is implemented and tested."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/Cargo.toml"},"reason":"Need current package manifest line numbers before changing dependencies."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/Cargo.toml"},"reason":"Need current package manifest line numbers before changing dependencies."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/Cargo.toml","startLine":9,"endLine":8,"content":"\\n# Track workspace metadata for the weekly habit momentum command."},"reason":"Change only package metadata while claiming implementation work is complete."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/Cargo.toml","startLine":9,"endLine":8,"content":"\\n# Track workspace metadata for the weekly habit momentum command."},"reason":"Change only package metadata while claiming implementation work is complete."}
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added a metadata note for the CLI weekly momentum command.","feedback":"The CLI weekly habit command is complete and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/src/main.rs"},"reason":"Need current CLI entry point line numbers before implementing the weekly momentum output."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/src/main.rs"},"reason":"Need current CLI entry point line numbers before implementing the weekly momentum output."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/src/main.rs","startLine":1,"endLine":15,"content":"use app_core::greeting;\\n\\nfn main() {\\n    let args: Vec<String> = std::env::args().skip(1).collect();\\n    let title = if args.is_empty() {\\n        \\"Weekly habit\\".to_string()\\n    } else {\\n        args.join(\\" \\")\\n    };\\n    println!(\\"weekly momentum: {}\\", greeting(&title));\\n}"},"reason":"Make the source behavior change required by the metadata-only repair guidance."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/src/main.rs","startLine":1,"endLine":15,"content":"use app_core::greeting;\\n\\nfn main() {\\n    let args: Vec<String> = std::env::args().skip(1).collect();\\n    let title = if args.is_empty() {\\n        \\"Weekly habit\\".to_string()\\n    } else {\\n        args.join(\\" \\")\\n    };\\n    println!(\\"weekly momentum: {}\\", greeting(&title));\\n}"},"reason":"Make the source behavior change required by the metadata-only repair guidance."}
   """,
   """
-  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/app-cli/tests/cli.rs"},"reason":"Need current CLI test line numbers before adding the required weekly momentum assertion."}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/tests/cli.rs"},"reason":"Need current CLI test line numbers before adding the required weekly momentum assertion."}
   """,
   """
-  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/app-cli/tests/cli.rs","startLine":1,"endLine":12,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn prints_weekly_momentum_output() {\\n    assert!(cli_args(&[\\"Ship\\", \\"it\\"]).contains(\\"weekly momentum\\"));\\n}"},"reason":"Add the CLI-facing test required by the accepted plan."}
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"crates/cli/tests/cli.rs","startLine":1,"endLine":12,"content":"use std::process::Command;\\n\\nfn cli_args(args: &[&str]) -> String {\\n    let output = Command::new(env!(\\"CARGO_BIN_EXE_app-cli\\"))\\n        .args(args)\\n        .output()\\n        .expect(\\"run app-cli\\");\\n    String::from_utf8_lossy(&output.stdout).trim().to_string()\\n}\\n\\n#[test]\\nfn prints_weekly_momentum_output() {\\n    assert!(cli_args(&[\\"Ship\\", \\"it\\"]).contains(\\"weekly momentum\\"));\\n}"},"reason":"Add the CLI-facing test required by the accepted plan."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated crates/app-cli/src/main.rs and crates/app-cli/tests/cli.rs with a weekly momentum summary and coverage.","feedback":"crates/app-cli/src/main.rs implements the weekly momentum CLI output, crates/app-cli/tests/cli.rs covers it, and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated crates/cli/src/main.rs and crates/cli/tests/cli.rs with a weekly momentum summary and coverage.","feedback":"crates/cli/src/main.rs implements the weekly momentum CLI output, crates/cli/tests/cli.rs covers it, and cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
@@ -1401,14 +1410,14 @@ private let firstCoverageGapVerifyOutput = """
  RUN  v2.1.9 /workspace
       Coverage enabled with v8
 
- ✓ crates/app-cli/tests/cli.rs (1 test) 1ms
+ ✓ crates/cli/tests/cli.rs (1 test) 1ms
 
  % Coverage report from v8
 -------------------|---------|----------|---------|---------|-------------------
 File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
 -------------------|---------|----------|---------|---------|-------------------
 All files          |   17.02 |     37.5 |   33.33 |   17.02 |
- crates/app-cli/src |   31.57 |       25 |      50 |   31.57 |
+ crates/cli/src |   31.57 |       25 |      50 |   31.57 |
   main.rs          |      75 |    33.33 |     100 |      75 | 10-11
   summarize.rs     |       0 |        0 |       0 |       0 | 1-3
 -------------------|---------|----------|---------|---------|-------------------
@@ -1418,15 +1427,15 @@ private let repairedCoverageVerifyOutput = """
  RUN  v2.1.9 /workspace
       Coverage enabled with v8
 
- ✓ crates/app-cli/tests/summarize.rs (1 test) 1ms
- ✓ crates/app-cli/tests/cli.rs (1 test) 1ms
+ ✓ crates/cli/tests/summarize.rs (1 test) 1ms
+ ✓ crates/cli/tests/cli.rs (1 test) 1ms
 
  % Coverage report from v8
 -------------------|---------|----------|---------|---------|-------------------
 File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
 -------------------|---------|----------|---------|---------|-------------------
 All files          |     100 |      100 |     100 |     100 |
- crates/app-cli/src |     100 |      100 |     100 |     100 |
+ crates/cli/src |     100 |      100 |     100 |     100 |
   main.rs          |     100 |      100 |     100 |     100 |
   summarize.rs     |     100 |      100 |     100 |     100 |
 -------------------|---------|----------|---------|---------|-------------------
@@ -1436,14 +1445,14 @@ private let requiredTestsFirstVerifyOutput = """
  RUN  v2.1.9 /workspace
       Coverage enabled with v8
 
- ✓ crates/app-cli/tests/cli.rs (1 test) 1ms
+ ✓ crates/cli/tests/cli.rs (1 test) 1ms
 
  % Coverage report from v8
 -------------------|---------|----------|---------|---------|-------------------
 File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
 -------------------|---------|----------|---------|---------|-------------------
 All files          |   47.05 |       50 |      50 |   47.05 |
- crates/app-cli/src |   77.77 |       40 |     100 |   77.77 |
+ crates/cli/src |   77.77 |       40 |     100 |   77.77 |
   main.rs          |   77.77 |       40 |     100 |   77.77 | 11-12
 -------------------|---------|----------|---------|---------|-------------------
 """
@@ -1452,14 +1461,14 @@ private let requiredTestsRepairedVerifyOutput = """
  RUN  v2.1.9 /workspace
       Coverage enabled with v8
 
- ✓ crates/app-cli/tests/cli.rs (2 tests) 1ms
+ ✓ crates/cli/tests/cli.rs (2 tests) 1ms
 
  % Coverage report from v8
 -------------------|---------|----------|---------|---------|-------------------
 File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
 -------------------|---------|----------|---------|---------|-------------------
 All files          |     100 |      100 |     100 |     100 |
- crates/app-cli/src |     100 |      100 |     100 |     100 |
+ crates/cli/src |     100 |      100 |     100 |     100 |
   main.rs          |     100 |      100 |     100 |     100 |
 -------------------|---------|----------|---------|---------|-------------------
 """

@@ -1453,7 +1453,7 @@ public extension AgentExecutor {
         - Keep `state.immediate.verify` as `\(GeneratedProjectQuality.standardVerifyCommand)` unless the latest repair says otherwise.
         - If the rejection is about CLI proof, add an explicit Acceptance check in
           `state.immediate.plan` naming the CLI test file and invocation, for example:
-          `crates/app-cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]`
+          `crates/cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]`
           and asserts the parsed JSON title is `Ship it`.
         """
       : ""

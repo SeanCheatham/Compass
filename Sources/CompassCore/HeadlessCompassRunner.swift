@@ -343,25 +343,37 @@ public struct HeadlessCompassRunner: Sendable {
   public func scaffoldRust(
     at url: URL,
     name: String?,
+    products: [GeneratedProduct] = GeneratedProducts.default,
     initializeGit: Bool = false,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) throws {
     let url = url.standardizedFileURL
+    let normalizedProducts = GeneratedProducts.normalize(products)
+    if let error = GeneratedProducts.validate(normalizedProducts) {
+      throw GeneratedProductError.invalid(error)
+    }
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     let projectName = name ?? url.lastPathComponent
     try RustProjectScaffold.write(
       to: url,
-      options: RustProjectScaffold.Options(projectName: projectName)
+      options: RustProjectScaffold.Options(projectName: projectName, products: normalizedProducts)
     )
     let workspace = CompassWorkspace(repoURL: url)
     try workspace.initialize()
+    var state = try workspace.readState()
+    state.products = normalizedProducts
+    try workspace.writeState(state)
     onEvent(
       HeadlessCompassEvent(
         kind: "scaffold",
         level: "success",
         status: "completed",
-        message: "Rust project scaffolded.",
-        metadata: ["path": url.path, "name": projectName]
+        message: "Project scaffolded (core + \(GeneratedProducts.summary(normalizedProducts))).",
+        metadata: [
+          "path": url.path,
+          "name": projectName,
+          "products": GeneratedProducts.summary(normalizedProducts),
+        ]
       )
     )
 
@@ -899,6 +911,58 @@ public struct HeadlessCompassRunner: Sendable {
               continue
             }
             break
+          }
+          if GeneratedProducts.contains(plannedState.products, .macos) {
+            let macosResult = try await AgentHostBashRunner().run(
+              command: GeneratedProjectQuality.macosVerifyCommand,
+              workingDirectory: repoURL,
+              timeout: Self.qualityCollectionTimeoutSeconds()
+            )
+            _ = try? workspace.writeSessionAuditArtifact(
+              session: sessionNumber,
+              name: "macos-verify.log",
+              kind: "log",
+              contents: "$ \(GeneratedProjectQuality.macosVerifyCommand)\n\n"
+                + macosResult.stdout + "\n" + macosResult.stderr,
+              note: "Host macOS verify output (temporary runner)."
+            )
+            if macosResult.exitCode != 0 {
+              let issue = """
+                Host macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` exited with code \(macosResult.exitCode). \
+                This gate is temporary host-side and will move to a macOS VM later.
+                \(tail(macosResult.stdout + macosResult.stderr, max: 4000))
+                """
+              session.notes.append(
+                "Verify attempt \(attempt) passed Rust verify but macOS host verify failed.")
+              let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
+              let canUseVerifyRepairAttempt =
+                !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
+              if canUseDevelopAttempt || canUseVerifyRepairAttempt {
+                if canUseVerifyRepairAttempt {
+                  verifyRepairAttemptsUsed += 1
+                }
+                priorIssues = [issue]
+                try persist(session: session, workspace: workspace)
+                emitDevelopRetry(
+                  attempt: attempt,
+                  maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
+                  issue: issue,
+                  retryKind: "macos_verify",
+                  onEvent: onEvent
+                )
+                attempt += 1
+                continue
+              }
+              break
+            }
+            onEvent(
+              HeadlessCompassEvent(
+                kind: "macos_verify",
+                status: "completed",
+                phase: "verify",
+                message: "Host macOS verify passed (temporary runner; VM later)."
+              )
+            )
           }
           successfulDevelop = develop
           ok = true
@@ -1901,12 +1965,12 @@ public struct HeadlessCompassRunner: Sendable {
       return nil
     }
     let changedCLIPaths = changedPaths.filter { path in
-      path.hasPrefix("crates/app-cli/src/")
+      path.hasPrefix("crates/cli/src/")
         && Self.isCoverageGatedSourcePath(path)
     }
     guard !changedCLIPaths.isEmpty else { return nil }
     let changedTestPaths = changedPaths.filter { path in
-      path.hasPrefix("crates/app-cli/")
+      path.hasPrefix("crates/cli/")
         && Self.isTestPath(path)
     }
     guard !changedTestPaths.isEmpty else { return nil }

@@ -126,7 +126,7 @@ final class AppModel: ObservableObject {
     panel.canSelectHiddenExtension = false
     panel.isExtensionHidden = true
     panel.nameFieldStringValue = "CompassRustApp"
-    panel.message = "Create a Rust project for Compass to evolve"
+    panel.message = "Create a Compass project (Rust core + CLI/macOS products)"
     panel.prompt = "Create"
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -193,15 +193,28 @@ final class AppModel: ObservableObject {
     return project
   }
 
-  static func initializeGeneratedRustProject(at url: URL) async throws {
+  static func initializeGeneratedRustProject(
+    at url: URL,
+    products: [GeneratedProduct] = GeneratedProducts.default
+  ) async throws {
     let projectURL = url.standardizedFileURL
+    let normalizedProducts = GeneratedProducts.normalize(products)
+    if let error = GeneratedProducts.validate(normalizedProducts) {
+      throw AppModelError.internalInvariant(error)
+    }
     try ensureCreatableProjectDirectory(projectURL)
     try RustProjectScaffold.write(
       to: projectURL,
-      options: RustProjectScaffold.Options(projectName: projectURL.lastPathComponent)
+      options: RustProjectScaffold.Options(
+        projectName: projectURL.lastPathComponent,
+        products: normalizedProducts
+      )
     )
     let workspace = CompassWorkspace(repoURL: projectURL)
     try workspace.initialize()
+    var state = try workspace.readState()
+    state.products = normalizedProducts
+    try workspace.writeState(state)
     try await initializeGeneratedRustGitRepository(at: projectURL)
   }
 
@@ -210,12 +223,12 @@ final class AppModel: ObservableObject {
     var isDirectory: ObjCBool = false
     if fm.fileExists(atPath: url.path, isDirectory: &isDirectory) {
       guard isDirectory.boolValue else {
-        throw AppModelError.internalInvariant("Cannot create a Rust project over a file.")
+        throw AppModelError.internalInvariant("Cannot create a project over a file.")
       }
       let children = try fm.contentsOfDirectory(atPath: url.path)
       guard children.isEmpty else {
         throw AppModelError.internalInvariant(
-          "Choose an empty folder or a new folder name for the Rust project.")
+          "Choose an empty folder or a new folder name for the project.")
       }
     } else {
       try fm.createDirectory(at: url, withIntermediateDirectories: true)
@@ -257,7 +270,7 @@ final class AppModel: ObservableObject {
       [
         "-c", "user.email=compass@example.invalid",
         "-c", "user.name=Compass",
-        "commit", "-q", "-m", "Create Rust project scaffold",
+        "commit", "-q", "-m", "Create project scaffold",
       ],
       workingDirectory: url
     )

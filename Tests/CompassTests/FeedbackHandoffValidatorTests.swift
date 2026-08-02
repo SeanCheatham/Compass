@@ -118,7 +118,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the utility file.",
-      feedback: "Next action: Update the CLI in crates/app-cli/src/main.rs to use the summary.",
+      feedback: "Next action: Update the CLI in crates/cli/src/main.rs to use the summary.",
       bypassVerify: false
     )
 
@@ -149,9 +149,9 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithBareNextWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Moved the existing summarizeCLI function to crates/app-cli/src/summarize.rs.",
+      summary: "Moved the existing summarizeCLI function to crates/cli/src/summarize.rs.",
       feedback:
-        "Next, create tests for the new `summarizeCLI` function in `crates/app-cli/tests/summarize.rs`.",
+        "Next, create tests for the new `summarizeCLI` function in `crates/cli/tests/summarize.rs`.",
       bypassVerify: false
     )
 
@@ -205,7 +205,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the utility file.",
-      feedback: "Update the CLI in crates/app-cli/src/main.rs and add a test for the summary.",
+      feedback: "Update the CLI in crates/cli/src/main.rs and add a test for the summary.",
       bypassVerify: false
     )
 
@@ -218,7 +218,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackStartingWithEditAndPrepare() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Moved existing logic to crates/app-cli/src/summarize.rs.",
+      summary: "Moved existing logic to crates/cli/src/summarize.rs.",
       feedback: "Edit the existing file with the new logic and prepare for adding a test function next.",
       bypassVerify: false
     )
@@ -255,7 +255,7 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Updated the CLI entrypoint.",
-      feedback: "Fix the syntax error in crates/app-cli/src/main.rs and then run cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace again.",
+      feedback: "Fix the syntax error in crates/cli/src/main.rs and then run cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace again.",
       bypassVerify: false
     )
 

@@ -8,7 +8,7 @@ struct VerifyFailureInsightTests {
   func compilerErrorsWinOverCoverageMentions() {
     let detail = """
       error[E0425]: cannot find value `missing` in this scope
-       --> crates/app-core/src/lib.rs:16:1
+       --> crates/core/src/lib.rs:16:1
       """
   let verify = GeneratedProjectQuality.standardVerifyCommand
     let insight = VerifyFailureInsight(detail: detail, metadata: "command=\(verify) exitCode=2")

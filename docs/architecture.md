@@ -34,17 +34,22 @@ Legacy state files from older projects are ignored in-place.
 
 ## Generated Output
 
-Compass-generated projects are Rust Cargo workspaces with `crates/app-core` and `crates/app-cli`. There is no web UI package.
+Compass-generated projects require Rust `crates/core` plus at least one product (`cli` and/or `macos`, default both):
+
+- `crates/core` — shared domain logic
+- `crates/cli` — optional CLI product
+- `crates/ffi` + `apps/macos` — optional macOS product (UniFFI + thin SwiftUI shell)
 
 Quality conventions live in `GeneratedProjectQuality`:
 
-- `standardVerifyCommand` — fmt + clippy + test
+- `standardVerifyCommand` — fmt + clippy + test (Rust / Linux container)
+- `macosVerifyCommand` — `bash scripts/verify-macos.sh` (host today; macOS VM later)
 - `coverageCollectCommand` — `cargo llvm-cov --workspace --summary-only`
 - `mutationTestCommand` — `cargo mutants`, run post-verify scoped to the iteration's changed Rust files
 
 Coverage snapshots are persisted via `CoverageSnapshotStore` after verify; mutation results via `MutationSnapshotStore` (`MutationReportParser` extracts kill-rate and surviving mutants from `cargo mutants` output). Both snapshots feed the next Plan prompt. Plan handoff validation uses `GeneratedVerifyValidator` for coverage-ready verify commands.
 
-`AcceptanceGates` (in `FactoryState.acceptanceGates`, falling back to `COMPASS_GATE_*` env vars) define deterministic thresholds — minimum line coverage, minimum mutation score, maximum surviving mutants. After a green verify, both the app loop (`runPostChecks`) and the headless loop collect coverage + mutation evidence and evaluate the gates; violations become structured retry issues (`acceptance_gate`), so iterations are accepted by evidence, not review.
+`AcceptanceGates` (in `FactoryState.acceptanceGates`, falling back to `COMPASS_GATE_*` env vars) define deterministic thresholds — minimum line coverage, minimum mutation score, maximum surviving mutants. After a green verify, both the app loop (`runPostChecks`) and the headless loop collect coverage + mutation evidence and evaluate the gates; violations become structured retry issues (`acceptance_gate`), so iterations are accepted by evidence, not review. When `products` includes `macos`, a host-side macOS verify gate also runs (temporary stand-in for restoring macOS VMs).
 
 ## Containerized Linux
 

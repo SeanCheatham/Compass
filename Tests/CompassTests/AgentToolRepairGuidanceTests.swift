@@ -578,12 +578,12 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
     let fileURL = srcURL.appending(path: "util.rs")
     let result = try await AgentWriteFileTool().invoke(
       arguments: Data(
-        "{\"path\":\"crates/app-cli/src/util.rs\",\"content\":\"#[test]\\nfn bad_test() {\\n    assert_eq!(1, 1);\\n}\\n\"}"
+        "{\"path\":\"crates/cli/src/util.rs\",\"content\":\"#[test]\\nfn bad_test() {\\n    assert_eq!(1, 1);\\n}\\n\"}"
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)

@@ -67,10 +67,10 @@ public extension Prompts {
       files or commit. Use read-only tools and `bash` probes when they help ground the choice.
 
       Factory rules:
-      - Generated Compass output is Rust only.
-      - New generated projects use a Cargo workspace with `crates/app-core` and
-        `crates/app-cli` (no web UI). Prefer
-        `\(GeneratedProjectQuality.standardVerifyCommand)` as the verify command.
+      - Generated Compass projects require Rust `crates/core` plus products `cli` and/or `macos`.
+      - Layout: `crates/core` (domain), optional `crates/cli`, optional `crates/ffi` + `apps/macos`.
+        Prefer `\(GeneratedProjectQuality.standardVerifyCommand)` as the Rust verify command.
+        When `macos` is enabled, host/VM also runs `\(GeneratedProjectQuality.macosVerifyCommand)`.
         For focused test slices use `cargo test --workspace` or
         `\(GeneratedProjectQuality.coverageCollectCommand)`; for compile-only slices
         use `cargo check --workspace` or `cargo clippy --workspace`.
@@ -89,9 +89,10 @@ public extension Prompts {
         is one of `low`, `medium`, `high`; `status` is one of `available`, `active`,
         `blocked`, `deferred`, `done`, `stale`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
-      - For generated Rust work, name the likely target files in the handoff.
-        Use `crates/app-core/src` for domain logic and `crates/app-cli/src` for CLI behavior.
-        Put integration tests in `crates/*/tests/`; unit tests belong in `#[cfg(test)]`
+      - Name likely target files in the handoff. Use `crates/core/src` for domain logic,
+        `crates/cli/src` for CLI behavior, `crates/ffi` for UniFFI exports, and
+        `apps/macos` only for thin SwiftUI shell work (no domain logic in Swift).
+        Put Rust integration tests in `crates/*/tests/`; unit tests belong in `#[cfg(test)]`
         modules inside the crate sources.
       - Do not name a file path as an existing target unless a read-only tool proved it
         exists. If a path is intentionally new, say `create new file <path>` in the

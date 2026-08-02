@@ -8,7 +8,7 @@ Compass is a Swift/macOS software factory:
 
 Prefer keeping new product behavior in Swift (`CompassCore` for headless/shared logic, `Compass` for UI). Do not reintroduce the removed Rust **host** daemon, tournament/market, or vendor-specific media tool paths unless that is an explicit product decision.
 
-Rust as **generated factory output** (Cargo workspaces via `RustProjectScaffold`) is intentional and is the supported scaffold path — do not confuse it with the old host-side Rust daemon.
+Rust as **generated factory output** (`RustProjectScaffold`: required `crates/core` plus `cli` and/or `macos` products) is intentional and is the supported scaffold path — do not confuse it with the old host-side Rust daemon.
 
 Before opening a change:
 

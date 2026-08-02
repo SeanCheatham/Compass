@@ -12,12 +12,12 @@ struct AgentListFilesToolTests {
 
     let codemapURL = tempURL.appending(path: "codemap", directoryHint: .isDirectory)
     let store = CodemapStore(directory: codemapURL)
-    try store.saveEntry(entry("crates/app-cli/src/main.rs", language: .rust))
-    try store.saveEntry(entry("crates/app-cli/tests/cli.rs", language: .rust))
-    try store.saveEntry(entry("crates/app-core/src/lib.rs", language: .rust))
+    try store.saveEntry(entry("crates/cli/src/main.rs", language: .rust))
+    try store.saveEntry(entry("crates/cli/tests/cli.rs", language: .rust))
+    try store.saveEntry(entry("crates/core/src/lib.rs", language: .rust))
 
-    let cliSrc = tempURL.appending(path: "crates/app-cli/src", directoryHint: .isDirectory)
-    let cliTests = tempURL.appending(path: "crates/app-cli/tests", directoryHint: .isDirectory)
+    let cliSrc = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
+    let cliTests = tempURL.appending(path: "crates/cli/tests", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: cliTests, withIntermediateDirectories: true)
     try "fn main() {}\n".write(to: cliSrc.appending(path: "main.rs"), atomically: true, encoding: .utf8)
@@ -31,19 +31,19 @@ struct AgentListFilesToolTests {
     )
 
     let parenthesized = try await tool.invoke(
-      arguments: Data(#"{"pattern":"crates/app-cli/src/**/*.rs"}"#.utf8),
+      arguments: Data(#"{"pattern":"crates/cli/src/**/*.rs"}"#.utf8),
       context: context
     )
     #expect(!parenthesized.isError)
-    #expect(parenthesized.content.contains("crates/app-cli/src/main.rs"))
-    #expect(!parenthesized.content.contains("crates/app-core/src/lib.rs"))
+    #expect(parenthesized.content.contains("crates/cli/src/main.rs"))
+    #expect(!parenthesized.content.contains("crates/core/src/lib.rs"))
 
     let braced = try await tool.invoke(
-      arguments: Data(#"{"filter":"crates/app-cli/tests/**/*.rs"}"#.utf8),
+      arguments: Data(#"{"filter":"crates/cli/tests/**/*.rs"}"#.utf8),
       context: context
     )
     #expect(!braced.isError)
-    #expect(braced.content.contains("crates/app-cli/tests/cli.rs"))
+    #expect(braced.content.contains("crates/cli/tests/cli.rs"))
   }
 
   @Test
@@ -54,7 +54,7 @@ struct AgentListFilesToolTests {
     let cliSrc =
       tempURL
       .appending(path: "crates", directoryHint: .isDirectory)
-      .appending(path: "app-cli", directoryHint: .isDirectory)
+      .appending(path: "cli", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
     try "pub fn main() -> bool { true }\n".write(
@@ -75,10 +75,10 @@ struct AgentListFilesToolTests {
 
     let codemapURL = tempURL.appending(path: "codemap", directoryHint: .isDirectory)
     let store = CodemapStore(directory: codemapURL)
-    try store.saveEntry(entry("crates/app-cli/src/main.rs", language: .rust))
+    try store.saveEntry(entry("crates/cli/src/main.rs", language: .rust))
 
     let result = try await AgentListFilesTool().invoke(
-      arguments: Data(#"{"path":"crates/app-cli/src"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src"}"#.utf8),
       context: AgentToolContext(
         workingDirectory: tempURL,
         codemapStoreDirectory: codemapURL
@@ -87,30 +87,30 @@ struct AgentListFilesToolTests {
 
     #expect(!result.isError)
     #expect(result.content.contains("files: 2"))
-    #expect(result.content.contains("crates/app-cli/src/main.rs  [Rust, 0 symbol(s)]"))
-    #expect(result.content.contains("crates/app-cli/src/summarize.rs  [Rust, unindexed]"))
+    #expect(result.content.contains("crates/cli/src/main.rs  [Rust, 0 symbol(s)]"))
+    #expect(result.content.contains("crates/cli/src/summarize.rs  [Rust, unindexed]"))
     #expect(!result.content.contains("ignored.txt"))
 
     let globResult = try await AgentListFilesTool().invoke(
-      arguments: Data(#"{"pattern":"crates/app-cli/src/*.rs"}"#.utf8),
+      arguments: Data(#"{"pattern":"crates/cli/src/*.rs"}"#.utf8),
       context: AgentToolContext(
         workingDirectory: tempURL,
         codemapStoreDirectory: codemapURL
       )
     )
     #expect(!globResult.isError)
-    #expect(globResult.content.contains("crates/app-cli/src/summarize.rs"))
+    #expect(globResult.content.contains("crates/cli/src/summarize.rs"))
 
     let emptyDirectoryResult = try await AgentListFilesTool().invoke(
-      arguments: Data(#"{"path":"crates/app-cli/benches"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/benches"}"#.utf8),
       context: AgentToolContext(
         workingDirectory: tempURL,
         codemapStoreDirectory: codemapURL
       )
     )
     #expect(!emptyDirectoryResult.isError)
-    #expect(emptyDirectoryResult.content.contains("(no source files matching 'crates/app-cli/benches')"))
-    #expect(emptyDirectoryResult.content.contains("try a broader filter such as 'crates/app-cli'"))
+    #expect(emptyDirectoryResult.content.contains("(no source files matching 'crates/cli/benches')"))
+    #expect(emptyDirectoryResult.content.contains("try a broader filter such as 'crates/cli'"))
   }
 }
 

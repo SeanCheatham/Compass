@@ -1096,6 +1096,8 @@ public struct PlanState: Codable, Equatable {
   public var brief: PlanStrategicContext
   public var openQuestions: [PlanQuestion]
   public var acceptanceGates: AcceptanceGates?
+  /// Product surfaces on top of required `crates/core` (`cli` and/or `macos`).
+  public var products: [GeneratedProduct]
 
   public static let empty = PlanState(
     schemaVersion: 1,
@@ -1103,7 +1105,8 @@ public struct PlanState: Codable, Equatable {
     immediate: nil,
     queue: [],
     brief: .empty,
-    openQuestions: []
+    openQuestions: [],
+    products: GeneratedProducts.default
   )
 
   public enum CodingKeys: String, CodingKey {
@@ -1116,6 +1119,7 @@ public struct PlanState: Codable, Equatable {
     case strategicContext
     case openQuestions
     case acceptanceGates
+    case products
   }
 
   public init(
@@ -1127,7 +1131,8 @@ public struct PlanState: Codable, Equatable {
     candidates: [PlanCandidate] = [],
     strategicContext: PlanStrategicContext = .empty,
     openQuestions: [PlanQuestion] = [],
-    acceptanceGates: AcceptanceGates? = nil
+    acceptanceGates: AcceptanceGates? = nil,
+    products: [GeneratedProduct] = GeneratedProducts.default
   ) {
     self.schemaVersion = max(1, schemaVersion)
     self.completed = completed
@@ -1136,6 +1141,7 @@ public struct PlanState: Codable, Equatable {
     self.brief = brief ?? strategicContext
     self.openQuestions = openQuestions
     self.acceptanceGates = acceptanceGates
+    self.products = GeneratedProducts.normalize(products)
   }
 
   public init(from decoder: Decoder) throws {
@@ -1153,6 +1159,10 @@ public struct PlanState: Codable, Equatable {
       ?? container.decodeIfPresent(PlanStrategicContext.self, forKey: .strategicContext) ?? .empty
     openQuestions = try container.decodeIfPresent([PlanQuestion].self, forKey: .openQuestions) ?? []
     acceptanceGates = try container.decodeIfPresent(AcceptanceGates.self, forKey: .acceptanceGates)
+    let decodedProducts =
+      try container.decodeIfPresent([GeneratedProduct].self, forKey: .products)
+      ?? GeneratedProducts.default
+    products = GeneratedProducts.normalize(decodedProducts)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -1167,6 +1177,7 @@ public struct PlanState: Codable, Equatable {
     try container.encode(completed, forKey: .completed)
     try container.encode(openQuestions, forKey: .openQuestions)
     try container.encodeIfPresent(acceptanceGates, forKey: .acceptanceGates)
+    try container.encode(GeneratedProducts.normalize(products), forKey: .products)
   }
 
   public var candidates: [PlanCandidate] {

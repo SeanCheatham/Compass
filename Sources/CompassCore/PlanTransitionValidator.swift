@@ -357,7 +357,7 @@ public enum PlanTransitionValidator {
       message: """
         Plan selected generic `\(immediate.verify)` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
 
-        `\(GeneratedProjectQuality.standardVerifyCommand)` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `crates/app-cli/tests/cli.rs`. Add the test file/update to the handoff, or choose a focused verify command that directly exercises the CLI output.
+        `\(GeneratedProjectQuality.standardVerifyCommand)` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `crates/cli/tests/cli.rs`. Add the test file/update to the handoff, or choose a focused verify command that directly exercises the CLI output.
 
         \(cliTestProofGuidance(for: plan + "\n" + acceptanceText))
         """,
@@ -697,7 +697,7 @@ public enum PlanTransitionValidator {
       return
         """
         Required acceptance check to append:
-        - `crates/app-cli/tests/cli.rs` exercises the new CLI path with split args and asserts the output.
+        - `crates/cli/tests/cli.rs` exercises the new CLI path with split args and asserts the output.
         """
     }
 
@@ -706,20 +706,20 @@ public enum PlanTransitionValidator {
       return
         """
         Required acceptance check to append:
-        - `crates/app-cli/tests/cli.rs` runs the CLI with `["\(flag)", "api:green", "\(flag)", "db:red"]` and asserts the formatted output.
+        - `crates/cli/tests/cli.rs` runs the CLI with `["\(flag)", "api:green", "\(flag)", "db:red"]` and asserts the formatted output.
         """
     }
     if flag == "--format", text.contains("json") {
       return
         """
         Required acceptance check to append:
-        - `crates/app-cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]` and asserts the parsed JSON title is `Ship it`.
+        - `crates/cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]` and asserts the parsed JSON title is `Ship it`.
         """
     }
     return
       """
       Required acceptance check to append:
-      - `crates/app-cli/tests/cli.rs` runs the CLI with `["\(flag)", "value"]` and asserts the output.
+      - `crates/cli/tests/cli.rs` runs the CLI with `["\(flag)", "value"]` and asserts the output.
       """
   }
 
@@ -794,8 +794,8 @@ public enum PlanTransitionValidator {
       "implement",
       "add support",
       "support for",
-      "crates/app-cli/src/main.rs",
-      "crates/app-cli/src/lib.rs",
+      "crates/cli/src/main.rs",
+      "crates/cli/src/lib.rs",
       "main.rs",
       "entrypoint",
       "source",
@@ -805,7 +805,7 @@ public enum PlanTransitionValidator {
   private static func mentionsTestProof(_ plan: String) -> Bool {
     [
       "#[test]",
-      "crates/app-cli/tests/",
+      "crates/cli/tests/",
       ".rs",
       "cargo test",
       "assert_eq!",
