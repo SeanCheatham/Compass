@@ -1507,8 +1507,8 @@ public struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifia
   public static let phaseLimit = 24
   public static let fieldLimit = 120
   public static let summaryLimit = 280
-  /// Stable identifier retained for older snapshot schema compatibility.
-  /// constant so consumers don't grow another magic string.
+  /// Stable identifier retained for older snapshot schema compatibility,
+  /// so consumers don't grow another magic string.
   public static let vmBuildActionIdentifier = "shared-vm.build"
 
   public var phase: String
@@ -1521,7 +1521,7 @@ public struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifia
   /// Captures the runtime readiness classification. Field name retained so on-disk
   /// snapshots remain decodable.
   public var supportClassificationIdentifier: String
-  /// Retained for forward-compatibility with the previous snapshot schema; always empty.
+  /// Retained for backward-compatibility with the previous snapshot schema; always empty.
   public var visibleSupportTokens: [String]
   public var omittedSupportTokenCount: Int
   public var imageLabel: String

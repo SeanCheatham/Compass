@@ -8,7 +8,7 @@ public enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
   case rust
 
   /// Stable display name used in tool output. Distinct from `rawValue` so
-  /// renaming the case (e.g. `typescript` → `ts`) doesn't churn cached files.
+  /// renaming a case doesn't churn cached files.
   public var displayName: String {
     switch self {
     case .swift: return "Swift"

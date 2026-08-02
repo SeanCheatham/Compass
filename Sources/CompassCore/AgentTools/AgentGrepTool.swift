@@ -1,8 +1,7 @@
 import Foundation
 
 /// Search files for a regex pattern. Delegates the actual exec to
-/// `AgentFilesystem.grep`, so the host backend (rg / BSD grep) and any
-/// future Shared-VM backend share this tool unchanged. The model does not
+/// `AgentFilesystem.grep` (host-side rg / BSD grep). The model does not
 /// get a generic shell through this tool — only this narrow filter.
 public struct AgentGrepTool: AgentTool {
   public static let toolName = "grep"

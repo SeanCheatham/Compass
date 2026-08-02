@@ -220,8 +220,7 @@ public actor MLXLocalModelRuntime: LocalModelGenerating {
 extension MLXLocalModelRuntime: AgentChatGenerating {
   /// Native tool-calling turn against the local MLX model. The model's chat
   /// template receives real tool specs and its tool-call output is parsed by
-  /// MLXLMCommon's tool-call processor, so the agentic loop no longer relies
-  /// on the fragile one-JSON-object text protocol for local runs either.
+  /// MLXLMCommon's tool-call processor.
   public func generateChat(request: AgentChatRequest) async throws -> AgentChatResponse {
     guard request.modelID == LocalModelCatalog.blessedModelID else {
       throw LocalModelRuntimeError.generationFailed(

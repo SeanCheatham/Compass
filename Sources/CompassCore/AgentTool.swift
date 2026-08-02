@@ -41,11 +41,6 @@ public struct AgentToolSpec: Sendable, Equatable {
 /// human-readable failure message so the executor (retry decisions),
 /// UI (icons / grouping), and tests can branch on the *kind* of
 /// failure without parsing strings.
-///
-/// Existing call sites that pass only a message keep working — `kind`
-/// defaults to `nil`. New code should prefer the typed
-/// `.failure(AgentToolError)` overload, which derives the kind for
-/// free.
 public enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
   /// Tool arguments JSON missing required fields or wrong types.
   case invalidArguments
@@ -80,9 +75,8 @@ public struct AgentToolInvocationResult: Sendable, Equatable {
   public var content: String
   public var isError: Bool
   /// Optional categorical kind for failure results. Always `nil` for
-  /// success results. Pre-existing string-based failure sites keep
-  /// returning `nil` until migrated; new sites should use the typed
-  /// `.failure(AgentToolError)` overload.
+  /// success results. New failure sites should use the typed
+  /// `.failure(AgentToolError)` overload, which derives the kind.
   public var errorKind: AgentToolErrorKind?
 
   public static func ok(_ content: String) -> Self {

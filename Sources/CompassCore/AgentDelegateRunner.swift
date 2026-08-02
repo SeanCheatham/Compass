@@ -2,8 +2,8 @@ import Foundation
 
 /// Spawn a focused sub-agent that runs inside the same working
 /// directory / filesystem / bash runner as the parent and returns a
-/// single `findings` string. The sub-agent inherits the parent's local
-/// MLX runtime and working context.
+/// single `findings` string. The sub-agent inherits the parent's model
+/// settings and working context.
 ///
 /// `toolNames == nil` means "give the sub-agent the parent's full tool
 /// set (minus `delegate`)". A non-nil array filters the parent's tools

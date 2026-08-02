@@ -1,10 +1,8 @@
 import Foundation
 
-/// Filesystem operations the agent tools need, behind a protocol so the
-/// alternate backing for the containerized Linux runtime can be swapped in without individual
-/// tools learning about the container transport layer. The host implementation in this file mirrors the
-/// `FileManager` calls the tools used to make directly, so behavior is
-/// unchanged when no containerized Linux runtime route is active.
+/// Filesystem operations the agent tools need, behind a protocol so tools
+/// don't call `FileManager` directly. Tools run host-side against the
+/// worktree; `AgentHostFilesystem` in this file is the implementation.
 public protocol AgentFilesystem: Sendable {
   /// Read a regular file's contents. Throws `.notFound` / `.notRegularFile`
   /// so the calling tool can surface a precise error.

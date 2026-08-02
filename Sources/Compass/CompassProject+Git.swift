@@ -33,10 +33,8 @@ extension CompassProject {
     return nil
   }
 
-  /// Stages whatever a legacy post-Verify tar pull left in the main
+  /// Stages whatever the agent's host-side file tools left in the main
   /// repo and lands it as a single commit on the user's current branch.
-  /// In the normal containerized Linux runtime git-backed route, agent commits are already
-  /// promoted by fast-forward before this runs, so this becomes a no-op.
   ///
   /// Returns nil on success, or a human-readable issue string on
   /// failure.

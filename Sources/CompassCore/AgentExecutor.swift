@@ -150,8 +150,9 @@ public enum AgentExecutionError: LocalizedError, Equatable {
   }
 }
 
-/// Runs the local MLX loop with Compass-owned JSON continuations. Terminates when
-/// the model emits the phase's `*_submit` envelope, whose `payload` matches
+/// Runs an agent phase (Plan / Develop / Critic) against the configured model
+/// runtime. The primary path is native tool calling; the legacy path terminates
+/// when the model emits the phase's `*_submit` envelope, whose `payload` matches
 /// the phase's output schema.
 public final class AgentExecutor {
   /// Retained as the recovery prompt budget for compatibility with existing

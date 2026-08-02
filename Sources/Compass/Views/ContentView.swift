@@ -22,9 +22,8 @@ struct ContentView: View {
     }
   }
 
-  /// Mandatory onboarding gate. Compass routes every agent run through
-  /// the containerized Linux runtime and needs the local MLX model before
-  /// agent runs can start.
+  /// Mandatory onboarding gate: agent runs cannot start until the local
+  /// MLX model is downloaded and runnable.
   private var isOnboardingComplete: Bool {
     localModelManager.snapshot.isRunnable
   }
@@ -44,8 +43,3 @@ struct ContentView: View {
     }
   }
 }
-
-/// Replaces the workspace UI while the AppDelegate awaits a clean VM stop
-/// during `applicationShouldTerminate`. The host's 6s budget is real wall
-/// time — without this view the live workspace just sits frozen on screen,
-/// leaving the user wondering whether ⌘Q registered.

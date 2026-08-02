@@ -340,8 +340,8 @@ public extension AgentExecutor {
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
   }
 
-  /// Tool observations in the native loop may be much larger than the
-  /// envelope era's 6 KB: capable models use long reads productively, and the
+  /// Tool observations in the native loop may be much larger than the old
+  /// 6 KB cap: capable models use long reads productively, and the
   /// provider-reported prompt tokens drive compaction instead of blind caps.
   static let nativeObservationCharacterLimit = 48_000
 
