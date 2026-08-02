@@ -34,23 +34,15 @@ public enum ToolRegistry {
 
   public static func tools(
     for phase: AgentPhase,
-    settings: AgentRuntimeSettings,
     promptMode: AgentPromptMode = .envelope
   ) -> [AgentTool] {
-    let tools: [AgentTool]
     switch phase {
     case .plan:
-      tools = inspectionTools() + [AgentPlanHistoryTool()]
+      return inspectionTools() + [AgentPlanHistoryTool()]
     case .critic:
-      tools = inspectionTools()
+      return inspectionTools()
     case .develop:
-      tools = developTools(promptMode: promptMode)
+      return developTools(promptMode: promptMode)
     }
-    _ = settings
-    return tools
-  }
-
-  public static func tools(for phase: AgentPhase) -> [AgentTool] {
-    tools(for: phase, settings: AgentRuntimeSettings())
   }
 }

@@ -11,7 +11,7 @@ The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt ass
 Text generation goes through `LocalModelGenerating`:
 
 - **OpenAI-compatible cloud** (`OpenAICompatibleModelRuntime`) — primary for Plan / Develop / Critic.
-- **MLX local** (`MLXLocalModelRuntime`) — preferred for cheap assist (compaction, narrators, Explore) when the blessed model is downloaded.
+- **MLX local** (`MLXLocalModelRuntime`) — preferred for cheap assist (compaction and narrators) when the blessed model is downloaded.
 - **`RoutedModelRuntime`** selects between them using `ModelRoutingHint` (`.cloudPrimary` vs `.localPreferred`).
 
 Runtime settings store provider choice, base URL, model id, context window, and (separately) the API key under Application Support secrets.

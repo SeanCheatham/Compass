@@ -7,7 +7,6 @@ public extension Prompts {
     workingDirectoryPath: String,
     toolNames: [String],
     executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
-    hostXcodeBuildTestEnabled: Bool = false,
     promptMode: AgentPromptMode = .envelope
   ) -> String {
     let visibleWorkingDirectory = Self.visibleWorkingDirectory(
@@ -39,7 +38,7 @@ public extension Prompts {
     All tool paths are resolved against this directory. Prefer relative paths.
     Tools available: \(toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", "))
 
-    \(executionEnvironmentSection(executionEnvironment, hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled))
+    \(executionEnvironmentSection(executionEnvironment))
 
     \(protocolSection)
     """
@@ -54,7 +53,6 @@ public extension Prompts {
     phase: AgentPhase,
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
-    hostXcodeBuildTestEnabled: Bool = false,
     externalToolNames: [String] = [],
     promptMode: AgentPromptMode = .envelope
   ) -> String {
@@ -131,10 +129,7 @@ public extension Prompts {
 
     \(assumptionGuidance())
 
-    \(executionEnvironmentSection(
-      executionEnvironment,
-      hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
-    ))
+    \(executionEnvironmentSection(executionEnvironment))
 
     Tools available:
     \(toolList)
@@ -195,10 +190,8 @@ public extension Prompts {
   }
 
   static func executionEnvironmentSection(
-    _ env: ExecutionEnvironmentDescriptor,
-    hostXcodeBuildTestEnabled: Bool = false
+    _ env: ExecutionEnvironmentDescriptor
   ) -> String {
-    _ = hostXcodeBuildTestEnabled
     switch env {
     case .host:
       return """

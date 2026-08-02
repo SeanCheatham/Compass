@@ -66,8 +66,6 @@ extension CompassProject {
     codemapStoreDirectory: URL,
     planHistoryEntries: [String] = [],
     sessionNumber: Int? = nil,
-    requiresHostXcode: Bool = false,
-    hostXcodeBuildTestEnabled: Bool = false,
     decode: T.Type
   ) async throws -> T {
     let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
@@ -82,7 +80,7 @@ extension CompassProject {
       settings: agentSettings,
       modelRuntime: modelRuntime
     )
-    let tools = ToolRegistry.tools(for: phase, settings: agentSettings, promptMode: promptMode)
+    let tools = ToolRegistry.tools(for: phase, promptMode: promptMode)
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: phase,
@@ -91,7 +89,6 @@ extension CompassProject {
         phase: phase,
         workingDirectoryPath: environment.workingDirectory.path,
         executionEnvironment: .containerizedLinux,
-        hostXcodeBuildTestEnabled: false,
         externalToolNames: [],
         promptMode: promptMode
       ),
@@ -290,17 +287,9 @@ extension CompassProject {
     command: String,
     hostWorkingDirectory: URL,
     timeoutSeconds: TimeInterval,
-    launchPlan: AgentExecutionLaunchPlan,
-    requiresHostXcode: Bool = false,
-    hostXcodeBuildTestEnabled: Bool = false,
-    hostXcodeMirrorRoot: URL? = nil,
-    hostRunner: ProcessRunner.InvocationRunner? = nil
+    launchPlan: AgentExecutionLaunchPlan
   ) async throws -> ProcessResult {
     _ = launchPlan
-    _ = requiresHostXcode
-    _ = hostXcodeBuildTestEnabled
-    _ = hostXcodeMirrorRoot
-    _ = hostRunner
     log(
       "Verify: running inside containerized Linux runtime at /workspace (timeout \(Int(timeoutSeconds * 1000))ms).",
       level: .info
@@ -313,39 +302,5 @@ extension CompassProject {
       workingDirectory: hostWorkingDirectory,
       timeout: timeoutSeconds
     )
-  }
-
-  /// Pulls the container workspace's current state (filtered against the
-  /// well-known build-output dirs) back onto the host's main repo.
-  /// Retained for compatibility with the old promotion flow. Container
-  /// writes already land in the host worktree.
-  ///
-  /// Pull failures are logged but not thrown: the subsequent
-  /// `git status` will surface "nothing to commit" or partial state
-  /// instead of dropping the entire iteration on a transient
-  /// transport hiccup.
-  func pullDevelopChangesIfNeeded(
-    mainRepoURL: URL,
-    plan: AgentExecutionLaunchPlan
-  ) async {
-    _ = mainRepoURL
-    _ = plan
-  }
-
-  /// Pushes the committed container HEAD to the Compass exchange repo and
-  /// fast-forwards the host checkout from that staging ref. Returns a
-  /// human-readable issue on failure so the Develop loop can stop
-  /// cleanly instead of silently losing agent commits.
-  func promoteDevelopChangesIfNeeded(
-    mainRepoURL: URL,
-    plan: AgentExecutionLaunchPlan,
-    sessionNumber: Int,
-    verifyPassed: Bool
-  ) async -> String? {
-    _ = mainRepoURL
-    _ = plan
-    _ = sessionNumber
-    _ = verifyPassed
-    return nil
   }
 }

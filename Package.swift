@@ -55,15 +55,6 @@ let package = Package(
       ]
     ),
     .target(
-      name: "TreeSitterScanners",
-      exclude: ["README.md"],
-      publicHeadersPath: "include",
-      cSettings: [
-        .headerSearchPath("include"),
-        .unsafeFlags(["-w"]),
-      ]
-    ),
-    .target(
       name: "CompassCore",
       dependencies: [
         "CompassSandbox",

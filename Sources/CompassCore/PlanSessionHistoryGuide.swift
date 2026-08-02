@@ -2,7 +2,6 @@ import Foundation
 
 public struct PlanSessionHistoryGuide: Equatable, Sendable {
   public static let detailLimit = 260
-  public static let identifierLimit = 1_400
 
   public enum Tone: String, Equatable, Sendable {
     case empty
@@ -34,11 +33,6 @@ public struct PlanSessionHistoryGuide: Equatable, Sendable {
   public var systemImageName: String
   public var facts: [Fact]
   public var auditCoverage: AuditCoverage
-  public var narrationIdentifier: String
-
-  public var allowsNarration: Bool {
-    tone != .empty && !facts.isEmpty
-  }
 
   public init(
     display: PlanSessionHistoryDisplay,
@@ -109,14 +103,6 @@ public struct PlanSessionHistoryGuide: Equatable, Sendable {
       runCues: runCues
     )
     auditCoverage = Self.auditCoverage(for: visibleItems.first)
-    narrationIdentifier = Self.narrationIdentifier(
-      title: title,
-      detail: detail,
-      statusLabel: statusLabel,
-      tone: tone,
-      facts: facts,
-      auditCoverage: auditCoverage
-    )
   }
 
   private static func facts(
@@ -344,105 +330,11 @@ public struct PlanSessionHistoryGuide: Equatable, Sendable {
     }
   }
 
-  private static func narrationIdentifier(
-    title: String,
-    detail: String,
-    statusLabel: String,
-    tone: Tone,
-    facts: [Fact],
-    auditCoverage: AuditCoverage
-  ) -> String {
-    let raw = [
-      "title:\(title)",
-      "detail:\(detail)",
-      "status:\(statusLabel)",
-      "tone:\(tone.rawValue)",
-      "audit:\(auditCoverage.label):\(auditCoverage.detail)",
-      "facts:\(facts.map { "\($0.id):\($0.label):\($0.detail)" }.joined(separator: "|"))",
-    ].joined(separator: "\n")
-    return StringUtils.boundedText(raw, limit: identifierLimit)
-  }
-
   private static func countLabel(_ count: Int, singular: String, plural: String) -> String {
     "\(count) \(count == 1 ? singular : plural)"
   }
 
   private static func bounded(_ text: String, limit: Int = detailLimit) -> String {
     StringUtils.boundedText(text, limit: limit)
-  }
-}
-
-public struct PlanSessionHistoryGuideNarration: Equatable, Sendable {
-  public var guideIdentifier: String
-  public var text: String
-}
-
-public enum PlanSessionHistoryGuideNarrator {
-  public static let maxCharacters = 360
-
-  public static func narrate(
-    guide: PlanSessionHistoryGuide
-  ) async -> PlanSessionHistoryGuideNarration? {
-    guard guide.allowsNarration else { return nil }
-    guard FoundationModelsAvailability.isAvailable else { return nil }
-
-    if #available(macOS 26.0, *) {
-      guard
-        let generated = await FoundationModelsAvailability._streamText(
-          prompt: prompt(for: guide)
-        )
-      else {
-        return nil
-      }
-      let text = sanitized(generated)
-      guard !text.isEmpty else { return nil }
-      return PlanSessionHistoryGuideNarration(
-        guideIdentifier: guide.narrationIdentifier,
-        text: text
-      )
-    }
-
-    return nil
-  }
-
-  public static func prompt(for guide: PlanSessionHistoryGuide) -> String {
-    """
-    You are Compass explaining Run History to a non-engineer.
-    Use only the facts below. Do not invent files, commands, outcomes, errors, or next steps.
-    Return one calm paragraph under 50 words. No Markdown.
-
-    Title: \(guide.title)
-    Detail: \(guide.detail)
-    Badge: \(guide.statusLabel)
-    Tone: \(guide.tone.rawValue)
-    Audit coverage: \(guide.auditCoverage.label) - \(guide.auditCoverage.detail)
-    Facts: \(guide.facts.map { "\($0.label) - \($0.detail)" }.joined(separator: " | "))
-    """
-  }
-
-  private static func sanitized(_ text: String) -> String {
-    let normalized = StringUtils.boundedText(
-      text
-        .components(separatedBy: .newlines)
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
-        .joined(separator: " "),
-      limit: maxCharacters
-    )
-    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'` "))
-
-    guard
-      !normalized.contains("{"),
-      !normalized.contains("}"),
-      !normalized.contains("```"),
-      !normalized.hasPrefix("- "),
-      !normalized.hasPrefix("* "),
-      !normalized.lowercased().contains("http://"),
-      !normalized.lowercased().contains("https://")
-    else {
-      return ""
-    }
-
-    return normalized
   }
 }

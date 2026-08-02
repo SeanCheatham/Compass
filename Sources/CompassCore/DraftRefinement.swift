@@ -56,18 +56,6 @@ public struct DraftRefinementContext: Equatable, Hashable, Sendable {
     )
   }
 
-  public var cacheIdentifier: String {
-    [
-      repoName,
-      immediatePlan,
-      candidates,
-      strategicContext,
-      primaryLanguage,
-    ]
-    .map(Self.normalizedPlainText)
-    .joined(separator: "\n")
-  }
-
   public var promptText: String {
     """
     Repository: \(repoName.isEmpty ? "unknown" : repoName)
@@ -113,81 +101,8 @@ public struct DraftRefinementContext: Equatable, Hashable, Sendable {
   }
 }
 
-public struct DraftRefinementPreviewKey: Equatable, Hashable, Sendable {
-  public var trimmedDraft: String
-  public var contextIdentifier: String
-
-  public init(trimmedDraft: String, context: DraftRefinementContext) {
-    self.trimmedDraft = DraftRefinementService.normalizeDraft(trimmedDraft)
-    self.contextIdentifier = context.cacheIdentifier
-  }
-}
-
-public struct DraftRefinementPreviewPlan: Equatable, Sendable {
-  public enum Visibility: Equatable, Sendable {
-    case hiddenEmptyDraft
-    case cached
-    case debounce
-  }
-
-  public var visibility: Visibility
-  public var cacheKey: DraftRefinementPreviewKey?
-  public var delayNanoseconds: UInt64
-
-  public var shouldShowPreviewSurface: Bool {
-    switch visibility {
-    case .hiddenEmptyDraft:
-      return false
-    case .cached, .debounce:
-      return true
-    }
-  }
-}
-
-public enum DraftRefinementPreviewPlanner {
-  public static let debounceDelayNanoseconds: UInt64 = 600_000_000
-
-  public static func plan(
-    draft: String,
-    context: DraftRefinementContext,
-    cachedKeys: Set<DraftRefinementPreviewKey>
-  ) -> DraftRefinementPreviewPlan {
-    let trimmedDraft = DraftRefinementService.normalizeDraft(draft)
-    guard !trimmedDraft.isEmpty else {
-      return DraftRefinementPreviewPlan(
-        visibility: .hiddenEmptyDraft,
-        cacheKey: nil,
-        delayNanoseconds: 0
-      )
-    }
-
-    let key = DraftRefinementPreviewKey(trimmedDraft: trimmedDraft, context: context)
-    if cachedKeys.contains(key) {
-      return DraftRefinementPreviewPlan(
-        visibility: .cached,
-        cacheKey: key,
-        delayNanoseconds: 0
-      )
-    }
-
-    return DraftRefinementPreviewPlan(
-      visibility: .debounce,
-      cacheKey: key,
-      delayNanoseconds: debounceDelayNanoseconds
-    )
-  }
-}
-
 public enum DraftRefinementService {
   public static let refinedTextMaxCharacters = 900
-
-  public static var isPreviewAvailable: Bool {
-    true
-  }
-
-  private static var isGeneratedPreviewAvailable: Bool {
-    return false
-  }
 
   public static func makeRefinement(
     draft: String,

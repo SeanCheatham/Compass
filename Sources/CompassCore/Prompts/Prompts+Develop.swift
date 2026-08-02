@@ -9,7 +9,6 @@ public extension Prompts {
     attempt: Int,
     priorIssues: [String],
     criticFeedback: [String] = [],
-    hostXcodeBuildTestEnabled: Bool = false,
     promptMode: AgentPromptMode = .envelope
   ) -> String {
     let criticSection =

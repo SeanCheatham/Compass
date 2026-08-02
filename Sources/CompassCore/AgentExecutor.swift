@@ -158,15 +158,6 @@ public final class AgentExecutor {
   /// remediation text.
   public static let maxCompletionTokensPerTurn = 65_536
 
-  /// Retained for older budget summaries; the local runtime owns retry policy.
-  public static let maxStreamAttempts = 5
-
-  /// Base delay for exponential backoff between retries (seconds). The
-  /// effective delay is `base * 2^(attempt-1)` with ±20% jitter, capped
-  /// at `maxStreamRetryDelay`.
-  public static let baseStreamRetryDelay: TimeInterval = 1.0
-  public static let maxStreamRetryDelay: TimeInterval = 30.0
-
   /// Fraction of the configured context window at which the executor
   /// runs auto-compaction. We measure against a chars-per-token estimate
   /// of the current `messages` array (see `estimatedTokens(in:)`); the

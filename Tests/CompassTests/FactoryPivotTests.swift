@@ -8,7 +8,7 @@ import Testing
 struct FactoryPivotTests {
   @Test
   func factoryStateCreatesAndEncodesNewShape() throws {
-    let state = FactoryState.empty
+    let state = PlanState.empty
 
     #expect(state.schemaVersion == 1)
     #expect(state.brief == .empty)
@@ -53,7 +53,7 @@ struct FactoryPivotTests {
       }
       """.data(using: .utf8)!
 
-    let decoded = try JSONDecoder().decode(FactoryState.self, from: legacy)
+    let decoded = try JSONDecoder().decode(PlanState.self, from: legacy)
 
     #expect(decoded.schemaVersion == 1)
     #expect(decoded.completed == ["first"])
@@ -204,7 +204,7 @@ struct FactoryPivotTests {
 
   @Test
   func promptsDoNotMentionRemovedDirections() throws {
-    let state = PlanProposal(from: FactoryState.empty)
+    let state = PlanProposal(from: PlanState.empty)
     let next = PlanNext(
       plan: "## Outcome\nAdd a Rust slice\n\n## Acceptance checks\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
       verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",

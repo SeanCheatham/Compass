@@ -90,17 +90,6 @@ public struct PlanProposal: Codable, Equatable {
     )
   }
 
-  public func removingHostXcodeRequirement() -> PlanProposal {
-    guard var immediate else { return self }
-    immediate.requiresHostXcode = false
-    return PlanProposal(
-      immediate: immediate,
-      candidates: candidates,
-      strategicContext: strategicContext,
-      openQuestions: openQuestions
-    )
-  }
-
   public func promptDigest(
     maxCandidates: Int = 6,
     maxStrategicBullets: Int = 5,

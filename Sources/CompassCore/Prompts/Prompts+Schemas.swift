@@ -12,10 +12,6 @@ public extension Prompts {
   static let criticSchema = loadSchema("critic")
   static let subAgentSchema = loadSchema("subAgent")
 
-  static func planSchema(hostXcodeBuildTestEnabled: Bool) -> String {
-    planSchema
-  }
-
   /// Token type used to anchor `Bundle(for:)` lookups in the Xcode-built
   /// app bundle. `Bundle.module` is only synthesized by SwiftPM, so the
   /// Xcode target reaches its resources through this class instead.

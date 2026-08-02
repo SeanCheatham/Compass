@@ -2,7 +2,6 @@ import Foundation
 
 public struct PlanHandoffRepairGuide: Equatable, Sendable {
   public static let templateLimit = 720
-  public static let identifierLimit = 1_200
 
   public var status: Status
   public var title: String
@@ -11,14 +10,9 @@ public struct PlanHandoffRepairGuide: Equatable, Sendable {
   public var steps: [Step]
   public var suggestedVerifyCommand: String?
   public var planTemplate: String?
-  public var narrationIdentifier: String
 
   public var shouldShow: Bool {
     status != .ready
-  }
-
-  public var allowsNarration: Bool {
-    shouldShow && !narrationIdentifier.isEmpty
   }
 
   public init(
@@ -109,31 +103,12 @@ public struct PlanHandoffRepairGuide: Equatable, Sendable {
     }
 
     detail = StringUtils.boundedText(detail, limit: 220)
-    narrationIdentifier = Self.narrationIdentifier(
-      status: status,
-      title: title,
-      detail: detail,
-      scoreLabel: scoreLabel,
-      steps: steps,
-      suggestedVerifyCommand: suggestedVerifyCommand
-    )
   }
 
   public enum Status: Equatable, Sendable {
     case missingHandoff
     case needsRepair
     case ready
-
-    public var narrationKey: String {
-      switch self {
-      case .missingHandoff:
-        return "missingHandoff"
-      case .needsRepair:
-        return "needsRepair"
-      case .ready:
-        return "ready"
-      }
-    }
   }
 
   public struct Step: Identifiable, Equatable, Sendable {
@@ -237,31 +212,6 @@ public struct PlanHandoffRepairGuide: Equatable, Sendable {
     }
   }
 
-  private static func narrationIdentifier(
-    status: Status,
-    title: String,
-    detail: String,
-    scoreLabel: String,
-    steps: [Step],
-    suggestedVerifyCommand: String?
-  ) -> String {
-    let stepFragment = steps.map { step in
-      "\(step.kind.narrationKey):satisfied:\(step.isSatisfied):required:\(step.isRequired):\(step.detail)"
-    }.joined(separator: "|")
-
-    return StringUtils.boundedText(
-      [
-        "status:\(status.narrationKey)",
-        "title:\(title)",
-        "detail:\(detail)",
-        "score:\(scoreLabel)",
-        "steps:\(stepFragment)",
-        "suggestedVerify:\(suggestedVerifyCommand ?? "")",
-      ].joined(separator: "\n"),
-      limit: Self.identifierLimit
-    )
-  }
-
   private static func template(
     outcome: String?,
     whyItMatters: String?,
@@ -298,22 +248,5 @@ public struct PlanHandoffRepairGuide: Equatable, Sendable {
     guard templateLimit > 3 else { return String(trimmed.prefix(templateLimit)) }
     return String(trimmed.prefix(templateLimit - 3))
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
-  }
-}
-
-public extension PlanHandoffRepairGuide.Kind {
-  fileprivate var narrationKey: String {
-    switch self {
-    case .outcome:
-      return "outcome"
-    case .acceptanceChecks:
-      return "acceptanceChecks"
-    case .verifyCommand:
-      return "verifyCommand"
-    case .coverageReadyVerify:
-      return "coverageReadyVerify"
-    case .whyItMatters:
-      return "whyItMatters"
-    }
   }
 }

@@ -31,7 +31,6 @@ final class AppModel: ObservableObject {
   @Published var workspaceSelection: WorkspaceSelection = .runtime
   @Published var modelOverride = ""
   @Published private(set) var agentSettings: AgentRuntimeSettings
-  @Published private(set) var runtimeFeatureFlags: CompassRuntimeFeatureFlags
   private let agentSettingsStore: AgentSettingsStore
   @Published var errorMessage: String?
 
@@ -40,7 +39,6 @@ final class AppModel: ObservableObject {
   ) {
     self.agentSettingsStore = agentSettingsStore
     self.agentSettings = agentSettingsStore.load()
-    self.runtimeFeatureFlags = CompassRuntimeFeatureFlags()
   }
 
   // MARK: - Agent settings setters
@@ -85,8 +83,6 @@ final class AppModel: ObservableObject {
   }
 
   func bootstrap() async {
-    runtimeFeatureFlags = CompassRuntimeFeatureFlags()
-
     projects = KnownProjectStore.load().map(CompassProject.init(record:))
     selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
     if let id = selectedProjectID {
@@ -190,8 +186,7 @@ final class AppModel: ObservableObject {
     }
 
     let project = CompassProject(
-      repoURL: standardized,
-      hostXcodeBuildTestEnabled: false
+      repoURL: standardized
     )
     projects.insert(project, at: 0)
     saveProjects()

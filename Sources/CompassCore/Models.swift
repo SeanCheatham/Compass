@@ -424,7 +424,6 @@ public struct PlanNext: Codable, Equatable {
   public var verify: String
   public var verifyTimeoutMs: Int?
   public var estimatedDifficulty: Difficulty?
-  public var requiresHostXcode: Bool
   public var selectedBecause: String?
   public var source: Source?
   public var candidateID: String?
@@ -473,8 +472,6 @@ public struct PlanNext: Codable, Equatable {
     case verifyTimeoutMsSnake = "verify_timeout_ms"
     case estimatedDifficulty
     case estimatedDifficultySnake = "estimated_difficulty"
-    case requiresHostXcode
-    case requiresHostXcodeSnake = "requires_host_xcode"
     case selectedBecause
     case selectedBecauseSnake = "selected_because"
     case source
@@ -487,7 +484,6 @@ public struct PlanNext: Codable, Equatable {
     verify: String,
     verifyTimeoutMs: Int? = nil,
     estimatedDifficulty: Difficulty? = nil,
-    requiresHostXcode: Bool = false,
     selectedBecause: String? = "Selected by Compass as the next useful slice.",
     source: Source? = .repository,
     candidateID: String? = nil
@@ -496,7 +492,6 @@ public struct PlanNext: Codable, Equatable {
     self.verify = verify.trimmingCharacters(in: .whitespacesAndNewlines)
     self.verifyTimeoutMs = verifyTimeoutMs
     self.estimatedDifficulty = estimatedDifficulty
-    self.requiresHostXcode = requiresHostXcode
     self.selectedBecause =
       selectedBecause?.trimmingCharacters(in: .whitespacesAndNewlines)
       .nilIfEmpty
@@ -537,12 +532,6 @@ public struct PlanNext: Codable, Equatable {
       preferredKey: .estimatedDifficulty,
       aliases: [.estimatedDifficultySnake]
     )
-    self.requiresHostXcode =
-      Self.decodeBool(
-        from: container,
-        preferredKey: .requiresHostXcode,
-        aliases: [.requiresHostXcodeSnake]
-      ) ?? false
     self.selectedBecause = try FlexibleModelDecoder.decodeStringIfPresent(
       from: container,
       preferredKey: .selectedBecause,
@@ -562,9 +551,6 @@ public struct PlanNext: Codable, Equatable {
     try container.encode(verify, forKey: .verify)
     try container.encodeIfPresent(verifyTimeoutMs, forKey: .verifyTimeoutMs)
     try container.encodeIfPresent(estimatedDifficulty, forKey: .estimatedDifficulty)
-    if requiresHostXcode {
-      try container.encode(true, forKey: .requiresHostXcode)
-    }
     try container.encodeIfPresent(selectedBecause, forKey: .selectedBecause)
     try container.encodeIfPresent(source, forKey: .source)
     try container.encodeIfPresent(candidateID, forKey: .candidateID)
@@ -634,19 +620,6 @@ public struct PlanNext: Codable, Equatable {
       return nil
     }
     return Difficulty(rawValue: rawValue)
-  }
-
-  private static func decodeBool(
-    from container: KeyedDecodingContainer<CodingKeys>,
-    preferredKey: CodingKeys,
-    aliases: [CodingKeys]
-  ) -> Bool? {
-    for key in [preferredKey] + aliases {
-      if let value = FlexibleModelDecoder.decodeBool(from: container, forKey: key) {
-        return value
-      }
-    }
-    return nil
   }
 
   private static func decodeSource(from container: KeyedDecodingContainer<CodingKeys>) -> Source? {
@@ -1234,12 +1207,6 @@ public struct PlanState: Codable, Equatable {
     proposal.applying(to: self)
   }
 }
-
-public typealias FactoryState = PlanState
-public typealias FactoryBrief = PlanStrategicContext
-public typealias FactoryWorkItem = PlanCandidate
-public typealias FactoryImmediate = PlanNext
-public typealias FactoryQuestion = PlanQuestion
 
 public struct LessonEdit: Codable, Equatable {
   public var find: String

@@ -3,7 +3,7 @@
 #
 # Usage:
 #   ./scripts/test-local.sh
-#   ./scripts/test-local.sh --filter ForgeProfileTests
+#   ./scripts/test-local.sh --filter CompassCLITests
 
 set -euo pipefail
 

@@ -1,10 +1,6 @@
 import Foundation
 
 public extension Prompts {
-  static func sharedVMApplePlatformPlanningRule() -> String {
-    ""
-  }
-
   /// Instruction appended to the live conversation when the executor
   /// needs to compact the message history. The model is asked to drop
   /// what it was doing and emit a plain-text summary that the next

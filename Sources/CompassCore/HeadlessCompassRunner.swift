@@ -1265,7 +1265,6 @@ public struct HeadlessCompassRunner: Sendable {
       userPrompt: userPrompt,
       tools: ToolRegistry.tools(
         for: phase,
-        settings: settings,
         promptMode: ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
       ),
       modelRuntime: runtime,

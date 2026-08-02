@@ -81,7 +81,6 @@ public struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       workingDirectoryPath: agentVisibleWorkspacePath
         ?? workingDirectory.path,
       toolNames: toolNameList,
-      hostXcodeBuildTestEnabled: false,
       promptMode: promptMode
     )
     let configuration = AgentExecutionConfiguration(

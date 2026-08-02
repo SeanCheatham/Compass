@@ -86,7 +86,6 @@ extension CompassProject {
         focus: focus,
         coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
         mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
-        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
         promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -110,9 +109,7 @@ extension CompassProject {
         modelOverride: modelOverride,
         workingDirectory: workspace.repoURL,
         userPrompt: prompt,
-        submitResultSchema: Prompts.planSchema(
-          hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
-        ),
+        submitResultSchema: Prompts.planSchema,
         codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
         planHistoryEntries: currentState.completed,
         sessionNumber: sessionNumber,
@@ -336,7 +333,6 @@ extension CompassProject {
             attempt: attempt,
             priorIssues: priorIssues,
             criticFeedback: criticFeedbacks,
-            hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
             promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)
           )
 
@@ -363,8 +359,6 @@ extension CompassProject {
               submitResultSchema: Prompts.developSchema,
               codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
               sessionNumber: sessions[sessionIndex].session,
-              requiresHostXcode: next.requiresHostXcode,
-              hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
               decode: DevelopSummary.self
             )
           } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
@@ -447,19 +441,6 @@ extension CompassProject {
           // Post-checks failed after every Develop attempt. Hand the
           // failure context to Plan.
           developHandOffToPlan = true
-          break criticLoop
-        }
-
-        // Container writes are already in the host checkout; this hook is
-        // retained as a no-op compatibility point.
-        if let issue = await promoteDevelopChangesIfNeeded(
-          mainRepoURL: workspace.repoURL,
-          plan: launchPlan,
-          sessionNumber: sessions[sessionIndex].session,
-          verifyPassed: true
-        ) {
-          finalIssues = [issue]
-          succeeded = false
           break criticLoop
         }
 
@@ -735,9 +716,7 @@ extension CompassProject {
         command: verifyCommand,
         hostWorkingDirectory: workingDirectory,
         timeoutSeconds: TimeInterval(timeoutMs) / 1000,
-        launchPlan: launchPlan,
-        requiresHostXcode: next.requiresHostXcode,
-        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+        launchPlan: launchPlan
       )
       recordVerifyAuditOutput(
         command: verifyCommand,

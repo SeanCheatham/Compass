@@ -12,7 +12,6 @@ public extension Prompts {
     focus: PlanFocus,
     coverageSnapshot: CoverageSnapshot? = nil,
     mutationSnapshot: MutationSnapshot? = nil,
-    hostXcodeBuildTestEnabled: Bool = false,
     promptMode: AgentPromptMode = .envelope
   ) throws -> String {
     let stateJSON = try CompassWorkspace.encodeProposal(state.promptDigest())

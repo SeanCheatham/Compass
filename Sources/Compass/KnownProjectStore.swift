@@ -55,7 +55,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
   var addedAt: Double
   var lastOpenedAt: Double
   var nativeFeedbackMode: NativeFeedbackMode
-  var hostXcodeBuildTestEnabled: Bool
 
   enum CodingKeys: String, CodingKey {
     case id
@@ -64,7 +63,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     case addedAt
     case lastOpenedAt
     case nativeFeedbackMode
-    case hostXcodeBuildTestEnabled
   }
 
   init(
@@ -73,8 +71,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     activeStorage: KnownProjectActiveStorage = .repoLocal,
     addedAt: Double,
     lastOpenedAt: Double,
-    nativeFeedbackMode: NativeFeedbackMode = .notifications,
-    hostXcodeBuildTestEnabled: Bool = false
+    nativeFeedbackMode: NativeFeedbackMode = .notifications
   ) {
     self.id = id
     self.path = path
@@ -82,7 +79,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     self.addedAt = addedAt
     self.lastOpenedAt = lastOpenedAt
     self.nativeFeedbackMode = nativeFeedbackMode
-    self.hostXcodeBuildTestEnabled = hostXcodeBuildTestEnabled
   }
 
   init(from decoder: Decoder) throws {
@@ -101,11 +97,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         NativeFeedbackMode.self,
         forKey: .nativeFeedbackMode
       ) ?? .notifications
-    hostXcodeBuildTestEnabled =
-      try container.decodeIfPresent(
-        Bool.self,
-        forKey: .hostXcodeBuildTestEnabled
-      ) ?? false
   }
 
   func encode(to encoder: Encoder) throws {
@@ -116,7 +107,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     try container.encode(addedAt, forKey: .addedAt)
     try container.encode(lastOpenedAt, forKey: .lastOpenedAt)
     try container.encode(nativeFeedbackMode, forKey: .nativeFeedbackMode)
-    try container.encode(hostXcodeBuildTestEnabled, forKey: .hostXcodeBuildTestEnabled)
   }
 }
 
@@ -128,8 +118,7 @@ extension CompassProject {
       activeStorage: record.activeStorage,
       addedAt: Date(timeIntervalSince1970: record.addedAt),
       lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
-      nativeFeedbackMode: record.nativeFeedbackMode,
-      hostXcodeBuildTestEnabled: record.hostXcodeBuildTestEnabled
+      nativeFeedbackMode: record.nativeFeedbackMode
     )
   }
 
@@ -140,8 +129,7 @@ extension CompassProject {
       activeStorage: activeStorage,
       addedAt: addedAt.timeIntervalSince1970,
       lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
-      nativeFeedbackMode: nativeFeedbackMode,
-      hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+      nativeFeedbackMode: nativeFeedbackMode
     )
   }
 
