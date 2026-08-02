@@ -10,6 +10,8 @@ let package = Package(
   products: [
     .executable(name: "Compass", targets: ["Compass"]),
     .executable(name: "compass-cli", targets: ["CompassCLI"]),
+    .executable(name: "CompassGuestAgent", targets: ["CompassGuestAgent"]),
+    .library(name: "CompassAgentRPC", targets: ["CompassAgentRPC"]),
     .library(name: "CompassSandbox", targets: ["CompassSandbox"]),
     .library(name: "CompassCore", targets: ["CompassCore"]),
   ],
@@ -46,6 +48,13 @@ let package = Package(
   ],
   targets: [
     .target(
+      name: "CompassAgentRPC"
+    ),
+    .executableTarget(
+      name: "CompassGuestAgent",
+      dependencies: ["CompassAgentRPC"]
+    ),
+    .target(
       name: "CompassSandbox",
       dependencies: [
         .product(name: "Containerization", package: "containerization"),
@@ -57,6 +66,7 @@ let package = Package(
     .target(
       name: "CompassCore",
       dependencies: [
+        "CompassAgentRPC",
         "CompassSandbox",
         .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
@@ -66,6 +76,7 @@ let package = Package(
         .product(name: "HuggingFace", package: "swift-huggingface"),
         .product(name: "Tokenizers", package: "swift-transformers"),
       ],
+      exclude: ["SharedVM/README.md"],
       resources: [
         .process("Resources")
       ]
@@ -78,6 +89,13 @@ let package = Package(
       name: "Compass",
       dependencies: [
         "CompassCore",
+      ]
+    ),
+    .testTarget(
+      name: "CompassAgentRPCTests",
+      dependencies: [
+        "CompassAgentRPC",
+        .product(name: "Testing", package: "swift-testing"),
       ]
     ),
     .testTarget(

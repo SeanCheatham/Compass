@@ -345,8 +345,10 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
 
     private static func preferenceTitle(identifier: String, fallback: String) -> String {
       switch identifier {
-      case AgentExecutionEnvironmentPreference.containerizedLinux.rawValue, "shared_vm":
+      case AgentExecutionEnvironmentPreference.containerizedLinux.rawValue:
         return "Containerized Linux"
+      case AgentExecutionEnvironmentPreference.macOSVM.rawValue, "shared_vm":
+        return "macOS VM"
       default:
         return sanitizedTitle(fallback, fallback: "Unknown")
       }
@@ -354,8 +356,10 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
 
     private static func routeTitle(identifier: String, fallback: String) -> String {
       switch identifier {
-      case "containerized-linux", "shared-vm":
+      case "containerized-linux":
         return "Containerized Linux"
+      case "macos-vm", "shared-vm":
+        return "macOS VM"
       case "native-macos":
         return "This Mac"
       default:
@@ -366,12 +370,13 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
     private static func preferenceIdentifier(_ text: String) -> String {
       let identifier = sanitizedIdentifier(text, fallback: "unknown")
       switch identifier {
-      case AgentExecutionEnvironmentPreference.containerizedLinux.rawValue:
+      case AgentExecutionEnvironmentPreference.containerizedLinux.rawValue,
+        AgentExecutionEnvironmentPreference.macOSVM.rawValue:
         return identifier
       case "native_macos", "devcontainer_preferred":
         return AgentExecutionEnvironmentPreference.containerizedLinux.rawValue
       case "shared_vm":
-        return AgentExecutionEnvironmentPreference.containerizedLinux.rawValue
+        return AgentExecutionEnvironmentPreference.macOSVM.rawValue
       default:
         return "unknown"
       }
@@ -380,10 +385,10 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
     private static func routeIdentifier(_ text: String) -> String {
       let identifier = sanitizedIdentifier(text, fallback: "unknown")
       switch identifier {
-      case "containerized-linux", "native-macos":
+      case "containerized-linux", "native-macos", "macos-vm":
         return identifier
       case "shared-vm":
-        return "containerized-linux"
+        return "macos-vm"
       default:
         return "unknown"
       }

@@ -13,6 +13,9 @@ IDENTITY="${COMPASS_CLI_SIGN_IDENTITY:--}"
 XCODE_CONFIGURATION="${XCODE_CONFIGURATION:-Debug}"
 
 swift build -c "${CONFIGURATION}" --product compass-cli
+# The embedded macOS VM guest agent must sit next to compass-cli so
+# SharedCompassVM can plant it into the guest at provisioning time.
+swift build -c "${CONFIGURATION}" --product CompassGuestAgent
 
 BIN_DIR="$(cd "$(dirname "${BINARY}")" && pwd)"
 SWIFTPM_BIN_DIR="$(swift build -c "${CONFIGURATION}" --show-bin-path)"

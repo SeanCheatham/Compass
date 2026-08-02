@@ -6,5 +6,16 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!--
+	Enables the data protection keychain on macOS, scoping items by
+	`<team>.<bundle>` instead of cdhash. Required by
+	SharedCompassVMGuestCredential, which keeps the guest credentials in
+	the keychain so re-signing the dev build doesn't re-prompt for
+	access on every rebuild.
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>
+	</array>
 </dict>
 </plist>

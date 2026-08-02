@@ -109,26 +109,51 @@ public struct HeadlessCompassRunner: Sendable {
 
   public init() {
     self.init { repoURL, label in
-      if Self.bashRuntimePrefersHost() {
+      switch Self.bashRuntimeSelection() {
+      case .host:
         return AgentHostBashRunner()
+      case .macOSVM:
+        return AgentMacOSVMBashRunner(repoRoot: repoURL, label: label)
+      case .containerizedLinux:
+        return AgentContainerBashRunner(repoRoot: repoURL, label: label)
       }
-      return AgentContainerBashRunner(repoRoot: repoURL, label: label)
+    }
+  }
+
+  public enum BashRuntimeSelection: String, Sendable {
+    case containerizedLinux = "containerized_linux"
+    case macOSVM = "macos_vm"
+    case host
+  }
+
+  public static func bashRuntimeSelection(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> BashRuntimeSelection {
+    switch environment["COMPASS_BASH_RUNTIME"]?
+      .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    {
+    case "host": return .host
+    case "macos_vm", "shared_vm", "vm": return .macOSVM
+    default: return .containerizedLinux
     }
   }
 
   public static func bashRuntimePrefersHost(
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> Bool {
-    environment["COMPASS_BASH_RUNTIME"]?
-      .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "host"
+    bashRuntimeSelection(environment: environment) == .host
   }
 
   public static var bashRuntimeName: String {
-    bashRuntimePrefersHost() ? "host" : "containerized_linux"
+    bashRuntimeSelection().rawValue
   }
 
   public static var bashRuntimeDescription: String {
-    bashRuntimePrefersHost() ? "host shell" : "containerized Linux runtime"
+    switch bashRuntimeSelection() {
+    case .host: return "host shell"
+    case .macOSVM: return "embedded macOS VM"
+    case .containerizedLinux: return "containerized Linux runtime"
+    }
   }
 
   public init(
@@ -913,27 +938,29 @@ public struct HeadlessCompassRunner: Sendable {
             break
           }
           if GeneratedProducts.contains(plannedState.products, .macos) {
-            let macosResult = try await AgentHostBashRunner().run(
-              command: GeneratedProjectQuality.macosVerifyCommand,
+            let macosOutcome = await MacOSVerifyGate.run(
               workingDirectory: repoURL,
+              repoRoot: repoURL,
               timeout: Self.qualityCollectionTimeoutSeconds()
             )
+            let macosResult = macosOutcome.result
+            let macosFallbackNote = macosOutcome.fallbackReason.map { " (VM unavailable: \($0))" }
+              ?? ""
             _ = try? workspace.writeSessionAuditArtifact(
               session: sessionNumber,
               name: "macos-verify.log",
               kind: "log",
               contents: "$ \(GeneratedProjectQuality.macosVerifyCommand)\n\n"
                 + macosResult.stdout + "\n" + macosResult.stderr,
-              note: "Host macOS verify output (temporary runner)."
+              note: "macOS verify output (\(macosOutcome.runtimeDescription)\(macosFallbackNote))."
             )
             if macosResult.exitCode != 0 {
               let issue = """
-                Host macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` exited with code \(macosResult.exitCode). \
-                This gate is temporary host-side and will move to a macOS VM later.
+                macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` on \(macosOutcome.runtimeDescription)\(macosFallbackNote) exited with code \(macosResult.exitCode).
                 \(tail(macosResult.stdout + macosResult.stderr, max: 4000))
                 """
               session.notes.append(
-                "Verify attempt \(attempt) passed Rust verify but macOS host verify failed.")
+                "Verify attempt \(attempt) passed Rust verify but the macOS gate failed.")
               let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
               let canUseVerifyRepairAttempt =
                 !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
@@ -960,7 +987,7 @@ public struct HeadlessCompassRunner: Sendable {
                 kind: "macos_verify",
                 status: "completed",
                 phase: "verify",
-                message: "Host macOS verify passed (temporary runner; VM later)."
+                message: "macOS verify passed (\(macosOutcome.runtimeDescription))."
               )
             )
           }

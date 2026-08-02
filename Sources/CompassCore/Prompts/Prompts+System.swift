@@ -150,8 +150,8 @@ public extension Prompts {
     Generated output requires Rust `crates/core` plus at least one product (`cli`
     and/or `macos`). Domain logic stays in `crates/core`; CLI and macOS are adapters.
     Rust verification uses `cargo fmt`, Clippy, and `cargo test`; coverage uses
-    `cargo llvm-cov`. When `macos` is enabled, also run `bash scripts/verify-macos.sh`
-    on the Mac host (temporary; will move to a macOS VM later).
+    `cargo llvm-cov`. When `macos` is enabled, also run `bash scripts/verify-macos.sh`;
+    it executes inside the embedded macOS VM (or the Mac host as fallback).
     """
   }
 
@@ -207,8 +207,8 @@ public extension Prompts {
       Bash commands run inside Linux with that same worktree mounted at `/workspace`.
       Use relative paths or `/workspace/...` for every tool. Expected shell tools include
       git and the Rust toolchain (cargo, rustc, rustfmt, clippy). Docker, Xcode,
-      and Homebrew are unavailable in the Linux container. macOS product verify runs on
-      the Mac host (temporary) or a future macOS VM — do not expect `xcodebuild` here.
+      and Homebrew are unavailable in the Linux container. macOS product verify runs
+      inside the embedded macOS VM (Mac host as fallback) — do not expect `xcodebuild` here.
       """
     }
   }

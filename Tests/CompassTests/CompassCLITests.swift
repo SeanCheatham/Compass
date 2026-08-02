@@ -308,13 +308,13 @@ struct CompassCLITests {
   }
 
   @Test
-  func legacySharedVMSessionPreferenceDecodesAsContainerizedLinux() throws {
+  func legacySharedVMSessionPreferenceDecodesAsMacOSVM() throws {
     let decoded = try JSONDecoder().decode(
       AgentExecutionEnvironmentPreference.self,
       from: Data(#""shared_vm""#.utf8)
     )
-    #expect(decoded == .containerizedLinux)
-    #expect(decoded.rawValue == "containerized_linux")
+    #expect(decoded == .macOSVM)
+    #expect(decoded.rawValue == "macos_vm")
   }
 
   @Test

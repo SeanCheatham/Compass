@@ -32,7 +32,12 @@ struct ContentView: View {
   private var workspaceDetail: some View {
     switch model.workspaceSelection {
     case .runtime:
-      ContainerRuntimeView()
+      TabView {
+        ContainerRuntimeView()
+          .tabItem { Label("Container Runtime", systemImage: "shippingbox") }
+        MacOSVMRuntimeView()
+          .tabItem { Label("macOS VM", systemImage: "desktopcomputer") }
+      }
     case .project:
       if let project = model.selectedProject {
         MainWorkspaceView(project: project)

@@ -14,7 +14,8 @@ public enum GeneratedProjectQuality {
   /// Post-verify mutation gate, scoped per iteration via `mutationTestCommand(forChangedFiles:)`.
   public static let mutationTestCommand = "cargo mutants --no-shuffle -j 1"
 
-  /// Temporary host-side macOS gate (stand-in for a future macOS VM runner).
+  /// macOS product gate. Runs inside the embedded macOS VM when available,
+  /// falling back to the host shell (see `MacOSVerifyGate`).
   public static let macosVerifyCommand = "bash scripts/verify-macos.sh"
 
   public static let coverageRequirementHint =
@@ -27,8 +28,8 @@ public enum GeneratedProjectQuality {
     - Domain logic lives only in `crates/core`. CLI and macOS are adapters.
     - Prefer `cargo fmt`, Clippy (`-D warnings`), and `cargo test` for Rust verification.
     - Standard Rust verify is `\(standardVerifyCommand)`.
-    - When the `macos` product is enabled, also run `\(macosVerifyCommand)` on the Mac host
-      (temporary; will move to a macOS VM later). Do not expect Xcode inside the Linux container.
+    - When the `macos` product is enabled, also run `\(macosVerifyCommand)`; it executes
+      inside the embedded macOS VM (or the Mac host as fallback). Do not expect Xcode inside the Linux container.
     - Coverage is collected after verify with `\(coverageCollectCommand)`.
     - Mutation testing runs post-verify scoped to changed Rust files; surviving
       mutants indicate weak tests and should drive test-strengthening work.

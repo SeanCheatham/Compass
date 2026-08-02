@@ -683,7 +683,8 @@ public enum RustProjectScaffold {
 
   private static let verifyMacOSScript = #"""
     #!/usr/bin/env bash
-    # Temporary host-side macOS verify. Swap this runner for a macOS VM later.
+    # macOS product verify. Runs inside the embedded macOS VM when that
+    # runtime is available, otherwise on the Mac host shell.
     set -euo pipefail
 
     ROOT="$(cd "$(dirname "$0")/.." && pwd)"

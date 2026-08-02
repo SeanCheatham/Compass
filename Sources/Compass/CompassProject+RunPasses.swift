@@ -1055,7 +1055,9 @@ extension CompassProject {
     }
   }
 
-  /// Host-side macOS product gate (temporary stand-in for a future macOS VM).
+  /// macOS product gate. Runs inside the embedded macOS VM when that
+  /// runtime is available, falling back to the host shell otherwise
+  /// (see `MacOSVerifyGate`).
   func runMacOSVerifyIfNeeded(
     workingDirectory: URL,
     sessionIndex: Int
@@ -1066,43 +1068,37 @@ extension CompassProject {
     else { return nil }
 
     log(
-      "Post-check: running host macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` (temporary; VM later).",
+      "Post-check: running macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)`.",
       level: .info
     )
     let sessionNumber =
       sessions.indices.contains(sessionIndex) ? sessions[sessionIndex].session : 0
-    do {
-      let result = try await AgentHostBashRunner().run(
-        command: GeneratedProjectQuality.macosVerifyCommand,
-        workingDirectory: workingDirectory,
-        timeout: Self.qualityCollectionTimeoutSeconds()
-      )
-      let combined = result.stdout + "\n" + result.stderr
-      _ = try? workspace.writeSessionAuditArtifact(
-        session: sessionNumber,
-        name: "macos-verify.log",
-        kind: "log",
-        contents: "$ \(GeneratedProjectQuality.macosVerifyCommand)\n\n" + combined,
-        note: "Host macOS verify output (temporary runner)."
-      )
-      guard result.exitCode == 0 else {
-        let tail = String(combined.suffix(4000))
-        return """
-          [macos-verify] Host macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` exited with code \(result.exitCode). \
-          This gate is temporary host-side and will move to a macOS VM later. Output (tail):
-          ```
-          \(tail)
-          ```
-          """
-      }
-      log("macOS host verify passed.", level: .success)
-      return nil
-    } catch {
+    let outcome = await MacOSVerifyGate.run(
+      workingDirectory: workingDirectory,
+      repoRoot: workingDirectory,
+      timeout: Self.qualityCollectionTimeoutSeconds()
+    )
+    let result = outcome.result
+    let combined = result.stdout + "\n" + result.stderr
+    let fallbackNote = outcome.fallbackReason.map { " (VM unavailable: \($0))" } ?? ""
+    _ = try? workspace.writeSessionAuditArtifact(
+      session: sessionNumber,
+      name: "macos-verify.log",
+      kind: "log",
+      contents: "$ \(GeneratedProjectQuality.macosVerifyCommand)\n\n" + combined,
+      note: "macOS verify output (\(outcome.runtimeDescription)\(fallbackNote))."
+    )
+    guard result.exitCode == 0 else {
+      let tail = String(combined.suffix(4000))
       return """
-        [macos-verify] Host macOS verify failed to run: \(error.localizedDescription). \
-        macOS product requires a Mac host/VM with the Swift toolchain.
+        [macos-verify] macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` on \(outcome.runtimeDescription)\(fallbackNote) exited with code \(result.exitCode). Output (tail):
+        ```
+        \(tail)
+        ```
         """
     }
+    log("macOS verify passed (\(outcome.runtimeDescription)\(fallbackNote)).", level: .success)
+    return nil
   }
 
   /// Evaluates persisted evidence against the active acceptance gates.

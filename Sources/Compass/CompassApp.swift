@@ -15,6 +15,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     true
   }
+
+  /// Gives the embedded macOS VM a chance to shut the guest down
+  /// gracefully (flush APFS, stop services) before the process exits
+  /// and VZ pulls the power cord.
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    let vm = SharedCompassVM.shared
+    guard vm.virtualMachine != nil else { return .terminateNow }
+    vm.beginShutdown()
+    Task { @MainActor in
+      await vm.stop()
+      NSApp.reply(toApplicationShouldTerminate: true)
+    }
+    return .terminateLater
+  }
 }
 
 @main

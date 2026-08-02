@@ -45,7 +45,7 @@ Standard Rust verification:
 cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace
 ```
 
-When the `macos` product is enabled, Compass also runs host-side (temporary; macOS VM later):
+When the `macos` product is enabled, Compass also runs the macOS product gate inside the embedded macOS VM (Apple Virtualization.framework), falling back to the host shell when the VM is not provisioned:
 
 ```bash
 bash scripts/verify-macos.sh

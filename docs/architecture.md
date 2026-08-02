@@ -43,14 +43,19 @@ Compass-generated projects require Rust `crates/core` plus at least one product 
 Quality conventions live in `GeneratedProjectQuality`:
 
 - `standardVerifyCommand` — fmt + clippy + test (Rust / Linux container)
-- `macosVerifyCommand` — `bash scripts/verify-macos.sh` (host today; macOS VM later)
+- `macosVerifyCommand` — `bash scripts/verify-macos.sh` (embedded macOS VM, host fallback)
 - `coverageCollectCommand` — `cargo llvm-cov --workspace --summary-only`
 - `mutationTestCommand` — `cargo mutants`, run post-verify scoped to the iteration's changed Rust files
 
 Coverage snapshots are persisted via `CoverageSnapshotStore` after verify; mutation results via `MutationSnapshotStore` (`MutationReportParser` extracts kill-rate and surviving mutants from `cargo mutants` output). Both snapshots feed the next Plan prompt. Plan handoff validation uses `GeneratedVerifyValidator` for coverage-ready verify commands.
 
-`AcceptanceGates` (in `FactoryState.acceptanceGates`, falling back to `COMPASS_GATE_*` env vars) define deterministic thresholds — minimum line coverage, minimum mutation score, maximum surviving mutants. After a green verify, both the app loop (`runPostChecks`) and the headless loop collect coverage + mutation evidence and evaluate the gates; violations become structured retry issues (`acceptance_gate`), so iterations are accepted by evidence, not review. When `products` includes `macos`, a host-side macOS verify gate also runs (temporary stand-in for restoring macOS VMs).
+`AcceptanceGates` (in `FactoryState.acceptanceGates`, falling back to `COMPASS_GATE_*` env vars) define deterministic thresholds — minimum line coverage, minimum mutation score, maximum surviving mutants. After a green verify, both the app loop (`runPostChecks`) and the headless loop collect coverage + mutation evidence and evaluate the gates; violations become structured retry issues (`acceptance_gate`), so iterations are accepted by evidence, not review. When `products` includes `macos`, a macOS verify gate also runs — inside the embedded macOS VM (see `Sources/CompassCore/SharedVM`) when provisioned, with host-shell fallback.
 
 ## Containerized Linux
 
 The containerized Linux runtime provides a deterministic execution surface for generated Rust work. Default provisioning uses the `rust:1-bookworm` image with the Rust toolchain on PATH. File tools operate on the host worktree through the virtual root `/workspace`; bash/verify run inside ephemeral Linux containers with that worktree mounted at `/workspace`.
+
+## Embedded macOS VM
+
+The macOS VM (`Sources/CompassCore/SharedVM`) is a Virtualization.framework macOS guest used for work that needs a real macOS toolchain — primarily the generated-product macOS gate (`bash scripts/verify-macos.sh`, i.e. `swift build` / `swift test`). Provisioning downloads an IPSW restore image, installs macOS into a bundle under `~/Library/Application Support/Compass/SharedVM`, plants a headless first-boot payload (compass user, SSH key, guest agent LaunchDaemon), then installs Xcode CLT/Homebrew/ripgrep/Node over vsock. Host↔guest traffic uses length-prefixed JSON RPC (`CompassAgentRPC`) over virtio-vsock to the in-guest `CompassGuestAgent`; repos reach the guest as gitignore-aware tars via `SharedCompassVMRepoWorkspaceSync`. `AgentMacOSVMBashRunner` adapts the VM to the `AgentBashRunner` seam, and `MacOSVerifyGate` routes the macOS gate to the VM with host-shell fallback. Select it with `COMPASS_BASH_RUNTIME=macos_vm` (headless) or the macOS VM tab in the app's Runtime pane; `COMPASS_MACOS_VERIFY_RUNTIME=host` forces the host shell.
+
