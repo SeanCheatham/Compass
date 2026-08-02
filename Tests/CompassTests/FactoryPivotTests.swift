@@ -397,7 +397,27 @@ struct FactoryPivotTests {
     #expect(byPath.keys.contains("crates/cli/tests/cli.rs"))
     #expect(byPath.keys.contains("crates/ffi/Cargo.toml"))
     #expect(byPath.keys.contains("apps/macos/Package.swift"))
+    #expect(byPath.keys.contains("apps/macos/Sources/AppFFI/Placeholder.swift"))
+    #expect(byPath.keys.contains("apps/macos/Sources/app_ffiFFI/shim.c"))
+    #expect(byPath.keys.contains("apps/macos/Sources/app_ffiFFI/include/.gitkeep"))
+    #expect(byPath.keys.contains("apps/macos/Tests/GeneratedAppTests/GreetingFFITests.swift"))
+    #expect(byPath.keys.contains("apps/macos/Info.plist"))
+    #expect(byPath.keys.contains("scripts/generate-bindings.sh"))
+    #expect(byPath.keys.contains("scripts/bundle-macos.sh"))
     #expect(byPath.keys.contains("scripts/verify-macos.sh"))
+
+    let app = try #require(byPath["apps/macos/Sources/GeneratedApp/GeneratedApp.swift"])
+    #expect(app.contains("import AppFFI"))
+    #expect(!byPath.keys.contains("apps/macos/Sources/GeneratedApp/GreetingBridge.swift"))
+
+    let ffi = try #require(byPath["crates/ffi/src/lib.rs"])
+    #expect(ffi.contains("uniffi::Record"))
+    #expect(ffi.contains("uniffi::Error"))
+    #expect(ffi.contains("Result<String, GreetingError>"))
+
+    let verify = try #require(byPath["scripts/verify-macos.sh"])
+    #expect(verify.contains("swift test"))
+    #expect(verify.contains("swift-format"))
 
     let workspace = try #require(byPath["Cargo.toml"])
     #expect(workspace.contains("crates/core"))

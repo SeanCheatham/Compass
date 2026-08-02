@@ -70,7 +70,9 @@ public extension Prompts {
         of scope.
       - Leave the working tree clean, or explain why you are blocked.
       - Do not commit generated outputs or caches: `target/`, `coverage/`, `.build/`,
-        `apps/macos/Generated/`, `build/`, or editor artifacts.
+        `apps/macos/dist/`, the UniFFI-generated `apps/macos/Sources/AppFFI/app_ffi.swift`
+        and `apps/macos/Sources/app_ffiFFI/include/app_ffiFFI.h`, `build/`, or editor
+        artifacts.
       - Generated layout uses `crates/core/src`, optional `crates/cli/src`, optional
         `crates/ffi`, and optional `apps/macos`. Do not invent top-level `src/...`
         paths unless `list_files` or `glob` proves they exist.

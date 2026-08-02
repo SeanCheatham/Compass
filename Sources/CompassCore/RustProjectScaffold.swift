@@ -56,6 +56,7 @@ public enum RustProjectScaffold {
 
     if hasMacOS {
       files.append(contentsOf: [
+        ScaffoldFile(path: ".swift-format", contents: swiftFormatConfig),
         ScaffoldFile(path: "crates/ffi/Cargo.toml", contents: ffiManifest),
         ScaffoldFile(path: "crates/ffi/src/lib.rs", contents: ffiLib),
         ScaffoldFile(path: "crates/ffi/src/bin/uniffi-bindgen.rs", contents: ffiBindgenMain),
@@ -65,9 +66,21 @@ public enum RustProjectScaffold {
           contents: macosAppSwift(projectName: name)
         ),
         ScaffoldFile(
-          path: "apps/macos/Sources/GeneratedApp/GreetingBridge.swift",
-          contents: macosGreetingBridge
+          path: "apps/macos/Sources/AppFFI/Placeholder.swift",
+          contents: macosBindingsPlaceholder
         ),
+        ScaffoldFile(path: "apps/macos/Sources/app_ffiFFI/shim.c", contents: macosFFIShim),
+        ScaffoldFile(
+          path: "apps/macos/Sources/app_ffiFFI/include/.gitkeep",
+          contents: ""
+        ),
+        ScaffoldFile(
+          path: "apps/macos/Tests/GeneratedAppTests/GreetingFFITests.swift",
+          contents: macosFFITests
+        ),
+        ScaffoldFile(path: "apps/macos/Info.plist", contents: macosInfoPlist),
+        ScaffoldFile(path: "scripts/generate-bindings.sh", contents: generateBindingsScript),
+        ScaffoldFile(path: "scripts/bundle-macos.sh", contents: bundleMacOSScript),
         ScaffoldFile(path: "scripts/verify-macos.sh", contents: verifyMacOSScript),
       ])
     }
@@ -88,7 +101,11 @@ public enum RustProjectScaffold {
         withIntermediateDirectories: true,
         attributes: nil
       )
-      try file.contents.write(to: destination, atomically: true, encoding: .utf8)
+      let contents =
+        file.contents.isEmpty || file.contents.hasSuffix("\n")
+        ? file.contents
+        : file.contents + "\n"
+      try contents.write(to: destination, atomically: true, encoding: .utf8)
       if file.path.hasSuffix(".sh") {
         try fm.setAttributes(
           [.posixPermissions: 0o755],
@@ -123,7 +140,9 @@ public enum RustProjectScaffold {
       lines += """
 
         /apps/macos/.build/
-        /apps/macos/Generated/
+        /apps/macos/dist/
+        /apps/macos/Sources/AppFFI/app_ffi.swift
+        /apps/macos/Sources/app_ffiFFI/include/app_ffiFFI.h
         """
     }
     return lines
@@ -171,7 +190,7 @@ public enum RustProjectScaffold {
     }
     if hasMacOS {
       layout.append("- `crates/ffi`: UniFFI exports over `core`")
-      layout.append("- `apps/macos`: thin SwiftUI shell (no domain logic)")
+      layout.append("- `apps/macos`: thin SwiftUI shell (no domain logic) over the UniFFI bindings")
     }
     var commands = """
       - Format: `cargo fmt --all --check`
@@ -187,7 +206,9 @@ public enum RustProjectScaffold {
     }
     if hasMacOS {
       commands += """
+        - Bindings (macOS): `bash scripts/generate-bindings.sh`
         - Verify (macOS, host/VM): `bash scripts/verify-macos.sh`
+        - Bundle (macOS): `bash scripts/bundle-macos.sh`
         """
     }
     let products = [
@@ -225,6 +246,42 @@ public enum RustProjectScaffold {
         format!("hello, {name}")
     }
 
+    /// Input for a personalized greeting, shared by all product shells.
+    pub struct GreetingRequest {
+        pub name: String,
+        pub excited: bool,
+    }
+
+    /// Errors the greeting flow can surface to product shells.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum GreetingError {
+        EmptyName,
+    }
+
+    impl std::fmt::Display for GreetingError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::EmptyName => write!(f, "name must not be empty"),
+            }
+        }
+    }
+
+    impl std::error::Error for GreetingError {}
+
+    /// Greeting variant that validates input and honors tone.
+    pub fn personalized_greeting(request: &GreetingRequest) -> Result<String, GreetingError> {
+        let name = request.name.trim();
+        if name.is_empty() {
+            return Err(GreetingError::EmptyName);
+        }
+        let base = greeting(name);
+        Ok(if request.excited {
+            format!("{base}!")
+        } else {
+            base
+        })
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -232,6 +289,27 @@ public enum RustProjectScaffold {
         #[test]
         fn greeting_includes_name() {
             assert_eq!(greeting("compass"), "hello, compass");
+        }
+
+        #[test]
+        fn personalized_greeting_marks_excitement() {
+            let request = GreetingRequest {
+                name: "world".into(),
+                excited: true,
+            };
+            assert_eq!(personalized_greeting(&request).unwrap(), "hello, world!");
+        }
+
+        #[test]
+        fn personalized_greeting_rejects_blank_names() {
+            let request = GreetingRequest {
+                name: "  ".into(),
+                excited: false,
+            };
+            assert_eq!(
+                personalized_greeting(&request),
+                Err(GreetingError::EmptyName)
+            );
         }
     }
     """
@@ -309,6 +387,45 @@ public enum RustProjectScaffold {
         app_core::greeting(&name)
     }
 
+    /// Record crossing the FFI boundary as a Swift value type.
+    #[derive(uniffi::Record)]
+    pub struct GreetingRequest {
+        pub name: String,
+        pub excited: bool,
+    }
+
+    /// Error surfaced to Swift as a thrown `GreetingError`.
+    #[derive(Debug, uniffi::Error)]
+    pub enum GreetingError {
+        EmptyName,
+    }
+
+    impl std::fmt::Display for GreetingError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::EmptyName => write!(f, "name must not be empty"),
+            }
+        }
+    }
+
+    impl std::error::Error for GreetingError {}
+
+    impl From<app_core::GreetingError> for GreetingError {
+        fn from(_: app_core::GreetingError) -> Self {
+            Self::EmptyName
+        }
+    }
+
+    /// Validated greeting that exercises records, errors, and `Result` over FFI.
+    #[uniffi::export]
+    pub fn personalized_greeting(request: GreetingRequest) -> Result<String, GreetingError> {
+        let request = app_core::GreetingRequest {
+            name: request.name,
+            excited: request.excited,
+        };
+        Ok(app_core::personalized_greeting(&request)?)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -316,6 +433,27 @@ public enum RustProjectScaffold {
         #[test]
         fn greeting_matches_core() {
             assert_eq!(greeting("compass".into()), "hello, compass");
+        }
+
+        #[test]
+        fn personalized_greeting_matches_core() {
+            let request = GreetingRequest {
+                name: "world".into(),
+                excited: true,
+            };
+            assert_eq!(personalized_greeting(request).unwrap(), "hello, world!");
+        }
+
+        #[test]
+        fn personalized_greeting_rejects_blank_names() {
+            let request = GreetingRequest {
+                name: " ".into(),
+                excited: false,
+            };
+            assert!(matches!(
+                personalized_greeting(request),
+                Err(GreetingError::EmptyName)
+            ));
         }
     }
     """
@@ -334,56 +472,213 @@ public enum RustProjectScaffold {
         name: "GeneratedApp",
         platforms: [.macOS(.v14)],
         targets: [
+            .target(
+                name: "app_ffiFFI",
+                path: "Sources/app_ffiFFI",
+                publicHeadersPath: "include"
+            ),
+            .target(
+                name: "AppFFI",
+                dependencies: ["app_ffiFFI"],
+                path: "Sources/AppFFI",
+                linkerSettings: [
+                    .unsafeFlags(["../../target/release/libapp_ffi.a"])
+                ]
+            ),
             .executableTarget(
                 name: "GeneratedApp",
+                dependencies: ["AppFFI"],
                 path: "Sources/GeneratedApp"
-            )
+            ),
+            .testTarget(
+                name: "GeneratedAppTests",
+                dependencies: ["AppFFI"],
+                path: "Tests/GeneratedAppTests"
+            ),
         ]
     )
     """
 
   private static func macosAppSwift(projectName: String) -> String {
     """
+    import AppFFI
     import SwiftUI
 
     @main
     struct GeneratedApp: App {
-        var body: some Scene {
-            WindowGroup("\(projectName)") {
-                ContentView()
-            }
+      var body: some Scene {
+        WindowGroup("\(projectName)") {
+          ContentView()
         }
+      }
     }
 
     struct ContentView: View {
-        private let message = GreetingBridge.greeting(name: "world")
+      private let message: String
 
-        var body: some View {
-            VStack(spacing: 12) {
-                Text(message)
-                    .accessibilityIdentifier("greeting.label")
-                Text("Core logic lives in crates/core; this shell is SwiftUI only.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("greeting.caption")
-            }
-            .padding(24)
-            .frame(minWidth: 360, minHeight: 180)
+      init() {
+        let request = GreetingRequest(name: "world", excited: true)
+        message = (try? personalizedGreeting(request: request)) ?? greeting(name: "world")
+      }
+
+      var body: some View {
+        VStack(spacing: 12) {
+          Text(message)
+            .accessibilityIdentifier("greeting.label")
+          Text("Core logic lives in crates/core; this shell is SwiftUI only.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("greeting.caption")
         }
+        .padding(24)
+        .frame(minWidth: 360, minHeight: 180)
+      }
     }
     """
   }
 
-  /// Smoke façade kept behaviorally identical to `app_core::greeting`.
-  /// `scripts/verify-macos.sh` also regenerates UniFFI Swift under `apps/macos/Generated`.
-  private static let macosGreetingBridge = #"""
-    import Foundation
+  private static let macosBindingsPlaceholder = """
+    // Placeholder so the AppFFI target exists on a fresh checkout.
+    // `scripts/generate-bindings.sh` emits the real UniFFI-generated
+    // `app_ffi.swift` into this directory (gitignored).
+    """
 
-    enum GreetingBridge {
-        static func greeting(name: String) -> String {
-            "hello, \(name)"
+  private static let macosFFIShim = """
+    /* SwiftPM requires at least one source file per C target.
+     * The real declarations come from the UniFFI-generated
+     * `include/app_ffiFFI.h`, emitted by scripts/generate-bindings.sh. */
+    """
+
+  private static let macosFFITests = """
+    import AppFFI
+    import XCTest
+
+    final class GreetingFFITests: XCTestCase {
+      func testGreetingCrossesFFIBoundary() {
+        XCTAssertEqual(greeting(name: "compass"), "hello, compass")
+      }
+
+      func testPersonalizedGreetingUsesCoreLogic() throws {
+        let request = GreetingRequest(name: "world", excited: true)
+        XCTAssertEqual(try personalizedGreeting(request: request), "hello, world!")
+      }
+
+      func testBlankNameThrowsCoreError() {
+        let request = GreetingRequest(name: "  ", excited: false)
+        XCTAssertThrowsError(try personalizedGreeting(request: request)) { error in
+          XCTAssertEqual(error as? GreetingError, .EmptyName)
         }
+      }
     }
+    """
+
+  private static let macosInfoPlist = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>CFBundleDevelopmentRegion</key>
+        <string>en</string>
+        <key>CFBundleDisplayName</key>
+        <string>GeneratedApp</string>
+        <key>CFBundleExecutable</key>
+        <string>GeneratedApp</string>
+        <key>CFBundleIdentifier</key>
+        <string>com.compass.generated.GeneratedApp</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+        <key>CFBundleName</key>
+        <string>GeneratedApp</string>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleShortVersionString</key>
+        <string>0.1.0</string>
+        <key>CFBundleVersion</key>
+        <string>1</string>
+        <key>LSMinimumSystemVersion</key>
+        <string>14.0</string>
+        <key>NSPrincipalClass</key>
+        <string>NSApplication</string>
+    </dict>
+    </plist>
+    """
+
+  private static let swiftFormatConfig = """
+    {
+      "indentation": { "spaces": 2 },
+      "lineLength": 100,
+      "version": 1
+    }
+    """
+
+  private static let generateBindingsScript = #"""
+    #!/usr/bin/env bash
+    # Regenerates the UniFFI Swift bindings and C header for apps/macos.
+    set -euo pipefail
+
+    ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    cd "$ROOT"
+
+    if [[ ! -f crates/ffi/Cargo.toml ]]; then
+      echo "generate-bindings requires crates/ffi (UniFFI)." >&2
+      exit 1
+    fi
+
+    cargo build -p app-ffi --release
+
+    LIB_DIR="$ROOT/target/release"
+    DYLIB="$LIB_DIR/libapp_ffi.dylib"
+    STATIC="$LIB_DIR/libapp_ffi.a"
+    if [[ ! -f "$DYLIB" || ! -f "$STATIC" ]]; then
+      echo "missing app-ffi artifacts in $LIB_DIR (need cdylib + staticlib)" >&2
+      exit 1
+    fi
+
+    STAGING="$(mktemp -d)"
+    trap 'rm -rf "$STAGING"' EXIT
+
+    cargo run -q -p app-ffi --bin uniffi-bindgen -- generate \
+      --library "$DYLIB" \
+      --language swift \
+      --out-dir "$STAGING"
+
+    if [[ ! -f "$STAGING/app_ffi.swift" || ! -f "$STAGING/app_ffiFFI.h" ]]; then
+      echo "UniFFI did not emit the expected Swift bindings" >&2
+      ls -la "$STAGING" >&2 || true
+      exit 1
+    fi
+
+    mkdir -p "$ROOT/apps/macos/Sources/AppFFI" "$ROOT/apps/macos/Sources/app_ffiFFI/include"
+    cp "$STAGING/app_ffi.swift" "$ROOT/apps/macos/Sources/AppFFI/app_ffi.swift"
+    cp "$STAGING/app_ffiFFI.h" "$ROOT/apps/macos/Sources/app_ffiFFI/include/app_ffiFFI.h"
+
+    echo "bindings regenerated"
+    """#
+
+  private static let bundleMacOSScript = #"""
+    #!/usr/bin/env bash
+    # Builds an ad-hoc signed GeneratedApp.app under apps/macos/dist/.
+    set -euo pipefail
+
+    ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    cd "$ROOT"
+
+    bash "$ROOT/scripts/generate-bindings.sh"
+
+    cd "$ROOT/apps/macos"
+    swift build -c release
+
+    APP="$ROOT/apps/macos/dist/GeneratedApp.app"
+    rm -rf "$APP"
+    mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+    cp "$ROOT/apps/macos/Info.plist" "$APP/Contents/Info.plist"
+    cp "$ROOT/apps/macos/.build/release/GeneratedApp" "$APP/Contents/MacOS/GeneratedApp"
+
+    if command -v codesign >/dev/null 2>&1; then
+      codesign --force --sign - "$APP"
+    fi
+
+    echo "bundled $APP"
     """#
 
   private static let verifyMacOSScript = #"""
@@ -404,31 +699,26 @@ public enum RustProjectScaffold {
       exit 1
     fi
 
-    cargo build -p app-ffi --release
-
-    LIB_DIR="$ROOT/target/release"
-    DYLIB="$LIB_DIR/libapp_ffi.dylib"
-    if [[ ! -f "$DYLIB" ]]; then
-      echo "missing UniFFI dylib at $DYLIB" >&2
-      exit 1
-    fi
-
-    GEN="$ROOT/apps/macos/Generated"
-    rm -rf "$GEN"
-    mkdir -p "$GEN"
-    cargo run -q -p app-ffi --bin uniffi-bindgen -- generate \
-      --library "$DYLIB" \
-      --language swift \
-      --out-dir "$GEN"
-
-    if [[ ! -f "$GEN/app_ffi.swift" ]]; then
-      echo "UniFFI did not emit apps/macos/Generated/app_ffi.swift" >&2
-      ls -la "$GEN" >&2 || true
-      exit 1
-    fi
+    # Builds the Rust FFI crate (cdylib + staticlib) and regenerates bindings.
+    bash "$ROOT/scripts/generate-bindings.sh"
 
     cd "$ROOT/apps/macos"
     swift build -c release
+    # Compiles the generated UniFFI bindings and runs the FFI round-trip tests,
+    # proving Swift output matches crates/core behavior.
+    swift test
+
+    if xcrun -f swift-format >/dev/null 2>&1; then
+      xcrun swift-format lint --strict --recursive \
+        --configuration "$ROOT/.swift-format" \
+        Sources/GeneratedApp Tests
+    elif command -v swift-format >/dev/null 2>&1; then
+      swift-format lint --strict --recursive \
+        --configuration "$ROOT/.swift-format" \
+        Sources/GeneratedApp Tests
+    else
+      echo "swift-format not found; skipping Swift lint"
+    fi
 
     echo "macos verify ok"
     """#
