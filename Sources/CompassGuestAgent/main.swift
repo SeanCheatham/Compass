@@ -2,13 +2,9 @@ import CompassAgentRPC
 import Darwin
 import Foundation
 
-if GitRemoteCompassHelper.shouldRun(arguments: CommandLine.arguments) {
-  GitRemoteCompassHelper.run(arguments: CommandLine.arguments)
-}
-
 // Compass guest-side helper. Runs as a LaunchDaemon with UserName=compass.
 // Repo contents live in /Users/compass/Compass/Repos/<catalog-id>/worktree,
-// normally as a real clone of the Compass exchange repo over vsock Git.
+// synced from the host over git-over-SSH (exchange repo) or vsock tar.
 // Commands that need the desktop session enter
 // the auto-logged-in user's GUI bootstrap explicitly via launchctl asuser.
 //

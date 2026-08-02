@@ -6,9 +6,9 @@ import Foundation
 /// process plumbing feeds to `/usr/bin/ssh`. The readiness, control-master,
 /// and known-hosts bootstrap helpers use tiny bounded `Process` wrappers
 /// because they are called before the normal agent transport is available.
-struct SharedCompassVMGuestBridge {
+public struct SharedCompassVMGuestBridge {
   /// Where Compass-managed `ssh` binaries / config live by default.
-  static let defaultSSHExecutablePath = "/usr/bin/ssh"
+  public static let defaultSSHExecutablePath = "/usr/bin/ssh"
 
   /// Where the multiplexed SSH control socket lives. Includes the host,
   /// port, and remote user so concurrent destinations don't share a socket.
@@ -21,7 +21,7 @@ struct SharedCompassVMGuestBridge {
   private static let keyscanGate = KeyscanGate()
 
   /// Tuneable options that affect every ssh invocation Compass makes.
-  struct ConnectionOptions: Equatable {
+  public struct ConnectionOptions: Equatable, Sendable {
     var executablePath: String
     var identityFile: String?
     var knownHostsFile: String?
@@ -42,7 +42,7 @@ struct SharedCompassVMGuestBridge {
     /// Applied only when `useControlMaster` is true.
     var controlPersistSeconds: Int
 
-    init(
+    public init(
       executablePath: String = SharedCompassVMGuestBridge.defaultSSHExecutablePath,
       identityFile: String? = nil,
       knownHostsFile: String? = nil,
@@ -232,7 +232,7 @@ struct SharedCompassVMGuestBridge {
 
   /// POSIX-safe single-quote escaping. Wraps any string in single quotes and
   /// emits the well-known `'\''` escape for embedded single quotes.
-  static func posixQuote(_ value: String) -> String {
+  public static func posixQuote(_ value: String) -> String {
     if value.isEmpty { return "''" }
     // Fast path: safe identifier characters need no quoting.
     let safeCharacters = CharacterSet.alphanumerics

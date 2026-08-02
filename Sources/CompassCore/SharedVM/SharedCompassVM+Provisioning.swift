@@ -309,7 +309,9 @@ extension SharedCompassVM {
   }
 
   /// Returns the PIDs of every live `com.apple.Virtualization.Installation`
-  /// XPC helper. Empty array when none are alive.
+  /// XPC helper. Empty array when none are alive. Candidates from pgrep are
+  /// cross-checked against their executable path so an unrelated process
+  /// whose command line merely mentions the helper name is never killed.
   private static func installationHelperPIDs() -> [pid_t] {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
@@ -333,5 +335,33 @@ extension SharedCompassVM {
       text
       .split(whereSeparator: { $0.isNewline || $0.isWhitespace })
       .compactMap { pid_t($0) }
+      .filter { pid in
+        guard let executable = executablePath(of: pid) else { return false }
+        return executable.hasSuffix("com.apple.Virtualization.Installation")
+      }
+  }
+
+  /// Resolves a PID's executable path via `ps -o comm=`. Nil on failure.
+  private static func executablePath(of pid: pid_t) -> String? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/ps")
+    process.arguments = ["-p", String(pid), "-o", "comm="]
+    let stdout = Pipe()
+    process.standardOutput = stdout
+    process.standardError = Pipe()
+    do {
+      try process.run()
+      process.waitUntilExit()
+    } catch {
+      return nil
+    }
+    guard
+      let data = try? stdout.fileHandleForReading.readToEnd(),
+      let text = String(data: data, encoding: .utf8)
+    else {
+      return nil
+    }
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
   }
 }

@@ -1,10 +1,11 @@
 import Foundation
 
 /// Identifiers for toolchains available in the Compass Shared VM guest.
-enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
+public enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
   case commandLineTools = "command_line_tools"
   case homebrew
   case ripgrep
+  case rust
   case node
 }
 
@@ -40,24 +41,24 @@ enum SharedVMToolchainPaths {
 }
 
 /// One entry in the Shared VM toolchain catalog.
-struct SharedVMToolchainDefinition: Sendable, Equatable {
-  let id: SharedVMToolchainID
-  let displayName: String
-  let description: String
-  let defaultProvisioned: Bool
+public struct SharedVMToolchainDefinition: Sendable, Equatable {
+  public let id: SharedVMToolchainID
+  public let displayName: String
+  public let description: String
+  public let defaultProvisioned: Bool
   /// Dependency ids that must be present before this toolchain installs.
-  let dependencies: [SharedVMToolchainID]
-  let probeCommand: String
-  let installTimeout: TimeInterval
+  public let dependencies: [SharedVMToolchainID]
+  public let probeCommand: String
+  public let installTimeout: TimeInterval
   /// When false, `install_toolchain` rejects the id (e.g. CLT uses
   /// `SharedCompassVMDevToolsProvisioner` instead of the generic path).
-  let installableViaGenericProvisioner: Bool
+  public let installableViaGenericProvisioner: Bool
 
   var stringID: String { id.rawValue }
 
   func logTag() -> String { SharedVMToolchainPaths.logTag(id: stringID) }
 
-  func renderInstallScript() -> String {
+  public func renderInstallScript() -> String {
     switch id {
     case .commandLineTools:
       fatalError("command_line_tools is installed by SharedCompassVMDevToolsProvisioner")
@@ -65,6 +66,8 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
       return Self.renderHomebrewInstallScript()
     case .ripgrep:
       return Self.renderRipgrepInstallScript()
+    case .rust:
+      return Self.renderRustInstallScript()
     case .node:
       return Self.renderNodeInstallScript()
     }
@@ -82,12 +85,26 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         test -x \(SharedVMToolchainPaths.ripgrepInstallPath)
         \(SharedVMToolchainPaths.ripgrepInstallPath) --version >/dev/null 2>&1
         """
+    case .rust:
+      return """
+        \(Self.rustVerificationCommand) >/dev/null 2>&1
+        """
     case .node:
       return """
         \(Self.nodeVerificationCommand) >/dev/null 2>&1
         """
     }
   }
+
+  /// PATH-independent check that the rustup toolchain is usable. The
+  /// guest agent runs bash non-interactively, so rustup's proxies are
+  /// symlinked into /usr/local/bin at install time.
+  static let rustVerificationCommand =
+    "test -x /usr/local/bin/cargo && /usr/local/bin/cargo --version && /usr/local/bin/rustc --version && /usr/local/bin/rustfmt --version && /usr/local/bin/cargo-clippy --version"
+
+  static let rustProbeCommand = """
+    test -x /usr/local/bin/cargo && test -x /usr/local/bin/rustc && echo PRESENT || echo MISSING
+    """
 
   /// Login-shell check that the generated TypeScript toolchain is on PATH.
   static let nodeVerificationCommand =
@@ -198,6 +215,42 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         """)
   }
 
+  private static func renderRustInstallScript() -> String {
+    let id = SharedVMToolchainID.rust.rawValue
+    let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
+    return renderScriptShell(
+      id: id,
+      body: """
+        GUEST_USER="\(guestUser)"
+        GUEST_HOME="$(eval echo ~"$GUEST_USER")"
+        if \(rustVerificationCommand) >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          if [ ! -x "$GUEST_HOME/.cargo/bin/rustup" ]; then
+            echo "\(SharedVMToolchainPaths.logTag(id: id)) installing rustup stable toolchain"
+            su - "$GUEST_USER" -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default --component rustfmt --component clippy' \\
+              || fail 2 "rustup install failed"
+          else
+            echo "\(SharedVMToolchainPaths.logTag(id: id)) rustup present, ensuring components"
+            su - "$GUEST_USER" -c '"$HOME/.cargo/bin/rustup" component add rustfmt clippy' \\
+              || fail 3 "rustup component add failed"
+          fi
+          # The guest agent's bash is non-interactive and never sources
+          # the login profile, so expose the rustup proxies on the
+          # default PATH via /usr/local/bin.
+          install -d -o root -g wheel -m 0755 /usr/local/bin
+          for tool in cargo rustc rustfmt cargo-clippy clippy-driver rustup; do
+            if [ -x "$GUEST_HOME/.cargo/bin/$tool" ]; then
+              ln -sf "$GUEST_HOME/.cargo/bin/$tool" "/usr/local/bin/$tool"
+            fi
+          done
+          \(rustVerificationCommand) >/dev/null 2>&1 \\
+            || fail 4 "rust toolchain verification failed"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed rustup stable toolchain"
+        fi
+        """)
+  }
+
   private static func renderNodeInstallScript() -> String {
     let id = SharedVMToolchainID.node.rawValue
     let brewBin = SharedVMToolchainPaths.brewInstallPath
@@ -235,8 +288,8 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
 }
 
 /// Static registry of Shared VM toolchains.
-enum SharedVMToolchainCatalog {
-  static let all: [SharedVMToolchainDefinition] = [
+public enum SharedVMToolchainCatalog {
+  public static let all: [SharedVMToolchainDefinition] = [
     SharedVMToolchainDefinition(
       id: .commandLineTools,
       displayName: "Xcode Command Line Tools",
@@ -271,11 +324,22 @@ enum SharedVMToolchainCatalog {
       installableViaGenericProvisioner: true
     ),
     SharedVMToolchainDefinition(
+      id: .rust,
+      displayName: "Rust (rustup stable)",
+      description:
+        "rustup-managed stable Rust (cargo, rustc, rustfmt, clippy) for building generated Rust workspaces in the guest.",
+      defaultProvisioned: true,
+      dependencies: [],
+      probeCommand: SharedVMToolchainDefinition.rustProbeCommand,
+      installTimeout: 30 * 60,
+      installableViaGenericProvisioner: true
+    ),
+    SharedVMToolchainDefinition(
       id: .node,
       displayName: "Node.js + pnpm (TypeScript)",
       description:
-        "Default generated-project toolchain with Node.js, npm, Corepack/pnpm, and global TypeScript (`tsc`).",
-      defaultProvisioned: true,
+        "Optional Node.js toolchain with npm, Corepack/pnpm, and global TypeScript (`tsc`).",
+      defaultProvisioned: false,
       dependencies: [.homebrew],
       probeCommand: SharedVMToolchainDefinition.nodeProbeCommand,
       installTimeout: 15 * 60,
@@ -283,9 +347,9 @@ enum SharedVMToolchainCatalog {
     ),
   ]
 
-  static let defaultProvisionedIDs: [String] = all.filter(\.defaultProvisioned).map(\.stringID)
+  public static let defaultProvisionedIDs: [String] = all.filter(\.defaultProvisioned).map(\.stringID)
 
-  static func definition(for id: SharedVMToolchainID) -> SharedVMToolchainDefinition {
+  public static func definition(for id: SharedVMToolchainID) -> SharedVMToolchainDefinition {
     guard let entry = all.first(where: { $0.id == id }) else {
       fatalError("Unknown toolchain id: \(id)")
     }

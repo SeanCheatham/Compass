@@ -46,11 +46,11 @@ public final class SharedCompassVM: ObservableObject {
   /// Repeated assignments of the same state are a no-op so callers can
   /// idempotently nudge the state machine without producing churn on
   /// `@Published` subscribers.
-  public func transition(to next: SharedCompassVMReadiness) {
+  public   func transition(to next: SharedCompassVMReadiness) {
     let current = readiness
     guard Self.isLegalTransition(from: current, to: next) else {
-      assertionFailure(
-        "Illegal readiness transition: \(Self.transitionLabel(current)) → \(Self.transitionLabel(next))"
+      Logger(.guestProvision).fault(
+        "Illegal readiness transition: \(Self.transitionLabel(current), privacy: .public) → \(Self.transitionLabel(next), privacy: .public) — applying anyway"
       )
       readiness = next
       return

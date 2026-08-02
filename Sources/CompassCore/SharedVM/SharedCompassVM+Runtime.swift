@@ -496,7 +496,7 @@ extension SharedCompassVM {
   }
 
   /// Drives default toolchain provisioning against the live VM using a
-  /// vsock-backed bash runner: CLT, Homebrew, ripgrep, then Node/pnpm.
+  /// vsock-backed bash runner: CLT, Homebrew, ripgrep, then Rust (rustup).
   private func runDevToolsProvisioner(destination: String) async {
     guard let machine = virtualMachine else {
       transition(to: .error(detail: "Shared VM is not running; cannot install developer tools."))
@@ -557,10 +557,10 @@ extension SharedCompassVM {
       return
     }
 
-    let nodeDefinition = SharedVMToolchainCatalog.definition(for: .node)
+    let rustDefinition = SharedVMToolchainCatalog.definition(for: .rust)
     do {
       _ = try await SharedCompassVMToolchainProvisioner.provision(
-        definition: nodeDefinition,
+        definition: rustDefinition,
         runner: client,
         progress: { fraction in
           await MainActor.run {
@@ -569,7 +569,7 @@ extension SharedCompassVM {
         }
       )
     } catch {
-      transition(to: .error(detail: "Node/pnpm toolchain install failed: \(error)"))
+      transition(to: .error(detail: "Rust toolchain install failed: \(error)"))
       return
     }
 
@@ -589,7 +589,7 @@ extension SharedCompassVM {
   }
 
   /// Backfills default toolchains on guests provisioned before Homebrew,
-  /// ripgrep, or Node/pnpm became default. This runs after readiness, so it
+  /// ripgrep, or Rust became default. This runs after readiness, so it
   /// deliberately avoids driving the readiness state machine; failures are
   /// non-fatal and the next launch can retry.
   private func ensureDefaultToolchainsIfNeeded() async {
@@ -619,18 +619,18 @@ extension SharedCompassVM {
       return
     }
 
-    let nodeMissing: Bool
+    let rustMissing: Bool
     do {
-      nodeMissing =
+      rustMissing =
         try await SharedCompassVMToolchainProvisioner.probe(
-          definition: SharedVMToolchainCatalog.definition(for: .node),
+          definition: SharedVMToolchainCatalog.definition(for: .rust),
           runner: client
         ) == false
     } catch {
       return
     }
 
-    guard homebrewMissing || ripgrepMissing || nodeMissing else { return }
+    guard homebrewMissing || ripgrepMissing || rustMissing else { return }
 
     if homebrewMissing {
       do {
@@ -655,10 +655,10 @@ extension SharedCompassVM {
       }
     }
 
-    if nodeMissing {
+    if rustMissing {
       do {
         _ = try await SharedCompassVMToolchainProvisioner.provision(
-          definition: SharedVMToolchainCatalog.definition(for: .node),
+          definition: SharedVMToolchainCatalog.definition(for: .rust),
           runner: client,
           progress: { _ in }
         )

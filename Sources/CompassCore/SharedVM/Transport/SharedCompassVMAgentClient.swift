@@ -123,7 +123,8 @@ public struct AgentVsockClient: AgentFilesystem, AgentBashRunner {
           glob: glob,
           caseInsensitive: caseInsensitive,
           timeoutSeconds: timeout
-        ))
+        )),
+      watchdogTimeout: effectiveWatchdogTimeout(forCommandTimeout: timeout)
     )
     switch response {
     case .grep(let result):
@@ -148,7 +149,8 @@ public struct AgentVsockClient: AgentFilesystem, AgentBashRunner {
           command: command,
           workingDirectory: workingDirectory.path,
           timeoutSeconds: timeout
-        ))
+        )),
+      watchdogTimeout: effectiveWatchdogTimeout(forCommandTimeout: timeout)
     )
     switch response {
     case .bash(let result):
@@ -164,17 +166,35 @@ public struct AgentVsockClient: AgentFilesystem, AgentBashRunner {
 
   // MARK: - Wire round trip
 
-  private func roundTrip(_ request: AgentRPCRequest) async throws -> AgentRPCResponse {
+  /// The host-side watchdog must never fire before the guest-side command
+  /// has had a chance to finish on its own clock: long builds (`swift build`,
+  /// `cargo test`) legitimately run far longer than the default 120s
+  /// `requestTimeout`. Scale the watchdog to the command timeout plus a
+  /// transport margin so the guest always gets to report its own timeout
+  /// (exit code 124) first.
+  static let watchdogMarginSeconds: TimeInterval = 30
+
+  public func effectiveWatchdogTimeout(forCommandTimeout commandTimeout: TimeInterval)
+    -> TimeInterval
+  {
+    max(requestTimeout, commandTimeout + Self.watchdogMarginSeconds)
+  }
+
+  private func roundTrip(
+    _ request: AgentRPCRequest,
+    watchdogTimeout: TimeInterval? = nil
+  ) async throws -> AgentRPCResponse {
+    let watchdog = watchdogTimeout ?? requestTimeout
     let transportHolder = VsockTransportHolder()
     return try await withThrowingTaskGroup(of: AgentRPCResponse.self) { group in
       group.addTask {
         try await self.performRoundTrip(request, transportHolder: transportHolder)
       }
       group.addTask {
-        try await Task.sleep(nanoseconds: UInt64(self.requestTimeout * 1_000_000_000))
+        try await Task.sleep(nanoseconds: UInt64(watchdog * 1_000_000_000))
         await transportHolder.close()
         throw AgentFilesystemError.transportFailure(
-          "vsock request timed out after \(Int(self.requestTimeout))s")
+          "vsock request timed out after \(Int(watchdog))s")
       }
       guard let response = try await group.next() else {
         throw AgentFilesystemError.transportFailure("vsock request failed")
