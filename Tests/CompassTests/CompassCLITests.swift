@@ -31,6 +31,16 @@ struct CompassCLITests {
       Issue.record("Expected help command.")
     }
 
+    if case .vmSmoke(let repo, let command, let format) = try CompassCLICommand.parse([
+      "vm", "smoke", "--repo", "/tmp/project", "--command", "sw_vers",
+    ]) {
+      #expect(repo.path == "/tmp/project")
+      #expect(command == "sw_vers")
+      #expect(format == .json)
+    } else {
+      Issue.record("Expected vm smoke command.")
+    }
+
     for flag in ["--help", "-h"] {
       if case .help = try CompassCLICommand.parse([flag]) {
       } else {

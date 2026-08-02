@@ -56,6 +56,14 @@ public enum CompassCLI {
         )
         return ok ? 0 : 1
 
+      case .vmSmoke(let repo, let smokeCommand, _):
+        let ok = await MacOSVMSmoke.run(
+          repoURL: repo,
+          command: smokeCommand,
+          onEvent: emit
+        )
+        return ok ? 0 : 1
+
       case .run(let options, _):
         let ok = try await runner.runSessions(options: options, onEvent: emit)
         return ok ? 0 : 1
@@ -142,6 +150,7 @@ public enum CompassCLICommand: Equatable {
     format: CompassCLIOutputFormat
   )
   case verify(repo: URL, command: String?, format: CompassCLIOutputFormat)
+  case vmSmoke(repo: URL, command: String?, format: CompassCLIOutputFormat)
 
   public var format: CompassCLIOutputFormat {
     switch self {
@@ -150,7 +159,8 @@ public enum CompassCLICommand: Equatable {
       .scaffoldRust(_, _, _, let format),
       .run(_, let format),
       .replay(_, _, _, _, _, _, let format),
-      .verify(_, _, let format):
+      .verify(_, _, let format),
+      .vmSmoke(_, _, let format):
       return format
     }
   }
@@ -187,6 +197,17 @@ public enum CompassCLICommand: Equatable {
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
       return .scaffoldRust(path: path, name: name, products: products, format: format)
+
+    case "vm":
+      let subcommand = try parser.requireCommand()
+      guard subcommand == "smoke" else {
+        throw CompassCLIError.usage("Only `vm smoke` is supported.")
+      }
+      let repo = try parser.requireURLOption("--repo")
+      let command = try parser.optionalValue("--command")
+      let format = try parser.outputFormat()
+      try parser.rejectRemaining()
+      return .vmSmoke(repo: repo, command: command, format: format)
 
     case "run":
       let repo = try parser.requireURLOption("--repo")
@@ -453,6 +474,7 @@ public extension CompassCLI {
       compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--commit] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
+      compass-cli vm smoke --repo <path> [--command <cmd>] [--format json|text]
     """
 }
 

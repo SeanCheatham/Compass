@@ -180,7 +180,7 @@ struct MacOSVMRuntimeView: View {
     let client = SharedCompassVM.makeVsockClient(on: machine)
     do {
       let result = try await client.run(
-        command: "sw_vers && swift --version",
+        command: "sw_vers && git --version && cargo --version && swift --version",
         workingDirectory: URL(fileURLWithPath: "/"),
         timeout: 60
       )
