@@ -36,7 +36,7 @@ public struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   public let bashRunner: AgentBashRunner
   /// Host-side codemap directory inherited from the parent run. Nil
   /// means the sub-agent falls back to `<workingDirectory>/.compass/codemap`,
-  /// which is wrong for container routes — top-level callers should
+  /// which is wrong for VM routes — top-level callers should
   /// always supply this.
   public let codemapStoreDirectory: URL?
   /// Host-side assumptions ledger inherited from the parent so sub-agents

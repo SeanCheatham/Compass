@@ -10,27 +10,17 @@ struct MacOSVMRouteTests {
   func macOSVMRouteIsMarkedAsVMRoute() {
     let plan = AgentExecutionLaunchPlan.macOSVM(repoURL: URL(fileURLWithPath: "/tmp/repo"))
     #expect(plan.isVMRoute)
-    #expect(!plan.isContainerRoute)
     #expect(plan.selectedPreference == .macOSVM)
     #expect(plan.effectiveRouteIdentifier == "macos-vm")
     #expect(plan.effectiveRouteTitle == "macOS VM")
   }
 
   @Test
-  func containerRouteIsNotVMRoute() {
-    let plan = AgentExecutionLaunchPlan.containerizedLinux(
-      repoURL: URL(fileURLWithPath: "/tmp/repo"))
-    #expect(!plan.isVMRoute)
-    #expect(plan.isContainerRoute)
-  }
-
-  @Test
-  func planWithPreferenceSelectsVMRoute() {
+  func planAlwaysSelectsVMRoute() {
     let repo = URL(fileURLWithPath: "/tmp/repo")
     let vmPlan = AgentExecutionLaunchPlan.plan(repoURL: repo, preference: .macOSVM)
     #expect(vmPlan.isVMRoute)
-    let containerPlan = AgentExecutionLaunchPlan.plan(repoURL: repo, preference: .containerizedLinux)
-    #expect(containerPlan.isContainerRoute)
+    #expect(AgentExecutionLaunchPlan.plan(repoURL: repo).isVMRoute)
   }
 
   @Test
@@ -64,12 +54,21 @@ struct MacOSVMRouteTests {
   }
 
   @Test
-  func unknownIdentifierFallsBackToContainer() throws {
+  func legacyContainerIdentifierMigratesToMacOSVM() throws {
+    let decoded = try JSONDecoder().decode(
+      AgentExecutionEnvironmentPreference.self,
+      from: Data(#""containerized_linux""#.utf8)
+    )
+    #expect(decoded == .macOSVM)
+  }
+
+  @Test
+  func unknownIdentifierFallsBackToMacOSVM() throws {
     let decoded = try JSONDecoder().decode(
       AgentExecutionEnvironmentPreference.self,
       from: Data(#""something_else""#.utf8)
     )
-    #expect(decoded == .containerizedLinux)
+    #expect(decoded == .macOSVM)
   }
 
   // MARK: - Bash runtime selection
@@ -85,7 +84,11 @@ struct MacOSVMRouteTests {
     #expect(
       HeadlessCompassRunner.bashRuntimeSelection(environment: ["COMPASS_BASH_RUNTIME": "host"])
         == .host)
-    #expect(HeadlessCompassRunner.bashRuntimeSelection(environment: [:]) == .containerizedLinux)
+    #expect(HeadlessCompassRunner.bashRuntimeSelection(environment: [:]) == .macOSVM)
+    // The removed container runtime's identifier also selects the VM now.
+    #expect(
+      HeadlessCompassRunner.bashRuntimeSelection(
+        environment: ["COMPASS_BASH_RUNTIME": "containerized_linux"]) == .macOSVM)
   }
 
   // MARK: - macOS verify runtime preference

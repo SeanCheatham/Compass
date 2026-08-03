@@ -7,7 +7,7 @@ public extension Prompts {
     normal factory loop, but the host Git worktree already has pending
     changes. Your only job is to turn the existing pending work into a clean,
     local Git commit on the macOS host before Compass starts the next
-    containerized Linux phase.
+    macOS VM phase.
 
     Working directory: \(workingDirectoryPath)
     All tool paths are resolved against this directory. Relative paths are
@@ -55,7 +55,7 @@ public extension Prompts {
   static func pendingChangesCommitPrompt(status: String) -> String {
     let renderedStatus = status.trimmingCharacters(in: .newlines)
     return """
-      The host checkout is dirty before Compass can start the next containerized Linux phase.
+      The host checkout is dirty before Compass can start the next macOS VM phase.
 
       Current `git status --porcelain --untracked-files=all`:
       ```text

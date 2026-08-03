@@ -10,13 +10,7 @@ import CompassCore
 /// swap between them without losing track of which project was last
 /// viewed.
 enum WorkspaceSelection: Equatable {
-  /// Which runtime the Runtimes detail pane shows.
-  enum RuntimePane: String, Equatable {
-    case container
-    case macOSVM
-  }
-
-  case runtime(RuntimePane)
+  case runtime
   case project(UUID)
 
   var projectID: UUID? {
@@ -34,7 +28,7 @@ enum WorkspaceSelection: Equatable {
 final class AppModel: ObservableObject {
   @Published var projects: [CompassProject] = []
   @Published var selectedProjectID: UUID?
-  @Published var workspaceSelection: WorkspaceSelection = .runtime(.container)
+  @Published var workspaceSelection: WorkspaceSelection = .runtime
   @Published var modelOverride = ""
   @Published private(set) var agentSettings: AgentRuntimeSettings
   private let agentSettingsStore: AgentSettingsStore
@@ -82,9 +76,9 @@ final class AppModel: ObservableObject {
     projects.first { $0.id == selectedProjectID }
   }
 
-  /// Switches the detail pane to the runtimes section.
-  func selectSandbox(_ pane: WorkspaceSelection.RuntimePane = .container) {
-    workspaceSelection = .runtime(pane)
+  /// Switches the detail pane to the runtime section.
+  func selectSandbox() {
+    workspaceSelection = .runtime
     errorMessage = nil
   }
 
@@ -94,7 +88,7 @@ final class AppModel: ObservableObject {
     if let id = selectedProjectID {
       workspaceSelection = .project(id)
     } else {
-      workspaceSelection = .runtime(.container)
+      workspaceSelection = .runtime
     }
 
     if projects.isEmpty {
@@ -168,7 +162,7 @@ final class AppModel: ObservableObject {
       if let newID = selectedProjectID {
         workspaceSelection = .project(newID)
       } else {
-        workspaceSelection = .runtime(.container)
+        workspaceSelection = .runtime
       }
     }
     saveProjects()

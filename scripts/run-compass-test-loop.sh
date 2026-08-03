@@ -30,7 +30,7 @@ cd "${ROOT}"
 
 "${CLI}" doctor --repo "${TEST_REPO}" --format text
 
-if [[ "${COMPASS_PREPARE_CONTAINER_DEPS:-1}" == "1" ]]; then
+if [[ "${COMPASS_PREPARE_VM_DEPS:-1}" == "1" ]]; then
   "${CLI}" verify \
     --repo "${TEST_REPO}" \
     --command "cargo fetch --locked 2>/dev/null || cargo fetch" \

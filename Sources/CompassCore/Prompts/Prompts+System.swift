@@ -1,4 +1,3 @@
-import CompassSandbox
 import Foundation
 
 public extension Prompts {
@@ -6,7 +5,7 @@ public extension Prompts {
     parentPhase: AgentPhase,
     workingDirectoryPath: String,
     toolNames: [String],
-    executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
+    executionEnvironment: ExecutionEnvironmentDescriptor = .macOSVM,
     promptMode: AgentPromptMode = .envelope
   ) -> String {
     let visibleWorkingDirectory = Self.visibleWorkingDirectory(
@@ -46,13 +45,13 @@ public extension Prompts {
 
   enum ExecutionEnvironmentDescriptor {
     case host
-    case containerizedLinux
+    case macOSVM
   }
 
   static func agentSystemPrompt(
     phase: AgentPhase,
     workingDirectoryPath: String,
-    executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
+    executionEnvironment: ExecutionEnvironmentDescriptor = .macOSVM,
     externalToolNames: [String] = [],
     promptMode: AgentPromptMode = .envelope
   ) -> String {
@@ -200,15 +199,15 @@ public extension Prompts {
       Execution environment: native macOS host.
       File tools and bash both operate on the host worktree. Probe tools before relying on them.
       """
-    case .containerizedLinux:
+    case .macOSVM:
       return """
-      Execution environment: containerized Linux runtime.
+      Execution environment: embedded macOS VM (Apple Virtualization.framework).
       File tools read and write the host worktree through the virtual root `/workspace`.
-      Bash commands run inside Linux with that same worktree mounted at `/workspace`.
-      Use relative paths or `/workspace/...` for every tool. Expected shell tools include
-      git and the Rust toolchain (cargo, rustc, rustfmt, clippy). Docker, Xcode,
-      and Homebrew are unavailable in the Linux container. macOS product verify runs
-      inside the embedded macOS VM (Mac host as fallback) — do not expect `xcodebuild` here.
+      Bash commands run inside the macOS guest against a git-synced copy of that
+      worktree — `/workspace/...` paths in commands are rewritten to the guest
+      worktree automatically, so use relative paths or `/workspace/...` for every tool.
+      The guest has git, the Rust toolchain (cargo, rustc, rustfmt, clippy), and the
+      Swift toolchain (swift, swift-format) via Xcode Command Line Tools.
       """
     }
   }
@@ -218,8 +217,8 @@ public extension Prompts {
     executionEnvironment: ExecutionEnvironmentDescriptor
   ) -> String {
     switch executionEnvironment {
-    case .containerizedLinux:
-      return ContainerSandboxConfiguration.defaultWorkspacePath
+    case .macOSVM:
+      return "/workspace"
     case .host:
       return workingDirectoryPath
     }

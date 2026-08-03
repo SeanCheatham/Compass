@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1000000000000000000000B4 /* CompassSandbox in Frameworks */ = {isa = PBXBuildFile; productRef = 1000000000000000000000B3 /* CompassSandbox */; };
 		1000000000000000000000B7 /* CompassCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1000000000000000000000B6 /* CompassCore */; };
 /* End PBXBuildFile section */
 
@@ -31,7 +30,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1000000000000000000000B4 /* CompassSandbox in Frameworks */,
 				1000000000000000000000B7 /* CompassCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -91,7 +89,6 @@
 			);
 			name = Compass;
 			packageProductDependencies = (
-				1000000000000000000000B3 /* CompassSandbox */,
 				1000000000000000000000B6 /* CompassCore */,
 			);
 			productName = Compass;
@@ -345,11 +342,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		1000000000000000000000B3 /* CompassSandbox */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000070 /* XCLocalSwiftPackageReference "." */;
-			productName = CompassSandbox;
-		};
 		1000000000000000000000B6 /* CompassCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 100000000000000000000070 /* XCLocalSwiftPackageReference "." */;

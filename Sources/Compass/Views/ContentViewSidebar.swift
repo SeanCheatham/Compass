@@ -24,17 +24,9 @@ struct SidebarView: View {
       .padding(.bottom, 4)
 
       SidebarSandboxRow(
-        pane: .container,
-        isSelected: model.workspaceSelection == .runtime(.container)
+        isSelected: model.workspaceSelection.isSandbox
       ) {
-        model.selectSandbox(.container)
-      }
-
-      SidebarSandboxRow(
-        pane: .macOSVM,
-        isSelected: model.workspaceSelection == .runtime(.macOSVM)
-      ) {
-        model.selectSandbox(.macOSVM)
+        model.selectSandbox()
       }
 
       HStack {
@@ -150,61 +142,28 @@ struct EmptyProjectList: View {
   }
 }
 
-/// Sidebar entries for the singleton runtimes section — one row per
-/// runtime (containerized Linux, embedded macOS VM).
+/// Sidebar entry for the singleton runtime section (the embedded macOS VM).
 
 struct SidebarSandboxRow: View {
-  let pane: WorkspaceSelection.RuntimePane
   let isSelected: Bool
   let action: () -> Void
   @ObservedObject private var vm = SharedCompassVM.shared
 
   var statusText: String {
-    switch pane {
-    case .container:
-      return "Containerized Linux"
-    case .macOSVM:
-      switch vm.readiness {
-      case .ready: return "Ready"
-      case .notProvisioned: return "Not provisioned"
-      case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
-        return "Provisioning..."
-      case .error, .unavailable: return "Needs attention"
-      }
+    switch vm.readiness {
+    case .ready: return "Ready"
+    case .notProvisioned: return "Not provisioned"
+    case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
+      return "Provisioning..."
+    case .error, .unavailable: return "Needs attention"
     }
   }
 
   var statusColor: Color {
-    switch pane {
-    case .container:
-      return .green
-    case .macOSVM:
-      switch vm.readiness {
-      case .ready: return .green
-      case .error, .unavailable: return .red
-      default: return .secondary
-      }
-    }
-  }
-
-  var icon: String {
-    switch pane {
-    case .container: return "shippingbox"
-    case .macOSVM: return "desktopcomputer"
-    }
-  }
-
-  var title: String {
-    switch pane {
-    case .container: return "Linux Runtime"
-    case .macOSVM: return "macOS VM"
-    }
-  }
-
-  var helpText: String {
-    switch pane {
-    case .container: return "Open container runtime status"
-    case .macOSVM: return "Open macOS VM status"
+    switch vm.readiness {
+    case .ready: return .green
+    case .error, .unavailable: return .red
+    default: return .secondary
     }
   }
 
@@ -217,9 +176,9 @@ struct SidebarSandboxRow: View {
           .padding(.top, 1)
         VStack(alignment: .leading, spacing: 2) {
           HStack(spacing: 6) {
-            Image(systemName: icon)
+            Image(systemName: "desktopcomputer")
               .font(.callout)
-            Text(title)
+            Text("macOS VM")
               .font(.callout.weight(.semibold))
           }
           Text(statusText)
@@ -243,8 +202,8 @@ struct SidebarSandboxRow: View {
       .contentShape(RoundedRectangle(cornerRadius: 8))
     }
     .buttonStyle(.plain)
-    .help(helpText)
-    .accessibilityLabel("\(title), \(statusText)")
+    .help("Open macOS VM status")
+    .accessibilityLabel("macOS VM, \(statusText)")
   }
 }
 
@@ -255,11 +214,11 @@ struct SidebarRuntimeStatusButton: View {
   let action: () -> Void
 
   var helpText: String {
-    "Container runtime status"
+    "macOS VM runtime status"
   }
 
   var accessibilityText: String {
-    "Container runtime status"
+    "macOS VM runtime status"
   }
 
   var body: some View {

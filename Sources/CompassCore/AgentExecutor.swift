@@ -24,14 +24,14 @@ public struct AgentExecutionConfiguration {
   public var tools: [AgentTool]
   public var modelRuntime: (any LocalModelGenerating)?
   /// Virtual workspace root presented to the model (typically `/workspace`
-  /// for containerized Linux factory phases). `nil` keeps host-native paths.
+  /// for macOS VM factory phases). `nil` keeps host-native paths.
   public var agentVisibleWorkspacePath: String?
   public var submitResultSchema: AgentToolParametersSchema
   public var workingDirectory: URL
   public var filesystem: AgentFilesystem
   public var bashRunner: AgentBashRunner
-  /// Host-side codemap directory. When the agent runs in the containerized Linux runtime,
-  /// `workingDirectory` is the container workspace path and is *not* where
+  /// Host-side codemap directory. When the agent runs in the macOS VM,
+  /// `workingDirectory` is the guest workspace path and is *not* where
   /// the codemap lives — the caller must supply the actual store
   /// location so codemap-backed tools see real entries. `nil` falls
   /// back to `<workingDirectory>/.compass/codemap`, which is correct

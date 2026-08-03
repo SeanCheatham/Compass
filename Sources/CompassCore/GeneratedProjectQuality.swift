@@ -29,7 +29,7 @@ public enum GeneratedProjectQuality {
     - Prefer `cargo fmt`, Clippy (`-D warnings`), and `cargo test` for Rust verification.
     - Standard Rust verify is `\(standardVerifyCommand)`.
     - When the `macos` product is enabled, also run `\(macosVerifyCommand)`; it executes
-      inside the embedded macOS VM (or the Mac host as fallback). Do not expect Xcode inside the Linux container.
+      inside the embedded macOS VM (or the Mac host as fallback).
     - Coverage is collected after verify with `\(coverageCollectCommand)`.
     - Mutation testing runs post-verify scoped to changed Rust files; surviving
       mutants indicate weak tests and should drive test-strengthening work.

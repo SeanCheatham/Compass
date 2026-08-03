@@ -6,7 +6,7 @@ The current direction:
 
 - Factory turns (Plan / Develop / Critic) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
 - Optional **MLX** local assist handles cheap/small work (narration, compaction, Explore helpers) when the blessed local model is downloaded.
-- Compass does deterministic work through local tools and the containerized Linux runtime.
+- Compass does deterministic work through local tools and the embedded macOS VM.
 - Generated projects require Rust `crates/core` plus at least one product: `cli` and/or `macos` (default both). Domain logic stays in Rust; macOS uses UniFFI + a thin SwiftUI shell.
 
 ## Factory Loop
@@ -79,17 +79,16 @@ Kimi/Moonshot, OpenAI, OpenRouter, and local proxies all work the same way as lo
 
 MLX can run `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit` after user-approved download into Compass Application Support. It is used for cheap assist tasks when available; cloud-only installs remain supported.
 
-### Containerized Linux
+### Embedded macOS VM
 
-Factory bash/verify run in ephemeral Apple Containerization Linux VMs:
+Factory bash/verify run inside an embedded macOS VM (Apple Virtualization.framework):
 
-- Image: `docker.io/library/rust:1-bookworm`
-- Repo mount: host worktree → `/workspace`
-- Bootstrap: Rust toolchain (cargo, rustc, rustfmt, clippy)
+- Guest toolchain: Xcode CLT (swift, git), Rust via rustup (cargo, rustc, rustfmt, clippy), cargo-llvm-cov, cargo-mutants, ripgrep
+- Repo sync: host worktree → guest worktree over git-over-SSH (tar fallback); `/workspace` paths in commands map to the guest worktree
 
 File/search tools still operate on the host worktree, addressed through the same `/workspace` path space.
 
-For headless self-testing on machines where the container runtime is unavailable (but a host Rust toolchain exists), `COMPASS_BASH_RUNTIME=host` makes `compass-cli run` execute verify/coverage/mutation commands in a host shell instead of a container.
+For headless self-testing on machines where the VM is unavailable (but a host Rust toolchain exists), `COMPASS_BASH_RUNTIME=host` makes `compass-cli run` execute verify/coverage/mutation commands in a host shell instead of the VM.
 
 ## Development
 

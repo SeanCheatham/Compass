@@ -160,6 +160,18 @@ struct MacOSVMGitSyncTests {
     #expect(script.contains("/usr/local/bin/cargo"))
   }
 
+  @Test
+  func rustInstallScriptVerifiesAsGuestUserNotRoot() {
+    let script = SharedVMToolchainCatalog.definition(for: .rust).renderInstallScript()
+    // The install LaunchDaemon runs as root, but rustup proxies resolve
+    // the toolchain from the invoking user's home — verification must
+    // run as the guest user or it fails against /var/root/.rustup.
+    #expect(
+      script.contains(
+        "su - \"$GUEST_USER\" -c '\(SharedVMToolchainDefinition.rustVerificationCommand)'"))
+    #expect(!script.contains("if \(SharedVMToolchainDefinition.rustVerificationCommand) >"))
+  }
+
   // MARK: - Helpers
 
   private func makeTempRepo() throws -> URL {

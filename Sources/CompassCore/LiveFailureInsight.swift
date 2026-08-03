@@ -284,8 +284,8 @@ public struct LiveFailureInsight: Equatable, Sendable {
       return (
         .runtimeBridge,
         "Container Runtime Connection Had Trouble",
-        "Compass had trouble talking to the container runtime that runs agent commands.",
-        "Retry after the container runtime is ready; if it repeats, repair or restart the workspace.",
+        "Compass had trouble talking to the macOS VM that runs agent commands.",
+        "Retry after the macOS VM is ready; if it repeats, restart or re-provision the VM.",
         "Workspace",
         "network"
       )
@@ -296,7 +296,7 @@ public struct LiveFailureInsight: Equatable, Sendable {
         .unavailableService,
         "Rust Toolchain Is Not Ready",
         "Compass could not find the Rust toolchain needed for generated Cargo work.",
-        "Repair the containerized Linux runtime bootstrap so cargo/rustc are on PATH, then rerun verify.",
+        "Repair the macOS VM toolchain so cargo/rustc are on PATH, then rerun verify.",
         "Runtime tools",
         "shippingbox"
       )
@@ -439,8 +439,8 @@ public struct LiveFailureInsight: Equatable, Sendable {
       )
     case .runtimeBridge:
       return owner(
-        label: "Container runtime",
-        detail: "Repair or restart the container runtime before retrying.",
+        label: "macOS VM",
+        detail: "Repair or restart the macOS VM before retrying.",
         systemImageName: "network"
       )
     case .unavailableService:

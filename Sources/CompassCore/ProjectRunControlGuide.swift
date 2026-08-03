@@ -390,8 +390,8 @@ public struct ProjectRunControlGuide: Equatable {
         ),
         PreviewStep(
           id: "develop",
-          title: "Develop in the container runtime",
-          detail: "Develop edits the selected slice inside your container runtime.",
+          title: "Develop in the macOS VM",
+          detail: "Develop edits the selected slice; builds and checks run inside your macOS VM.",
           systemImage: "hammer.fill"
         ),
         PreviewStep(

@@ -61,7 +61,7 @@ public enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
   case editConflict
   /// Underlying I/O failed (permission denied, disk error, ...).
   case ioFailure
-  /// RPC to the container runtime failed (container transport, framing, decode).
+  /// RPC to the macOS VM guest agent failed (transport, framing, decode).
   case rpcFailure
   /// Bash command failed with a non-zero exit.
   case bashFailure
@@ -129,7 +129,7 @@ public actor AgentReadTracker {
 /// Execution context handed to a tool at invocation time. The working
 /// directory is the host worktree root tools must scope themselves to — any
 /// path that escapes it is rejected. When `agentVisibleWorkspacePath` is set
-/// (typically `/workspace` for containerized Linux runs), the model may also
+/// (typically `/workspace` for macOS VM runs), the model may also
 /// address that virtual root; paths are mapped onto the host worktree.
 /// The filesystem picks how file ops are served; the bash runner picks how
 /// shell commands are dispatched. The read tracker is shared across every
@@ -137,7 +137,7 @@ public actor AgentReadTracker {
 /// `read_file`.
 public struct AgentToolContext: Sendable {
   public var workingDirectory: URL
-  /// Virtual workspace root shown to the model for containerized runs
+  /// Virtual workspace root shown to the model for VM runs
   /// (for example `/workspace`). `nil` means host-native path presentation.
   public var agentVisibleWorkspacePath: String?
   public var filesystem: AgentFilesystem
@@ -150,7 +150,7 @@ public struct AgentToolContext: Sendable {
   public var delegateRunner: AgentDelegateRunner?
   /// Directory the codemap-backed tools read entries from. The codemap
   /// is built host-side at `<workspace.compassURL>/codemap/`, but when
-  /// the agent runs in the containerized Linux runtime, bash sees the
+  /// the agent runs in the macOS VM, bash sees the
   /// repo at `/workspace`. The caller threads the host-side store path
   /// through here so `list_files`, `find_symbol`, `outline`, `summary`,
   /// and `importers_of` keep finding entries regardless of route.
@@ -161,7 +161,7 @@ public struct AgentToolContext: Sendable {
   /// these through `plan_history`; they are not writable via Plan submit.
   public var planHistoryEntries: [String]
   /// Host-side assumptions ledger. The agent may run bash inside a
-  /// containerized Linux runtime, but assumptions are durable Compass
+  /// macOS VM, but assumptions are durable Compass
   /// state and are always written through this host URL when present.
   public var assumptionsURL: URL?
   /// Phase/session metadata attached to assumptions recorded by tools.
@@ -244,7 +244,7 @@ public enum AgentToolError: LocalizedError, Equatable {
   case editConflict(String)
   /// I/O failure surfaced by the underlying filesystem.
   case ioFailure(String)
-  /// RPC to the containerized Linux runtime failed (container transport / framing / decode).
+  /// RPC to the macOS VM guest agent failed (transport / framing / decode).
   case rpcFailure(String)
   /// Bash command exited non-zero or could not be launched.
   case bashFailure(String)
@@ -346,7 +346,7 @@ public extension AgentToolContext {
   }
 
   /// Rewrite host absolute worktree prefixes to the agent-visible root so
-  /// tool observations never leak `/Users/...` paths during containerized
+  /// tool observations never leak `/Users/...` paths during VM
   /// runs.
   func sanitizeHostPaths(in text: String) -> String {
     guard let visible = agentVisibleWorkspacePath else { return text }
@@ -360,7 +360,7 @@ public extension AgentToolContext {
 
   /// Codemap cache directory for this run. Tools read this rather than
   /// re-deriving the path so the executor can point them at the
-  /// host-side store even when bash runs in the containerized Linux runtime.
+  /// host-side store even when bash runs in the macOS VM.
   func codemapStore() -> CodemapStore {
     CodemapStore(directory: codemapStoreDirectory)
   }

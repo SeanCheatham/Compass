@@ -722,19 +722,19 @@ struct FactoryPivotTests {
   }
 
   @Test
-  func containerRuntimePromptAndToolsAreRustGenerated() {
+  func macOSVMPromptAndToolsAreRustGenerated() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
       workingDirectoryPath: "/Users/example/repo"
     )
     let toolNames = Set(ToolRegistry.tools(for: .develop).map(\.spec.name))
 
-    #expect(prompt.contains("containerized Linux runtime"))
+    #expect(prompt.contains("embedded macOS VM"))
     #expect(prompt.contains("Working directory: /workspace"))
     #expect(!prompt.contains("/Users/example/repo"))
     #expect(prompt.contains("/workspace"))
-    #expect(prompt.contains("Docker, Xcode"))
-    #expect(prompt.contains("Homebrew are unavailable"))
+    #expect(prompt.contains("Rust toolchain"))
+    #expect(prompt.contains("Swift toolchain"))
     #expect(!toolNames.contains("list_toolchains"))
     #expect(!toolNames.contains("install_toolchain"))
   }

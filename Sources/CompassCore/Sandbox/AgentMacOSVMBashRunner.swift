@@ -47,17 +47,23 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
   /// into the host repo after each command. Off by default: the verify
   /// gate is read-only, and pulling build noise back is wasted work.
   public var pullAfterRun: Bool
+  /// The agent-visible workspace root ("/workspace"). Command strings
+  /// referencing it are rewritten to the guest worktree path so agents
+  /// can use the same paths for file tools (host) and bash (guest).
+  public var visibleWorkspacePath: String
 
   public init(
     repoRoot: URL,
     label: String = "agent",
     forceRefresh: Bool = false,
-    pullAfterRun: Bool = false
+    pullAfterRun: Bool = false,
+    visibleWorkspacePath: String = "/workspace"
   ) {
     self.repoRoot = repoRoot.standardizedFileURL
     self.label = label
     self.forceRefresh = forceRefresh
     self.pullAfterRun = pullAfterRun
+    self.visibleWorkspacePath = visibleWorkspacePath
   }
 
   public func run(
@@ -75,8 +81,12 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
       for: workingDirectory,
       guestWorktreePath: sync.guestPath
     )
+    let guestCommand = rewriteVisibleWorkspacePaths(
+      in: command,
+      guestWorktreePath: sync.guestPath
+    )
     let result = try await ready.client.run(
-      command: command,
+      command: guestCommand,
       workingDirectory: URL(fileURLWithPath: guestWorkingDirectory),
       timeout: timeout
     )
@@ -229,5 +239,39 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
     }
     let relative = String(hostPath.dropFirst(rootPath.count))
     return guestWorktreePath + relative
+  }
+
+  /// Rewrites references to the agent-visible workspace root (e.g.
+  /// `/workspace/crates/core`) in a command string to the guest worktree
+  /// path. Only path-boundary occurrences are touched, so words like
+  /// `/workspaceless` are left alone.
+  public func rewriteVisibleWorkspacePaths(
+    in command: String,
+    guestWorktreePath: String
+  ) -> String {
+    let root = visibleWorkspacePath
+    guard !root.isEmpty, command.contains(root) else { return command }
+    var result = ""
+    var index = command.startIndex
+    while index < command.endIndex {
+      guard let range = command.range(of: root, range: index..<command.endIndex) else {
+        result += command[index...]
+        break
+      }
+      let after = range.upperBound
+      let isBoundary =
+        after == command.endIndex
+        || command[after] == "/"
+        || command[after].isWhitespace
+        || "\"'`);|&".contains(command[after])
+      result += command[index..<range.lowerBound]
+      if isBoundary {
+        result += guestWorktreePath
+      } else {
+        result += command[range]
+      }
+      index = range.upperBound
+    }
+    return result
   }
 }

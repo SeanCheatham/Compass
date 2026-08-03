@@ -1578,7 +1578,7 @@ public struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifia
       limit: Self.fieldLimit
     )
     supportClassificationIdentifier =
-      launchPlan.isContainerRoute ? "containerized-linux" : "host"
+      launchPlan.isVMRoute ? "macos-vm" : "host"
     visibleSupportTokens = []
     omittedSupportTokenCount = 0
     imageLabel = Self.sanitizedField(launchPlan.imageLabel, limit: Self.fieldLimit)
@@ -1587,8 +1587,8 @@ public struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifia
       launchPlan.fallbackReason,
       limit: AgentExecutionLaunchPlan.fallbackReasonLimit
     )
-    provisioningAvailabilityIdentifier = launchPlan.isContainerRoute ? "available" : nil
-    provisioningStatusIdentifier = launchPlan.isContainerRoute ? "ready" : nil
+    provisioningAvailabilityIdentifier = launchPlan.isVMRoute ? "available" : nil
+    provisioningStatusIdentifier = launchPlan.isVMRoute ? "ready" : nil
     provisioningActionIdentifier = nil
   }
 

@@ -297,7 +297,7 @@ extension CompassProject {
     do {
       // The Develop iteration operates on `workspace.repoURL`: file tools
       // read/write the host worktree, while bash and Verify run inside
-      // containerized Linux with the same tree mounted at `/workspace`.
+      // the macOS VM with the same tree synced into the guest worktree.
 
       var finalIssues: [String] = []
       var finalVerifyOutput: VerifyOutput?
@@ -378,7 +378,7 @@ extension CompassProject {
             continue
           }
 
-          // Bash and Verify run in the same containerized Linux view of
+          // Bash and Verify run in the same macOS VM view of
           // the host worktree, so post-checks inspect the same files the
           // agent edited.
 
@@ -709,7 +709,7 @@ extension CompassProject {
         "Post-check: running verify command `\(verifyCommand)` (timeout \(timeoutMs)ms).",
         level: .info)
       feedback(.verifyStarted)
-      // Verify runs in the same containerized Linux runtime used by
+      // Verify runs in the same macOS VM used by
       // the agent's bash tool.
       let verifyStartedAt = Date()
       let verify = try await runVerifyCommand(

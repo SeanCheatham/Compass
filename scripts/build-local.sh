@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build CompassLocal via xcodebuild and copy to /Applications.
 #
-# Apple Containerization needs a signed app bundle with the Virtualization
+# The embedded macOS VM needs a signed app bundle with the Virtualization
 # entitlement. Pure `swift build` is fine for compile checks only.
 #
 # Usage:

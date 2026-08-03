@@ -1,4 +1,3 @@
-import CompassSandbox
 import Foundation
 
 public enum HeadlessModelMode: String, Codable, Equatable, Sendable {
@@ -114,14 +113,11 @@ public struct HeadlessCompassRunner: Sendable {
         return AgentHostBashRunner()
       case .macOSVM:
         return AgentMacOSVMBashRunner(repoRoot: repoURL, label: label)
-      case .containerizedLinux:
-        return AgentContainerBashRunner(repoRoot: repoURL, label: label)
       }
     }
   }
 
   public enum BashRuntimeSelection: String, Sendable {
-    case containerizedLinux = "containerized_linux"
     case macOSVM = "macos_vm"
     case host
   }
@@ -133,8 +129,9 @@ public struct HeadlessCompassRunner: Sendable {
       .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     {
     case "host": return .host
-    case "macos_vm", "shared_vm", "vm": return .macOSVM
-    default: return .containerizedLinux
+    // The containerized Linux runtime was removed; its identifiers now
+    // select the macOS VM like everything else.
+    default: return .macOSVM
     }
   }
 
@@ -152,7 +149,6 @@ public struct HeadlessCompassRunner: Sendable {
     switch bashRuntimeSelection() {
     case .host: return "host shell"
     case .macOSVM: return "embedded macOS VM"
-    case .containerizedLinux: return "containerized Linux runtime"
     }
   }
 
@@ -181,21 +177,15 @@ public struct HeadlessCompassRunner: Sendable {
     let cloudReady = settings.hasCloudCredentials
     let textReady = settings.isTextCapabilityRunnable(localModelReady: modelReady)
     let hostRuntime = Self.bashRuntimePrefersHost()
-    let runtimeName = hostRuntime ? "host" : "containerized_linux"
-    let sandboxConfiguration = ContainerSandboxConfiguration()
+    let runtimeName = Self.bashRuntimeName
     onEvent(
       HeadlessCompassEvent(
-        kind: "container_runtime",
+        kind: "vm_runtime",
         status: "checking",
         message: hostRuntime
           ? "Checking host bash runtime."
-          : "Checking containerized Linux runtime.",
-        metadata: [
-          "runtime": runtimeName,
-          "stateRoot": sandboxConfiguration.stateRoot.path,
-          "runtimeImage": sandboxConfiguration.runtimeImage,
-          "initfsReference": sandboxConfiguration.initfsReference,
-        ]
+          : "Checking the embedded macOS VM runtime.",
+        metadata: ["runtime": runtimeName]
       )
     )
     let runtimeReady: Bool
@@ -219,7 +209,7 @@ public struct HeadlessCompassRunner: Sendable {
       }
       onEvent(
         HeadlessCompassEvent(
-          kind: "container_runtime",
+          kind: "vm_runtime",
           level: hostReady ? "success" : "error",
           status: hostReady ? "ready" : "failed",
           message: hostMessage,
@@ -228,29 +218,34 @@ public struct HeadlessCompassRunner: Sendable {
       )
       runtimeReady = hostReady
     } else {
-      let sandboxStatus = await ContainerizedLinuxSandbox.shared.smokeTest()
-      var runtimeMetadata = [
-        "runtime": runtimeName,
-        "stateRoot": sandboxStatus.stateRoot.path,
-        "runtimeImage": sandboxStatus.runtimeImage,
-        "initfsReference": sandboxStatus.initfsReference,
-        "message": sandboxStatus.message,
-      ]
-      if let kernelURL = sandboxStatus.kernelURL {
-        runtimeMetadata["kernel"] = kernelURL.path
+      let vmReady: Bool
+      let vmMessage: String
+      do {
+        let runner = AgentMacOSVMBashRunner(repoRoot: repoURL, label: "doctor")
+        let probe = try await runner.run(
+          command: "sw_vers && cargo --version && swift --version",
+          workingDirectory: repoURL,
+          timeout: 120
+        )
+        vmReady = probe.exitCode == 0
+        vmMessage =
+          vmReady
+          ? "macOS VM runtime is ready."
+          : "macOS VM probe exited \(probe.exitCode): \(probe.stderr)"
+      } catch {
+        vmReady = false
+        vmMessage = "macOS VM runtime probe failed: \(error.localizedDescription)"
       }
       onEvent(
         HeadlessCompassEvent(
-          kind: "container_runtime",
-          level: sandboxStatus.ok ? "success" : "error",
-          status: sandboxStatus.ok ? "ready" : "failed",
-          message: sandboxStatus.ok
-            ? "Containerized Linux runtime is ready."
-            : "Containerized Linux runtime smoke test failed.",
-          metadata: runtimeMetadata
+          kind: "vm_runtime",
+          level: vmReady ? "success" : "error",
+          status: vmReady ? "ready" : "failed",
+          message: vmMessage,
+          metadata: ["runtime": runtimeName]
         )
       )
-      runtimeReady = sandboxStatus.ok
+      runtimeReady = vmReady
     }
     onEvent(
       HeadlessCompassEvent(
@@ -1349,7 +1344,7 @@ public struct HeadlessCompassRunner: Sendable {
       systemPrompt: Prompts.agentSystemPrompt(
         phase: phase,
         workingDirectoryPath: workspace.repoURL.path,
-        executionEnvironment: .containerizedLinux,
+        executionEnvironment: .macOSVM,
         externalToolNames: [],
         promptMode: ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
       ),
@@ -1359,7 +1354,7 @@ public struct HeadlessCompassRunner: Sendable {
         promptMode: ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
       ),
       modelRuntime: runtime,
-      agentVisibleWorkspacePath: ContainerSandboxConfiguration.defaultWorkspacePath,
+      agentVisibleWorkspacePath: "/workspace",
       submitResultSchema: AgentToolParametersSchema(json: Data(schema.utf8)),
       workingDirectory: workspace.repoURL,
       filesystem: AgentHostFilesystem(),

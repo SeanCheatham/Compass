@@ -1,6 +1,6 @@
 public enum ClipboardHelpText {
   public static let setup = "Copy a concise setup note."
-  public static let runtimeReadiness = "Copy a concise container runtime status note."
+  public static let runtimeReadiness = "Copy a concise macOS VM runtime status note."
   public static let runtimeSettings = "Copy a redacted runtime settings note."
   public static let tournamentRouting = "Copy a concise factory routing note."
   public static let runtimeDiagnostics = "Copy a concise runtime report with workspace readiness."

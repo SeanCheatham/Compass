@@ -31,20 +31,8 @@ struct ContentView: View {
   @ViewBuilder
   private var workspaceDetail: some View {
     switch model.workspaceSelection {
-    case .runtime(let pane):
-      TabView(
-        selection: Binding(
-          get: { pane },
-          set: { model.selectSandbox($0) }
-        )
-      ) {
-        ContainerRuntimeView()
-          .tabItem { Label("Container Runtime", systemImage: "shippingbox") }
-          .tag(WorkspaceSelection.RuntimePane.container)
-        MacOSVMRuntimeView()
-          .tabItem { Label("macOS VM", systemImage: "desktopcomputer") }
-          .tag(WorkspaceSelection.RuntimePane.macOSVM)
-      }
+    case .runtime:
+      MacOSVMRuntimeView()
     case .project:
       if let project = model.selectedProject {
         MainWorkspaceView(project: project)

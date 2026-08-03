@@ -48,8 +48,17 @@ extension SharedCompassVM {
     let state =
       (try? bundle.loadState(fileManager: dependencies.fileManager))
       ?? SharedCompassVMBundle.State()
-    if bundle.existsOnDisk(fileManager: dependencies.fileManager), state.provisionStep == .ready {
-      return
+    if bundle.existsOnDisk(fileManager: dependencies.fileManager) {
+      switch state.provisionStep {
+      case .ready, .guestPrepping, .provisioningDevTools:
+        // Past the install phase — re-running VZMacOSInstaller would
+        // wipe a healthy guest over a recoverable dev-tools failure.
+        // Return here and let `start()` resume first-boot / dev-tools
+        // provisioning from the persisted step.
+        return
+      case .notProvisioned, .downloadingIPSW, .installing:
+        break
+      }
     }
 
     // Build progress streams + bridges before the long-running work hops off main.

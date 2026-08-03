@@ -6,6 +6,8 @@ public enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
   case homebrew
   case ripgrep
   case rust
+  case cargoLlvmCov = "cargo_llvm_cov"
+  case cargoMutants = "cargo_mutants"
   case node
 }
 
@@ -68,6 +70,18 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
       return Self.renderRipgrepInstallScript()
     case .rust:
       return Self.renderRustInstallScript()
+    case .cargoLlvmCov:
+      return Self.renderCargoComponentInstallScript(
+        id: SharedVMToolchainID.cargoLlvmCov.rawValue,
+        crate: "cargo-llvm-cov",
+        verificationCommand: "/usr/local/bin/cargo llvm-cov --version"
+      )
+    case .cargoMutants:
+      return Self.renderCargoComponentInstallScript(
+        id: SharedVMToolchainID.cargoMutants.rawValue,
+        crate: "cargo-mutants",
+        verificationCommand: "/usr/local/bin/cargo mutants --version"
+      )
     case .node:
       return Self.renderNodeInstallScript()
     }
@@ -89,6 +103,10 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
       return """
         \(Self.rustVerificationCommand) >/dev/null 2>&1
         """
+    case .cargoLlvmCov:
+      return "/usr/local/bin/cargo llvm-cov --version >/dev/null 2>&1"
+    case .cargoMutants:
+      return "/usr/local/bin/cargo mutants --version >/dev/null 2>&1"
     case .node:
       return """
         \(Self.nodeVerificationCommand) >/dev/null 2>&1
@@ -99,8 +117,7 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
   /// PATH-independent check that the rustup toolchain is usable. The
   /// guest agent runs bash non-interactively, so rustup's proxies are
   /// symlinked into /usr/local/bin at install time.
-  static let rustVerificationCommand =
-    "test -x /usr/local/bin/cargo && /usr/local/bin/cargo --version && /usr/local/bin/rustc --version && /usr/local/bin/rustfmt --version && /usr/local/bin/cargo-clippy --version"
+  public static let rustVerificationCommand =    "test -x /usr/local/bin/cargo && /usr/local/bin/cargo --version && /usr/local/bin/rustc --version && /usr/local/bin/rustfmt --version && /usr/local/bin/cargo-clippy --version"
 
   static let rustProbeCommand = """
     test -x /usr/local/bin/cargo && test -x /usr/local/bin/rustc && echo PRESENT || echo MISSING
@@ -223,7 +240,11 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
       body: """
         GUEST_USER="\(guestUser)"
         GUEST_HOME="$(eval echo ~"$GUEST_USER")"
-        if \(rustVerificationCommand) >/dev/null 2>&1; then
+        # Verification must run as the guest user: rustup's proxies resolve
+        # the toolchain from the invoking user's home, so a root-run probe
+        # (this script runs as root) would fail against /var/root/.rustup
+        # even when the guest user's toolchain is healthy.
+        if su - "$GUEST_USER" -c '\(rustVerificationCommand)' >/dev/null 2>&1; then
           echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
         else
           if [ ! -x "$GUEST_HOME/.cargo/bin/rustup" ]; then
@@ -244,9 +265,34 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
               ln -sf "$GUEST_HOME/.cargo/bin/$tool" "/usr/local/bin/$tool"
             fi
           done
-          \(rustVerificationCommand) >/dev/null 2>&1 \\
+          su - "$GUEST_USER" -c '\(rustVerificationCommand)' >/dev/null 2>&1 \\
             || fail 4 "rust toolchain verification failed"
           echo "\(SharedVMToolchainPaths.logTag(id: id)) installed rustup stable toolchain"
+        fi
+        """)
+  }
+
+  private static func renderCargoComponentInstallScript(
+    id: String,
+    crate: String,
+    verificationCommand: String
+  ) -> String {
+    let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
+    return renderScriptShell(
+      id: id,
+      body: """
+        GUEST_USER="\(guestUser)"
+        if su - "$GUEST_USER" -c '\(verificationCommand)' >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          su - "$GUEST_USER" -c '\(rustVerificationCommand)' >/dev/null 2>&1 \\
+            || fail 2 "Rust toolchain missing — install the rust toolchain first"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) cargo install \(crate) --locked"
+          su - "$GUEST_USER" -c '/usr/local/bin/cargo install \(crate) --locked' \\
+            || fail 3 "cargo install \(crate) failed"
+          su - "$GUEST_USER" -c '\(verificationCommand)' >/dev/null 2>&1 \\
+            || fail 4 "\(crate) verification failed"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed \(crate)"
         fi
         """)
   }
@@ -332,6 +378,28 @@ public enum SharedVMToolchainCatalog {
       dependencies: [],
       probeCommand: SharedVMToolchainDefinition.rustProbeCommand,
       installTimeout: 30 * 60,
+      installableViaGenericProvisioner: true
+    ),
+    SharedVMToolchainDefinition(
+      id: .cargoLlvmCov,
+      displayName: "cargo-llvm-cov",
+      description: "Coverage collector used by the generated-project quality gates.",
+      defaultProvisioned: true,
+      dependencies: [.rust],
+      probeCommand:
+        "/usr/local/bin/cargo llvm-cov --version >/dev/null 2>&1 && echo PRESENT || echo MISSING",
+      installTimeout: 60 * 60,
+      installableViaGenericProvisioner: true
+    ),
+    SharedVMToolchainDefinition(
+      id: .cargoMutants,
+      displayName: "cargo-mutants",
+      description: "Mutation testing used by the generated-project quality gates.",
+      defaultProvisioned: true,
+      dependencies: [.rust],
+      probeCommand:
+        "/usr/local/bin/cargo mutants --version >/dev/null 2>&1 && echo PRESENT || echo MISSING",
+      installTimeout: 60 * 60,
       installableViaGenericProvisioner: true
     ),
     SharedVMToolchainDefinition(

@@ -1,5 +1,4 @@
 import AppKit
-import CompassSandbox
 import Foundation
 import CompassCore
 
@@ -88,14 +87,14 @@ extension CompassProject {
       systemPrompt: Prompts.agentSystemPrompt(
         phase: phase,
         workingDirectoryPath: environment.workingDirectory.path,
-        executionEnvironment: .containerizedLinux,
+        executionEnvironment: .macOSVM,
         externalToolNames: [],
         promptMode: promptMode
       ),
       userPrompt: userPrompt,
       tools: tools,
       modelRuntime: modelRuntime,
-      agentVisibleWorkspacePath: ContainerSandboxConfiguration.defaultWorkspacePath,
+      agentVisibleWorkspacePath: "/workspace",
       submitResultSchema: schema,
       workingDirectory: environment.workingDirectory,
       filesystem: environment.filesystem,
@@ -256,11 +255,12 @@ extension CompassProject {
 
   /// Resolved working directory + tool backends for an agent run.
   /// File/search tools operate on the host worktree while bash runs
-  /// inside a disposable Linux container with that worktree mounted at
-  /// `/workspace`.
+  /// inside the embedded macOS VM against a synced copy of that
+  /// worktree (`/workspace` paths in commands are rewritten to the
+  /// guest worktree).
   struct AgentEnvironment {
     enum Kind {
-      case containerizedLinux
+      case macOSVM
     }
     var kind: Kind
     var workingDirectory: URL
@@ -271,18 +271,18 @@ extension CompassProject {
 
   func resolveAgentEnvironment(forHostURL hostURL: URL) -> AgentEnvironment {
     let launchPlan = agentLaunchPlan(for: hostURL)
-    log("Agent route: containerized Linux runtime at /workspace.", level: .info)
+    log("Agent route: embedded macOS VM at /workspace.", level: .info)
     return AgentEnvironment(
-      kind: .containerizedLinux,
+      kind: .macOSVM,
       workingDirectory: hostURL,
       filesystem: AgentHostFilesystem(),
-      bashRunner: AgentContainerBashRunner(repoRoot: hostURL, label: "agent"),
+      bashRunner: AgentMacOSVMBashRunner(repoRoot: hostURL, label: "agent"),
       launchPlan: launchPlan
     )
   }
 
-  /// Runs the Verify shell command in the containerized Linux runtime
-  /// against the host worktree mounted at `/workspace`.
+  /// Runs the Verify shell command inside the embedded macOS VM against
+  /// the synced guest worktree.
   func runVerifyCommand(
     command: String,
     hostWorkingDirectory: URL,
@@ -291,10 +291,10 @@ extension CompassProject {
   ) async throws -> ProcessResult {
     _ = launchPlan
     log(
-      "Verify: running inside containerized Linux runtime at /workspace (timeout \(Int(timeoutSeconds * 1000))ms).",
+      "Verify: running inside the macOS VM (timeout \(Int(timeoutSeconds * 1000))ms).",
       level: .info
     )
-    return try await AgentContainerBashRunner(
+    return try await AgentMacOSVMBashRunner(
       repoRoot: hostWorkingDirectory,
       label: "verify"
     ).run(

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and sign compass-cli for Apple Containerization.
+# Build and sign compass-cli for the embedded macOS VM.
 
 set -euo pipefail
 
@@ -76,7 +76,7 @@ if ! /usr/bin/grep -q "com.apple.security.virtualization" <<<"${ENTITLEMENTS_OUT
   cat >&2 <<EOF
 error: signed compass-cli is missing required entitlements.
 
-Apple Containerization requires com.apple.security.virtualization and network
+The embedded macOS VM requires com.apple.security.virtualization and network
 client access. Re-run this script, or set COMPASS_CLI_SIGN_IDENTITY to a signing
 identity that can carry App/CompassCLI.entitlements.
 EOF

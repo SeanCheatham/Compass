@@ -15,7 +15,7 @@ extension CompassProject {
     launchPlan: AgentExecutionLaunchPlan,
     sessionIndex: Int
   ) async -> String? {
-    if case .containerizedLinux = launchPlan.effectiveRoute {
+    if case .macOSVM = launchPlan.effectiveRoute {
       if let commitIssue = await commitAgentChangesOnHost(
         mainRepoURL: workspace.repoURL,
         summary: summary

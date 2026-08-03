@@ -30,7 +30,7 @@ struct AgentExecutionEnvironmentPresentation: Equatable {
 struct AgentExecutionEnvironment: Equatable {
   var preference: AgentExecutionEnvironmentPreference
 
-  init(preference: AgentExecutionEnvironmentPreference = .containerizedLinux) {
+  init(preference: AgentExecutionEnvironmentPreference = .macOSVM) {
     self.preference = preference
   }
 
@@ -43,7 +43,7 @@ struct AgentExecutionEnvironment: Equatable {
   {
     AgentExecutionEnvironmentPresentation(
       title: plan.effectiveRouteTitle,
-      status: "Running agents in the containerized Linux runtime.",
+      status: "Running agents in the embedded macOS VM.",
       detail: plan.routeDetail(),
       systemImage: preference.systemImage,
       isWarning: false
@@ -115,7 +115,7 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
         "copy-action-id: \(copyActionIdentifier)",
         "selected-preference: \(selectedPreferenceIdentifier) (\(selectedPreferenceTitle))",
         "effective-route: \(effectiveRouteIdentifier) (\(effectiveRouteTitle))",
-        "runtime: containerized_linux",
+        "runtime: macos_vm",
         "image: \(imageLabel)",
         "workspace: \(workspaceLabel)",
         "fallback: \(fallbackReason)",

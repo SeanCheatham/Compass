@@ -74,7 +74,7 @@ public struct ProjectIntakeGuide: Equatable, Sendable {
           id: "let-compass-verify",
           title: "Let Compass verify",
           detail:
-            "Compass turns the goal into a plan, develops in the container runtime, and checks the result before the work is treated as done.",
+            "Compass turns the goal into a plan, develops in the macOS VM, and checks the result before the work is treated as done.",
           systemImage: "checkmark.seal",
           isPrimary: false
         ),

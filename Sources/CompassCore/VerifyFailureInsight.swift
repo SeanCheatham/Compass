@@ -47,7 +47,7 @@ public struct VerifyFailureInsight: Equatable {
         "Compass found that Rust toolchain bootstrap failed before project tests could run: \(detail)"
       repairTitle = "Restore cargo/rustup"
       repairDetail =
-        "Repair cargo, rustup components (rustfmt/clippy), cargo-llvm-cov, or network access in the containerized runtime, then rerun verify. Do not ask Develop to rewrite app code for this environment failure."
+        "Repair cargo, rustup components (rustfmt/clippy), cargo-llvm-cov, or network access in the macOS VM, then rerun verify. Do not ask Develop to rewrite app code for this environment failure."
       retryDetail =
         "Retry after the Rust toolchain can run in the selected execution environment."
     case .missingTool:

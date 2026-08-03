@@ -211,8 +211,8 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
       snapshotAvailabilityIdentifier == "available"
     }
 
-    public var isContainerRoute: Bool {
-      isSnapshotAvailable && effectiveRouteIdentifier == "containerized-linux"
+    public var isVMRoute: Bool {
+      isSnapshotAvailable && effectiveRouteIdentifier == "macos-vm"
     }
 
     public var isNativeRoute: Bool {
@@ -220,7 +220,7 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
     }
 
     public var systemImage: String {
-      isContainerRoute ? "shippingbox" : "desktopcomputer"
+      "desktopcomputer"
     }
 
     private static func badgeText(
@@ -345,9 +345,8 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
 
     private static func preferenceTitle(identifier: String, fallback: String) -> String {
       switch identifier {
-      case AgentExecutionEnvironmentPreference.containerizedLinux.rawValue:
-        return "Containerized Linux"
-      case AgentExecutionEnvironmentPreference.macOSVM.rawValue, "shared_vm":
+      case AgentExecutionEnvironmentPreference.macOSVM.rawValue, "shared_vm",
+        "containerized_linux":
         return "macOS VM"
       default:
         return sanitizedTitle(fallback, fallback: "Unknown")
@@ -356,9 +355,7 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
 
     private static func routeTitle(identifier: String, fallback: String) -> String {
       switch identifier {
-      case "containerized-linux":
-        return "Containerized Linux"
-      case "macos-vm", "shared-vm":
+      case "macos-vm", "shared-vm", "containerized-linux":
         return "macOS VM"
       case "native-macos":
         return "This Mac"
@@ -370,12 +367,9 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
     private static func preferenceIdentifier(_ text: String) -> String {
       let identifier = sanitizedIdentifier(text, fallback: "unknown")
       switch identifier {
-      case AgentExecutionEnvironmentPreference.containerizedLinux.rawValue,
-        AgentExecutionEnvironmentPreference.macOSVM.rawValue:
+      case AgentExecutionEnvironmentPreference.macOSVM.rawValue:
         return identifier
-      case "native_macos", "devcontainer_preferred":
-        return AgentExecutionEnvironmentPreference.containerizedLinux.rawValue
-      case "shared_vm":
+      case "native_macos", "devcontainer_preferred", "containerized_linux", "shared_vm":
         return AgentExecutionEnvironmentPreference.macOSVM.rawValue
       default:
         return "unknown"
@@ -385,9 +379,9 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
     private static func routeIdentifier(_ text: String) -> String {
       let identifier = sanitizedIdentifier(text, fallback: "unknown")
       switch identifier {
-      case "containerized-linux", "native-macos", "macos-vm":
+      case "native-macos", "macos-vm":
         return identifier
-      case "shared-vm":
+      case "shared-vm", "containerized-linux":
         return "macos-vm"
       default:
         return "unknown"
@@ -708,7 +702,7 @@ public enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equata
   case activePaused
   case failedRejected
   case completedFinished
-  case containerizedLinux = "containerized_linux"
+  case macOSVM = "macos_vm"
   case nativeRuntime
 
   public struct Option: Identifiable, Equatable {
@@ -736,8 +730,8 @@ public enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equata
       return "Failed/Rejected"
     case .completedFinished:
       return "Completed"
-    case .containerizedLinux:
-      return "Containerized Linux"
+    case .macOSVM:
+      return "macOS VM"
     case .nativeRuntime:
       return "This Mac/Fallback"
     }
@@ -755,8 +749,8 @@ public enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equata
       return "failed or rejected runs"
     case .completedFinished:
       return "completed runs"
-    case .containerizedLinux:
-      return "containerized Linux runs"
+    case .macOSVM:
+      return "macOS VM runs"
     case .nativeRuntime:
       return "runs using this Mac or fallback"
     }
@@ -774,8 +768,8 @@ public enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equata
       return "xmark.octagon"
     case .completedFinished:
       return "checkmark.circle"
-    case .containerizedLinux:
-      return "shippingbox"
+    case .macOSVM:
+      return "desktopcomputer"
     case .nativeRuntime:
       return "desktopcomputer"
     }
@@ -821,8 +815,8 @@ public enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equata
       return item.status == .succeeded
         || item.status == .cancelled
         || item.status == .skipped
-    case .containerizedLinux:
-      return item.runtimeRouteDescriptor.isContainerRoute
+    case .macOSVM:
+      return item.runtimeRouteDescriptor.isVMRoute
     case .nativeRuntime:
       return item.runtimeRouteDescriptor.isNativeRoute
     }

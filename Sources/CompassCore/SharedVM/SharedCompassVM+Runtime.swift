@@ -129,40 +129,79 @@ extension SharedCompassVM {
     let state =
       (try? bundle.loadState(fileManager: dependencies.fileManager))
       ?? SharedCompassVMBundle.State()
-    guard let ip = state.lastKnownGoodIP else {
-      transition(
-        to: .error(
-          detail: "Resuming dev-tools install: guest IP is not cached. Reset and re-provision."))
-      return
-    }
-    let destination = "\(state.guestUserName)@\(ip)"
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
       identityFile: bundle.privateKeyURL.path,
       knownHostsFile: bundle.knownHostsURL.path,
       connectTimeoutSeconds: 5
     )
-    let deadline = Date().addingTimeInterval(300)
-    var attemptIntervalNanoseconds: UInt64 = 2_000_000_000
-    var probeOK = false
-    while Date() < deadline {
-      probeOK = await SharedCompassVMGuestBridge.probeSSHAvailable(
-        destination: destination,
-        options: options,
-        timeout: 5
-      )
-      if probeOK { break }
-      try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
-      attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
-    }
-    guard probeOK else {
+    guard
+      let destination = await resolveGuestSSHDestination(state: state, options: options)
+    else {
       transition(
         to: .error(
-          detail: "Resuming dev-tools install: SSH probe to \(destination) timed out."))
+          detail:
+            "Resuming dev-tools install: could not reach the guest over SSH (cached IP \(state.lastKnownGoodIP ?? "none") did not answer and rediscovery failed). Stop the VM and retry, or reset and re-provision."
+        ))
       return
     }
     lastResolvedSSHDestination = destination
     transition(to: .provisioningDevTools(fractionCompleted: 0))
     await runDevToolsProvisioner(destination: destination)
+  }
+
+  /// Resolves a reachable `user@ip` SSH destination for the guest.
+  ///
+  /// The guest's DHCP lease is not guaranteed to survive reboots, so a
+  /// persisted `lastKnownGoodIP` can go stale between sessions. Probes
+  /// the cached address first; when it stops answering, re-runs
+  /// MAC-keyed discovery (dhcpd_leases/arp via the pinned guest MAC),
+  /// persists the fresh address, and TOFU-scans its host key before the
+  /// strict probe. Returns nil when the overall budget expires.
+  private func resolveGuestSSHDestination(
+    state: SharedCompassVMBundle.State,
+    options: SharedCompassVMGuestBridge.ConnectionOptions,
+    probeTimeout: TimeInterval = 5,
+    overallBudget: TimeInterval = 300
+  ) async -> String? {
+    let deadline = Date().addingTimeInterval(overallBudget)
+    var candidateIP = state.lastKnownGoodIP
+    var attemptIntervalNanoseconds: UInt64 = 2_000_000_000
+    var attemptedRediscovery = false
+    while Date() < deadline {
+      if let ip = candidateIP {
+        let destination = "\(state.guestUserName)@\(ip)"
+        let probeOK = await SharedCompassVMGuestBridge.probeSSHAvailable(
+          destination: destination,
+          options: options,
+          timeout: probeTimeout
+        )
+        if probeOK { return destination }
+      }
+      if !attemptedRediscovery, let mac = state.guestMACAddress {
+        attemptedRediscovery = true
+        if let discovered = await SharedCompassVMGuestIPDiscovery.waitForGuestIP(
+          macAddress: mac,
+          timeout: 60,
+          pollInterval: 2
+        ) {
+          candidateIP = discovered.ip
+          _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
+            $0.lastKnownGoodIP = discovered.ip
+          }
+          // The fresh address needs its host key in known_hosts before
+          // the strict probe will talk to it.
+          _ = await SharedCompassVMGuestBridge.populateKnownHosts(
+            host: discovered.ip,
+            knownHostsFile: bundle.knownHostsURL.path,
+            timeout: 5
+          )
+          continue
+        }
+      }
+      try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
+      attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
+    }
+    return nil
   }
 
   /// Lightweight SSH probe used on subsequent boots when the bundle is
@@ -174,34 +213,26 @@ extension SharedCompassVM {
     let state =
       (try? bundle.loadState(fileManager: dependencies.fileManager))
       ?? SharedCompassVMBundle.State()
-    guard let ip = state.lastKnownGoodIP else { return }
-    let destination = "\(state.guestUserName)@\(ip)"
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
       identityFile: bundle.privateKeyURL.path,
       knownHostsFile: bundle.knownHostsURL.path,
       connectTimeoutSeconds: 5
     )
-    let deadline = Date().addingTimeInterval(300)  // 5 minutes
-    var attemptIntervalNanoseconds: UInt64 = 2_000_000_000
-    while Date() < deadline {
-      let probeOK = await SharedCompassVMGuestBridge.probeSSHAvailable(
-        destination: destination,
-        options: options,
-        timeout: 5
-      )
-      if probeOK {
-        lastResolvedSSHDestination = destination
-        guard await ensureGuestAgentReachableAfterBoot(destination: destination) else { return }
-        transition(to: .ready(sshDestination: destination))
-        Task { [weak self] in
-          await self?.ensureDefaultToolchainsIfNeeded()
-        }
-        return
-      }
-      try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
-      // Backoff capped at 10s so the UI doesn't stall after a slow
-      // first probe but we still avoid hammering sshd during the boot.
-      attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
+    guard
+      let destination = await resolveGuestSSHDestination(state: state, options: options)
+    else {
+      transition(
+        to: .error(
+          detail:
+            "Guest did not become reachable over SSH after boot (cached IP \(state.lastKnownGoodIP ?? "none") did not answer and rediscovery failed). Stop the VM and retry."
+        ))
+      return
+    }
+    lastResolvedSSHDestination = destination
+    guard await ensureGuestAgentReachableAfterBoot(destination: destination) else { return }
+    transition(to: .ready(sshDestination: destination))
+    Task { [weak self] in
+      await self?.ensureDefaultToolchainsIfNeeded()
     }
   }
 
@@ -557,20 +588,30 @@ extension SharedCompassVM {
       return
     }
 
-    let rustDefinition = SharedVMToolchainCatalog.definition(for: .rust)
-    do {
-      _ = try await SharedCompassVMToolchainProvisioner.provision(
-        definition: rustDefinition,
-        runner: client,
-        progress: { fraction in
-          await MainActor.run {
-            host.transition(to: .provisioningDevTools(fractionCompleted: 0.9 + fraction * 0.1))
+    // Rust first, then the cargo components the quality gates need
+    // (coverage, mutation). The final 10% of progress is split across
+    // the three installs.
+    let cargoToolchainIDs: [SharedVMToolchainID] = [.rust, .cargoLlvmCov, .cargoMutants]
+    for (index, id) in cargoToolchainIDs.enumerated() {
+      let definition = SharedVMToolchainCatalog.definition(for: id)
+      let base = 0.9 + (Double(index) / Double(cargoToolchainIDs.count)) * 0.1
+      let span = 0.1 / Double(cargoToolchainIDs.count)
+      do {
+        _ = try await SharedCompassVMToolchainProvisioner.provision(
+          definition: definition,
+          runner: client,
+          progress: { fraction in
+            await MainActor.run {
+              host.transition(
+                to: .provisioningDevTools(fractionCompleted: base + fraction * span))
+            }
           }
-        }
-      )
-    } catch {
-      transition(to: .error(detail: "Rust toolchain install failed: \(error)"))
-      return
+        )
+      } catch {
+        transition(
+          to: .error(detail: "\(definition.displayName) toolchain install failed: \(error)"))
+        return
+      }
     }
 
     try? toolchainManager.seedDefaultProvisionedToolchains()
@@ -598,67 +639,25 @@ extension SharedCompassVM {
     let client = Self.makeVsockClient(on: machine)
     let manager = makeToolchainService()
 
-    let homebrewMissing: Bool
-    do {
-      homebrewMissing =
-        try await SharedCompassVMToolchainProvisioner.probe(
-          definition: SharedVMToolchainCatalog.definition(for: .homebrew),
-          runner: client
-        ) == false
-    } catch {
-      return
-    }
-
-    let ripgrepMissing: Bool
-    do {
-      ripgrepMissing =
-        try await SharedCompassVMRipgrepProvisioner.probeAlreadyInstalled(
-          runner: client
-        ) == false
-    } catch {
-      return
-    }
-
-    let rustMissing: Bool
-    do {
-      rustMissing =
-        try await SharedCompassVMToolchainProvisioner.probe(
-          definition: SharedVMToolchainCatalog.definition(for: .rust),
-          runner: client
-        ) == false
-    } catch {
-      return
-    }
-
-    guard homebrewMissing || ripgrepMissing || rustMissing else { return }
-
-    if homebrewMissing {
+    let defaultIDs: [SharedVMToolchainID] = [
+      .homebrew, .ripgrep, .rust, .cargoLlvmCov, .cargoMutants,
+    ]
+    for id in defaultIDs {
+      let definition = SharedVMToolchainCatalog.definition(for: id)
+      let missing: Bool
       do {
-        _ = try await SharedCompassVMToolchainProvisioner.provision(
-          definition: SharedVMToolchainCatalog.definition(for: .homebrew),
-          runner: client,
-          progress: { _ in }
-        )
+        missing =
+          try await SharedCompassVMToolchainProvisioner.probe(
+            definition: definition,
+            runner: client
+          ) == false
       } catch {
         return
       }
-    }
-
-    if ripgrepMissing {
-      do {
-        _ = try await SharedCompassVMRipgrepProvisioner.provision(
-          runner: client,
-          progress: { _ in }
-        )
-      } catch {
-        return
-      }
-    }
-
-    if rustMissing {
+      guard missing else { continue }
       do {
         _ = try await SharedCompassVMToolchainProvisioner.provision(
-          definition: SharedVMToolchainCatalog.definition(for: .rust),
+          definition: definition,
           runner: client,
           progress: { _ in }
         )

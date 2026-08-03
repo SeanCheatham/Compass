@@ -83,6 +83,11 @@ public final class SharedCompassVM: ObservableObject {
 
     // From here we judge the legality of forward progress.
     switch (current, next) {
+    case (.error, _):
+      // Errors are reportable, not absorbing: every failure surface
+      // offers a retry path (re-provision, re-boot, resume dev-tools),
+      // and those paths re-enter the forward states.
+      return true
     case (.unavailable, _):
       // `.unavailable` only releases on a re-evaluation that produces
       // `.notProvisioned`, which is handled above.

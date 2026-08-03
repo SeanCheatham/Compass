@@ -1,22 +1,16 @@
 import Foundation
 
 public enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
-  case containerizedLinux = "containerized_linux"
   case macOSVM = "macos_vm"
 
   public var id: Self { self }
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
-    let raw = try container.decode(String.self)
-    switch raw {
-    case Self.macOSVM.rawValue, "shared_vm":
-      self = .macOSVM
-    case Self.containerizedLinux.rawValue, "native_macos", "devcontainer_preferred":
-      self = .containerizedLinux
-    default:
-      self = .containerizedLinux
-    }
+    // All legacy identifiers (including the removed container runtime)
+    // migrate to the macOS VM route.
+    _ = try container.decode(String.self)
+    self = .macOSVM
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -24,29 +18,8 @@ public enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
     try container.encode(rawValue)
   }
 
-  public var title: String {
-    switch self {
-    case .containerizedLinux: return "Containerized Linux"
-    case .macOSVM: return "macOS VM"
-    }
-  }
-
-  public var systemImage: String {
-    switch self {
-    case .containerizedLinux: return "shippingbox"
-    case .macOSVM: return "desktopcomputer"
-    }
-  }
-}
-
-public struct ContainerSandboxRoute: Equatable, Codable {
-  public var hostWorkspacePath: String
-  public var containerWorkspacePath: String
-
-  public init(hostWorkspacePath: String, containerWorkspacePath: String = "/workspace") {
-    self.hostWorkspacePath = hostWorkspacePath
-    self.containerWorkspacePath = containerWorkspacePath
-  }
+  public var title: String { "macOS VM" }
+  public var systemImage: String { "desktopcomputer" }
 }
 
 public struct MacOSVMRoute: Equatable, Codable {
@@ -80,7 +53,6 @@ public struct AgentExecutionLaunchPlan: Equatable {
 
   public enum Route: Equatable {
     case host
-    case containerizedLinux(ContainerSandboxRoute)
     case macOSVM(MacOSVMRoute)
   }
 
@@ -89,7 +61,7 @@ public struct AgentExecutionLaunchPlan: Equatable {
   public var fallbackReason: String?
 
   public init(
-    selectedPreference: AgentExecutionEnvironmentPreference = .containerizedLinux,
+    selectedPreference: AgentExecutionEnvironmentPreference = .macOSVM,
     effectiveRoute: Route,
     fallbackReason: String? = nil
   ) {
@@ -100,20 +72,6 @@ public struct AgentExecutionLaunchPlan: Equatable {
 
   public static func host(fallbackReason: String? = nil) -> Self {
     Self(effectiveRoute: .host, fallbackReason: fallbackReason)
-  }
-
-  public static func containerizedLinux(
-    repoURL: URL,
-    containerWorkspacePath: String = "/workspace"
-  ) -> Self {
-    Self(
-      effectiveRoute: .containerizedLinux(
-        ContainerSandboxRoute(
-          hostWorkspacePath: repoURL.standardizedFileURL.path,
-          containerWorkspacePath: containerWorkspacePath
-        )
-      )
-    )
   }
 
   public static func macOSVM(repoURL: URL, guestWorkspacePath: String? = nil) -> Self {
@@ -130,25 +88,19 @@ public struct AgentExecutionLaunchPlan: Equatable {
   }
 
   public static func plan(repoURL: URL) -> Self {
-    containerizedLinux(repoURL: repoURL)
+    macOSVM(repoURL: repoURL)
   }
 
   public static func plan(
     repoURL: URL,
-    preference: AgentExecutionEnvironmentPreference
+    preference _: AgentExecutionEnvironmentPreference
   ) -> Self {
-    switch preference {
-    case .macOSVM:
-      return macOSVM(repoURL: repoURL)
-    case .containerizedLinux:
-      return containerizedLinux(repoURL: repoURL)
-    }
+    macOSVM(repoURL: repoURL)
   }
 
   public var effectiveRouteIdentifier: String {
     switch effectiveRoute {
     case .host: return "native-macos"
-    case .containerizedLinux: return "containerized-linux"
     case .macOSVM: return "macos-vm"
     }
   }
@@ -156,7 +108,6 @@ public struct AgentExecutionLaunchPlan: Equatable {
   public var effectiveRouteTitle: String {
     switch effectiveRoute {
     case .host: return "This Mac"
-    case .containerizedLinux: return "Containerized Linux"
     case .macOSVM: return "macOS VM"
     }
   }
@@ -164,7 +115,6 @@ public struct AgentExecutionLaunchPlan: Equatable {
   public var imageLabel: String {
     switch effectiveRoute {
     case .host: return "none"
-    case .containerizedLinux: return "docker.io/library/node:22-bookworm"
     case .macOSVM: return "macOS restore image (IPSW)"
     }
   }
@@ -172,8 +122,6 @@ public struct AgentExecutionLaunchPlan: Equatable {
   public var workspaceLabel: String {
     switch effectiveRoute {
     case .host: return "host"
-    case .containerizedLinux(let route):
-      return Self.boundedText(route.containerWorkspacePath, limit: Self.labelLimit)
     case .macOSVM(let route):
       return Self.boundedText(route.guestWorkspacePath, limit: Self.labelLimit)
     }
@@ -186,14 +134,7 @@ public struct AgentExecutionLaunchPlan: Equatable {
   public var isVMRoute: Bool {
     switch effectiveRoute {
     case .macOSVM: return true
-    case .host, .containerizedLinux: return false
-    }
-  }
-
-  public var isContainerRoute: Bool {
-    switch effectiveRoute {
-    case .host, .macOSVM: return false
-    case .containerizedLinux: return true
+    case .host: return false
     }
   }
 
@@ -227,8 +168,6 @@ public struct AgentExecutionLaunchPlan: Equatable {
         return "Using this Mac because \(Self.userFacingFallbackReason(fallbackReason))"
       }
       return "Using this Mac for this phase."
-    case .containerizedLinux:
-      return "Using the containerized Linux runtime for this phase."
     case .macOSVM:
       return "Using the embedded macOS VM for this phase."
     }

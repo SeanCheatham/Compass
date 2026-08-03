@@ -12,7 +12,6 @@ let package = Package(
     .executable(name: "compass-cli", targets: ["CompassCLI"]),
     .executable(name: "CompassGuestAgent", targets: ["CompassGuestAgent"]),
     .library(name: "CompassAgentRPC", targets: ["CompassAgentRPC"]),
-    .library(name: "CompassSandbox", targets: ["CompassSandbox"]),
     .library(name: "CompassCore", targets: ["CompassCore"]),
   ],
   dependencies: [
@@ -41,10 +40,6 @@ let package = Package(
       url: "https://github.com/huggingface/swift-transformers",
       from: "1.3.0"
     ),
-    .package(
-      url: "https://github.com/apple/containerization.git",
-      exact: "0.33.4"
-    ),
   ],
   targets: [
     .target(
@@ -55,19 +50,9 @@ let package = Package(
       dependencies: ["CompassAgentRPC"]
     ),
     .target(
-      name: "CompassSandbox",
-      dependencies: [
-        .product(name: "Containerization", package: "containerization"),
-        .product(name: "ContainerizationArchive", package: "containerization"),
-        .product(name: "ContainerizationExtras", package: "containerization"),
-        .product(name: "ContainerizationOCI", package: "containerization"),
-      ]
-    ),
-    .target(
       name: "CompassCore",
       dependencies: [
         "CompassAgentRPC",
-        "CompassSandbox",
         .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
         .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
@@ -103,7 +88,6 @@ let package = Package(
       dependencies: [
         "Compass",
         "CompassCore",
-        "CompassSandbox",
         .product(name: "Testing", package: "swift-testing"),
       ]
     ),
