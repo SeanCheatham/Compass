@@ -1,6 +1,6 @@
 import AppKit
-import Foundation
 import CompassCore
+import Foundation
 
 @MainActor
 final class CompassProject: ObservableObject, Identifiable {
@@ -21,6 +21,7 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned()
   @Published var nativeFeedbackMode: NativeFeedbackMode
   @Published var liveLog: [LiveLine] = []
+  let studioState: StudioState
   @Published var phase: LoopPhase = .idle
   @Published var isRunning = false
   @Published var isAutoPlaying = false
@@ -111,6 +112,10 @@ final class CompassProject: ObservableObject, Identifiable {
     self.nativeFeedbackMode = nativeFeedbackMode
     self.storageApplicationSupportRoots = storageApplicationSupportRoots
     self.storageMigrationAction = storageMigrationAction
+    self.studioState = StudioState(
+      repoURL: repoURL.standardizedFileURL,
+      workspacePrefix: "/workspace"
+    )
   }
 }
 

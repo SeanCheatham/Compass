@@ -1,6 +1,6 @@
 import AppKit
-import Foundation
 import CompassCore
+import Foundation
 
 @MainActor
 extension CompassProject {
@@ -9,6 +9,7 @@ extension CompassProject {
     let memoryMax = sessions.map(\.session).max() ?? 0
     let nextNumber = max(storeMax, memoryMax) + 1
     sessions.append(.started(nextNumber))
+    studioState.reset()
     try? persistSessions()
     let index = sessions.count - 1
     activateSessionAudit(sessionIndex: index)

@@ -1024,10 +1024,12 @@ public struct PlanStrategicContext: Codable, Equatable {
       sections.append(summary)
     }
     if !targetUsers.isEmpty {
-      sections.append("Target users:\n" + targetUsers.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
+      sections.append(
+        "Target users:\n" + targetUsers.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
     }
     if !desiredOutcomes.isEmpty {
-      sections.append("Desired outcomes:\n" + desiredOutcomes.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
+      sections.append(
+        "Desired outcomes:\n" + desiredOutcomes.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
     }
     if !constraints.isEmpty {
       sections.append(
@@ -1082,7 +1084,7 @@ public struct PlanQuestion: Codable, Equatable, Identifiable {
   }
 }
 
-public extension String {
+extension String {
   fileprivate var nilIfEmpty: String? {
     isEmpty ? nil : self
   }
@@ -1298,8 +1300,8 @@ public struct LessonEdit: Codable, Equatable {
   }
 }
 
-public extension FlexibleModelDecoder {
-  static func decodeLessonEditsIfPresent<Key: CodingKey>(
+extension FlexibleModelDecoder {
+  public static func decodeLessonEditsIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
     aliases: [Key]
@@ -1731,7 +1733,8 @@ public struct AgentRunTokenUsage: Codable, Equatable, Sendable {
   ) {
     let normalizedInput = max(0, inputTokens)
     let normalizedOutput = max(0, outputTokens)
-    let normalizedTotal = max(0, totalTokens == 0 ? normalizedInput + normalizedOutput : totalTokens)
+    let normalizedTotal = max(
+      0, totalTokens == 0 ? normalizedInput + normalizedOutput : totalTokens)
     self.inputTokens += normalizedInput
     self.outputTokens += normalizedOutput
     self.totalTokens += normalizedTotal
@@ -2036,8 +2039,9 @@ public struct SessionRecord: Codable, Identifiable, Equatable {
     executionEnvironmentSnapshots.last
   }
 
-  public mutating func recordExecutionEnvironmentSnapshot(_ snapshot: SessionExecutionEnvironmentSnapshot)
-  {
+  public mutating func recordExecutionEnvironmentSnapshot(
+    _ snapshot: SessionExecutionEnvironmentSnapshot
+  ) {
     executionEnvironmentSnapshots = Self.recording(
       snapshot,
       in: executionEnvironmentSnapshots
@@ -2307,6 +2311,52 @@ public struct CriticVerdict: Codable, Equatable {
   }
 }
 
+public struct LiveLineRangeEdit: Equatable {
+  public var startLine: Int
+  public var endLine: Int
+  public var replacementLines: [String]
+
+  public init(startLine: Int, endLine: Int, replacementLines: [String]) {
+    self.startLine = startLine
+    self.endLine = endLine
+    self.replacementLines = replacementLines
+  }
+}
+
+public struct LiveStringReplaceEdit: Equatable {
+  public var oldString: String
+  public var newString: String
+  public var replaceAll: Bool
+
+  public init(oldString: String, newString: String, replaceAll: Bool) {
+    self.oldString = oldString
+    self.newString = newString
+    self.replaceAll = replaceAll
+  }
+}
+
+/// Structured tool-call payloads retained in memory for the Studio view.
+/// `content`/`output` are nil on tool-start events and filled on tool end.
+public enum LiveToolPayload: Equatable {
+  case readFile(path: String, offset: Int?, limit: Int?, content: String?)
+  case writeFile(path: String, content: String)
+  case editFileLineRange(path: String, edits: [LiveLineRangeEdit])
+  case editFileStringReplace(path: String, edits: [LiveStringReplaceEdit])
+  case bash(command: String, cwd: String?, output: String?, isError: Bool?)
+
+  public var path: String? {
+    switch self {
+    case .readFile(let path, _, _, _),
+      .writeFile(let path, _),
+      .editFileLineRange(let path, _),
+      .editFileStringReplace(let path, _):
+      return path
+    case .bash:
+      return nil
+    }
+  }
+}
+
 public struct LiveLine: Identifiable, Equatable {
   public var id = UUID()
   public var date = Date()
@@ -2317,6 +2367,7 @@ public struct LiveLine: Identifiable, Equatable {
   public var status: Status = .none
   public var correlationID: String?
   public var completedAt: Date?
+  public var payload: LiveToolPayload?
 
   public init(
     id: UUID = UUID(),
@@ -2327,7 +2378,8 @@ public struct LiveLine: Identifiable, Equatable {
     kind: Kind = .message,
     status: Status = .none,
     correlationID: String? = nil,
-    completedAt: Date? = nil
+    completedAt: Date? = nil,
+    payload: LiveToolPayload? = nil
   ) {
     self.id = id
     self.date = date
@@ -2338,6 +2390,7 @@ public struct LiveLine: Identifiable, Equatable {
     self.status = status
     self.correlationID = correlationID
     self.completedAt = completedAt
+    self.payload = payload
   }
 
   public enum Level {
@@ -2372,6 +2425,7 @@ public struct LiveEvent: Equatable {
   public var status: LiveLine.Status
   public var correlationID: String?
   public var metadata: [String: String]?
+  public var payload: LiveToolPayload?
 
   public init(
     level: LiveLine.Level = .info,
@@ -2380,7 +2434,8 @@ public struct LiveEvent: Equatable {
     kind: LiveLine.Kind = .message,
     status: LiveLine.Status = .none,
     correlationID: String? = nil,
-    metadata: [String: String]? = nil
+    metadata: [String: String]? = nil,
+    payload: LiveToolPayload? = nil
   ) {
     self.level = level
     self.text = text
@@ -2389,6 +2444,7 @@ public struct LiveEvent: Equatable {
     self.status = status
     self.correlationID = correlationID
     self.metadata = metadata
+    self.payload = payload
   }
 }
 

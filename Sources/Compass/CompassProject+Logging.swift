@@ -1,6 +1,6 @@
 import AppKit
-import Foundation
 import CompassCore
+import Foundation
 
 @MainActor
 extension CompassProject {
@@ -36,6 +36,10 @@ extension CompassProject {
       liveLog[index].kind = event.kind
       liveLog[index].status = event.status
       liveLog[index].completedAt = Date()
+      if let payload = event.payload {
+        liveLog[index].payload = payload
+      }
+      studioState.apply(liveLog[index])
     } else {
       let line = LiveLine(
         level: event.level,
@@ -43,9 +47,11 @@ extension CompassProject {
         detail: detail?.isEmpty == false ? detail : nil,
         kind: event.kind,
         status: event.status,
-        correlationID: event.correlationID
+        correlationID: event.correlationID,
+        payload: event.payload
       )
       liveLog.append(line)
+      studioState.apply(line)
     }
 
     appendAuditEvent(

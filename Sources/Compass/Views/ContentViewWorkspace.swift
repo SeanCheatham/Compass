@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import CompassCore
+import SwiftUI
 
 struct NoProjectView: View {
   @EnvironmentObject private var model: AppModel
@@ -865,6 +865,8 @@ struct WorkspaceContent: View {
         VisionTab(project: project)
       case .activity:
         ActivityTab(project: project)
+      case .studio:
+        StudioTab(project: project)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -873,6 +875,7 @@ struct WorkspaceContent: View {
 
 enum WorkspaceTab: String, CaseIterable, Identifiable {
   case activity
+  case studio
   case vision
 
   var id: Self { self }
@@ -881,6 +884,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "Brief"
     case .activity: return "Activity"
+    case .studio: return "Studio"
     }
   }
 
@@ -888,6 +892,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "scope"
     case .activity: return "waveform.path.ecg"
+    case .studio: return "rectangle.split3x1"
     }
   }
 
