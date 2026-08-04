@@ -5,13 +5,27 @@ import CompassCore
 struct ContentView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var localModelManager: LocalModelManager = .shared
+  @AppStorage("compass.sidebarCollapsed") private var sidebarCollapsed = false
 
   var body: some View {
     Group {
       if isOnboardingComplete {
         HSplitView {
-          SidebarView()
+          if sidebarCollapsed {
+            SidebarCollapsedRail {
+              withAnimation(.easeInOut(duration: 0.2)) {
+                sidebarCollapsed = false
+              }
+            }
+            .frame(minWidth: 44, idealWidth: 44, maxWidth: 44, maxHeight: .infinity)
+          } else {
+            SidebarView {
+              withAnimation(.easeInOut(duration: 0.2)) {
+                sidebarCollapsed = true
+              }
+            }
             .frame(minWidth: 260, idealWidth: 310, maxWidth: 380, maxHeight: .infinity)
+          }
           workspaceDetail
             .frame(minWidth: 640, maxWidth: .infinity, maxHeight: .infinity)
         }

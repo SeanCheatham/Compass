@@ -5,6 +5,7 @@ import CompassCore
 struct SidebarView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var localModelManager: LocalModelManager = .shared
+  var onCollapse: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -16,6 +17,13 @@ struct SidebarView: View {
           SidebarRuntimeStatusButton {
             model.selectSandbox()
           }
+          Button(action: onCollapse) {
+            Image(systemName: "sidebar.left")
+              .font(.body)
+          }
+          .buttonStyle(.borderless)
+          .help("Hide projects sidebar")
+          .accessibilityLabel("Hide projects sidebar")
         }
         Text("Local software factory")
           .font(.callout)
@@ -127,6 +135,29 @@ struct SidebarView: View {
     }
     .padding()
     .frame(maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+/// Narrow strip shown when the projects sidebar is collapsed.
+struct SidebarCollapsedRail: View {
+  var onExpand: () -> Void
+
+  var body: some View {
+    VStack(spacing: 12) {
+      Button(action: onExpand) {
+        Image(systemName: "sidebar.left")
+          .font(.body)
+          .frame(width: 28, height: 28)
+      }
+      .buttonStyle(.borderless)
+      .help("Show projects sidebar")
+      .accessibilityLabel("Show projects sidebar")
+
+      Spacer(minLength: 0)
+    }
+    .padding(.top, 14)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .background(Color(nsColor: .windowBackgroundColor))
   }
 }
 

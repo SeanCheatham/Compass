@@ -37,8 +37,8 @@ struct StudioFileNode: Identifiable, Hashable {
       var directory = StudioFileNode(path: path, name: head, children: [])
       insert(components: Array(components.dropFirst()), into: &directory.children!, prefix: path)
       nodes.append(directory)
-      nodes.sort { sortOrder($0, $1) }
     }
+    nodes.sort { sortOrder($0, $1) }
   }
 
   private static func sortOrder(_ lhs: StudioFileNode, _ rhs: StudioFileNode) -> Bool {
@@ -52,16 +52,25 @@ final class StudioFileTreeModel: ObservableObject {
   @Published private(set) var roots: [StudioFileNode] = []
 
   private var reloadTask: Task<Void, Never>?
+  private var pendingReloadURL: URL?
 
   /// Reload the tracked/untracked file list. Coalesces rapid bursts (one
   /// in-flight reload at a time; latest repoURL wins for the next pass).
   func reload(repoURL: URL) {
-    guard reloadTask == nil else { return }
+    if reloadTask != nil {
+      pendingReloadURL = repoURL
+      return
+    }
     reloadTask = Task {
-      defer { reloadTask = nil }
       let paths = await Self.listFiles(repoURL: repoURL)
-      guard !Task.isCancelled else { return }
-      roots = StudioFileNode.build(from: paths)
+      if !Task.isCancelled {
+        roots = StudioFileNode.build(from: paths)
+      }
+      reloadTask = nil
+      if let pending = pendingReloadURL {
+        pendingReloadURL = nil
+        reload(repoURL: pending)
+      }
     }
   }
 
@@ -107,7 +116,10 @@ struct StudioFileTreeView: View {
               depth: 0,
               expandedPaths: $expandedPaths,
               openPath: state.openFile,
-              touchedPath: state.lastTouchedPath
+              touchedPath: state.lastTouchedPath,
+              onOpenFile: { path in
+                state.peek(path)
+              }
             )
           }
         }
@@ -146,6 +158,7 @@ private struct StudioFileTreeNodeView: View {
   @Binding var expandedPaths: Set<String>
   let openPath: String?
   let touchedPath: String?
+  let onOpenFile: (String) -> Void
 
   private var isExpanded: Bool { expandedPaths.contains(node.path) }
 
@@ -172,16 +185,22 @@ private struct StudioFileTreeNodeView: View {
             depth: depth + 1,
             expandedPaths: $expandedPaths,
             openPath: openPath,
-            touchedPath: touchedPath
+            touchedPath: touchedPath,
+            onOpenFile: onOpenFile
           )
         }
       }
     } else {
-      rowLabel(systemImage: fileIcon, name: node.name, isDirectory: false)
-        .background(
-          RoundedRectangle(cornerRadius: 5)
-            .fill(backgroundColor)
-        )
+      Button {
+        onOpenFile(node.path)
+      } label: {
+        rowLabel(systemImage: fileIcon, name: node.name, isDirectory: false)
+          .background(
+            RoundedRectangle(cornerRadius: 5)
+              .fill(backgroundColor)
+          )
+      }
+      .buttonStyle(.plain)
     }
   }
 

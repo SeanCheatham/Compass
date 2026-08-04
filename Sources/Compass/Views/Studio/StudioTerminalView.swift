@@ -1,3 +1,4 @@
+import AppKit
 import CompassCore
 import SwiftUI
 
@@ -25,13 +26,14 @@ struct StudioTerminalView: View {
       } else {
         ScrollViewReader { proxy in
           ScrollView {
-            LazyVStack(alignment: .leading, spacing: 10) {
+            LazyVStack(alignment: .leading, spacing: 6) {
               ForEach(state.terminalEntries) { entry in
                 StudioTerminalEntryView(entry: entry)
                   .id(entry.id)
               }
             }
-            .padding(10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
           }
           .onChange(of: state.terminalEntries.count) {
             scrollToBottom(proxy: proxy)
@@ -43,7 +45,8 @@ struct StudioTerminalView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(Color(nsColor: .textBackgroundColor))
+    .background(Color.black.opacity(0.88))
+    .foregroundStyle(Color.white.opacity(0.92))
   }
 
   private func scrollToBottom(proxy: ScrollViewProxy) {
@@ -58,34 +61,60 @@ struct StudioTerminalView: View {
 
 private struct StudioTerminalEntryView: View {
   let entry: StudioState.TerminalEntry
+  @State private var isHovered = false
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 3) {
+    VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 6) {
         Text("$")
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(Color.white.opacity(0.35))
         Text(entry.command)
           .fontWeight(.medium)
           .lineLimit(2)
           .truncationMode(.tail)
+          .foregroundStyle(Color.white.opacity(0.9))
         if let cwd = entry.cwd, !cwd.isEmpty, cwd != "/" {
           Text("(\(cwd))")
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(Color.white.opacity(0.35))
             .lineLimit(1)
         }
         Spacer(minLength: 4)
+        if isHovered, let output = entry.output, !output.isEmpty {
+          Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(
+              StudioANSIParser.strip(output),
+              forType: .string
+            )
+          } label: {
+            Image(systemName: "doc.on.doc")
+              .font(.system(size: 10))
+              .foregroundStyle(Color.white.opacity(0.55))
+          }
+          .buttonStyle(.plain)
+          .help("Copy output")
+        }
         statusBadge
       }
       .font(.system(.callout, design: .monospaced))
       if let output = entry.output, !output.isEmpty {
-        Text(output)
-          .font(.system(.caption, design: .monospaced))
-          .foregroundStyle(entry.isError == true ? Color.red.opacity(0.85) : Color.secondary)
-          .textSelection(.enabled)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.leading, 12)
+        Text(
+          StudioANSIParser.attributedString(
+            output,
+            options: .init(
+              defaultForeground: entry.isError == true
+                ? NSColor(calibratedRed: 1, green: 0.45, blue: 0.45, alpha: 1)
+                : NSColor(calibratedWhite: 0.75, alpha: 1)
+            )
+          )
+        )
+        .font(.system(.caption, design: .monospaced))
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 12)
       }
     }
+    .onHover { isHovered = $0 }
   }
 
   @ViewBuilder
@@ -93,13 +122,14 @@ private struct StudioTerminalEntryView: View {
     if entry.output == nil {
       ProgressView()
         .controlSize(.mini)
+        .colorInvert()
     } else if entry.isError == true {
       Image(systemName: "xmark.circle.fill")
         .foregroundStyle(.red)
         .font(.system(size: 11))
     } else {
       Image(systemName: "checkmark.circle.fill")
-        .foregroundStyle(.green)
+        .foregroundStyle(Color.green.opacity(0.85))
         .font(.system(size: 11))
     }
   }

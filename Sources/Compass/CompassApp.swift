@@ -108,6 +108,13 @@ struct CompassApp: App {
         .keyboardShortcut("f", modifiers: [.command, .option])
         .disabled(!isOnboardingComplete || model.selectedProject == nil)
 
+        Button("Toggle Projects Sidebar") {
+          let key = "compass.sidebarCollapsed"
+          UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: key), forKey: key)
+        }
+        .keyboardShortcut("s", modifiers: [.command, .control])
+        .disabled(!isOnboardingComplete)
+
         Button("Copy Project Path") {
           if let repoPath = model.selectedProject?.repoURL.path {
             copyTextToPasteboard(repoPath)
