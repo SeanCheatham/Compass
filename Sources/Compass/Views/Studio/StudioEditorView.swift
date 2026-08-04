@@ -27,59 +27,64 @@ struct StudioEditorView: View {
         )
         // ScrollViewReader stays outside TimelineView so the 0.5s highlight
         // tick cannot recreate the scroll proxy mid-tour / mid-caret-follow.
-        ScrollViewReader { proxy in
-          ScrollView([.horizontal, .vertical]) {
-            LazyVStack(alignment: .leading, spacing: 0) {
-              ForEach(Array(buffer.lines.enumerated()), id: \.offset) { index, line in
-                let lineNumber = index + 1
-                let attributed: AttributedString = {
-                  if index < highlighted.count {
-                    return highlighted[index]
-                  }
-                  return AttributedString(line.isEmpty ? " " : line)
-                }()
-                StudioEditorLineRow(
-                  lineNumber: lineNumber,
-                  attributed: attributed,
-                  isHighlighted: buffer.highlightedLines.contains(lineNumber),
-                  lastChangeAt: buffer.lastChangeAt,
-                  fadeSeconds: Self.highlightFadeSeconds
-                )
-                .id(lineNumber)
+        GeometryReader { viewport in
+          ScrollViewReader { proxy in
+            ScrollView([.horizontal, .vertical]) {
+              LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(buffer.lines.enumerated()), id: \.offset) { index, line in
+                  let lineNumber = index + 1
+                  let attributed: AttributedString = {
+                    if index < highlighted.count {
+                      return highlighted[index]
+                    }
+                    return AttributedString(line.isEmpty ? " " : line)
+                  }()
+                  StudioEditorLineRow(
+                    lineNumber: lineNumber,
+                    attributed: attributed,
+                    isHighlighted: buffer.highlightedLines.contains(lineNumber),
+                    lastChangeAt: buffer.lastChangeAt,
+                    fadeSeconds: Self.highlightFadeSeconds
+                  )
+                  .id(lineNumber)
+                }
+              }
+              .padding(.vertical, 6)
+              .padding(.trailing, 12)
+              // Bidirectional ScrollView otherwise sizes to the widest *visible*
+              // LazyVStack row — short/partial lines (typewriter) squash the pane.
+              .frame(minWidth: viewport.size.width, alignment: .topLeading)
+            }
+            .onChange(of: buffer.scrollTour?.id) {
+              performScrollTour(proxy: proxy, buffer: buffer)
+            }
+            .onChange(of: buffer.scrollToLine) {
+              if buffer.scrollTour == nil {
+                scrollToRevealedLine(proxy: proxy, buffer: buffer)
               }
             }
-            .padding(.vertical, 6)
-            .padding(.trailing, 12)
-          }
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .onChange(of: buffer.scrollTour?.id) {
-            performScrollTour(proxy: proxy, buffer: buffer)
-          }
-          .onChange(of: buffer.scrollToLine) {
-            if buffer.scrollTour == nil {
-              scrollToRevealedLine(proxy: proxy, buffer: buffer)
+            .onChange(of: state.isTypewriting) {
+              if buffer.scrollTour == nil {
+                scrollToRevealedLine(proxy: proxy, buffer: buffer)
+              }
             }
-          }
-          .onChange(of: state.isTypewriting) {
-            if buffer.scrollTour == nil {
-              scrollToRevealedLine(proxy: proxy, buffer: buffer)
+            .onChange(of: path) {
+              if buffer.scrollTour != nil {
+                performScrollTour(proxy: proxy, buffer: buffer)
+              } else {
+                scrollToRevealedLine(proxy: proxy, buffer: buffer)
+              }
             }
-          }
-          .onChange(of: path) {
-            if buffer.scrollTour != nil {
-              performScrollTour(proxy: proxy, buffer: buffer)
-            } else {
-              scrollToRevealedLine(proxy: proxy, buffer: buffer)
-            }
-          }
-          .onAppear {
-            if buffer.scrollTour != nil {
-              performScrollTour(proxy: proxy, buffer: buffer)
-            } else {
-              scrollToRevealedLine(proxy: proxy, buffer: buffer)
+            .onAppear {
+              if buffer.scrollTour != nil {
+                performScrollTour(proxy: proxy, buffer: buffer)
+              } else {
+                scrollToRevealedLine(proxy: proxy, buffer: buffer)
+              }
             }
           }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         footer(path: path, buffer: buffer)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -276,8 +281,11 @@ private struct StudioEditorLineRow: View {
       Text(attributed.characters.isEmpty ? AttributedString(" ") : attributed)
         .font(.system(.callout, design: .monospaced))
         .textSelection(.enabled)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Keep source on one line; horizontal ScrollView handles overflow.
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.vertical, 1)
     .background(rowHighlight)
   }

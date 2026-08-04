@@ -5,8 +5,7 @@ import SwiftUI
 struct StudioTerminalView: View {
   @ObservedObject var state: StudioState
 
-  /// Stable signal for “scroll to latest” — count alone misses output fills,
-  /// and `output != nil` alone misses same-nil→nil transitions across entries.
+  /// Bumps when the latest entry is added or its output is filled in.
   private var scrollEpoch: String {
     guard let last = state.terminalEntries.last else { return "empty" }
     let outputState =
@@ -27,34 +26,33 @@ struct StudioTerminalView: View {
       .padding(.horizontal, 12)
       .padding(.vertical, 7)
       Divider()
-      if state.terminalEntries.isEmpty {
-        Text("bash commands the agent runs will appear here")
-          .font(.caption)
-          .foregroundStyle(.tertiary)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        ScrollViewReader { proxy in
-          ScrollView {
-            LazyVStack(alignment: .leading, spacing: 6) {
+      // Keep ScrollView mounted even when empty so the first bash (often the
+      // event that opens Studio) does not remount the reader mid-layout.
+      ScrollViewReader { proxy in
+        ScrollView {
+          VStack(alignment: .leading, spacing: 6) {
+            if state.terminalEntries.isEmpty {
+              Text("bash commands the agent runs will appear here")
+                .font(.caption)
+                .foregroundStyle(Color.white.opacity(0.35))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
+            } else {
               ForEach(state.terminalEntries) { entry in
                 StudioTerminalEntryView(entry: entry)
                   .id(entry.id)
               }
-              // Always-present anchor so LazyVStack scrollTo has a laid-out target.
-              Color.clear
-                .frame(height: 1)
-                .id(Self.bottomAnchorID)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
           }
-          .defaultScrollAnchor(.bottom)
-          .onAppear {
-            scrollToBottom(proxy: proxy)
-          }
-          .onChange(of: scrollEpoch) {
-            scrollToBottom(proxy: proxy)
-          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 8)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .onAppear {
+          scrollToBottom(proxy: proxy, animated: false)
+        }
+        .onChange(of: scrollEpoch) {
+          scrollToBottom(proxy: proxy, animated: false)
         }
       }
     }
@@ -63,12 +61,18 @@ struct StudioTerminalView: View {
     .foregroundStyle(Color.white.opacity(0.92))
   }
 
-  private static let bottomAnchorID = "studio-terminal-bottom"
-
-  private func scrollToBottom(proxy: ScrollViewProxy) {
+  private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
+    guard let last = state.terminalEntries.last else { return }
+    // Wait one turn so the entry row exists in the hierarchy (important when
+    // Studio first opens on a bash-only session and this view mounts with
+    // content already present).
     DispatchQueue.main.async {
-      withAnimation(.easeOut(duration: 0.15)) {
-        proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+      if animated {
+        withAnimation(.easeOut(duration: 0.15)) {
+          proxy.scrollTo(last.id, anchor: .bottom)
+        }
+      } else {
+        proxy.scrollTo(last.id, anchor: .bottom)
       }
     }
   }

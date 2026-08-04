@@ -24,11 +24,20 @@ struct StudioTab: View {
           VStack(spacing: 0) {
             StudioEditorView(state: state)
               .frame(width: geo.size.width, height: heights.editor)
+              .clipped()
             StudioTerminalView(state: state)
               .frame(width: geo.size.width, height: heights.terminal)
+              .clipped()
           }
-          .animation(.easeInOut(duration: 0.35), value: state.paneFocus)
+          // Animate only after the split has a real size — first bash often
+          // opens Studio from the empty state, and animating 0→height + scroll
+          // together produces a blank terminal.
+          .animation(
+            geo.size.height > 1 ? .easeInOut(duration: 0.35) : nil,
+            value: state.paneFocus
+          )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .layoutPriority(1)
         .frame(minWidth: 320)
       }

@@ -166,10 +166,9 @@ public final class StudioState: ObservableObject {
     guard !path.isEmpty else { return }
     followAgent = false
     if buffers[path] == nil {
-      let lines = diskLines(for: path) ?? []
-      let buffer = FileBuffer(lines: lines)
-      buffers[path] = buffer
-      presentationBuffers[path] = buffer
+      let buffer = FileBuffer(lines: diskLines(for: path) ?? [])
+      setTruthBuffer(buffer, for: path)
+      setPresentationBuffer(buffer, for: path)
     } else {
       snapPresentation(for: path)
     }
@@ -197,7 +196,11 @@ public final class StudioState: ObservableObject {
   public func apply(_ line: LiveLine) {
     guard let payload = line.payload else { return }
     hasActivity = true
-    trackPaneFocus(payload: payload, status: line.status, correlationID: line.correlationID)
+    // Focus after content mutations so a bash-first Studio open paints entries
+    // before the terminal pane zooms.
+    defer {
+      trackPaneFocus(payload: payload, status: line.status, correlationID: line.correlationID)
+    }
     switch payload {
     case .readFile(let path, let offset, let limit, let content):
       let display = normalizePath(path)
@@ -229,7 +232,7 @@ public final class StudioState: ObservableObject {
         scrollToLine: 1,
         scrollTour: nil
       )
-      buffers[display] = buffer
+      setTruthBuffer(buffer, for: display)
       treeRefreshToken += 1
       beginTypewriter(
         path: display,
@@ -239,7 +242,15 @@ public final class StudioState: ObservableObject {
 
     case .editFileLineRange(let path, let edits):
       let display = normalizePath(path)
-      guard !display.isEmpty, line.status == .completed else { return }
+      guard !display.isEmpty else { return }
+      // Snapshot pre-edit bytes on tool-start — invoke has already written the
+      // file by the time the completed event arrives, so disk seeding then is
+      // too late for typewriter "previous" content.
+      if line.status == .running {
+        _ = bufferOrDiskSeed(for: display)
+        return
+      }
+      guard line.status == .completed else { return }
       agentFocus(display)
       cancelTypewriter(snapOpenFileToTruth: true)
       var buffer = bufferOrDiskSeed(for: display)
@@ -251,7 +262,7 @@ public final class StudioState: ObservableObject {
       // Clear any prior read skim so scrollToLine / typewriter caret can fire.
       buffer.scrollTour = nil
       buffer.scrollToLine = result.changed.min()
-      buffers[display] = buffer
+      setTruthBuffer(buffer, for: display)
       treeRefreshToken += 1
       beginTypewriter(
         path: display,
@@ -261,7 +272,12 @@ public final class StudioState: ObservableObject {
 
     case .editFileStringReplace(let path, let edits):
       let display = normalizePath(path)
-      guard !display.isEmpty, line.status == .completed else { return }
+      guard !display.isEmpty else { return }
+      if line.status == .running {
+        _ = bufferOrDiskSeed(for: display)
+        return
+      }
+      guard line.status == .completed else { return }
       agentFocus(display)
       cancelTypewriter(snapOpenFileToTruth: true)
       var buffer = bufferOrDiskSeed(for: display)
@@ -273,7 +289,7 @@ public final class StudioState: ObservableObject {
       // Clear any prior read skim so scrollToLine / typewriter caret can fire.
       buffer.scrollTour = nil
       buffer.scrollToLine = result.changed.min()
-      buffers[display] = buffer
+      setTruthBuffer(buffer, for: display)
       treeRefreshToken += 1
       beginTypewriter(
         path: display,
@@ -328,7 +344,7 @@ public final class StudioState: ObservableObject {
   public func snapPresentation(for path: String? = nil) {
     if let path {
       if let truth = buffers[path] {
-        presentationBuffers[path] = truth
+        setPresentationBuffer(truth, for: path)
       }
       return
     }
@@ -349,7 +365,7 @@ public final class StudioState: ObservableObject {
     )
 
     guard let plan, !plan.targetSpan.isEmpty else {
-      presentationBuffers[path] = newBuffer
+      setPresentationBuffer(newBuffer, for: path)
       isTypewriting = false
       recomputePaneFocus()
       return
@@ -358,7 +374,7 @@ public final class StudioState: ObservableObject {
     if plan.targetSpan.count > Self.typewriterMaxChars
       || plan.lineCount > Self.typewriterMaxLines
     {
-      presentationBuffers[path] = newBuffer
+      setPresentationBuffer(newBuffer, for: path)
       isTypewriting = false
       recomputePaneFocus()
       return
@@ -370,11 +386,14 @@ public final class StudioState: ObservableObject {
     recomputePaneFocus()
 
     // Start with an empty span so characters appear to type in.
-    presentationBuffers[path] = FileBuffer(
-      lines: plan.lines(revealedCount: 0),
-      highlightedLines: newBuffer.highlightedLines,
-      lastChangeAt: newBuffer.lastChangeAt,
-      scrollToLine: newBuffer.scrollToLine
+    setPresentationBuffer(
+      FileBuffer(
+        lines: plan.lines(revealedCount: 0),
+        highlightedLines: newBuffer.highlightedLines,
+        lastChangeAt: newBuffer.lastChangeAt,
+        scrollToLine: newBuffer.scrollToLine
+      ),
+      for: path
     )
 
     typewriterTask = Task { @MainActor [weak self] in
@@ -399,15 +418,29 @@ public final class StudioState: ObservableObject {
         let caretLine = plan.startLine + max(0, String(plan.targetSpan.prefix(revealed))
           .filter { $0 == "\n" }.count)
         presented.scrollToLine = caretLine
-        self.presentationBuffers[path] = presented
+        self.setPresentationBuffer(presented, for: path)
       }
       if generation == self.typewriterGeneration {
-        self.presentationBuffers[path] = newBuffer
+        self.setPresentationBuffer(newBuffer, for: path)
         self.isTypewriting = false
         self.typewriterTask = nil
         self.recomputePaneFocus()
       }
     }
+  }
+
+  /// Reassign the dictionary so `@Published` always notifies (subscript
+  /// mutation of a Dictionary can miss `objectWillChange`).
+  private func setPresentationBuffer(_ buffer: FileBuffer, for path: String) {
+    var next = presentationBuffers
+    next[path] = buffer
+    presentationBuffers = next
+  }
+
+  private func setTruthBuffer(_ buffer: FileBuffer, for path: String) {
+    var next = buffers
+    next[path] = buffer
+    buffers = next
   }
 
   private func cancelTypewriter(snapOpenFileToTruth: Bool) {
@@ -552,22 +585,22 @@ public final class StudioState: ObservableObject {
       let parsed = Self.parseNumberedReadOutput(content)
       if !parsed.isEmpty {
         let buffer = FileBuffer(lines: parsed)
-        buffers[path] = buffer
-        presentationBuffers[path] = buffer
+        setTruthBuffer(buffer, for: path)
+        setPresentationBuffer(buffer, for: path)
         return true
       }
     }
     let buffer = FileBuffer(lines: diskLines(for: path) ?? [])
-    buffers[path] = buffer
-    presentationBuffers[path] = buffer
+    setTruthBuffer(buffer, for: path)
+    setPresentationBuffer(buffer, for: path)
     return true
   }
 
   private func bufferOrDiskSeed(for path: String) -> FileBuffer {
     if let existing = buffers[path] { return existing }
     let buffer = FileBuffer(lines: diskLines(for: path) ?? [])
-    buffers[path] = buffer
-    presentationBuffers[path] = buffer
+    setTruthBuffer(buffer, for: path)
+    setPresentationBuffer(buffer, for: path)
     return buffer
   }
 
@@ -588,11 +621,11 @@ public final class StudioState: ObservableObject {
     let tour = ScrollTour(startLine: start, endLine: end)
     buffer.scrollToLine = start
     buffer.scrollTour = tour
-    buffers[path] = buffer
+    setTruthBuffer(buffer, for: path)
     if var presented = presentationBuffers[path] {
       presented.scrollToLine = start
       presented.scrollTour = tour
-      presentationBuffers[path] = presented
+      setPresentationBuffer(presented, for: path)
     }
   }
 

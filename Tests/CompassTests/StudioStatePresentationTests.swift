@@ -37,6 +37,62 @@ struct StudioStatePresentationTests {
   }
 
   @Test
+  func editTypewriterReplaysFromPreEditSnapshot() async {
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("studio-typewriter-\(UUID().uuidString)", isDirectory: true)
+    try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let fileURL = dir.appendingPathComponent("a.rs")
+    try! "hello world\n".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let state = StudioState(repoURL: dir)
+    var seenLengths: [Int] = []
+    state.typewriterTickHandler = {
+      if let lines = state.presentationBuffers["a.rs"]?.lines {
+        seenLengths.append(lines.joined(separator: "\n").count)
+      }
+    }
+
+    // Tool-start must capture pre-edit disk content.
+    state.apply(
+      line(
+        status: .running,
+        correlationID: "e1",
+        payload: .editFileStringReplace(
+          path: "a.rs",
+          edits: [
+            LiveStringReplaceEdit(oldString: "world", newString: "there", replaceAll: false)
+          ]
+        )))
+    #expect(state.buffers["a.rs"]?.lines == ["hello world", ""])
+
+    // Simulate the tool writing disk before completion is logged.
+    try! "hello there\n".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    state.apply(
+      line(
+        status: .completed,
+        correlationID: "e1",
+        payload: .editFileStringReplace(
+          path: "a.rs",
+          edits: [
+            LiveStringReplaceEdit(oldString: "world", newString: "there", replaceAll: false)
+          ]
+        )))
+    #expect(state.isTypewriting)
+    #expect(state.buffers["a.rs"]?.lines == ["hello there", ""])
+
+    for _ in 0..<80 {
+      if !state.isTypewriting { break }
+      try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+    #expect(!state.isTypewriting)
+    #expect(state.presentationBuffers["a.rs"]?.lines == ["hello there", ""])
+    // Intermediate ticks should have published growing content, not just the final snap.
+    #expect(seenLengths.contains { $0 < "hello there\n".count })
+  }
+
+  @Test
   func writeFileTypewriterCatchesUpToTruth() async {
     let state = StudioState()
     var ticks = 0
