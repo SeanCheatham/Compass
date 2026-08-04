@@ -62,7 +62,7 @@ public struct AgentGlobTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Find files matching a glob pattern. Results are sorted newest-first by modification time and capped at 200 matches.",
+        "Find files by glob pattern under the working directory (or a subdirectory). Use for pattern discovery like `**/*.swift`. Prefer `ls` for a single directory listing, and `list_files` for the codemap source inventory with language tags. Results newest-first, capped at 200.",
       parameters: schema
     )
   }

@@ -18,7 +18,7 @@ struct SharedCompassVMView: NSViewRepresentable {
   var capturesSystemKeys: Bool = false
 
   /// Whether to start with the embedded view as first responder so keystrokes
-  /// route to the guest. Default true while the Sandbox section is active.
+  /// route to the guest. Default true while the Runtime section is active.
   var becomesFirstResponderOnAppear: Bool = true
 
   func makeNSView(context: Context) -> CompassVZContainer {

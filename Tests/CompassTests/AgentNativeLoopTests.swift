@@ -157,6 +157,46 @@ struct AgentNativeLoopTests {
   }
 
   @Test
+  func parallelReadOnlyToolCallsReturnOrderedObservations() async throws {
+    let workspace = FileManager.default.temporaryDirectory
+      .appending(path: "native-parallel-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: workspace) }
+    try "alpha".write(to: workspace.appending(path: "a.txt"), atomically: true, encoding: .utf8)
+    try "beta".write(to: workspace.appending(path: "b.txt"), atomically: true, encoding: .utf8)
+
+    let runtime = ScriptedChatRuntime(responses: [
+      AgentChatResponse(
+        text: "batch",
+        toolCalls: [
+          AgentChatToolCall(id: "c1", name: "read_file", argumentsJSON: #"{"path":"a.txt"}"#),
+          AgentChatToolCall(id: "c2", name: "read_file", argumentsJSON: #"{"path":"b.txt"}"#),
+        ],
+        tokenUsage: usage()
+      ),
+      AgentChatResponse(
+        text: "",
+        toolCalls: [
+          AgentChatToolCall(id: "c3", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
+        ],
+        tokenUsage: usage()
+      ),
+    ])
+    var config = configuration(tools: [AgentReadFileTool()])
+    config.workingDirectory = workspace
+    let executor = AgentExecutor()
+    _ = try await executor.runNative(config, chatRuntime: runtime, textRuntime: runtime)
+
+    let secondRequest = try #require(runtime.requests.dropFirst().first)
+    let toolMessages = secondRequest.messages.filter { $0.role == .tool }
+    #expect(toolMessages.count == 2)
+    #expect(toolMessages[0].toolCallID == "c1")
+    #expect(toolMessages[1].toolCallID == "c2")
+    #expect(toolMessages[0].content.contains("alpha"))
+    #expect(toolMessages[1].content.contains("beta"))
+  }
+
+  @Test
   func proseOnlyTurnsAreNudgedThenFail() async throws {
     let runtime = ScriptedChatRuntime(
       responses: (0..<5).map { _ in

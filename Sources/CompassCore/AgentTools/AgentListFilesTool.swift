@@ -58,7 +58,7 @@ public struct AgentListFilesTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "List repo-relative source paths from the codemap and live filesystem, with each file's detected language. Use a `filter` substring or glob-like pattern to narrow to a subdirectory or filename. Common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)` are accepted. Capped at 500 results.",
+        "Codemap source inventory: repo-relative source paths with detected language (includes freshly created files not yet indexed). Prefer this over `glob`/`ls` when you need language-tagged source candidates. Use `filter` for a substring or glob-like path pattern. Prefer `ls` for one directory's entries and `glob` for raw filesystem pattern search. Capped at 500 results.",
       parameters: schema
     )
   }

@@ -88,7 +88,6 @@ extension CompassProject {
         phase: phase,
         workingDirectoryPath: environment.workingDirectory.path,
         executionEnvironment: .macOSVM,
-        externalToolNames: [],
         promptMode: promptMode
       ),
       userPrompt: userPrompt,

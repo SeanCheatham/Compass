@@ -755,7 +755,7 @@ public extension AgentExecutor {
     toolName == AgentWriteFileTool.toolName || toolName == AgentEditFileTool.toolName
   }
 
-  private static let readOnlyInspectionToolNames: Set<String> = [
+  static let readOnlyInspectionToolNames: Set<String> = [
     AgentFindSymbolTool.toolName,
     AgentGlobTool.toolName,
     AgentGrepTool.toolName,
@@ -768,8 +768,14 @@ public extension AgentExecutor {
     AgentSummaryTool.toolName,
   ]
 
-  private static func isReadOnlyInspectionTool(_ toolName: String) -> Bool {
+  static func isReadOnlyInspectionTool(_ toolName: String) -> Bool {
     readOnlyInspectionToolNames.contains(toolName)
+  }
+
+  /// Native-loop tools safe to run concurrently in one model turn.
+  /// Mutations, bash, delegate, and assumption ledger tools stay serial.
+  static func isParallelizableNativeTool(_ toolName: String) -> Bool {
+    isReadOnlyInspectionTool(toolName)
   }
 
   private static func isMalformedDevelopContinuationRejection(_ description: String) -> Bool {

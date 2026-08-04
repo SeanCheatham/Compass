@@ -2,7 +2,7 @@ import Foundation
 
 /// Record an assumption the current agent is relying on. This writes to the
 /// host-side Compass assumptions ledger, not the agent worktree, so it works
-/// consistently for both host and containerized Linux runtime routes.
+/// consistently for both host and macOS VM runtime routes.
 public struct AgentRecordAssumptionTool: AgentTool {
   public static let toolName = "record_assumption"
 

@@ -1345,7 +1345,6 @@ public struct HeadlessCompassRunner: Sendable {
         phase: phase,
         workingDirectoryPath: workspace.repoURL.path,
         executionEnvironment: .macOSVM,
-        externalToolNames: [],
         promptMode: ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
       ),
       userPrompt: userPrompt,

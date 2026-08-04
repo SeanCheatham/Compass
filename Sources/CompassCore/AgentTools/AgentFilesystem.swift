@@ -73,7 +73,7 @@ public enum AgentFilesystemError: LocalizedError, Equatable {
 }
 
 /// Host-side `FileManager` implementation. Used when Compass runs entirely
-/// on the host (no containerized Linux runtime route) and as the implicit default for unit
+/// on the host (no VM bash route) and as the implicit default for unit
 /// tests, which construct `AgentToolContext` with just a working directory.
 public struct AgentHostFilesystem: AgentFilesystem {
   public let grepExecutable: AgentGrepExecutable
@@ -309,7 +309,7 @@ public enum AgentGrepExecutable: Sendable, Equatable {
 }
 
 /// Glob pattern → regex translator, factored out of `AgentGlobTool` so
-/// other filesystem implementations (e.g. the containerized Linux runtime one) can share
+/// other filesystem implementations (e.g. a guest/VM-backed one) can share
 /// the same pattern semantics without depending on the tool type.
 public enum AgentGlobPattern {
   /// Translate a glob pattern into an anchored regex.

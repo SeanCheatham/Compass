@@ -4,8 +4,8 @@ import CompassCore
 
 /// Top-level workspace selection driven by the sidebar.
 ///
-/// The sidebar has two kinds of entries: the singleton Runtimes section
-/// (hosting the container runtime and macOS VM status views)
+/// The sidebar has two kinds of entries: the singleton Runtime section
+/// (hosting the embedded macOS VM status view)
 /// and the per-project list. `WorkspaceSelection` lets the detail pane
 /// swap between them without losing track of which project was last
 /// viewed.
@@ -18,7 +18,7 @@ enum WorkspaceSelection: Equatable {
     return nil
   }
 
-  var isSandbox: Bool {
+  var isRuntime: Bool {
     if case .runtime = self { return true }
     return false
   }
@@ -76,8 +76,8 @@ final class AppModel: ObservableObject {
     projects.first { $0.id == selectedProjectID }
   }
 
-  /// Switches the detail pane to the runtime section.
-  func selectSandbox() {
+  /// Switches the detail pane to the runtime section (embedded macOS VM).
+  func selectRuntime() {
     workspaceSelection = .runtime
     errorMessage = nil
   }

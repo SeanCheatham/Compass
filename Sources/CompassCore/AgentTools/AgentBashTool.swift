@@ -1,9 +1,8 @@
 import Foundation
 
 /// Run a shell command via `/bin/zsh -lc`. Available to every phase:
-/// Develop uses it to apply changes; Plan and Critic get it for
-/// probing only (build, test, git inspection) and must not mutate tracked
-/// files — enforcement of that intent lives in the system prompt.
+/// Develop may mutate; Plan and Critic are hard-enforced read-only via
+/// ``AgentBashMutationPolicy`` (not prompt-only).
 public struct AgentBashTool: AgentTool {
   public static let toolName = "bash"
   public static let defaultTimeoutMs = 120_000
@@ -77,14 +76,14 @@ public struct AgentBashTool: AgentTool {
         "cwd": [
           "type": "string",
           "description":
-            "Optional working directory for the command. Must resolve inside the agent's working directory. Prefer relative paths or `/workspace/...` during containerized Linux factory phases. Defaults to the working directory.",
+            "Optional working directory for the command. Must resolve inside the agent's working directory. Prefer relative paths or `/workspace/...` during macOS VM factory phases. Defaults to the working directory.",
         ],
       ],
     ])
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Execute a shell command in the agent's configured execution environment. Factory phases use the containerized Linux shell with the repo at `/workspace`; preflight commit uses the native macOS host shell. Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
+        "Execute a shell command in the agent's configured execution environment. Factory phases use the embedded macOS VM shell with the repo at `/workspace`; preflight commit uses the native macOS host shell. Plan and Critic bash is read-only (no writes, redirects, or git mutations). Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
       parameters: schema
     )
   }
@@ -100,6 +99,12 @@ public struct AgentBashTool: AgentTool {
     let command = args.command.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !command.isEmpty else {
       return .failure(.invalidArguments("command is empty"))
+    }
+
+    if !AgentBashMutationPolicy.allowsMutation(for: context.phase),
+      let reason = AgentBashMutationPolicy.mutationRejectionReason(for: command)
+    {
+      return .failure(reason, kind: .bashFailure)
     }
 
     let cwd: URL

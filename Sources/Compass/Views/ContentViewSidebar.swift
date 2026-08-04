@@ -15,7 +15,7 @@ struct SidebarView: View {
             .font(.title2.weight(.semibold))
           Spacer()
           SidebarRuntimeStatusButton {
-            model.selectSandbox()
+            model.selectRuntime()
           }
           Button(action: onCollapse) {
             Image(systemName: "sidebar.left")
@@ -31,10 +31,10 @@ struct SidebarView: View {
       }
       .padding(.bottom, 4)
 
-      SidebarSandboxRow(
-        isSelected: model.workspaceSelection.isSandbox
+      SidebarRuntimeRow(
+        isSelected: model.workspaceSelection.isRuntime
       ) {
-        model.selectSandbox()
+        model.selectRuntime()
       }
 
       HStack {
@@ -175,7 +175,7 @@ struct EmptyProjectList: View {
 
 /// Sidebar entry for the singleton runtime section (the embedded macOS VM).
 
-struct SidebarSandboxRow: View {
+struct SidebarRuntimeRow: View {
   let isSelected: Bool
   let action: () -> Void
   @ObservedObject private var vm = SharedCompassVM.shared

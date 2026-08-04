@@ -17,14 +17,16 @@ public extension Prompts {
       ? """
       Response protocol:
       - Use the provided Compass tools directly; do not write JSON envelopes.
-      - Finish by calling the `delegate_submit` tool with `{"findings": "<grounded findings>"}`.
+      - Finish by calling the `delegate_submit` tool with \
+      `{"findings":"<grounded findings>","filesRead":["path"],"commandsRun":["cmd"],"openQuestions":["..."]}`. \
+      `filesRead`, `commandsRun`, and `openQuestions` are optional arrays (use `[]` when empty).
       Do not delegate further.
       """
       : """
       Response protocol:
       - Emit exactly one JSON object per turn, with no prose or Markdown fences.
       - Request a tool with `{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, report the relevant verify command."}`.
-      - Finish with `{"kind":"delegate_submit","payload":{"findings":"<grounded findings>"}}`.
+      - Finish with `{"kind":"delegate_submit","payload":{"findings":"<grounded findings>","filesRead":[],"commandsRun":[],"openQuestions":[]}}`.
       Do not delegate further.
       """
     return """
@@ -52,7 +54,6 @@ public extension Prompts {
     phase: AgentPhase,
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .macOSVM,
-    externalToolNames: [String] = [],
     promptMode: AgentPromptMode = .envelope
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
@@ -65,9 +66,9 @@ public extension Prompts {
       toolList = """
       - Codemap: \(codemapTools)
       - Files: \(fileTools)
-      - Shell: bash for read-only probes; do not mutate tracked files or commit
+      - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
       - History: plan_history
-      - Sub-agent: \(delegateTool)
+      - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused codebase questions
       - Assumptions: \(assumptionTools)
       """
     case .develop:
@@ -75,15 +76,15 @@ public extension Prompts {
       - Codemap: \(codemapTools)
       - Files: \(fileTools)
       - Mutation: write_file, edit_file, bash
-      - Sub-agent: \(delegateTool)
+      - Sub-agent: \(delegateTool) — `explore` for investigation, `verify` for check commands, `repair` for a tight fix pass
       - Assumptions: \(assumptionTools)
       """
     case .critic:
       toolList = """
       - Codemap: \(codemapTools)
       - Files: \(fileTools)
-      - Shell: bash for read-only probes; do not mutate tracked files or commit
-      - Sub-agent: \(delegateTool)
+      - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
+      - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused review questions
       - Assumptions: \(assumptionTools)
       """
     }

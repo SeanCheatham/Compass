@@ -42,7 +42,7 @@ public struct AgentLsTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "List entries in a directory. Returns one name per line, with a trailing `/` on directories. Hidden entries are included.",
+        "List one directory's immediate entries (names only, directories marked with `/`). Use for browsing a known folder. Prefer `glob` to find files by pattern across the tree, and `list_files` for the codemap source inventory with language tags.",
       parameters: schema
     )
   }

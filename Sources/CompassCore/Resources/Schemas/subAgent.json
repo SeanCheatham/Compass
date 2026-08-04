@@ -3,6 +3,24 @@
   "additionalProperties": false,
   "required": ["findings"],
   "properties": {
-    "findings": { "type": "string" }
+    "findings": {
+      "type": "string",
+      "description": "Self-contained grounded findings for the parent agent."
+    },
+    "filesRead": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Repo-relative paths the sub-agent actually read or inspected."
+    },
+    "commandsRun": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Shell commands the sub-agent ran (verbatim when possible)."
+    },
+    "openQuestions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Unresolved questions the parent may need to answer next."
+    }
   }
 }

@@ -570,18 +570,6 @@ public final class StudioState: ObservableObject {
     return text.components(separatedBy: "\n")
   }
 
-  private func setScroll(for path: String, line: Int) {
-    guard var buffer = buffers[path] else { return }
-    buffer.scrollToLine = max(min(line, max(buffer.lines.count, 1)), 1)
-    buffer.scrollTour = nil
-    buffers[path] = buffer
-    if var presented = presentationBuffers[path] {
-      presented.scrollToLine = buffer.scrollToLine
-      presented.scrollTour = nil
-      presentationBuffers[path] = presented
-    }
-  }
-
   private func setScrollTour(for path: String, startLine: Int, endLine: Int) {
     guard var buffer = buffers[path] else { return }
     let lineCount = max(buffer.lines.count, 1)

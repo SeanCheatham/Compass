@@ -127,16 +127,16 @@ public struct AgentDelegateTool: AgentTool {
         ],
         "profile": [
           "type": "string",
-          "enum": ["test", "typecheck"],
+          "enum": ["explore", "verify", "repair", "test", "typecheck"],
           "description":
-            "Optional predefined focused tool profile. Ignored when `tools` is supplied.",
+            "Optional focused tool profile. `explore` = read-only files/codemap (no bash). `verify`/`test`/`typecheck` = reads + bash for checks. `repair` = full parent tools minus delegate, with a tighter budget. Ignored when `tools` is supplied.",
         ],
       ],
     ])
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Spawn a focused sub-agent that runs in the same working directory and returns a findings string. Use for self-contained investigations (e.g. \"find every callsite of X and report how they handle Y\") so the parent's context stays focused. Sub-agents cannot delegate further.",
+        "Spawn a focused sub-agent that runs in the same working directory and returns structured findings (findings, filesRead, commandsRun, openQuestions). Use `profile: explore` for self-contained investigations, `verify` for check commands, `repair` for a tight fix pass. Prefer delegate when the parent's context should stay focused. Sub-agents cannot delegate further.",
       parameters: schema
     )
   }

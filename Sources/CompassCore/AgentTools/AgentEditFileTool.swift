@@ -6,6 +6,12 @@ import Foundation
 /// `endLine == startLine - 1`). All edits succeed atomically — if any one
 /// fails, the file is not written. A prior `read_file` for the path is
 /// required so line numbers come from content the model has actually seen.
+///
+/// Quarantine: production native tool-calling uses ``AgentEditFileTextTool``
+/// (exact string replace). This line-range implementation remains for the
+/// legacy envelope loop and small local models that cannot reproduce file
+/// content faithfully. Do not expand its surface; prefer retiring it once
+/// envelope-only fixtures no longer need it.
 public struct AgentEditFileTool: AgentTool {
   public static let toolName = "edit_file"
 

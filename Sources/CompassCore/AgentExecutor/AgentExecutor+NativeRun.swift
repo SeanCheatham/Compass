@@ -185,11 +185,13 @@ public extension AgentExecutor {
 
       messages.append(.assistant(response.text, toolCalls: response.toolCalls))
 
-      for call in response.toolCalls {
-        let argumentText = call.argumentsJSON
-        let arguments = Data(argumentText.utf8)
+      var callIndex = 0
+      while callIndex < response.toolCalls.count {
+        let call = response.toolCalls[callIndex]
 
         if call.name == submitKind {
+          let argumentText = call.argumentsJSON
+          let arguments = Data(argumentText.utf8)
           let payload: Data
           do {
             payload = try Self.normalizedSubmitPayload(arguments)
@@ -204,6 +206,7 @@ public extension AgentExecutor {
               status: .failed
             )
             messages.append(.toolResult(message, toolCallID: call.id))
+            callIndex += 1
             continue
           }
 
@@ -231,6 +234,7 @@ public extension AgentExecutor {
               status: .failed
             )
             messages.append(.toolResult(rejection.userMessage, toolCallID: call.id))
+            callIndex += 1
             continue
           }
 
@@ -251,6 +255,69 @@ public extension AgentExecutor {
           )
         }
 
+        // Coalesce consecutive read-only inspection calls into one parallel batch.
+        if Self.isParallelizableNativeTool(call.name) {
+          var batch: [AgentChatToolCall] = []
+          while callIndex < response.toolCalls.count {
+            let candidate = response.toolCalls[callIndex]
+            if candidate.name == submitKind
+              || !Self.isParallelizableNativeTool(candidate.name)
+            {
+              break
+            }
+            batch.append(candidate)
+            callIndex += 1
+          }
+
+          let prepared = batch.map { call -> (call: AgentChatToolCall, correlationID: String) in
+            let correlationID = UUID().uuidString
+            emitToolStart(
+              name: call.name,
+              arguments: call.argumentsJSON,
+              correlationID: correlationID
+            )
+            return (call, correlationID)
+          }
+
+          let batchResults = await Self.invokeNativeToolBatch(
+            calls: prepared.map(\.call),
+            toolsByName: toolsByName,
+            toolContext: toolContext
+          )
+
+          for (index, item) in batchResults.enumerated() {
+            let correlationID = prepared[index].correlationID
+            emitToolEnd(
+              name: item.call.name,
+              arguments: item.call.argumentsJSON,
+              result: item.result,
+              correlationID: correlationID
+            )
+            var observation = Self.toolObservationJSON(
+              toolName: item.call.name,
+              result: item.result,
+              reason: nil,
+              pathSanitizer: { toolContext.sanitizeHostPaths(in: $0) },
+              limit: Self.nativeObservationCharacterLimit
+            )
+            Self.applyNativeToolSideEffects(
+              toolName: item.call.name,
+              argumentText: item.call.argumentsJSON,
+              arguments: Data(item.call.argumentsJSON.utf8),
+              result: item.result,
+              submitKind: submitKind,
+              lastSuccessfulVerifyCommand: &lastSuccessfulVerifyCommand,
+              lastFailedVerifyCommand: &lastFailedVerifyCommand,
+              failedVerifyInvalidatedByMutationCommand: &failedVerifyInvalidatedByMutationCommand,
+              lastFailedToolCall: &lastFailedToolCall,
+              repeatedFailedToolCallCount: &repeatedFailedToolCallCount,
+              observation: &observation
+            )
+            messages.append(.toolResult(observation, toolCallID: item.call.id))
+          }
+          continue
+        }
+
         guard let tool = toolsByName[call.name] else {
           messages.append(
             .toolResult(
@@ -258,9 +325,12 @@ public extension AgentExecutor {
               toolCallID: call.id
             )
           )
+          callIndex += 1
           continue
         }
 
+        let argumentText = call.argumentsJSON
+        let arguments = Data(argumentText.utf8)
         let correlationID = UUID().uuidString
         emitToolStart(name: call.name, arguments: argumentText, correlationID: correlationID)
         let result: AgentToolInvocationResult
@@ -285,59 +355,155 @@ public extension AgentExecutor {
           pathSanitizer: { toolContext.sanitizeHostPaths(in: $0) },
           limit: Self.nativeObservationCharacterLimit
         )
-
-        if !result.isError, Self.isFileMutationTool(call.name) {
-          lastSuccessfulVerifyCommand = nil
-          if let lastFailedVerifyCommand {
-            failedVerifyInvalidatedByMutationCommand = lastFailedVerifyCommand
-          }
-          lastFailedVerifyCommand = nil
-        }
-        if let command = Self.successfulVerifyCommand(
+        Self.applyNativeToolSideEffects(
           toolName: call.name,
+          argumentText: argumentText,
           arguments: arguments,
-          result: result
-        ) {
-          lastSuccessfulVerifyCommand = command
-          lastFailedVerifyCommand = nil
-          failedVerifyInvalidatedByMutationCommand = nil
-        }
-        if let command = Self.failedVerifyCommand(
-          toolName: call.name,
-          arguments: arguments,
-          result: result
-        ) {
-          lastFailedVerifyCommand = command
-          failedVerifyInvalidatedByMutationCommand = nil
-        }
-
-        if result.isError {
-          let signature = NativeToolCallSignature(toolName: call.name, arguments: argumentText)
-          if signature == lastFailedToolCall {
-            repeatedFailedToolCallCount += 1
-          } else {
-            lastFailedToolCall = signature
-            repeatedFailedToolCallCount = 1
-          }
-          if repeatedFailedToolCallCount >= 2 {
-            observation += """
-
-              Compass note: this exact `\(call.name)` call has now failed \
-              \(repeatedFailedToolCallCount) times with the same arguments. Do not repeat it \
-              unchanged — adjust the arguments from the error above, gather the missing fact \
-              with a different call, or finish with `\(submitKind)` reporting the blocker.
-              """
-          }
-        } else {
-          lastFailedToolCall = nil
-          repeatedFailedToolCallCount = 0
-        }
-
+          result: result,
+          submitKind: submitKind,
+          lastSuccessfulVerifyCommand: &lastSuccessfulVerifyCommand,
+          lastFailedVerifyCommand: &lastFailedVerifyCommand,
+          failedVerifyInvalidatedByMutationCommand: &failedVerifyInvalidatedByMutationCommand,
+          lastFailedToolCall: &lastFailedToolCall,
+          repeatedFailedToolCallCount: &repeatedFailedToolCallCount,
+          observation: &observation
+        )
         messages.append(.toolResult(observation, toolCallID: call.id))
+        callIndex += 1
       }
     }
 
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
+  }
+
+  private struct NativeBatchItem: Sendable {
+    var call: AgentChatToolCall
+    var result: AgentToolInvocationResult
+  }
+
+  private static func invokeNativeToolBatch(
+    calls: [AgentChatToolCall],
+    toolsByName: [String: any AgentTool],
+    toolContext: AgentToolContext
+  ) async -> [NativeBatchItem] {
+    struct Work: Sendable {
+      var offset: Int
+      var call: AgentChatToolCall
+      var result: AgentToolInvocationResult
+    }
+
+    if calls.isEmpty { return [] }
+    if calls.count == 1, let call = calls.first {
+      let result = await invokeSingleNativeTool(
+        call: call,
+        toolsByName: toolsByName,
+        toolContext: toolContext
+      )
+      return [NativeBatchItem(call: call, result: result)]
+    }
+
+    var works: [Work] = []
+    works.reserveCapacity(calls.count)
+    await withTaskGroup(of: Work.self) { group in
+      for (offset, call) in calls.enumerated() {
+        group.addTask {
+          let result = await invokeSingleNativeTool(
+            call: call,
+            toolsByName: toolsByName,
+            toolContext: toolContext
+          )
+          return Work(offset: offset, call: call, result: result)
+        }
+      }
+      for await work in group {
+        works.append(work)
+      }
+    }
+
+    works.sort { $0.offset < $1.offset }
+    return works.map { NativeBatchItem(call: $0.call, result: $0.result) }
+  }
+
+  private static func invokeSingleNativeTool(
+    call: AgentChatToolCall,
+    toolsByName: [String: any AgentTool],
+    toolContext: AgentToolContext
+  ) async -> AgentToolInvocationResult {
+    guard let tool = toolsByName[call.name] else {
+      return .failure("Unknown tool for this phase.", kind: .invalidArguments)
+    }
+    let arguments = Data(call.argumentsJSON.utf8)
+    do {
+      return try await tool.invoke(arguments: arguments, context: toolContext)
+    } catch let toolError as AgentToolError {
+      return .failure(toolError)
+    } catch {
+      return .failure(
+        "Tool \(call.name) threw: \(error.localizedDescription)",
+        kind: .unknown
+      )
+    }
+  }
+
+  private static func applyNativeToolSideEffects(
+    toolName: String,
+    argumentText: String,
+    arguments: Data,
+    result: AgentToolInvocationResult,
+    submitKind: String,
+    lastSuccessfulVerifyCommand: inout String?,
+    lastFailedVerifyCommand: inout String?,
+    failedVerifyInvalidatedByMutationCommand: inout String?,
+    lastFailedToolCall: inout NativeToolCallSignature?,
+    repeatedFailedToolCallCount: inout Int,
+    observation: inout String
+  ) {
+    if !result.isError, Self.isFileMutationTool(toolName) {
+      lastSuccessfulVerifyCommand = nil
+      if let lastFailedVerifyCommand {
+        failedVerifyInvalidatedByMutationCommand = lastFailedVerifyCommand
+      }
+      lastFailedVerifyCommand = nil
+    }
+    if let command = Self.successfulVerifyCommand(
+      toolName: toolName,
+      arguments: arguments,
+      result: result
+    ) {
+      lastSuccessfulVerifyCommand = command
+      lastFailedVerifyCommand = nil
+      failedVerifyInvalidatedByMutationCommand = nil
+    }
+    if let command = Self.failedVerifyCommand(
+      toolName: toolName,
+      arguments: arguments,
+      result: result
+    ) {
+      lastFailedVerifyCommand = command
+      failedVerifyInvalidatedByMutationCommand = nil
+    }
+
+    if result.isError {
+      let signature = NativeToolCallSignature(toolName: toolName, arguments: argumentText)
+      if signature == lastFailedToolCall {
+        repeatedFailedToolCallCount += 1
+      } else {
+        lastFailedToolCall = signature
+        repeatedFailedToolCallCount = 1
+      }
+      if repeatedFailedToolCallCount >= 2 {
+        observation += """
+
+          Compass note: this exact `\(toolName)` call has now failed \
+          \(repeatedFailedToolCallCount) times with the same arguments. Do not repeat it \
+          unchanged — adjust the arguments from the error above, gather the missing fact \
+          with a different call, or finish with `\(submitKind)` reporting the blocker.
+          """
+      }
+    } else {
+      lastFailedToolCall = nil
+      repeatedFailedToolCallCount = 0
+    }
   }
 
   /// Tool observations in the native loop may be much larger than the old

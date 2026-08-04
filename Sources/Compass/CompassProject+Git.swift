@@ -5,7 +5,7 @@ import CompassCore
 @MainActor
 extension CompassProject {
   /// Commit the Develop iteration's changes onto the host's current
-  /// branch (under the containerized Linux route) and apply any lesson edits. Returns nil
+  /// branch (under the macOS VM route) and apply any lesson edits. Returns nil
   /// on success or a single human-readable issue string when the host
   /// commit fails. Lesson-edit failures are logged but not treated as
   /// blockers — they're durable guidance, not the iteration's product.
