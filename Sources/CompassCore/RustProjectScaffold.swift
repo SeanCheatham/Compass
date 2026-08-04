@@ -81,6 +81,8 @@ public enum RustProjectScaffold {
         ScaffoldFile(path: "apps/macos/Info.plist", contents: macosInfoPlist),
         ScaffoldFile(path: "scripts/generate-bindings.sh", contents: generateBindingsScript),
         ScaffoldFile(path: "scripts/bundle-macos.sh", contents: bundleMacOSScript),
+        ScaffoldFile(path: "scripts/macos-ax-smoke.swift", contents: macosAXSmokeSwift),
+        ScaffoldFile(path: "scripts/macos-ui-smoke.sh", contents: macosUISmokeScript),
         ScaffoldFile(path: "scripts/verify-macos.sh", contents: verifyMacOSScript),
       ])
     }
@@ -681,10 +683,239 @@ public enum RustProjectScaffold {
     echo "bundled $APP"
     """#
 
+  private static let macosAXSmokeSwift = #"""
+    import AppKit
+    import ApplicationServices
+    import Foundation
+
+    /// One-shot Accessibility smoke for GeneratedApp. Finds the running app by
+    /// bundle id, waits for SwiftUI accessibilityIdentifier values, and asserts
+    /// the greeting copy matches crates/core via UniFFI.
+    enum AXSmokeError: Error, CustomStringConvertible {
+      case accessibilityTrusted
+      case appNotFound(String)
+      case elementMissing(String)
+      case valueMismatch(id: String, expected: String, actual: String)
+
+      var description: String {
+        switch self {
+        case .accessibilityTrusted:
+          return "AXIsProcessTrusted() is false; grant Accessibility to this helper in System Settings, or set COMPASS_MACOS_UI_SMOKE=0 to skip."
+        case .appNotFound(let bundleID):
+          return "No running app with bundle id \(bundleID)."
+        case .elementMissing(let id):
+          return "Accessibility element '\(id)' not found."
+        case .valueMismatch(let id, let expected, let actual):
+          return "Accessibility element '\(id)' expected \(expected.debugDescription), got \(actual.debugDescription)."
+        }
+      }
+    }
+
+    let bundleID = CommandLine.arguments.count > 1
+      ? CommandLine.arguments[1]
+      : "com.compass.generated.GeneratedApp"
+    let expectedLabel = CommandLine.arguments.count > 2
+      ? CommandLine.arguments[2]
+      : "hello, world!"
+    let expectedCaption = CommandLine.arguments.count > 3
+      ? CommandLine.arguments[3]
+      : "Core logic lives in crates/core; this shell is SwiftUI only."
+    let timeoutSeconds = CommandLine.arguments.count > 4
+      ? (Double(CommandLine.arguments[4]) ?? 30)
+      : 30
+
+    do {
+      try run(
+        bundleID: bundleID,
+        expectedLabel: expectedLabel,
+        expectedCaption: expectedCaption,
+        timeoutSeconds: timeoutSeconds
+      )
+      fputs("macos-ax-smoke ok\n", stdout)
+      exit(0)
+    } catch {
+      fputs("macos-ax-smoke failed: \(error)\n", stderr)
+      exit(1)
+    }
+
+    func run(
+      bundleID: String,
+      expectedLabel: String,
+      expectedCaption: String,
+      timeoutSeconds: Double
+    ) throws {
+      let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+      if !AXIsProcessTrustedWithOptions(options) {
+        throw AXSmokeError.accessibilityTrusted
+      }
+
+      let deadline = Date().addingTimeInterval(timeoutSeconds)
+      var appElement: AXUIElement?
+      while Date() < deadline {
+        if let pid = pid(forBundleID: bundleID) {
+          appElement = AXUIElementCreateApplication(pid)
+          break
+        }
+        Thread.sleep(forTimeInterval: 0.25)
+      }
+      guard let app = appElement else {
+        throw AXSmokeError.appNotFound(bundleID)
+      }
+
+      let label = try waitForValue(
+        in: app,
+        identifier: "greeting.label",
+        deadline: deadline
+      )
+      let caption = try waitForValue(
+        in: app,
+        identifier: "greeting.caption",
+        deadline: deadline
+      )
+      if label != expectedLabel {
+        throw AXSmokeError.valueMismatch(
+          id: "greeting.label", expected: expectedLabel, actual: label)
+      }
+      if caption != expectedCaption {
+        throw AXSmokeError.valueMismatch(
+          id: "greeting.caption", expected: expectedCaption, actual: caption)
+      }
+    }
+
+    func pid(forBundleID bundleID: String) -> pid_t? {
+      let apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+      return apps.first?.processIdentifier
+    }
+
+    func waitForValue(
+      in root: AXUIElement,
+      identifier: String,
+      deadline: Date
+    ) throws -> String {
+      while Date() < deadline {
+        if let value = findValue(in: root, identifier: identifier) {
+          return value
+        }
+        Thread.sleep(forTimeInterval: 0.25)
+      }
+      throw AXSmokeError.elementMissing(identifier)
+    }
+
+    func findValue(in element: AXUIElement, identifier: String) -> String? {
+      if let id = copyStringAttribute(element, kAXIdentifierAttribute as String),
+        id == identifier
+      {
+        if let value = copyStringAttribute(element, kAXValueAttribute as String), !value.isEmpty {
+          return value
+        }
+        if let title = copyStringAttribute(element, kAXTitleAttribute as String), !title.isEmpty {
+          return title
+        }
+        if let desc = copyStringAttribute(element, kAXDescriptionAttribute as String), !desc.isEmpty
+        {
+          return desc
+        }
+      }
+
+      var childrenRef: CFTypeRef?
+      let status = AXUIElementCopyAttributeValue(
+        element, kAXChildrenAttribute as CFString, &childrenRef)
+      guard status == .success, let children = childrenRef as? [AXUIElement] else {
+        return nil
+      }
+      for child in children {
+        if let value = findValue(in: child, identifier: identifier) {
+          return value
+        }
+      }
+      return nil
+    }
+
+    func copyStringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
+      var ref: CFTypeRef?
+      let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &ref)
+      guard status == .success else { return nil }
+      if let string = ref as? String { return string }
+      if let number = ref as? NSNumber { return number.stringValue }
+      return nil
+    }
+    """#
+
+  private static let macosUISmokeScript = #"""
+    #!/usr/bin/env bash
+    # Launch GeneratedApp in a GUI session, assert Accessibility identifiers,
+    # and capture a screenshot for audit. Intended to run inside the Compass
+    # macOS VM (or any headed Mac). Set COMPASS_MACOS_UI_SMOKE=0 to skip.
+    set -euo pipefail
+
+    ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    cd "$ROOT"
+
+    if [[ "${COMPASS_MACOS_UI_SMOKE:-1}" == "0" || "${COMPASS_MACOS_UI_SMOKE:-1}" == "false" ]]; then
+      echo "COMPASS_MACOS_UI_SMOKE disabled; skipping UI smoke"
+      exit 0
+    fi
+
+    BUNDLE_ID="com.compass.generated.GeneratedApp"
+    APP="$ROOT/apps/macos/dist/GeneratedApp.app"
+    SHOT="$ROOT/apps/macos/dist/ui-smoke.png"
+    AX_SRC="$ROOT/scripts/macos-ax-smoke.swift"
+    AX_BIN="$(mktemp -t macos-ax-smoke)"
+    EXPECTED_LABEL="hello, world!"
+    EXPECTED_CAPTION="Core logic lives in crates/core; this shell is SwiftUI only."
+
+    cleanup() {
+      /usr/bin/killall GeneratedApp 2>/dev/null || true
+      rm -f "$AX_BIN"
+    }
+    trap cleanup EXIT
+
+    bash "$ROOT/scripts/bundle-macos.sh"
+    if [[ ! -d "$APP" ]]; then
+      echo "bundled app missing at $APP" >&2
+      exit 1
+    fi
+
+    console_owner="$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || echo loginwindow)"
+    if [[ "$console_owner" == "loginwindow" || "$console_owner" == "_unknown" || -z "$console_owner" ]]; then
+      echo "No GUI session on /dev/console (owner=$console_owner). Repair auto-login and retry." >&2
+      exit 1
+    fi
+
+    GUI_UID="$(/usr/bin/id -u "$console_owner" 2>/dev/null || true)"
+    if [[ -z "${GUI_UID:-}" ]]; then
+      echo "Could not resolve uid for console owner $console_owner" >&2
+      exit 1
+    fi
+
+    /usr/bin/killall GeneratedApp 2>/dev/null || true
+    rm -f "$SHOT"
+
+    # Compile AX helper for the guest toolchain (no Xcode project required).
+    /usr/bin/swiftc -O -framework ApplicationServices -framework AppKit \
+      -o "$AX_BIN" "$AX_SRC"
+
+    # Launch into the auto-logged-in Aqua session (LaunchDaemon bash is not enough).
+    /bin/launchctl asuser "$GUI_UID" /usr/bin/open -n "$APP"
+
+    # Wait until the process is visible, then AX-assert greeting copy.
+    /bin/launchctl asuser "$GUI_UID" "$AX_BIN" \
+      "$BUNDLE_ID" "$EXPECTED_LABEL" "$EXPECTED_CAPTION" 45
+
+    # Capture product pixels from the GUI session.
+    /bin/launchctl asuser "$GUI_UID" /usr/sbin/screencapture -x "$SHOT"
+    if [[ ! -f "$SHOT" ]]; then
+      echo "screencapture did not produce $SHOT" >&2
+      exit 1
+    fi
+
+    echo "macos ui smoke ok ($SHOT)"
+    """#
+
   private static let verifyMacOSScript = #"""
     #!/usr/bin/env bash
-    # macOS product verify. Runs inside the embedded macOS VM when that
-    # runtime is available, otherwise on the Mac host shell.
+    # macOS product verify. Runs inside the embedded macOS VM: build/test,
+    # then launch + Accessibility assert + screenshot of GeneratedApp.
     set -euo pipefail
 
     ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -720,6 +951,9 @@ public enum RustProjectScaffold {
     else
       echo "swift-format not found; skipping Swift lint"
     fi
+
+    # Product-runtime smoke: bundle, launch in GUI session, AX assert, screenshot.
+    bash "$ROOT/scripts/macos-ui-smoke.sh"
 
     echo "macos verify ok"
     """#

@@ -41,6 +41,24 @@ struct CompassCLITests {
       Issue.record("Expected vm smoke command.")
     }
 
+    if case .vmResetWorkspace(let repo, let mode, let format) = try CompassCLICommand.parse([
+      "vm", "reset-workspace", "--repo", "/tmp/project", "--dirt",
+    ]) {
+      #expect(repo.path == "/tmp/project")
+      #expect(mode == .dirt)
+      #expect(format == .json)
+    } else {
+      Issue.record("Expected vm reset-workspace --dirt command.")
+    }
+
+    if case .vmResetWorkspace(_, let mode, _) = try CompassCLICommand.parse([
+      "vm", "reset-workspace", "--repo", "/tmp/project",
+    ]) {
+      #expect(mode == .full)
+    } else {
+      Issue.record("Expected vm reset-workspace default --full.")
+    }
+
     for flag in ["--help", "-h"] {
       if case .help = try CompassCLICommand.parse([flag]) {
       } else {

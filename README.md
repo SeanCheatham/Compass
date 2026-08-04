@@ -45,7 +45,7 @@ Standard Rust verification:
 cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace
 ```
 
-When the `macos` product is enabled, Compass also runs the macOS product gate inside the embedded macOS VM (Apple Virtualization.framework), falling back to the host shell when the VM is not provisioned:
+When the `macos` product is enabled, Compass also runs the macOS product gate inside the embedded macOS VM (Apple Virtualization.framework) — build/test plus launch + Accessibility assert + screenshot of `GeneratedApp` (`COMPASS_MACOS_UI_SMOKE=0` skips the UI smoke):
 
 ```bash
 bash scripts/verify-macos.sh
@@ -57,7 +57,7 @@ Coverage is collected after verify with:
 cargo llvm-cov --workspace --summary-only
 ```
 
-Mutation testing runs post-verify scoped to the Rust files changed in the iteration (`cargo mutants`), persisted to `.compass/mutation-snapshot.json` and fed into the next Plan pass.
+Mutation testing runs post-verify scoped to the Rust files changed in the iteration (`cargo mutants`), persisted to `.compass/mutation-snapshot.json` and fed into the next Plan pass. After mutation, Compass dirt-cleans the guest worktree (`target/`, `mutants.out*`, etc.) so build junk does not accumulate.
 
 Acceptance gates (optional) live under `acceptanceGates` in `.compass/state.json` or via environment (`COMPASS_GATE_MIN_COVERAGE`, `COMPASS_GATE_MIN_MUTATION_SCORE`, `COMPASS_GATE_MAX_MISSED_MUTANTS`). When set, a green verify is not enough — the iteration is retried until the collected coverage/mutation evidence satisfies the gates.
 
@@ -85,6 +85,7 @@ Factory bash/verify run inside an embedded macOS VM (Apple Virtualization.framew
 
 - Guest toolchain: Xcode CLT (swift, git), Rust via rustup (cargo, rustc, rustfmt, clippy), cargo-llvm-cov, cargo-mutants, ripgrep
 - Repo sync: host worktree → guest worktree over git-over-SSH (tar fallback); `/workspace` paths in commands map to the guest worktree
+- Workspace reset: `compass-cli vm reset-workspace --repo <path> [--dirt|--full]` discards per-repo guest dirt without reprovisioning
 
 File/search tools still operate on the host worktree, addressed through the same `/workspace` path space.
 

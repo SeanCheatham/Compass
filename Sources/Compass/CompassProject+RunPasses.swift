@@ -1036,28 +1036,43 @@ extension CompassProject {
         exitCode: Int(result.exitCode),
         command: command
       )
-      guard snapshot.tested > 0 || result.exitCode == 0 else {
+      if snapshot.tested > 0 || result.exitCode == 0 {
+        snapshot.sessionNumber = sessionNumber
+        try MutationSnapshotStore.writeMutationSnapshot(snapshot, workspace: workspace)
+        if let score = snapshot.mutationScorePercent {
+          log(
+            String(
+              format: "Mutation snapshot saved (score %.1f%%, %d caught, %d missed).",
+              score, snapshot.caught, snapshot.missed),
+            level: snapshot.missed > 0 ? .warning : .info
+          )
+        } else {
+          log("Mutation snapshot saved (no mutants tested).", level: .info)
+        }
+      } else {
         log(
           "Mutation collection did not run (exit \(result.exitCode)); no snapshot saved.",
           level: .warning
         )
-        return
-      }
-      snapshot.sessionNumber = sessionNumber
-      try MutationSnapshotStore.writeMutationSnapshot(snapshot, workspace: workspace)
-      if let score = snapshot.mutationScorePercent {
-        log(
-          String(
-            format: "Mutation snapshot saved (score %.1f%%, %d caught, %d missed).",
-            score, snapshot.caught, snapshot.missed),
-          level: snapshot.missed > 0 ? .warning : .info
-        )
-      } else {
-        log("Mutation snapshot saved (no mutants tested).", level: .info)
       }
     } catch {
       log(
         "Mutation testing failed (verify still passed): \(error.localizedDescription)",
+        level: .warning
+      )
+    }
+
+    // Drop mutant/build dirt in the guest so it does not accumulate across
+    // iterations. Failures are non-fatal — the shared VM stays usable.
+    do {
+      let outcome = try await SharedCompassVMGuestWorkspaceReset.reset(
+        repoURL: workingDirectory,
+        mode: .dirt
+      )
+      log("Guest workspace dirt cleaned after mutation (\(outcome.detail)).", level: .info)
+    } catch {
+      log(
+        "Guest workspace dirt cleanup after mutation failed: \(error.localizedDescription)",
         level: .warning
       )
     }
@@ -1095,6 +1110,11 @@ extension CompassProject {
       kind: "log",
       contents: "$ \(GeneratedProjectQuality.macosVerifyCommand)\n\n" + combined,
       note: "macOS verify output (\(outcome.runtimeDescription)\(fallbackNote))."
+    )
+    _ = await MacOSUISmokeSupport.writeScreenshotAuditArtifact(
+      workspace: workspace,
+      session: sessionNumber,
+      repoURL: workingDirectory
     )
     guard result.exitCode == 0 else {
       let tail = String(combined.suffix(4000))

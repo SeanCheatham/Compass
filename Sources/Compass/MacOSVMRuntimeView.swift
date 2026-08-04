@@ -3,6 +3,7 @@ import CompassCore
 import SwiftUI
 
 struct MacOSVMRuntimeView: View {
+  @EnvironmentObject private var model: AppModel
   @ObservedObject private var vm = SharedCompassVM.shared
   @State private var isWorking = false
   @State private var lastError: String?
@@ -78,6 +79,18 @@ struct MacOSVMRuntimeView: View {
           Label("Repair Auto-Login", systemImage: "person.crop.circle.badge.checkmark")
         }
         .disabled(isWorking || (vm.lastResolvedSSHDestination == nil && !vm.readiness.isReady))
+
+        Button {
+          Task { await resetGuestWorkspace() }
+        } label: {
+          Label("Reset Guest Workspace", systemImage: "arrow.triangle.2.circlepath")
+        }
+        .disabled(isWorking || !vm.readiness.isReady || model.selectedProject == nil)
+        .help(
+          model.selectedProject == nil
+            ? "Select a project first to reset its guest workspace."
+            : "Delete the selected project's guest Repos/<id> tree and force-sync a fresh worktree."
+        )
 
         Button(role: .destructive) {
           Task { await reset() }
@@ -216,6 +229,27 @@ struct MacOSVMRuntimeView: View {
     let ok = await vm.repairAutoLogin()
     if !ok {
       lastError = "Auto-login repair did not complete successfully. Check Console for details."
+    }
+  }
+
+  @MainActor
+  private func resetGuestWorkspace() async {
+    isWorking = true
+    lastError = nil
+    smokeTestMessage = nil
+    defer { isWorking = false }
+    guard let repoURL = model.selectedProject?.repoURL else {
+      lastError = "Select a project before resetting its guest workspace."
+      return
+    }
+    do {
+      let outcome = try await SharedCompassVMGuestWorkspaceReset.reset(
+        repoURL: repoURL,
+        mode: .full
+      )
+      smokeTestMessage = outcome.detail
+    } catch {
+      lastError = error.localizedDescription
     }
   }
 

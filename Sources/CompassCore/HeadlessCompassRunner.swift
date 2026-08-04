@@ -970,6 +970,11 @@ public struct HeadlessCompassRunner: Sendable {
                 + macosResult.stdout + "\n" + macosResult.stderr,
               note: "macOS verify output (\(macosOutcome.runtimeDescription)\(macosFallbackNote))."
             )
+            _ = await MacOSUISmokeSupport.writeScreenshotAuditArtifact(
+              workspace: workspace,
+              session: sessionNumber,
+              repoURL: repoURL
+            )
             if macosResult.exitCode != 0 {
               let issue = """
                 macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` on \(macosOutcome.runtimeDescription)\(macosFallbackNote) exited with code \(macosResult.exitCode).
@@ -1649,7 +1654,25 @@ public struct HeadlessCompassRunner: Sendable {
         contents: "$ \(command)\n\n" + result.stdout + "\n" + result.stderr,
         note: "Mutation testing output."
       )
-      guard snapshot.tested > 0 || result.exitCode == 0 else {
+      if snapshot.tested > 0 || result.exitCode == 0 {
+        snapshot.sessionNumber = sessionNumber
+        try MutationSnapshotStore.writeMutationSnapshot(snapshot, workspace: workspace)
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "mutation_snapshot",
+            level: snapshot.missed > 0 ? "warning" : "info",
+            status: "completed",
+            phase: "verify",
+            message:
+              "Mutation snapshot saved (\(snapshot.caught) caught, \(snapshot.missed) missed).",
+            metadata: [
+              "command": command,
+              "exitCode": "\(snapshot.exitCode)",
+              "mutationScorePercent": snapshot.mutationScorePercent.map { String($0) } ?? "unknown",
+            ]
+          )
+        )
+      } else {
         onEvent(
           HeadlessCompassEvent(
             kind: "mutation_snapshot",
@@ -1661,25 +1684,7 @@ public struct HeadlessCompassRunner: Sendable {
             detail: tail(result.stdout + result.stderr, max: 2000)
           )
         )
-        return
       }
-      snapshot.sessionNumber = sessionNumber
-      try MutationSnapshotStore.writeMutationSnapshot(snapshot, workspace: workspace)
-      onEvent(
-        HeadlessCompassEvent(
-          kind: "mutation_snapshot",
-          level: snapshot.missed > 0 ? "warning" : "info",
-          status: "completed",
-          phase: "verify",
-          message:
-            "Mutation snapshot saved (\(snapshot.caught) caught, \(snapshot.missed) missed).",
-          metadata: [
-            "command": command,
-            "exitCode": "\(snapshot.exitCode)",
-            "mutationScorePercent": snapshot.mutationScorePercent.map { String($0) } ?? "unknown",
-          ]
-        )
-      )
     } catch {
       onEvent(
         HeadlessCompassEvent(
@@ -1688,6 +1693,33 @@ public struct HeadlessCompassRunner: Sendable {
           status: "failed",
           phase: "verify",
           message: "Mutation collection failed (verify still passed): \(error.localizedDescription)"
+        )
+      )
+    }
+
+    do {
+      let outcome = try await SharedCompassVMGuestWorkspaceReset.reset(
+        repoURL: repoURL,
+        mode: .dirt
+      )
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "vm_reset_workspace",
+          status: "completed",
+          phase: "verify",
+          message: "Guest workspace dirt cleaned after mutation.",
+          detail: outcome.detail,
+          metadata: ["mode": outcome.mode.rawValue]
+        )
+      )
+    } catch {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "vm_reset_workspace",
+          level: "warning",
+          status: "failed",
+          phase: "verify",
+          message: "Guest workspace dirt cleanup failed: \(error.localizedDescription)"
         )
       )
     }

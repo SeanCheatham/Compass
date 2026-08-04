@@ -64,6 +64,41 @@ public enum CompassCLI {
         )
         return ok ? 0 : 1
 
+      case .vmResetWorkspace(let repo, let mode, _):
+        do {
+          let outcome = try await SharedCompassVMGuestWorkspaceReset.reset(
+            repoURL: repo,
+            mode: mode
+          )
+          emit(
+            HeadlessCompassEvent(
+              kind: "vm_reset_workspace",
+              level: "success",
+              status: "completed",
+              phase: "vm",
+              message: outcome.detail,
+              metadata: [
+                "mode": outcome.mode.rawValue,
+                "previousWorkspaceID": outcome.previousWorkspaceID ?? "",
+                "workspaceID": outcome.workspaceID ?? "",
+                "guestWorktreePath": outcome.guestWorktreePath ?? "",
+              ]
+            )
+          )
+          return 0
+        } catch {
+          emit(
+            HeadlessCompassEvent(
+              kind: "vm_reset_workspace",
+              level: "error",
+              status: "failed",
+              phase: "vm",
+              message: "Guest workspace reset failed: \(error.localizedDescription)"
+            )
+          )
+          return 1
+        }
+
       case .run(let options, _):
         let ok = try await runner.runSessions(options: options, onEvent: emit)
         return ok ? 0 : 1
@@ -151,6 +186,8 @@ public enum CompassCLICommand: Equatable {
   )
   case verify(repo: URL, command: String?, format: CompassCLIOutputFormat)
   case vmSmoke(repo: URL, command: String?, format: CompassCLIOutputFormat)
+  case vmResetWorkspace(
+    repo: URL, mode: SharedCompassVMGuestWorkspaceReset.Mode, format: CompassCLIOutputFormat)
 
   public var format: CompassCLIOutputFormat {
     switch self {
@@ -160,7 +197,8 @@ public enum CompassCLICommand: Equatable {
       .run(_, let format),
       .replay(_, _, _, _, _, _, let format),
       .verify(_, _, let format),
-      .vmSmoke(_, _, let format):
+      .vmSmoke(_, _, let format),
+      .vmResetWorkspace(_, _, let format):
       return format
     }
   }
@@ -200,14 +238,28 @@ public enum CompassCLICommand: Equatable {
 
     case "vm":
       let subcommand = try parser.requireCommand()
-      guard subcommand == "smoke" else {
-        throw CompassCLIError.usage("Only `vm smoke` is supported.")
+      switch subcommand {
+      case "smoke":
+        let repo = try parser.requireURLOption("--repo")
+        let command = try parser.optionalValue("--command")
+        let format = try parser.outputFormat()
+        try parser.rejectRemaining()
+        return .vmSmoke(repo: repo, command: command, format: format)
+      case "reset-workspace":
+        let repo = try parser.requireURLOption("--repo")
+        let dirt = parser.consumeFlag("--dirt")
+        let full = parser.consumeFlag("--full")
+        if dirt && full {
+          throw CompassCLIError.usage("Pass only one of `--dirt` or `--full`.")
+        }
+        let mode: SharedCompassVMGuestWorkspaceReset.Mode = dirt ? .dirt : .full
+        let format = try parser.outputFormat()
+        try parser.rejectRemaining()
+        return .vmResetWorkspace(repo: repo, mode: mode, format: format)
+      default:
+        throw CompassCLIError.usage(
+          "Unsupported `vm` subcommand. Use `vm smoke` or `vm reset-workspace`.")
       }
-      let repo = try parser.requireURLOption("--repo")
-      let command = try parser.optionalValue("--command")
-      let format = try parser.outputFormat()
-      try parser.rejectRemaining()
-      return .vmSmoke(repo: repo, command: command, format: format)
 
     case "run":
       let repo = try parser.requireURLOption("--repo")
@@ -475,6 +527,7 @@ public extension CompassCLI {
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
       compass-cli vm smoke --repo <path> [--command <cmd>] [--format json|text]
+      compass-cli vm reset-workspace --repo <path> [--dirt|--full] [--format json|text]
     """
 }
 

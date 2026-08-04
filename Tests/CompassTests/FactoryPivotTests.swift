@@ -405,6 +405,8 @@ struct FactoryPivotTests {
     #expect(byPath.keys.contains("scripts/generate-bindings.sh"))
     #expect(byPath.keys.contains("scripts/bundle-macos.sh"))
     #expect(byPath.keys.contains("scripts/verify-macos.sh"))
+    #expect(byPath.keys.contains("scripts/macos-ui-smoke.sh"))
+    #expect(byPath.keys.contains("scripts/macos-ax-smoke.swift"))
 
     let app = try #require(byPath["apps/macos/Sources/GeneratedApp/GeneratedApp.swift"])
     #expect(app.contains("import AppFFI"))
@@ -418,6 +420,16 @@ struct FactoryPivotTests {
     let verify = try #require(byPath["scripts/verify-macos.sh"])
     #expect(verify.contains("swift test"))
     #expect(verify.contains("swift-format"))
+    #expect(verify.contains("macos-ui-smoke.sh"))
+
+    let uiSmoke = try #require(byPath["scripts/macos-ui-smoke.sh"])
+    #expect(uiSmoke.contains("launchctl asuser"))
+    #expect(uiSmoke.contains("screencapture"))
+    #expect(uiSmoke.contains("greeting.label") || byPath["scripts/macos-ax-smoke.swift"]!.contains("greeting.label"))
+
+    let axSmoke = try #require(byPath["scripts/macos-ax-smoke.swift"])
+    #expect(axSmoke.contains("greeting.label"))
+    #expect(axSmoke.contains("hello, world!"))
 
     let workspace = try #require(byPath["Cargo.toml"])
     #expect(workspace.contains("crates/core"))
