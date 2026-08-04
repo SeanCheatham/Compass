@@ -271,6 +271,9 @@ extension SharedCompassVM {
     }
     if Task.isCancelled { return }
     lastResolvedSSHDestination = destination
+    await repairAutoLogin(destination: destination)
+    if Task.isCancelled { return }
+    startDiagnosticLogTail(destination: destination)
     guard await ensureGuestAgentReachableAfterBoot(destination: destination) else { return }
     if Task.isCancelled { return }
     transition(to: .ready(sshDestination: destination))
@@ -320,6 +323,10 @@ extension SharedCompassVM {
       connectTimeoutSeconds: 5
     )
     let liveAgentReachable = await probeGuestAgentOnce(on: machine, timeout: 3)
+    appendDiagnostic(
+      "Guest agent vsock probe: \(liveAgentReachable ? "ok" : "failed")",
+      source: "host"
+    )
     // The old agent still answers vsock probes after a Compass upgrade,
     // so reachability alone is not enough — compare the planted binary
     // against the bundled one and replant on mismatch.
@@ -328,11 +335,16 @@ extension SharedCompassVM {
       options: options,
       fileManager: dependencies.fileManager
     )
+    appendDiagnostic(
+      "Guest agent binary matches host: \(agentCurrent ? "yes" : "no")",
+      source: "host"
+    )
     if liveAgentReachable && agentCurrent {
       return true
     }
 
     do {
+      appendDiagnostic("Repairing guest agent over SSH…", source: "host")
       try await SharedCompassVMGuestAgentInstall.repairOverSSH(
         destination: destination,
         options: options,
@@ -361,6 +373,7 @@ extension SharedCompassVM {
         ))
       return false
     }
+    appendDiagnostic("Guest agent reachable over vsock after repair.", source: "host")
     return true
   }
 
@@ -377,11 +390,18 @@ extension SharedCompassVM {
     do {
       let result = try await client.run(
         command: "true",
-        workingDirectory: URL(fileURLWithPath: "/"),
+        workingDirectory: URL(fileURLWithPath: SharedCompassVMGuestLayout.current.homeDirectory),
         timeout: timeout
       )
+      if result.exitCode != 0 {
+        appendDiagnostic(
+          "Guest agent probe exit \(result.exitCode): \(result.stderr)",
+          source: "host"
+        )
+      }
       return result.exitCode == 0
     } catch {
+      appendDiagnostic("Guest agent probe error: \(error.localizedDescription)", source: "host")
       return false
     }
   }
@@ -458,6 +478,7 @@ extension SharedCompassVM {
 
     postBootReadinessTask?.cancel()
     postBootReadinessTask = nil
+    stopDiagnosticLogTail()
 
     defer {
       if let destination = liveSSHDestination {
@@ -620,6 +641,11 @@ extension SharedCompassVM {
       return
     }
     lastResolvedSSHDestination = destination
+
+    // SSH is up — nudge graphical auto-login before the (long) CLT install
+    // so the headed Desktop is usable while tooling provisions.
+    await repairAutoLogin(destination: destination)
+    startDiagnosticLogTail(destination: destination)
 
     // SSH is up — promote to .provisioningDevTools and kick off the
     // in-guest CLT install. We persist this step too so a host crash

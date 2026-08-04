@@ -52,11 +52,32 @@ public final class SharedCompassVM: ObservableObject {
       Logger(.guestProvision).fault(
         "Illegal readiness transition: \(Self.transitionLabel(current), privacy: .public) → \(Self.transitionLabel(next), privacy: .public) — applying anyway"
       )
+      appendDiagnostic(
+        "Illegal readiness transition: \(Self.transitionLabel(current)) → \(Self.transitionLabel(next))",
+        source: "host"
+      )
       readiness = next
       return
     }
     if current == next { return }
     readiness = next
+    switch next {
+    case .error(let detail):
+      appendDiagnostic(
+        "readiness \(Self.transitionLabel(current)) → error — \(detail)",
+        source: "host"
+      )
+    case .unavailable(let reason):
+      appendDiagnostic(
+        "readiness \(Self.transitionLabel(current)) → unavailable — \(reason)",
+        source: "host"
+      )
+    default:
+      appendDiagnostic(
+        "readiness \(Self.transitionLabel(current)) → \(Self.transitionLabel(next))",
+        source: "host"
+      )
+    }
   }
 
   /// Whether `next` is a permitted successor of `current`. The matrix is
@@ -173,6 +194,13 @@ public final class SharedCompassVM: ObservableObject {
   /// state machine in the absorbing `.error(detail:)` state.
   @Published public var setupFailureMessage: String?
 
+  /// Ring buffer of host readiness / virtio / SSH-tail lines for the
+  /// Settings → macOS VM Console sheet. Cap keeps memory bounded across
+  /// long-lived VM sessions.
+  @Published public var diagnosticLines: [SharedCompassVMDiagnosticLine] = []
+  public static let diagnosticLineCap = 2_000
+  var diagnosticTailTask: Task<Void, Never>?
+
   /// `true` while the host app is tearing down on its way to terminate.
   /// Set by the AppDelegate before it awaits `stop()` so the UI can swap to
   /// a "Shutting down…" view instead of leaving the live workspace frozen
@@ -194,7 +222,7 @@ public final class SharedCompassVM: ObservableObject {
   let dependencies: Dependencies
   @Published public var virtualMachine: VZVirtualMachine?
   var sleepObserver: SharedCompassVMSleepObserver?
-  var lastResolvedSSHDestination: String?
+  @Published public var lastResolvedSSHDestination: String?
 
   /// Pipe attached to the guest's virtio console port. VZ writes guest serial
   /// output into `consoleOutputPipe.fileHandleForWriting`; the host's read

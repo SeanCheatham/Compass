@@ -424,15 +424,21 @@ enum SharedCompassVMHeadlessFirstBoot {
       \(shellWriteKcpasswordFromPasswordEnv())
       \(shellApplyAutoLoginUserPreference())
 
-      console_owner="$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || echo loginwindow)"
-      echo "[compass-autologin] /dev/console owner: $console_owner"
-      if [ "$console_owner" = "loginwindow" ] || [ "$console_owner" = "_unknown" ]; then
+      # macOS 26 often rejects auto-login on the first SecurityAgent pass.
+      # Retry loginwindow restarts while the console is still at the
+      # password prompt so headed Desktop sessions become usable without
+      # typing the generated password by hand.
+      for attempt in 1 2 3 4 5 6; do
+        console_owner="$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || echo loginwindow)"
+        echo "[compass-autologin] attempt $attempt /dev/console owner: $console_owner"
+        if [ "$console_owner" != "loginwindow" ] && [ "$console_owner" != "_unknown" ]; then
+          echo "[compass-autologin] console already has session for $console_owner"
+          break
+        fi
         echo "[compass-autologin] waiting for SecurityAgent before restarting loginwindow"
-        sleep 5
+        sleep 8
         /usr/bin/killall loginwindow 2>&1 || true
-      else
-        echo "[compass-autologin] console already has session for $console_owner"
-      fi
+      done
       echo "[compass-autologin] done."
       """
   }

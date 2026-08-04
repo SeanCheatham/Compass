@@ -69,6 +69,8 @@ extension SharedCompassVM {
   private static func handleConsoleLine(_ line: String, host: SharedCompassVM?) async {
     guard let host else { return }
     let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    host.appendDiagnostic(trimmed, source: "virtio")
     guard trimmed.hasPrefix("COMPASS_GUEST_IP=") else { return }
     let ip = String(trimmed.dropFirst("COMPASS_GUEST_IP=".count))
     guard !ip.isEmpty else { return }

@@ -1,3 +1,4 @@
+import AppKit
 import CompassCore
 import SwiftUI
 
@@ -6,6 +7,7 @@ struct MacOSVMRuntimeView: View {
   @State private var isWorking = false
   @State private var lastError: String?
   @State private var smokeTestMessage: String?
+  @State private var showingDesktop = false
   @State private var showingConsole = false
 
   var body: some View {
@@ -16,7 +18,14 @@ struct MacOSVMRuntimeView: View {
         LabeledContent("Status", value: statusText)
         LabeledContent("Bundle", value: vm.bundle.rootURL.path)
         if let login = vm.guestConsoleLogin() {
-          LabeledContent("Guest login", value: "\(login.userName) / \(login.password)")
+          HStack(alignment: .firstTextBaseline) {
+            LabeledContent("Guest login", value: "\(login.userName) / \(login.password)")
+            Button("Copy password") {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(login.password, forType: .string)
+            }
+            .buttonStyle(.borderless)
+          }
         }
         Text("Factory bash, verify, coverage, and mutation all require this VM.")
           .font(.callout)
@@ -48,11 +57,27 @@ struct MacOSVMRuntimeView: View {
         .disabled(isWorking || !vm.readiness.isReady)
 
         Button {
-          showingConsole = true
+          showingDesktop = true
         } label: {
-          Label("Console", systemImage: "display")
+          Label("Desktop", systemImage: "display")
         }
         .disabled(vm.virtualMachine == nil)
+
+        Button {
+          showingConsole = true
+          if vm.lastResolvedSSHDestination != nil || vm.readiness.isReady {
+            vm.startDiagnosticLogTail()
+          }
+        } label: {
+          Label("Console", systemImage: "terminal")
+        }
+
+        Button {
+          Task { await repairAutoLogin() }
+        } label: {
+          Label("Repair Auto-Login", systemImage: "person.crop.circle.badge.checkmark")
+        }
+        .disabled(isWorking || (vm.lastResolvedSSHDestination == nil && !vm.readiness.isReady))
 
         Button(role: .destructive) {
           Task { await reset() }
@@ -74,7 +99,7 @@ struct MacOSVMRuntimeView: View {
     }
     .padding(28)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .sheet(isPresented: $showingConsole) {
+    .sheet(isPresented: $showingDesktop) {
       NavigationStack {
         SharedCompassVMView(
           virtualMachine: vm.virtualMachine,
@@ -83,11 +108,14 @@ struct MacOSVMRuntimeView: View {
         .frame(minWidth: 960, minHeight: 640)
         .toolbar {
           ToolbarItem(placement: .confirmationAction) {
-            Button("Done") { showingConsole = false }
+            Button("Done") { showingDesktop = false }
               .keyboardShortcut(.defaultAction)
           }
         }
       }
+    }
+    .sheet(isPresented: $showingConsole) {
+      MacOSVMDiagnosticConsoleView(vm: vm)
     }
     .task {
       try? await vm.warmup()
@@ -181,6 +209,17 @@ struct MacOSVMRuntimeView: View {
   }
 
   @MainActor
+  private func repairAutoLogin() async {
+    isWorking = true
+    lastError = nil
+    defer { isWorking = false }
+    let ok = await vm.repairAutoLogin()
+    if !ok {
+      lastError = "Auto-login repair did not complete successfully. Check Console for details."
+    }
+  }
+
+  @MainActor
   private func runSmokeTest() async {
     isWorking = true
     lastError = nil
@@ -191,7 +230,7 @@ struct MacOSVMRuntimeView: View {
     do {
       let result = try await client.run(
         command: "sw_vers && git --version && cargo --version && swift --version",
-        workingDirectory: URL(fileURLWithPath: "/"),
+        workingDirectory: URL(fileURLWithPath: SharedCompassVMGuestLayout.current.homeDirectory),
         timeout: 60
       )
       smokeTestMessage =
@@ -200,6 +239,59 @@ struct MacOSVMRuntimeView: View {
         : "Smoke test exited \(result.exitCode): \(result.stderr)"
     } catch {
       lastError = error.localizedDescription
+    }
+  }
+}
+
+/// Host readiness + guest SSH/virtio log viewer for the macOS VM.
+struct MacOSVMDiagnosticConsoleView: View {
+  @ObservedObject var vm: SharedCompassVM
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      ScrollViewReader { proxy in
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 2) {
+            if vm.diagnosticLines.isEmpty {
+              Text("No diagnostics yet. Start the VM to capture readiness, virtio, and guest log output.")
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 8)
+            }
+            ForEach(vm.diagnosticLines) { line in
+              Text(line.displayText)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .id(line.id)
+            }
+          }
+          .padding(16)
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+        .onChange(of: vm.diagnosticLines.count) { _, _ in
+          if let last = vm.diagnosticLines.last {
+            proxy.scrollTo(last.id, anchor: .bottom)
+          }
+        }
+      }
+      .frame(minWidth: 860, minHeight: 520)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Clear") { vm.clearDiagnostics() }
+        }
+        ToolbarItem(placement: .automatic) {
+          Button("Refresh Tail") {
+            vm.startDiagnosticLogTail()
+          }
+          .disabled(vm.lastResolvedSSHDestination == nil && !vm.readiness.isReady)
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") { dismiss() }
+            .keyboardShortcut(.defaultAction)
+        }
+      }
+      .navigationTitle("Console")
     }
   }
 }

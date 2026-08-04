@@ -7,12 +7,14 @@ import Foundation
 ///
 /// This binary runs as a LaunchDaemon with `UserName=compass`. The caller
 /// (host) supplies absolute paths under the synced guest workspace
-/// (`/Users/compass/Compass/Repos/<catalog-id>/worktree`). Bash working
-/// directories and file ops are jails to that repos root so a `cd /` in an
-/// agent command cannot escape the synced worktrees.
+/// (`/Users/compass/Compass/Repos/<catalog-id>/worktree`). File ops are
+/// jails to that repos root. Bash working directories may also be the guest
+/// home (or `/` / `/tmp` for host readiness/toolchain probes).
 enum AgentFileOperations {
   /// Must stay aligned with `SharedCompassVMGuestLayout.currentMacOS.reposRoot`.
   static let allowedReposRoot = "/Users/compass/Compass/Repos"
+  /// Must stay aligned with `SharedCompassVMGuestLayout.currentMacOS.homeDirectory`.
+  static let allowedHomeRoot = "/Users/compass"
 
   static func assertPathInsideReposJail(_ path: String) -> AgentRPCResponse.Error? {
     let standardized = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
@@ -25,6 +27,25 @@ enum AgentFileOperations {
       )
     }
     return nil
+  }
+
+  /// Bash probes and toolchain installers often use `/` or `/tmp` as cwd;
+  /// agent work uses the guest home / repos tree. Reject anything else so
+  /// a `cd /etc`-style workingDirectory cannot be planted by the host RPC.
+  static func assertBashWorkingDirectoryAllowed(_ path: String) -> AgentRPCResponse.Error? {
+    let standardized = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+    if standardized == "/" || standardized == "/tmp" || standardized.hasPrefix("/tmp/") {
+      return nil
+    }
+    let home = URL(fileURLWithPath: allowedHomeRoot).standardizedFileURL.path
+    if standardized == home || standardized.hasPrefix(home + "/") {
+      return nil
+    }
+    return AgentRPCResponse.Error(
+      kind: .invalidArguments,
+      detail:
+        "bash working directory escapes guest home jail (\(allowedHomeRoot)): \(path)"
+    )
   }
 
   static func readFile(at path: String) -> Result<
@@ -247,7 +268,7 @@ enum AgentFileOperations {
     workingDirectory: String,
     timeoutSeconds: Double
   ) -> AgentRPCResponse.ProcessResult {
-    if let escape = assertPathInsideReposJail(workingDirectory) {
+    if let escape = assertBashWorkingDirectoryAllowed(workingDirectory) {
       return AgentRPCResponse.ProcessResult(
         exitCode: 126,
         stdout: "",

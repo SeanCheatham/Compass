@@ -256,6 +256,8 @@ extension SharedCompassVM {
     persistedState = try? bundle.loadState(fileManager: dependencies.fileManager)
     lastResolvedSSHDestination = nil
     setupFailureMessage = nil
+    stopDiagnosticLogTail()
+    clearDiagnostics()
     transition(to: .notProvisioned)
   }
 

@@ -68,7 +68,7 @@ enum SharedCompassVMVsock {
       do {
         let result = try await client.run(
           command: "true",
-          workingDirectory: URL(fileURLWithPath: "/"),
+          workingDirectory: URL(fileURLWithPath: SharedCompassVMGuestLayout.current.homeDirectory),
           timeout: probeTimeout
         )
         if result.exitCode == 0 {
