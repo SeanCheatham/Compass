@@ -216,6 +216,35 @@ struct StudioStatePresentationTests {
   }
 
   @Test
+  func editClearsPriorReadScrollTour() {
+    let state = StudioState()
+    state.apply(
+      line(
+        status: .completed,
+        payload: .writeFile(path: "a.rs", content: "old\nline2\nline3")))
+    state.snapPresentation(for: "a.rs")
+    state.apply(
+      line(
+        status: .completed,
+        payload: .readFile(
+          path: "a.rs", offset: 1, limit: 2, content: "     1\told\n     2\tline2\n")))
+    #expect(state.buffers["a.rs"]?.scrollTour != nil)
+
+    state.apply(
+      line(
+        status: .completed,
+        payload: .editFileStringReplace(
+          path: "a.rs",
+          edits: [
+            LiveStringReplaceEdit(oldString: "old", newString: "new", replaceAll: false)
+          ]
+        )))
+    #expect(state.buffers["a.rs"]?.scrollTour == nil)
+    #expect(state.buffers["a.rs"]?.scrollToLine == 1)
+    #expect(state.presentationBuffers["a.rs"]?.scrollTour == nil)
+  }
+
+  @Test
   func paneFocusTracksBashVersusEditorTools() {
     let state = StudioState()
     #expect(state.paneFocus == .balanced)

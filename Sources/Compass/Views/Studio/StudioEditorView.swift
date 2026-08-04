@@ -15,84 +15,68 @@ struct StudioEditorView: View {
         recentStrip
         breadcrumb(path: path)
         Divider()
-        TimelineView(.periodic(from: .now, by: 0.5)) { context in
-          let highlightOpacity = fadeOpacity(
-            since: buffer.lastChangeAt,
-            now: context.date
-          )
-          let theme =
-            colorScheme == .dark
-            ? StudioHighlightTheme.dark
-            : StudioHighlightTheme.light
-          let source = buffer.lines.joined(separator: "\n")
-          let highlighted = StudioSyntaxHighlighter.shared.highlightLines(
-            source: source,
-            path: path,
-            theme: theme
-          )
-          ScrollViewReader { proxy in
-            ScrollView([.horizontal, .vertical]) {
-              LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(buffer.lines.enumerated()), id: \.offset) { index, line in
-                  let lineNumber = index + 1
-                  let attributed: AttributedString = {
-                    if index < highlighted.count {
-                      return highlighted[index]
-                    }
-                    return AttributedString(line.isEmpty ? " " : line)
-                  }()
-                  HStack(spacing: 0) {
-                    Text("\(lineNumber)")
-                      .font(.system(.caption, design: .monospaced))
-                      .foregroundStyle(
-                        buffer.highlightedLines.contains(lineNumber)
-                          ? Color.green.opacity(0.85)
-                          : Color(nsColor: .tertiaryLabelColor)
-                      )
-                      .frame(width: 44, alignment: .trailing)
-                      .padding(.trailing, 10)
-                      .background(
-                        buffer.highlightedLines.contains(lineNumber)
-                          ? Color.green.opacity(highlightOpacity * 0.6)
-                          : Color.clear
-                      )
-                    Text(attributed.characters.isEmpty ? AttributedString(" ") : attributed)
-                      .font(.system(.callout, design: .monospaced))
-                      .textSelection(.enabled)
-                      .frame(maxWidth: .infinity, alignment: .leading)
+        let theme =
+          colorScheme == .dark
+          ? StudioHighlightTheme.dark
+          : StudioHighlightTheme.light
+        let source = buffer.lines.joined(separator: "\n")
+        let highlighted = StudioSyntaxHighlighter.shared.highlightLines(
+          source: source,
+          path: path,
+          theme: theme
+        )
+        // ScrollViewReader stays outside TimelineView so the 0.5s highlight
+        // tick cannot recreate the scroll proxy mid-tour / mid-caret-follow.
+        ScrollViewReader { proxy in
+          ScrollView([.horizontal, .vertical]) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+              ForEach(Array(buffer.lines.enumerated()), id: \.offset) { index, line in
+                let lineNumber = index + 1
+                let attributed: AttributedString = {
+                  if index < highlighted.count {
+                    return highlighted[index]
                   }
-                  .padding(.vertical, 1)
-                  .background(
-                    buffer.highlightedLines.contains(lineNumber)
-                      ? Color.green.opacity(highlightOpacity)
-                      : .clear
-                  )
-                  .id(lineNumber)
-                }
+                  return AttributedString(line.isEmpty ? " " : line)
+                }()
+                StudioEditorLineRow(
+                  lineNumber: lineNumber,
+                  attributed: attributed,
+                  isHighlighted: buffer.highlightedLines.contains(lineNumber),
+                  lastChangeAt: buffer.lastChangeAt,
+                  fadeSeconds: Self.highlightFadeSeconds
+                )
+                .id(lineNumber)
               }
-              .padding(.vertical, 6)
-              .padding(.trailing, 12)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onChange(of: buffer.scrollTour?.id) {
+            .padding(.vertical, 6)
+            .padding(.trailing, 12)
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .onChange(of: buffer.scrollTour?.id) {
+            performScrollTour(proxy: proxy, buffer: buffer)
+          }
+          .onChange(of: buffer.scrollToLine) {
+            if buffer.scrollTour == nil {
+              scrollToRevealedLine(proxy: proxy, buffer: buffer)
+            }
+          }
+          .onChange(of: state.isTypewriting) {
+            if buffer.scrollTour == nil {
+              scrollToRevealedLine(proxy: proxy, buffer: buffer)
+            }
+          }
+          .onChange(of: path) {
+            if buffer.scrollTour != nil {
               performScrollTour(proxy: proxy, buffer: buffer)
+            } else {
+              scrollToRevealedLine(proxy: proxy, buffer: buffer)
             }
-            .onChange(of: buffer.scrollToLine) {
-              if buffer.scrollTour == nil {
-                scrollToRevealedLine(proxy: proxy, buffer: buffer)
-              }
-            }
-            .onChange(of: state.isTypewriting) {
-              if buffer.scrollTour == nil {
-                scrollToRevealedLine(proxy: proxy, buffer: buffer)
-              }
-            }
-            .onAppear {
-              if buffer.scrollTour != nil {
-                performScrollTour(proxy: proxy, buffer: buffer)
-              } else {
-                scrollToRevealedLine(proxy: proxy, buffer: buffer)
-              }
+          }
+          .onAppear {
+            if buffer.scrollTour != nil {
+              performScrollTour(proxy: proxy, buffer: buffer)
+            } else {
+              scrollToRevealedLine(proxy: proxy, buffer: buffer)
             }
           }
         }
@@ -205,22 +189,13 @@ struct StudioEditorView: View {
     return ext.uppercased()
   }
 
-  private func fadeOpacity(since changeAt: Date, now: Date) -> Double {
-    let age = now.timeIntervalSince(changeAt)
-    guard age < Self.highlightFadeSeconds else { return 0 }
-    return 0.25 * (1 - age / Self.highlightFadeSeconds)
-  }
-
   private func scrollToRevealedLine(
     proxy: ScrollViewProxy,
     buffer: StudioState.FileBuffer
   ) {
     guard let line = buffer.scrollToLine, line >= 1 else { return }
-    DispatchQueue.main.async {
-      withAnimation(.easeOut(duration: 0.15)) {
-        proxy.scrollTo(line, anchor: .center)
-      }
-    }
+    // LazyVStack may not have materialized distant rows on the first pass.
+    scrollToLine(proxy: proxy, line: line, anchor: .center, attempts: 2)
   }
 
   /// Jump quickly to the read start line, then ease down to the end of the span.
@@ -245,6 +220,27 @@ struct StudioEditorView: View {
         withAnimation(.easeInOut(duration: skimDuration(from: start, to: end))) {
           proxy.scrollTo(end, anchor: .center)
         }
+        // Retry once after layout catches up for long LazyVStack jumps.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+          proxy.scrollTo(end, anchor: .center)
+        }
+      }
+    }
+  }
+
+  private func scrollToLine(
+    proxy: ScrollViewProxy,
+    line: Int,
+    anchor: UnitPoint,
+    attempts: Int
+  ) {
+    DispatchQueue.main.async {
+      withAnimation(.easeOut(duration: 0.15)) {
+        proxy.scrollTo(line, anchor: anchor)
+      }
+      guard attempts > 1 else { return }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+        proxy.scrollTo(line, anchor: anchor)
       }
     }
   }
@@ -253,5 +249,64 @@ struct StudioEditorView: View {
     let span = max(end - start, 1)
     // ~short hops stay snappy; long file skims cap around 1.2s.
     return min(1.2, max(0.35, Double(span) / 400.0))
+  }
+}
+
+/// Line row with its own highlight TimelineView so fade ticks do not rebuild
+/// the parent ScrollViewReader / scroll position.
+private struct StudioEditorLineRow: View {
+  let lineNumber: Int
+  let attributed: AttributedString
+  let isHighlighted: Bool
+  let lastChangeAt: Date
+  let fadeSeconds: TimeInterval
+
+  var body: some View {
+    HStack(spacing: 0) {
+      Text("\(lineNumber)")
+        .font(.system(.caption, design: .monospaced))
+        .foregroundStyle(
+          isHighlighted
+            ? Color.green.opacity(0.85)
+            : Color(nsColor: .tertiaryLabelColor)
+        )
+        .frame(width: 44, alignment: .trailing)
+        .padding(.trailing, 10)
+        .background(gutterHighlight)
+      Text(attributed.characters.isEmpty ? AttributedString(" ") : attributed)
+        .font(.system(.callout, design: .monospaced))
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(.vertical, 1)
+    .background(rowHighlight)
+  }
+
+  @ViewBuilder
+  private var gutterHighlight: some View {
+    if isHighlighted {
+      TimelineView(.periodic(from: lastChangeAt, by: 0.5)) { context in
+        Color.green.opacity(fadeOpacity(now: context.date) * 0.6)
+      }
+    } else {
+      Color.clear
+    }
+  }
+
+  @ViewBuilder
+  private var rowHighlight: some View {
+    if isHighlighted {
+      TimelineView(.periodic(from: lastChangeAt, by: 0.5)) { context in
+        Color.green.opacity(fadeOpacity(now: context.date))
+      }
+    } else {
+      Color.clear
+    }
+  }
+
+  private func fadeOpacity(now: Date) -> Double {
+    let age = now.timeIntervalSince(lastChangeAt)
+    guard age < fadeSeconds else { return 0 }
+    return 0.25 * (1 - age / fadeSeconds)
   }
 }

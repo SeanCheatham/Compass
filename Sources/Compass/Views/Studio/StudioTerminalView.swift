@@ -5,6 +5,15 @@ import SwiftUI
 struct StudioTerminalView: View {
   @ObservedObject var state: StudioState
 
+  /// Stable signal for “scroll to latest” — count alone misses output fills,
+  /// and `output != nil` alone misses same-nil→nil transitions across entries.
+  private var scrollEpoch: String {
+    guard let last = state.terminalEntries.last else { return "empty" }
+    let outputState =
+      last.output.map { "done:\($0.count):\(last.isError == true)" } ?? "pending"
+    return "\(state.terminalEntries.count):\(last.id.uuidString):\(outputState)"
+  }
+
   var body: some View {
     VStack(spacing: 0) {
       HStack(spacing: 6) {
@@ -31,14 +40,19 @@ struct StudioTerminalView: View {
                 StudioTerminalEntryView(entry: entry)
                   .id(entry.id)
               }
+              // Always-present anchor so LazyVStack scrollTo has a laid-out target.
+              Color.clear
+                .frame(height: 1)
+                .id(Self.bottomAnchorID)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
           }
-          .onChange(of: state.terminalEntries.count) {
+          .defaultScrollAnchor(.bottom)
+          .onAppear {
             scrollToBottom(proxy: proxy)
           }
-          .onChange(of: state.terminalEntries.last?.output != nil) {
+          .onChange(of: scrollEpoch) {
             scrollToBottom(proxy: proxy)
           }
         }
@@ -49,11 +63,12 @@ struct StudioTerminalView: View {
     .foregroundStyle(Color.white.opacity(0.92))
   }
 
+  private static let bottomAnchorID = "studio-terminal-bottom"
+
   private func scrollToBottom(proxy: ScrollViewProxy) {
-    guard let last = state.terminalEntries.last else { return }
     DispatchQueue.main.async {
       withAnimation(.easeOut(duration: 0.15)) {
-        proxy.scrollTo(last.id, anchor: .bottom)
+        proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
       }
     }
   }

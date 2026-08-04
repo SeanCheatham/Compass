@@ -92,10 +92,14 @@ final class StudioFileTreeModel: ObservableObject {
 
 struct StudioFileTreeView: View {
   @ObservedObject var project: CompassProject
+  @ObservedObject private var state: StudioState
   @StateObject private var model = StudioFileTreeModel()
   @State private var expandedPaths: Set<String> = []
 
-  private var state: StudioState { project.studioState }
+  init(project: CompassProject) {
+    self.project = project
+    self.state = project.studioState
+  }
 
   var body: some View {
     VStack(spacing: 0) {

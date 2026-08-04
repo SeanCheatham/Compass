@@ -5,8 +5,14 @@ import SwiftUI
 /// editor in the center (with typewriter playback of edits), bash log at the bottom.
 struct StudioTab: View {
   @ObservedObject var project: CompassProject
+  /// Observed directly — `CompassProject.studioState` is not `@Published`, so
+  /// pane-focus / activity changes would not otherwise rebuild this split.
+  @ObservedObject private var state: StudioState
 
-  private var state: StudioState { project.studioState }
+  init(project: CompassProject) {
+    self.project = project
+    self.state = project.studioState
+  }
 
   var body: some View {
     if state.hasActivity {
@@ -14,14 +20,12 @@ struct StudioTab: View {
         StudioFileTreeView(project: project)
           .frame(minWidth: 180, idealWidth: 230, maxWidth: 320)
         GeometryReader { geo in
-          let editorFraction = editorHeightFraction(for: state.paneFocus)
-          let editorHeight = max(140, geo.size.height * editorFraction)
-          let terminalHeight = max(96, geo.size.height - editorHeight)
+          let heights = paneHeights(for: state.paneFocus, in: geo.size.height)
           VStack(spacing: 0) {
             StudioEditorView(state: state)
-              .frame(width: geo.size.width, height: editorHeight)
+              .frame(width: geo.size.width, height: heights.editor)
             StudioTerminalView(state: state)
-              .frame(width: geo.size.width, height: terminalHeight)
+              .frame(width: geo.size.width, height: heights.terminal)
           }
           .animation(.easeInOut(duration: 0.35), value: state.paneFocus)
         }
@@ -53,5 +57,22 @@ struct StudioTab: View {
     case .terminal: return 0.25
     case .balanced: return 0.62
     }
+  }
+
+  /// Split height that always sums to `total` so min-height floors cannot
+  /// overflow the pane (and steal the majority from the focused side).
+  private func paneHeights(
+    for focus: StudioState.StudioPaneFocus,
+    in total: CGFloat
+  ) -> (editor: CGFloat, terminal: CGFloat) {
+    let minEditor: CGFloat = 80
+    let minTerminal: CGFloat = 64
+    guard total > minEditor + minTerminal else {
+      let half = max(total / 2, 0)
+      return (half, max(total - half, 0))
+    }
+    let idealEditor = total * editorHeightFraction(for: focus)
+    let editor = min(max(idealEditor, minEditor), total - minTerminal)
+    return (editor, total - editor)
   }
 }

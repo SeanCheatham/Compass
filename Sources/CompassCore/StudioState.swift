@@ -226,7 +226,8 @@ public final class StudioState: ObservableObject {
       let buffer = FileBuffer(
         lines: lines,
         highlightedLines: Set(1...max(lines.count, 1)),
-        scrollToLine: 1
+        scrollToLine: 1,
+        scrollTour: nil
       )
       buffers[display] = buffer
       treeRefreshToken += 1
@@ -247,6 +248,8 @@ public final class StudioState: ObservableObject {
       buffer.lines = result.lines
       buffer.highlightedLines = result.changed
       buffer.lastChangeAt = Date()
+      // Clear any prior read skim so scrollToLine / typewriter caret can fire.
+      buffer.scrollTour = nil
       buffer.scrollToLine = result.changed.min()
       buffers[display] = buffer
       treeRefreshToken += 1
@@ -267,6 +270,8 @@ public final class StudioState: ObservableObject {
       buffer.lines = result.lines
       buffer.highlightedLines = result.changed
       buffer.lastChangeAt = Date()
+      // Clear any prior read skim so scrollToLine / typewriter caret can fire.
+      buffer.scrollTour = nil
       buffer.scrollToLine = result.changed.min()
       buffers[display] = buffer
       treeRefreshToken += 1
@@ -279,25 +284,29 @@ public final class StudioState: ObservableObject {
     case .bash(let command, let cwd, let output, let isError):
       switch line.status {
       case .running:
-        terminalEntries.append(
+        var entries = terminalEntries
+        entries.append(
           TerminalEntry(
             command: command,
             cwd: cwd,
             correlationID: line.correlationID
           ))
-        if terminalEntries.count > Self.maxTerminalEntries {
-          terminalEntries.removeFirst(terminalEntries.count - Self.maxTerminalEntries)
+        if entries.count > Self.maxTerminalEntries {
+          entries.removeFirst(entries.count - Self.maxTerminalEntries)
         }
+        // Reassign so `@Published` always fires (in-place Array mutation can miss).
+        terminalEntries = entries
       case .completed, .failed:
+        var entries = terminalEntries
         if let correlationID = line.correlationID,
-          let index = terminalEntries.lastIndex(where: {
+          let index = entries.lastIndex(where: {
             $0.correlationID == correlationID && $0.output == nil
           })
         {
-          terminalEntries[index].output = output
-          terminalEntries[index].isError = isError
+          entries[index].output = output
+          entries[index].isError = isError
         } else {
-          terminalEntries.append(
+          entries.append(
             TerminalEntry(
               command: command,
               cwd: cwd,
@@ -306,6 +315,7 @@ public final class StudioState: ObservableObject {
               correlationID: line.correlationID
             ))
         }
+        terminalEntries = entries
       case .none:
         break
       }
