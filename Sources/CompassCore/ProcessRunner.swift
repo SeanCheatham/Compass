@@ -57,6 +57,26 @@ private final class TimeoutStore: @unchecked Sendable {
   }
 }
 
+private final class ProcessBox: @unchecked Sendable {
+  private let lock = NSLock()
+  private var process: Process?
+
+  func set(_ process: Process) {
+    lock.lock()
+    self.process = process
+    lock.unlock()
+  }
+
+  func terminate() {
+    lock.lock()
+    let process = self.process
+    lock.unlock()
+    if let process, process.isRunning {
+      process.terminate()
+    }
+  }
+}
+
 public enum ProcessRunner {
   private static let timeoutQueue = DispatchQueue(
     label: "Compass.ProcessRunner.timeout",
@@ -85,11 +105,40 @@ public enum ProcessRunner {
     onStdout: ((String) -> Void)? = nil,
     onStderr: ((String) -> Void)? = nil
   ) async throws -> ProcessResult {
+    try Task.checkCancellation()
+    let processBox = ProcessBox()
+    return try await withTaskCancellationHandler {
+      try await runUninterruptible(
+        executable: executable,
+        arguments: arguments,
+        workingDirectory: workingDirectory,
+        input: input,
+        timeout: timeout,
+        onStdout: onStdout,
+        onStderr: onStderr,
+        processBox: processBox
+      )
+    } onCancel: {
+      processBox.terminate()
+    }
+  }
+
+  private static func runUninterruptible(
+    executable: String,
+    arguments: [String],
+    workingDirectory: URL?,
+    input: String?,
+    timeout: TimeInterval?,
+    onStdout: ((String) -> Void)?,
+    onStderr: ((String) -> Void)?,
+    processBox: ProcessBox
+  ) async throws -> ProcessResult {
     try await withCheckedThrowingContinuation { continuation in
       let process = Process()
       process.executableURL = URL(fileURLWithPath: executable)
       process.arguments = arguments
       process.currentDirectoryURL = workingDirectory
+      processBox.set(process)
 
       let stdoutPipe = Pipe()
       let stderrPipe = Pipe()
@@ -137,6 +186,9 @@ public enum ProcessRunner {
         outputGroup.leave()
         finish(.failure(error))
         return
+      }
+      if Task.isCancelled {
+        process.terminate()
       }
       try? stdoutPipe.fileHandleForWriting.close()
       try? stderrPipe.fileHandleForWriting.close()

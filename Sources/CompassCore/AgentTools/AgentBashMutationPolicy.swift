@@ -2,6 +2,10 @@ import Foundation
 
 /// Detects shell commands that would mutate the worktree or git state.
 /// Used to hard-enforce Plan/Critic (and other non-Develop) bash as read-only.
+///
+/// This is a defense-in-depth denylist on the command string — not a true
+/// sandbox. Prefer guest path jails and VM isolation for real containment;
+/// treat escapes here as bugs to close, not as an absolute boundary.
 public enum AgentBashMutationPolicy {
   /// When `true`, Plan and Critic (and any non-`.develop` phase) may only
   /// run probing commands. Develop always allows mutation.
@@ -33,6 +37,16 @@ public enum AgentBashMutationPolicy {
           "Command appears to mutate the filesystem (`\(pattern)`). Plan/Critic bash is read-only; probe with read-only tools or git status/diff/log instead."
       }
     }
+    for pattern in mutatingInterpreterPatterns {
+      if lowered.range(of: pattern, options: .regularExpression) != nil {
+        return
+          "Command appears to mutate via an interpreter (`\(pattern)`). Plan/Critic bash is read-only; use Develop to mutate files."
+      }
+    }
+    if looksLikeUncheckedFormatter(lowered) {
+      return
+        "Command appears to rewrite sources in place (formatter without `--check` / `--dry-run`). Plan/Critic bash is read-only; use `--check` or Develop."
+    }
     return nil
   }
 
@@ -40,7 +54,7 @@ public enum AgentBashMutationPolicy {
 
   /// File-clobbering redirects, excluding stderr-only `2>` / `2>>`.
   private static func firstRedirectMutation(in command: String) -> String? {
-    // Match standalone >, >>, >| not preceded by a digit (stderr) and not >>& / >& 
+    // Match standalone >, >>, >| not preceded by a digit (stderr) and not >>& / >&
     // Comparison operators inside `[` / `[[` / `test` are a false-positive risk;
     // require whitespace or start before `>` and a non-`&` after.
     let pattern = #"(?:^|[\s;|&])(\d*)(>>?\|?|>\|)(?!&)"#
@@ -78,6 +92,11 @@ public enum AgentBashMutationPolicy {
     #"\bgit\s+clean\b"#,
     #"\bgit\s+rm\b"#,
     #"\bgit\s+mv\b"#,
+    #"\bgit\s+update-ref\b"#,
+    #"\bgit\s+symbolic-ref\b"#,
+    #"\bgit\s+notes\b"#,
+    #"\bgit\s+am\b"#,
+    #"\bgit\s+apply\b"#,
   ]
 
   private static let mutatingShellPatterns: [String] = [
@@ -94,8 +113,50 @@ public enum AgentBashMutationPolicy {
     #"(?:^|[\s;|&])install\b"#,
     #"(?:^|[\s;|&])truncate\b"#,
     #"(?:^|[\s;|&])dd\b"#,
+    #"(?:^|[\s;|&])patch\b"#,
     #"\bsed\s+[^\n]*-i\b"#,
     #"\bperl\s+[^\n]*-i\b"#,
     #"\bruby\s+[^\n]*-i\b"#,
+    #"\bnpm\s+(install|i|ci|uninstall|update|link)\b"#,
+    #"\byarn\s+(add|remove|install)\b"#,
+    #"\bpnpm\s+(add|remove|install)\b"#,
+    #"\bcargo\s+(install|uninstall|publish|init|new)\b"#,
+    #"\bpip3?\s+install\b"#,
+    #"\bswift\s+package\s+(update|resolve|reset)\b"#,
   ]
+
+  /// Interpreters that can open files for write without shell redirects.
+  private static let mutatingInterpreterPatterns: [String] = [
+    #"\bpython3?\s+-c\b"#,
+    #"\bruby\s+-e\b"#,
+    #"\bperl\s+-e\b"#,
+    #"\bnode\s+(-e|--eval)\b"#,
+    #"\bosascript\b"#,
+    #"\bphp\s+-r\b"#,
+  ]
+
+  /// Formatters that rewrite sources unless given a check/dry-run flag.
+  private static func looksLikeUncheckedFormatter(_ lowered: String) -> Bool {
+    if lowered.range(of: #"\bcargo\s+fmt\b"#, options: .regularExpression) != nil,
+      !lowered.contains("--check")
+    {
+      return true
+    }
+    if lowered.range(of: #"\brustfmt\b"#, options: .regularExpression) != nil,
+      !lowered.contains("--check"), !lowered.contains("--dry-run")
+    {
+      return true
+    }
+    if lowered.range(of: #"\bswift-format\b"#, options: .regularExpression) != nil,
+      !lowered.contains("dry-run"), !lowered.contains(" -n"), !lowered.hasSuffix(" -n")
+    {
+      return true
+    }
+    if lowered.range(of: #"\bclang-format\b"#, options: .regularExpression) != nil,
+      !lowered.contains("--dry-run"), !lowered.contains(" -n"), !lowered.hasSuffix(" -n")
+    {
+      return true
+    }
+    return false
+  }
 }

@@ -38,6 +38,7 @@ extension CompassProject {
     var consumedDrafts = ""
 
     do {
+      try await requireMacOSVMReady()
       try await commitPendingHostChangesIfNeeded(
         workspace: workspace,
         agentSettings: agentSettings,
@@ -223,6 +224,13 @@ extension CompassProject {
     do {
       try await initializeIfNeeded(workspace)
       state = try workspace.readState()
+    } catch {
+      fail(error)
+      return
+    }
+
+    do {
+      try await requireMacOSVMReady()
     } catch {
       fail(error)
       return

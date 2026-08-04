@@ -20,6 +20,12 @@ struct AgentBashMutationPolicyTests {
     "mkdir -p foo",
     "sed -i '' 's/a/b/' file.swift",
     "tee output.log",
+    "python3 -c 'open(\"f\",\"w\").write(\"x\")'",
+    "ruby -e 'File.write(\"f\",\"x\")'",
+    "node -e 'require(\"fs\").writeFileSync(\"f\",\"x\")'",
+    "cargo fmt --all",
+    "npm install lodash",
+    "git update-ref refs/heads/x HEAD",
   ])
   func rejectsMutatingCommands(_ command: String) {
     #expect(AgentBashMutationPolicy.mutationRejectionReason(for: command) != nil)
@@ -34,6 +40,7 @@ struct AgentBashMutationPolicyTests {
     "ls -la",
     "rg 'fn main' crates",
     "echo hello 2>/dev/null",
+    "python3 -m json.tool < file.json",
   ])
   func allowsReadOnlyCommands(_ command: String) {
     #expect(AgentBashMutationPolicy.mutationRejectionReason(for: command) == nil)
@@ -87,8 +94,8 @@ struct AgentBashMutationPolicyTests {
 @Suite("Delegate profiles and structured findings")
 struct AgentDelegateProfileTests {
   @Test
-  func exploreProfileIsReadOnly() {
-    let names = AgentExecutorDelegateRunner.toolNames(forProfile: "explore") ?? []
+  func exploreProfileIsReadOnly() throws {
+    let names = try AgentExecutorDelegateRunner.toolNames(forProfile: "explore") ?? []
     #expect(names.contains(AgentReadFileTool.toolName))
     #expect(names.contains(AgentListFilesTool.toolName))
     #expect(!names.contains(AgentBashTool.toolName))
@@ -96,16 +103,26 @@ struct AgentDelegateProfileTests {
   }
 
   @Test
-  func verifyProfileIncludesBash() {
-    let names = AgentExecutorDelegateRunner.toolNames(forProfile: "verify") ?? []
+  func verifyProfileIncludesBash() throws {
+    let names = try AgentExecutorDelegateRunner.toolNames(forProfile: "verify") ?? []
     #expect(names.contains(AgentBashTool.toolName))
     #expect(names.contains(AgentReadFileTool.toolName))
     #expect(!names.contains(AgentWriteFileTool.toolName))
   }
 
   @Test
-  func repairProfileUsesFullParentToolSet() {
-    #expect(AgentExecutorDelegateRunner.toolNames(forProfile: "repair") == nil)
+  func repairProfileUsesFullParentToolSet() throws {
+    #expect(try AgentExecutorDelegateRunner.toolNames(forProfile: "repair") == nil)
+  }
+
+  @Test
+  func unknownProfileFailsClosed() {
+    #expect(throws: AgentDelegateRunnerError.self) {
+      _ = try AgentExecutorDelegateRunner.validatedProfile("admin")
+    }
+    #expect(throws: AgentDelegateRunnerError.self) {
+      _ = try AgentExecutorDelegateRunner.toolNames(forProfile: "admin")
+    }
   }
 
   @Test

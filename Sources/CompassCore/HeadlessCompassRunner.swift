@@ -105,58 +105,78 @@ public struct HeadlessCompassRunner: Sendable {
 
   private let bashRunnerFactory: BashRunnerFactory
   private let cloudPingHandler: CloudPingHandler
+  /// Production runs always require the embedded macOS VM. Injected test
+  /// factories set this to `false` so fixture bash runners can exercise the
+  /// factory loop without Virtualization entitlements.
+  private let requireMacOSVM: Bool
 
   public init() {
-    self.init { repoURL, label in
-      switch Self.bashRuntimeSelection() {
-      case .host:
-        return AgentHostBashRunner()
-      case .macOSVM:
-        return AgentMacOSVMBashRunner(repoRoot: repoURL, label: label)
-      }
-    }
+    self.init(
+      bashRunnerFactory: { repoURL, label in
+        // Agent phases may mutate the guest worktree; pull those edits back
+        // so host file tools stay consistent. Verify/coverage/mutation are
+        // read-mostly and should not sync build noise back to the host.
+        let pullAfterRun = !Self.readOnlyBashLabels.contains(label)
+        return AgentMacOSVMBashRunner(
+          repoRoot: repoURL,
+          label: label,
+          pullAfterRun: pullAfterRun
+        )
+      },
+      requireMacOSVM: true
+    )
   }
 
+  private static let readOnlyBashLabels: Set<String> = [
+    "verify", "coverage", "mutation", "doctor", "macos-verify"
+  ]
+
+  /// Factory bash/verify always use the embedded macOS VM. Legacy
+  /// `COMPASS_BASH_RUNTIME` values are ignored (including `host`).
   public enum BashRuntimeSelection: String, Sendable {
     case macOSVM = "macos_vm"
-    case host
   }
 
   public static func bashRuntimeSelection(
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> BashRuntimeSelection {
-    switch environment["COMPASS_BASH_RUNTIME"]?
-      .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    {
-    case "host": return .host
-    // The containerized Linux runtime was removed; its identifiers now
-    // select the macOS VM like everything else.
-    default: return .macOSVM
-    }
+    _ = environment
+    return .macOSVM
   }
 
   public static func bashRuntimePrefersHost(
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> Bool {
-    bashRuntimeSelection(environment: environment) == .host
+    _ = environment
+    return false
   }
 
   public static var bashRuntimeName: String {
-    bashRuntimeSelection().rawValue
+    BashRuntimeSelection.macOSVM.rawValue
   }
 
   public static var bashRuntimeDescription: String {
-    switch bashRuntimeSelection() {
-    case .host: return "host shell"
-    case .macOSVM: return "embedded macOS VM"
-    }
+    "embedded macOS VM"
   }
 
   public init(
     bashRunnerFactory: @escaping BashRunnerFactory,
     cloudPing: CloudPingHandler? = nil
   ) {
+    self.init(
+      bashRunnerFactory: bashRunnerFactory,
+      requireMacOSVM: false,
+      cloudPing: cloudPing
+    )
+  }
+
+  public init(
+    bashRunnerFactory: @escaping BashRunnerFactory,
+    requireMacOSVM: Bool,
+    cloudPing: CloudPingHandler? = nil
+  ) {
     self.bashRunnerFactory = bashRunnerFactory
+    self.requireMacOSVM = requireMacOSVM
     self.cloudPingHandler =
       cloudPing
       ?? { endpoint in
@@ -176,77 +196,44 @@ public struct HeadlessCompassRunner: Sendable {
     let modelReady = LocalModelCatalog.isBlessedModelReady()
     let cloudReady = settings.hasCloudCredentials
     let textReady = settings.isTextCapabilityRunnable(localModelReady: modelReady)
-    let hostRuntime = Self.bashRuntimePrefersHost()
     let runtimeName = Self.bashRuntimeName
     onEvent(
       HeadlessCompassEvent(
         kind: "vm_runtime",
         status: "checking",
-        message: hostRuntime
-          ? "Checking host bash runtime."
-          : "Checking the embedded macOS VM runtime.",
+        message: "Checking the embedded macOS VM runtime.",
         metadata: ["runtime": runtimeName]
       )
     )
     let runtimeReady: Bool
-    if hostRuntime {
-      let hostReady: Bool
-      let hostMessage: String
-      do {
-        let probe = try await AgentHostBashRunner().run(
-          command: "true",
-          workingDirectory: repoURL,
-          timeout: 30
-        )
-        hostReady = probe.exitCode == 0
-        hostMessage =
-          hostReady
-          ? "Host bash runtime is ready (COMPASS_BASH_RUNTIME=host)."
-          : "Host bash runtime probe exited with code \(probe.exitCode)."
-      } catch {
-        hostReady = false
-        hostMessage = "Host bash runtime probe failed: \(error.localizedDescription)"
-      }
-      onEvent(
-        HeadlessCompassEvent(
-          kind: "vm_runtime",
-          level: hostReady ? "success" : "error",
-          status: hostReady ? "ready" : "failed",
-          message: hostMessage,
-          metadata: ["runtime": runtimeName]
-        )
+    let vmReady: Bool
+    let vmMessage: String
+    do {
+      let runner = AgentMacOSVMBashRunner(repoRoot: repoURL, label: "doctor")
+      let probe = try await runner.run(
+        command: "sw_vers && cargo --version && swift --version",
+        workingDirectory: repoURL,
+        timeout: 120
       )
-      runtimeReady = hostReady
-    } else {
-      let vmReady: Bool
-      let vmMessage: String
-      do {
-        let runner = AgentMacOSVMBashRunner(repoRoot: repoURL, label: "doctor")
-        let probe = try await runner.run(
-          command: "sw_vers && cargo --version && swift --version",
-          workingDirectory: repoURL,
-          timeout: 120
-        )
-        vmReady = probe.exitCode == 0
-        vmMessage =
-          vmReady
-          ? "macOS VM runtime is ready."
-          : "macOS VM probe exited \(probe.exitCode): \(probe.stderr)"
-      } catch {
-        vmReady = false
-        vmMessage = "macOS VM runtime probe failed: \(error.localizedDescription)"
-      }
-      onEvent(
-        HeadlessCompassEvent(
-          kind: "vm_runtime",
-          level: vmReady ? "success" : "error",
-          status: vmReady ? "ready" : "failed",
-          message: vmMessage,
-          metadata: ["runtime": runtimeName]
-        )
-      )
-      runtimeReady = vmReady
+      vmReady = probe.exitCode == 0
+      vmMessage =
+        vmReady
+        ? "macOS VM runtime is ready."
+        : "macOS VM probe exited \(probe.exitCode): \(probe.stderr)"
+    } catch {
+      vmReady = false
+      vmMessage = "macOS VM runtime probe failed: \(error.localizedDescription)"
     }
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "vm_runtime",
+        level: vmReady ? "success" : "error",
+        status: vmReady ? "ready" : "failed",
+        message: vmMessage,
+        metadata: ["runtime": runtimeName]
+      )
+    )
+    runtimeReady = vmReady
     onEvent(
       HeadlessCompassEvent(
         kind: "doctor",
@@ -501,13 +488,47 @@ public struct HeadlessCompassRunner: Sendable {
     let repoURL = options.repoURL.standardizedFileURL
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
+
+    if requireMacOSVM {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "vm_runtime",
+          status: "checking",
+          message: "Ensuring the embedded macOS VM is ready before the factory session."
+        )
+      )
+      do {
+        _ = try await AgentMacOSVMBashRunner.ensureReady()
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "vm_runtime",
+            level: "success",
+            status: "ready",
+            message: "macOS VM is ready."
+          )
+        )
+      } catch {
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "vm_runtime",
+            level: "error",
+            status: "failed",
+            message: "macOS VM is required but not ready: \(error.localizedDescription)"
+          )
+        )
+        throw error
+      }
+    }
+
     let sessionNumber = workspace.maxSessionNumber() + 1
     var session = SessionRecord.started(sessionNumber)
     session.beforeSha = await gitCurrentSHA(repoURL: repoURL)
     session.recordExecutionEnvironmentSnapshot(
       SessionExecutionEnvironmentSnapshot(
         phase: "CLI",
-        launchPlan: .host(fallbackReason: "CompassCLI uses host execution in v1.")
+        launchPlan: requireMacOSVM
+          ? .macOSVM(repoURL: repoURL)
+          : .host(fallbackReason: "Injected bash runner (tests / fixtures).")
       )
     )
     try persist(session: session, workspace: workspace)

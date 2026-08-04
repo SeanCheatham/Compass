@@ -10,8 +10,8 @@ public protocol AgentBashRunner: Sendable {
 }
 
 /// Runs the command in a `/bin/zsh -lc` subshell on the host, in the given
-/// working directory. Used for host-side maintenance (codemap listing,
-/// preflight commit) while factory phases use `AgentContainerBashRunner`.
+/// working directory. Used only for host-side maintenance (codemap listing,
+/// preflight commit). Factory phases always use `AgentMacOSVMBashRunner`.
 public struct AgentHostBashRunner: AgentBashRunner {
   public let shellPath: String
 

@@ -142,6 +142,15 @@ public struct AgentEditFileTextTool: AgentTool {
       return .failure(.invalidArguments("edit_file produced no changes."))
     }
 
+    if let rejection = AgentEditSafety.validatePostEdit(
+      relativePath: context.relativize(url),
+      sourceURL: url,
+      originalText: original,
+      editedText: content
+    ) {
+      return .failure(.invalidArguments(rejection))
+    }
+
     do {
       try await context.filesystem.writeFile(Data(content.utf8), at: url)
     } catch let error as AgentFilesystemError {

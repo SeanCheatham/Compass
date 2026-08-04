@@ -108,4 +108,43 @@ struct AgentEditFileTextToolTests {
     #expect(!result.isError)
     #expect(try String(contentsOf: file, encoding: .utf8) == "end")
   }
+
+  @Test
+  func rejectsEmptyingNonEmptySourceFile() async throws {
+    let workspace = try makeWorkspace()
+    defer { try? FileManager.default.removeItem(at: workspace) }
+    let file = workspace.appending(path: "lib.rs")
+    try "pub fn ready() {}\n".write(to: file, atomically: true, encoding: .utf8)
+
+    let tool = AgentEditFileTextTool()
+    let result = try await tool.invoke(
+      arguments: Data(
+        #"{"path":"lib.rs","edits":[{"old_string":"pub fn ready() {}\n","new_string":""}]}"#
+          .utf8),
+      context: context(for: workspace)
+    )
+    #expect(result.isError)
+    #expect(result.content.contains("empty"))
+    #expect(try String(contentsOf: file, encoding: .utf8) == "pub fn ready() {}\n")
+  }
+
+  @Test
+  func rejectsNewPlaceholderImplementation() async throws {
+    let workspace = try makeWorkspace()
+    defer { try? FileManager.default.removeItem(at: workspace) }
+    let file = workspace.appending(path: "lib.rs")
+    try "pub fn ready() { 1 }\n".write(to: file, atomically: true, encoding: .utf8)
+
+    let tool = AgentEditFileTextTool()
+    let result = try await tool.invoke(
+      arguments: Data(
+        #"{"path":"lib.rs","edits":[{"old_string":"1","new_string":"todo!(\"implement logic\")"}]}"#
+          .utf8),
+      context: context(for: workspace)
+    )
+    #expect(result.isError)
+    #expect(result.content.lowercased().contains("placeholder") || result.content.contains("TODO")
+      || result.content.lowercased().contains("implement"))
+    #expect(try String(contentsOf: file, encoding: .utf8) == "pub fn ready() { 1 }\n")
+  }
 }

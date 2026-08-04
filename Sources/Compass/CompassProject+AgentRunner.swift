@@ -256,7 +256,8 @@ extension CompassProject {
   /// File/search tools operate on the host worktree while bash runs
   /// inside the embedded macOS VM against a synced copy of that
   /// worktree (`/workspace` paths in commands are rewritten to the
-  /// guest worktree).
+  /// guest worktree). Guest-side mutations are pulled back after each
+  /// agent bash command so host file tools see the same tree.
   struct AgentEnvironment {
     enum Kind {
       case macOSVM
@@ -275,9 +276,22 @@ extension CompassProject {
       kind: .macOSVM,
       workingDirectory: hostURL,
       filesystem: AgentHostFilesystem(),
-      bashRunner: AgentMacOSVMBashRunner(repoRoot: hostURL, label: "agent"),
+      bashRunner: AgentMacOSVMBashRunner(
+        repoRoot: hostURL,
+        label: "agent",
+        pullAfterRun: true
+      ),
       launchPlan: launchPlan
     )
+  }
+
+  /// Ensures the embedded macOS VM is provisioned and ready before a
+  /// factory Plan/Develop pass. Failures abort the run instead of
+  /// deferring until the first bash call.
+  func requireMacOSVMReady() async throws {
+    log("Ensuring embedded macOS VM is ready…", level: .info)
+    _ = try await AgentMacOSVMBashRunner.ensureReady()
+    log("macOS VM is ready.", level: .success)
   }
 
   /// Runs the Verify shell command inside the embedded macOS VM against

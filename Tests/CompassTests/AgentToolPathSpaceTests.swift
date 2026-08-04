@@ -71,4 +71,36 @@ struct AgentToolPathSpaceTests {
         == "/tmp/compass-repo/src/main.ts"
     )
   }
+
+  @Test
+  func resolvePathRejectsSymlinkEscapeOutsideWorktree() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("compass-symlink-jail-\(UUID().uuidString)", isDirectory: true)
+    let outside = FileManager.default.temporaryDirectory
+      .appendingPathComponent("compass-symlink-outside-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: outside)
+    }
+    let escapeTarget = outside.appendingPathComponent("secret.txt")
+    try Data("secret".utf8).write(to: escapeTarget)
+    let link = root.appendingPathComponent("escape")
+    try FileManager.default.createSymbolicLink(
+      atPath: link.path,
+      withDestinationPath: outside.path
+    )
+
+    let context = AgentToolContext(
+      workingDirectory: root,
+      agentVisibleWorkspacePath: "/workspace"
+    )
+    #expect(throws: AgentToolError.self) {
+      _ = try context.resolvePath("/workspace/escape/secret.txt")
+    }
+    #expect(throws: AgentToolError.self) {
+      _ = try context.resolvePath("escape/secret.txt")
+    }
+  }
 }

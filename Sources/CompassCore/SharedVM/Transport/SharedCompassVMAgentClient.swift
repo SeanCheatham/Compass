@@ -184,23 +184,28 @@ public struct AgentVsockClient: AgentFilesystem, AgentBashRunner {
     _ request: AgentRPCRequest,
     watchdogTimeout: TimeInterval? = nil
   ) async throws -> AgentRPCResponse {
+    try Task.checkCancellation()
     let watchdog = watchdogTimeout ?? requestTimeout
     let transportHolder = VsockTransportHolder()
-    return try await withThrowingTaskGroup(of: AgentRPCResponse.self) { group in
-      group.addTask {
-        try await self.performRoundTrip(request, transportHolder: transportHolder)
+    return try await withTaskCancellationHandler {
+      try await withThrowingTaskGroup(of: AgentRPCResponse.self) { group in
+        group.addTask {
+          try await self.performRoundTrip(request, transportHolder: transportHolder)
+        }
+        group.addTask {
+          try await Task.sleep(nanoseconds: UInt64(watchdog * 1_000_000_000))
+          await transportHolder.close()
+          throw AgentFilesystemError.transportFailure(
+            "vsock request timed out after \(Int(watchdog))s")
+        }
+        guard let response = try await group.next() else {
+          throw AgentFilesystemError.transportFailure("vsock request failed")
+        }
+        group.cancelAll()
+        return response
       }
-      group.addTask {
-        try await Task.sleep(nanoseconds: UInt64(watchdog * 1_000_000_000))
-        await transportHolder.close()
-        throw AgentFilesystemError.transportFailure(
-          "vsock request timed out after \(Int(watchdog))s")
-      }
-      guard let response = try await group.next() else {
-        throw AgentFilesystemError.transportFailure("vsock request failed")
-      }
-      group.cancelAll()
-      return response
+    } onCancel: {
+      Task { await transportHolder.close() }
     }
   }
 

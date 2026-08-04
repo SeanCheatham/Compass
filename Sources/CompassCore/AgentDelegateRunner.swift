@@ -74,10 +74,11 @@ public struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       throw AgentDelegateRunnerError.emptyTask
     }
 
-    let normalizedProfile = Self.normalizedProfile(profile)
+    let normalizedProfile = try Self.validatedProfile(profile)
+    let profileToolNames = try Self.toolNames(forProfile: normalizedProfile)
     let effectiveTools = Self.filterTools(
       parentTools: parentTools,
-      requested: toolNames ?? Self.toolNames(forProfile: normalizedProfile)
+      requested: toolNames ?? profileToolNames
     )
     let toolNameList = effectiveTools.map { $0.spec.name }
     let promptMode = ModelRuntimeFactory.promptMode(settings: settings)
@@ -96,6 +97,7 @@ public struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       normalizedProfile == "repair"
       ? Self.maxRepairSubAgentWallClock
       : Self.maxSubAgentWallClock
+    // Cap concurrent wall-clock against the parent remaining budget.
     let configuration = AgentExecutionConfiguration(
       settings: settings,
       phase: parentPhase,
@@ -154,8 +156,20 @@ public struct AgentExecutorDelegateRunner: AgentDelegateRunner {
     return profile
   }
 
-  public static func toolNames(forProfile rawProfile: String?) -> [String]? {
+  /// Accepts `nil`/empty (full parent tools minus delegate) or a known profile.
+  /// Unknown profile names fail closed instead of silently widening authority.
+  public static func validatedProfile(_ rawProfile: String?) throws -> String? {
     guard let profile = normalizedProfile(rawProfile) else { return nil }
+    switch profile {
+    case "explore", "verify", "test", "typecheck", "repair":
+      return profile
+    default:
+      throw AgentDelegateRunnerError.unknownProfile(profile)
+    }
+  }
+
+  public static func toolNames(forProfile rawProfile: String?) throws -> [String]? {
+    guard let profile = try validatedProfile(rawProfile) else { return nil }
     switch profile {
     case "explore":
       return [
@@ -183,7 +197,7 @@ public struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       // Full parent tool set minus `delegate` (via filterTools nil path).
       return nil
     default:
-      return nil
+      throw AgentDelegateRunnerError.unknownProfile(profile)
     }
   }
 }
@@ -282,12 +296,16 @@ public struct SubAgentResult: Decodable, Equatable, Sendable {
 public enum AgentDelegateRunnerError: LocalizedError, Equatable {
   case emptyTask
   case malformedFindings(detail: String)
+  case unknownProfile(String)
 
   public var errorDescription: String? {
     switch self {
     case .emptyTask: return "delegate task is empty"
     case .malformedFindings(let detail):
       return "Sub-agent returned malformed findings: \(detail)"
+    case .unknownProfile(let profile):
+      return
+        "Unknown delegate profile `\(profile)`. Use explore, verify, test, typecheck, repair, or omit profile."
     }
   }
 }

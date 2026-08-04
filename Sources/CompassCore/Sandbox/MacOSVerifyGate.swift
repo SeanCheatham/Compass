@@ -1,46 +1,16 @@
 import Foundation
 
-/// Selects where the generated-product macOS gate
-/// (`GeneratedProjectQuality.macosVerifyCommand`) runs.
-///
-/// `.vm` is the default: the embedded macOS VM gives the gate a real
-/// macOS toolchain without depending on whatever the host happens to
-/// have installed. When the VM cannot be made ready (not provisioned
-/// yet, provisioning failed, host unsupported), callers fall back to
-/// the host shell so the gate still produces a signal.
-public enum MacOSVerifyRuntime: String, CaseIterable, Sendable {
-  case vm
-  case host
-
-  public static let defaultsKey = "CompassMacOSVerifyRuntime"
-  public static let environmentKey = "COMPASS_MACOS_VERIFY_RUNTIME"
-
-  public static func current(
-    environment: [String: String] = ProcessInfo.processInfo.environment,
-    defaults: UserDefaults = .standard
-  ) -> MacOSVerifyRuntime {
-    if let raw = environment[environmentKey]?
-      .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-      let value = MacOSVerifyRuntime(rawValue: raw)
-    {
-      return value
-    }
-    if let raw = defaults.string(forKey: defaultsKey)?
-      .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-      let value = MacOSVerifyRuntime(rawValue: raw)
-    {
-      return value
-    }
-    return .vm
-  }
-}
-
+/// The generated-product macOS gate
+/// (`GeneratedProjectQuality.macosVerifyCommand`) always runs inside the
+/// embedded macOS VM. There is no host-shell fallback: Compass requires
+/// the VM for factory verify.
 public enum MacOSVerifyGate {
   public struct Outcome: Sendable {
     public var result: ProcessResult
-    /// "macOS VM" or "host" — surfaced in logs/audit artifacts.
+    /// Surfaced in logs/audit artifacts.
     public var runtimeDescription: String
-    /// Set when the VM route was preferred but the gate ran on the host.
+    /// Retained for call-site compatibility; always `nil` now that host
+    /// fallback is removed.
     public var fallbackReason: String?
 
     public init(result: ProcessResult, runtimeDescription: String, fallbackReason: String?) {
@@ -50,8 +20,9 @@ public enum MacOSVerifyGate {
     }
   }
 
-  /// Runs the macOS verify command through the preferred runtime,
-  /// falling back to the host shell when the VM route cannot run.
+  /// Runs the macOS verify command inside the embedded macOS VM.
+  /// VM failures surface as a non-zero `Outcome` rather than falling
+  /// back to the host shell.
   public static func run(
     command: String = GeneratedProjectQuality.macosVerifyCommand,
     workingDirectory: URL,
@@ -59,23 +30,7 @@ public enum MacOSVerifyGate {
     timeout: TimeInterval,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) async -> Outcome {
-    let preference = MacOSVerifyRuntime.current(environment: environment)
-    guard preference == .vm else {
-      let result = try? await AgentHostBashRunner().run(
-        command: command,
-        workingDirectory: workingDirectory,
-        timeout: timeout
-      )
-      if let result {
-        return Outcome(result: result, runtimeDescription: "host", fallbackReason: nil)
-      }
-      return Outcome(
-        result: ProcessResult(exitCode: -1, stdout: "", stderr: "host bash failed to launch"),
-        runtimeDescription: "host",
-        fallbackReason: nil
-      )
-    }
-
+    _ = environment
     do {
       let runner = AgentMacOSVMBashRunner(repoRoot: repoRoot, label: "macos-verify")
       let result = try await runner.run(
@@ -85,29 +40,15 @@ public enum MacOSVerifyGate {
       )
       return Outcome(result: result, runtimeDescription: "macOS VM", fallbackReason: nil)
     } catch {
-      let reason = error.localizedDescription
-      do {
-        let result = try await AgentHostBashRunner().run(
-          command: command,
-          workingDirectory: workingDirectory,
-          timeout: timeout
-        )
-        return Outcome(
-          result: result,
-          runtimeDescription: "host",
-          fallbackReason: reason
-        )
-      } catch {
-        return Outcome(
-          result: ProcessResult(
-            exitCode: -1,
-            stdout: "",
-            stderr: "macOS VM route failed (\(reason)) and host fallback failed to launch"
-          ),
-          runtimeDescription: "host",
-          fallbackReason: reason
-        )
-      }
+      return Outcome(
+        result: ProcessResult(
+          exitCode: -1,
+          stdout: "",
+          stderr: "macOS VM verify failed: \(error.localizedDescription)"
+        ),
+        runtimeDescription: "macOS VM",
+        fallbackReason: nil
+      )
     }
   }
 }

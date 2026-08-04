@@ -88,7 +88,7 @@ Factory bash/verify run inside an embedded macOS VM (Apple Virtualization.framew
 
 File/search tools still operate on the host worktree, addressed through the same `/workspace` path space.
 
-For headless self-testing on machines where the VM is unavailable (but a host Rust toolchain exists), `COMPASS_BASH_RUNTIME=host` makes `compass-cli run` execute verify/coverage/mutation commands in a host shell instead of the VM.
+Compass requires the embedded macOS VM for all factory bash, verify, coverage, and mutation. There is no host-shell escape hatch.
 
 ## Development
 

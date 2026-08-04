@@ -2,6 +2,14 @@ import Foundation
 
 public extension AgentExecutor {
   func run(_ configuration: AgentExecutionConfiguration) async throws -> AgentExecutionResult {
+    try await beginCancellableRun {
+      try await self.runBody(configuration)
+    }
+  }
+
+  private func runBody(_ configuration: AgentExecutionConfiguration) async throws
+    -> AgentExecutionResult
+  {
     try AgentExecutor.ensureUniqueToolNames(configuration.tools)
 
     let startedAt = Date()

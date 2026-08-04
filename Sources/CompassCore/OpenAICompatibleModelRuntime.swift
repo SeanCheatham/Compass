@@ -293,6 +293,7 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
     var lastFinishReason: String?
 
     for try await line in bytes.lines {
+      try Task.checkCancellation()
       guard line.hasPrefix("data:") else { continue }
       let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
       if payload == "[DONE]" { break }

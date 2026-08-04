@@ -296,6 +296,9 @@ public extension AgentToolContext {
   ///
   /// When `agentVisibleWorkspacePath` is set (e.g. `/workspace`), absolute
   /// paths under that virtual root map onto the host worktree.
+  ///
+  /// Symlinks are resolved before the worktree check so a symlink inside
+  /// the worktree cannot escape to the host filesystem.
   func resolvePath(_ raw: String) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -310,13 +313,14 @@ public extension AgentToolContext {
     } else {
       candidate = workingDirectory.appendingPathComponent(hostRelative).standardizedFileURL
     }
-    let root = workingDirectory.standardizedFileURL
+    let root = workingDirectory.resolvingSymlinksInPath().standardizedFileURL
+    let resolved = candidate.resolvingSymlinksInPath().standardizedFileURL
     let rootPath = root.path
-    let candidatePath = candidate.path
+    let candidatePath = resolved.path
     guard candidatePath == rootPath || candidatePath.hasPrefix(rootPath + "/") else {
       throw AgentToolError.pathEscapesWorkingDirectory(raw)
     }
-    return candidate
+    return resolved
   }
 
   /// Convert an absolute URL to the path space the model should see:

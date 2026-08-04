@@ -74,46 +74,22 @@ struct MacOSVMRouteTests {
   // MARK: - Bash runtime selection
 
   @Test
-  func bashRuntimeSelectionParsesVMIdentifiers() {
+  func bashRuntimeAlwaysSelectsMacOSVM() {
     #expect(
       HeadlessCompassRunner.bashRuntimeSelection(environment: ["COMPASS_BASH_RUNTIME": "macos_vm"])
         == .macOSVM)
     #expect(
       HeadlessCompassRunner.bashRuntimeSelection(environment: ["COMPASS_BASH_RUNTIME": "shared_vm"])
         == .macOSVM)
+    // Host escape hatch removed — even explicit `host` selects the VM.
     #expect(
       HeadlessCompassRunner.bashRuntimeSelection(environment: ["COMPASS_BASH_RUNTIME": "host"])
-        == .host)
+        == .macOSVM)
     #expect(HeadlessCompassRunner.bashRuntimeSelection(environment: [:]) == .macOSVM)
-    // The removed container runtime's identifier also selects the VM now.
     #expect(
       HeadlessCompassRunner.bashRuntimeSelection(
         environment: ["COMPASS_BASH_RUNTIME": "containerized_linux"]) == .macOSVM)
-  }
-
-  // MARK: - macOS verify runtime preference
-
-  @Test
-  func verifyRuntimeDefaultsToVM() {
-    let suite = UserDefaults(suiteName: "MacOSVMRouteTests.verifyRuntimeDefaultsToVM")!
-    #expect(MacOSVerifyRuntime.current(environment: [:], defaults: suite) == .vm)
-  }
-
-  @Test
-  func verifyRuntimeHonorsEnvironmentOverride() {
-    #expect(
-      MacOSVerifyRuntime.current(environment: ["COMPASS_MACOS_VERIFY_RUNTIME": "host"]) == .host)
-    #expect(
-      MacOSVerifyRuntime.current(environment: ["COMPASS_MACOS_VERIFY_RUNTIME": " vm "]) == .vm)
-  }
-
-  @Test
-  func verifyRuntimeHonorsDefaultsOverride() {
-    let suiteName = "MacOSVMRouteTests.verifyRuntimeHonorsDefaultsOverride"
-    let suite = UserDefaults(suiteName: suiteName)!
-    suite.set("host", forKey: MacOSVerifyRuntime.defaultsKey)
-    defer { suite.removePersistentDomain(forName: suiteName) }
-    #expect(MacOSVerifyRuntime.current(environment: [:], defaults: suite) == .host)
+    #expect(!HeadlessCompassRunner.bashRuntimePrefersHost(environment: ["COMPASS_BASH_RUNTIME": "host"]))
   }
 
   // MARK: - Guest working directory mapping

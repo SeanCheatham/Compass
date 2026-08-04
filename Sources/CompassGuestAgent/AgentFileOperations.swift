@@ -7,12 +7,32 @@ import Foundation
 ///
 /// This binary runs as a LaunchDaemon with `UserName=compass`. The caller
 /// (host) supplies absolute paths under the synced guest workspace
-/// (`/Users/compass/Compass/Repos/<catalog-id>/worktree`).
+/// (`/Users/compass/Compass/Repos/<catalog-id>/worktree`). Bash working
+/// directories and file ops are jails to that repos root so a `cd /` in an
+/// agent command cannot escape the synced worktrees.
 enum AgentFileOperations {
+  /// Must stay aligned with `SharedCompassVMGuestLayout.currentMacOS.reposRoot`.
+  static let allowedReposRoot = "/Users/compass/Compass/Repos"
+
+  static func assertPathInsideReposJail(_ path: String) -> AgentRPCResponse.Error? {
+    let standardized = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+    let root = URL(fileURLWithPath: allowedReposRoot).standardizedFileURL.path
+    guard standardized == root || standardized.hasPrefix(root + "/") else {
+      return AgentRPCResponse.Error(
+        kind: .invalidArguments,
+        detail:
+          "path escapes guest repos jail (\(allowedReposRoot)): \(path)"
+      )
+    }
+    return nil
+  }
 
   static func readFile(at path: String) -> Result<
     AgentRPCResponse.ReadFileResult, AgentRPCResponse.Error
   > {
+    if let escape = assertPathInsideReposJail(path) {
+      return .failure(escape)
+    }
     let fileManager = FileManager.default
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
@@ -31,6 +51,9 @@ enum AgentFileOperations {
 
   static func writeFile(at path: String, dataBase64: String) -> Result<Void, AgentRPCResponse.Error>
   {
+    if let escape = assertPathInsideReposJail(path) {
+      return .failure(escape)
+    }
     guard let data = Data(base64Encoded: dataBase64) else {
       return .failure(
         AgentRPCResponse.Error(
@@ -57,6 +80,9 @@ enum AgentFileOperations {
   }
 
   static func stat(at path: String) -> Result<AgentRPCResponse.StatResult, AgentRPCResponse.Error> {
+    if let escape = assertPathInsideReposJail(path) {
+      return .failure(escape)
+    }
     let fileManager = FileManager.default
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
@@ -81,6 +107,9 @@ enum AgentFileOperations {
   static func listDirectory(at path: String) -> Result<
     AgentRPCResponse.ListDirectoryResult, AgentRPCResponse.Error
   > {
+    if let escape = assertPathInsideReposJail(path) {
+      return .failure(escape)
+    }
     let fileManager = FileManager.default
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
@@ -115,6 +144,9 @@ enum AgentFileOperations {
   static func glob(pattern: String, rootPath: String, walkCap: Int) -> Result<
     AgentRPCResponse.GlobResult, AgentRPCResponse.Error
   > {
+    if let escape = assertPathInsideReposJail(rootPath) {
+      return .failure(escape)
+    }
     let fileManager = FileManager.default
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: rootPath, isDirectory: &isDirectory), isDirectory.boolValue
@@ -181,6 +213,9 @@ enum AgentFileOperations {
     caseInsensitive: Bool,
     timeoutSeconds: Double
   ) -> AgentRPCResponse.ProcessResult {
+    if let escape = assertPathInsideReposJail(path) {
+      return AgentRPCResponse.ProcessResult(exitCode: 126, stdout: "", stderr: escape.detail)
+    }
     let rgPath = "/opt/homebrew/bin/rg"
     let grepPath = "/usr/bin/grep"
     let executable: String
@@ -212,7 +247,14 @@ enum AgentFileOperations {
     workingDirectory: String,
     timeoutSeconds: Double
   ) -> AgentRPCResponse.ProcessResult {
-    runProcess(
+    if let escape = assertPathInsideReposJail(workingDirectory) {
+      return AgentRPCResponse.ProcessResult(
+        exitCode: 126,
+        stdout: "",
+        stderr: escape.detail
+      )
+    }
+    return runProcess(
       executable: "/bin/zsh",
       arguments: ["-lc", command],
       workingDirectory: workingDirectory,

@@ -3,8 +3,6 @@ import SwiftUI
 
 struct MacOSVMRuntimeView: View {
   @ObservedObject private var vm = SharedCompassVM.shared
-  @AppStorage(MacOSVerifyRuntime.defaultsKey)
-  private var macOSVerifyRuntime = MacOSVerifyRuntime.vm.rawValue
   @State private var isWorking = false
   @State private var lastError: String?
   @State private var smokeTestMessage: String?
@@ -20,11 +18,10 @@ struct MacOSVMRuntimeView: View {
         if let login = vm.guestConsoleLogin() {
           LabeledContent("Guest login", value: "\(login.userName) / \(login.password)")
         }
-        Picker("macOS verify runs in", selection: $macOSVerifyRuntime) {
-          Text("macOS VM (host fallback)").tag(MacOSVerifyRuntime.vm.rawValue)
-          Text("Host shell").tag(MacOSVerifyRuntime.host.rawValue)
-        }
-        .pickerStyle(.inline)
+        Text("Factory bash, verify, coverage, and mutation all require this VM.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
       .textSelection(.enabled)
 

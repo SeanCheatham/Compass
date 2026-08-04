@@ -179,11 +179,39 @@ public final class AgentExecutor {
   public let onEvent: @Sendable (LiveEvent) -> Void
   public var cancelled = false
 
+  /// Task currently executing `run`. Cancelled by ``cancel()`` so in-flight
+  /// generation / bash honor Swift cancellation (ProcessRunner / vsock /
+  /// SSE loops check `Task.isCancelled`).
+  ///
+  /// Unprotected on purpose: racing cancel vs clear is benign (cancel is
+  /// idempotent; a stale nil clear only drops a finished task).
+  nonisolated(unsafe) private var runTask: Task<AgentExecutionResult, Error>?
+
   public init(onEvent: @Sendable @escaping (LiveEvent) -> Void = { _ in }) {
     self.onEvent = onEvent
   }
 
   public func cancel() {
     cancelled = true
+    runTask?.cancel()
+  }
+
+  func beginCancellableRun(
+    _ body: @escaping () async throws -> AgentExecutionResult
+  ) async throws -> AgentExecutionResult {
+    let task = Task {
+      try await body()
+    }
+    runTask = task
+    defer { runTask = nil }
+    do {
+      return try await withTaskCancellationHandler {
+        try await task.value
+      } onCancel: {
+        task.cancel()
+      }
+    } catch is CancellationError {
+      throw AgentExecutionError.cancelled
+    }
   }
 }
