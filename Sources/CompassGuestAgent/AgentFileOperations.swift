@@ -8,8 +8,9 @@ import Foundation
 /// This binary runs as a LaunchDaemon with `UserName=compass`. The caller
 /// (host) supplies absolute paths under the synced guest workspace
 /// (`/Users/compass/Compass/Repos/<catalog-id>/worktree`). File ops are
-/// jails to that repos root. Bash working directories may also be the guest
-/// home (or `/` / `/tmp` for host readiness/toolchain probes).
+/// jails to that repos root (including sync staging siblings of
+/// `worktree`). Bash working directories may also be the guest home (or
+/// `/` / `/tmp` for host readiness/toolchain probes).
 enum AgentFileOperations {
   /// Must stay aligned with `SharedCompassVMGuestLayout.currentMacOS.reposRoot`.
   static let allowedReposRoot = "/Users/compass/Compass/Repos"

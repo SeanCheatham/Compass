@@ -114,7 +114,12 @@ enum SharedCompassVMWorktreeSync {
       throw SyncError.tarTooLarge(byteCount: tarData.count)
     }
 
-    let tmp = "/tmp/compass-sync-in-\(UUID().uuidString).tar"
+    // Stage under Repos/<id>/ (sibling of worktree), not /tmp — guest
+    // writeFile/readFile are jails to the repos root.
+    let tmp = guestSyncStagingPath(
+      nearGuestWorktreePath: guestWorktreePath,
+      name: "compass-sync-in-\(UUID().uuidString).tar"
+    )
     try await client.writeFile(tarData, at: URL(fileURLWithPath: tmp))
 
     let script = """
@@ -130,7 +135,7 @@ enum SharedCompassVMWorktreeSync {
       """
     let result = try await client.run(
       command: script,
-      workingDirectory: URL(fileURLWithPath: "/tmp"),
+      workingDirectory: URL(fileURLWithPath: guestWorkspaceRoot(for: guestWorktreePath)),
       timeout: 180
     )
     if result.exitCode != 0 {
@@ -163,8 +168,15 @@ enum SharedCompassVMWorktreeSync {
     let host = hostWorktreeURL.standardizedFileURL
 
     let suffix = UUID().uuidString
-    let tarTmp = "/tmp/compass-sync-out-\(suffix).tar"
-    let listTmp = "/tmp/compass-sync-out-\(suffix).list"
+    let tarTmp = guestSyncStagingPath(
+      nearGuestWorktreePath: guestWorktreePath,
+      name: "compass-sync-out-\(suffix).tar"
+    )
+    let listTmp = guestSyncStagingPath(
+      nearGuestWorktreePath: guestWorktreePath,
+      name: "compass-sync-out-\(suffix).list"
+    )
+    let stagingRoot = guestWorkspaceRoot(for: guestWorktreePath)
 
     let findPredicates =
       pullSideExcludeDirs
@@ -178,7 +190,7 @@ enum SharedCompassVMWorktreeSync {
       """
     let result = try await client.run(
       command: script,
-      workingDirectory: URL(fileURLWithPath: "/tmp"),
+      workingDirectory: URL(fileURLWithPath: stagingRoot),
       timeout: 180
     )
     if result.exitCode != 0 {
@@ -190,7 +202,7 @@ enum SharedCompassVMWorktreeSync {
 
     _ = try await client.run(
       command: "rm -f '\(tarTmp)' '\(listTmp)'",
-      workingDirectory: URL(fileURLWithPath: "/tmp"),
+      workingDirectory: URL(fileURLWithPath: stagingRoot),
       timeout: 30
     )
 
@@ -224,8 +236,15 @@ enum SharedCompassVMWorktreeSync {
     try validateHostMirrorPath(hostMirrorURL)
 
     let suffix = UUID().uuidString
-    let tarTmp = "/tmp/compass-host-xcode-\(suffix).tar"
-    let listTmp = "/tmp/compass-host-xcode-\(suffix).list"
+    let tarTmp = guestSyncStagingPath(
+      nearGuestWorktreePath: guestWorktreePath,
+      name: "compass-host-xcode-\(suffix).tar"
+    )
+    let listTmp = guestSyncStagingPath(
+      nearGuestWorktreePath: guestWorktreePath,
+      name: "compass-host-xcode-\(suffix).list"
+    )
+    let stagingRoot = guestWorkspaceRoot(for: guestWorktreePath)
     let quotedGuest = SharedCompassVMGuestBridge.posixQuote(guestWorktreePath)
     let quotedTar = SharedCompassVMGuestBridge.posixQuote(tarTmp)
     let quotedList = SharedCompassVMGuestBridge.posixQuote(listTmp)
@@ -241,7 +260,7 @@ enum SharedCompassVMWorktreeSync {
       """
     let result = try await client.run(
       command: script,
-      workingDirectory: URL(fileURLWithPath: "/tmp"),
+      workingDirectory: URL(fileURLWithPath: stagingRoot),
       timeout: 180
     )
     if result.exitCode != 0 {
@@ -251,7 +270,7 @@ enum SharedCompassVMWorktreeSync {
     let tarData = try await client.readFile(at: URL(fileURLWithPath: tarTmp))
     _ = try await client.run(
       command: "rm -f \(quotedTar) \(quotedList)",
-      workingDirectory: URL(fileURLWithPath: "/tmp"),
+      workingDirectory: URL(fileURLWithPath: stagingRoot),
       timeout: 30
     )
 
@@ -292,6 +311,22 @@ enum SharedCompassVMWorktreeSync {
   }
 
   // MARK: - Internals
+
+  /// Per-repo guest workspace root (`Repos/<id>`), parent of `worktree`.
+  static func guestWorkspaceRoot(for guestWorktreePath: String) -> String {
+    (guestWorktreePath as NSString).deletingLastPathComponent
+  }
+
+  /// Staging path for sync tars/lists. Kept as a sibling of `worktree`
+  /// under `Repos/<id>/` so vsock `writeFile`/`readFile` stay inside the
+  /// guest repos jail (`AgentFileOperations.allowedReposRoot`). Staging
+  /// under `/tmp` was rejected after path jailing landed.
+  static func guestSyncStagingPath(
+    nearGuestWorktreePath guestWorktreePath: String,
+    name: String
+  ) -> String {
+    "\(guestWorkspaceRoot(for: guestWorktreePath))/\(name)"
+  }
 
   /// Allow-listed guest-side prefixes Compass is willing to sync into.
   /// The sync script's `rm -rf` is wrapped in `validateGuestPath` so
