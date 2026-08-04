@@ -12,10 +12,15 @@ extension SharedCompassVM {
   public func start() async throws {
     if fallbackUnavailableReason != nil { return }
     if let virtualMachine, virtualMachine.state == .running {
+      // Guest is already up. If readiness was demoted to `.stopped` (or a
+      // prior poll failed) without tearing the VM down, resume the post-boot
+      // follow-up instead of returning while the UI still says Stopped.
+      resumePostBootReadinessIfStalled()
       return
     }
     if let existing = startInFlight {
       try await existing.value
+      resumePostBootReadinessIfStalled()
       return
     }
 
@@ -35,6 +40,7 @@ extension SharedCompassVM {
 
   private func performStart() async throws {
     if let virtualMachine, virtualMachine.state == .running {
+      resumePostBootReadinessIfStalled()
       return
     }
 
@@ -93,9 +99,32 @@ extension SharedCompassVM {
     // so the user never needs to click "Mark setup complete".
     //
     // For subsequent boots (state is already .ready on disk), `warmup()`
-    // has held the in-memory readiness at `.guestPrepping`. Probe SSH
-    // until the guest's sshd answers, then flip the in-memory state to
-    // `.ready` — without touching the persisted state machine.
+    // has reported `.stopped`. Move to `.starting` and probe SSH until
+    // the guest's sshd answers, then flip the in-memory state to `.ready`
+    // — without touching the persisted state machine.
+    beginPostBootFollowUpAfterSuccessfulStart()
+  }
+
+  /// Resumes post-boot readiness when the VZ guest is already running but
+  /// in-memory readiness was left idle (`.stopped`) or failed. Does not
+  /// re-kick first-boot / CLT follow-ups that are already underway.
+  private func resumePostBootReadinessIfStalled() {
+    switch readiness {
+    case .ready:
+      return
+    case .starting where postBootReadinessTask != nil:
+      return
+    case .guestPrepping, .provisioningDevTools, .downloadingIPSW, .installing:
+      return
+    case .stopped, .error, .unavailable, .notProvisioned, .starting:
+      beginPostBootFollowUpAfterSuccessfulStart()
+    }
+  }
+
+  /// Schedules the post-boot readiness follow-up for the persisted provision
+  /// step immediately after a successful VZ start (or when resuming a stalled
+  /// already-running guest).
+  private func beginPostBootFollowUpAfterSuccessfulStart() {
     let postStartStep = (try? bundle.loadState(fileManager: dependencies.fileManager))?
       .provisionStep
     switch postStartStep {
@@ -113,11 +142,21 @@ extension SharedCompassVM {
         await self?.resumeDevToolsProvisioningAfterBoot()
       }
     case .ready:
-      Task { [weak self] in
-        await self?.pollSSHAfterBootAndMarkReady()
-      }
+      scheduleSSHReadinessPollAfterBoot()
     default:
       break
+    }
+  }
+
+  /// Moves readiness to `.starting` and runs the SSH/agent poll once.
+  private func scheduleSSHReadinessPollAfterBoot() {
+    if postBootReadinessTask != nil { return }
+    transition(to: .starting)
+    postBootReadinessTask = Task { [weak self] in
+      await self?.pollSSHAfterBootAndMarkReady()
+      await MainActor.run {
+        self?.postBootReadinessTask = nil
+      }
     }
   }
 
@@ -140,7 +179,7 @@ extension SharedCompassVM {
       transition(
         to: .error(
           detail:
-            "Resuming dev-tools install: could not reach the guest over SSH (cached IP \(state.lastKnownGoodIP ?? "none") did not answer and rediscovery failed). Stop the VM and retry, or reset and re-provision."
+            "Resuming dev-tools install: could not reach the guest over SSH (cached IP \(state.lastKnownGoodIP ?? "none") did not answer and rediscovery failed).\(Self.staleVMProcessNote()) Stop the VM and retry, or reset and re-provision."
         ))
       return
     }
@@ -210,6 +249,7 @@ extension SharedCompassVM {
   /// readiness to `.ready` once the guest's sshd answers, so the UI
   /// reflects "actually reachable" rather than "previously was reachable".
   private func pollSSHAfterBootAndMarkReady() async {
+    if Task.isCancelled { return }
     let state =
       (try? bundle.loadState(fileManager: dependencies.fileManager))
       ?? SharedCompassVMBundle.State()
@@ -221,15 +261,18 @@ extension SharedCompassVM {
     guard
       let destination = await resolveGuestSSHDestination(state: state, options: options)
     else {
+      if Task.isCancelled { return }
       transition(
         to: .error(
           detail:
-            "Guest did not become reachable over SSH after boot (cached IP \(state.lastKnownGoodIP ?? "none") did not answer and rediscovery failed). Stop the VM and retry."
+            "Guest did not become reachable over SSH after boot (cached IP \(state.lastKnownGoodIP ?? "none") did not answer and rediscovery failed).\(Self.staleVMProcessNote()) Stop the VM and retry."
         ))
       return
     }
+    if Task.isCancelled { return }
     lastResolvedSSHDestination = destination
     guard await ensureGuestAgentReachableAfterBoot(destination: destination) else { return }
+    if Task.isCancelled { return }
     transition(to: .ready(sshDestination: destination))
     Task { [weak self] in
       await self?.ensureDefaultToolchainsIfNeeded()
@@ -277,11 +320,15 @@ extension SharedCompassVM {
       connectTimeoutSeconds: 5
     )
     let liveAgentReachable = await probeGuestAgentOnce(on: machine, timeout: 3)
-    let installedHelperWorks = await SharedCompassVMGuestAgentInstall.probeInstalledHelperOverSSH(
+    // The old agent still answers vsock probes after a Compass upgrade,
+    // so reachability alone is not enough — compare the planted binary
+    // against the bundled one and replant on mismatch.
+    let agentCurrent = await SharedCompassVMGuestAgentInstall.installedAgentMatchesHost(
       destination: destination,
-      options: options
+      options: options,
+      fileManager: dependencies.fileManager
     )
-    if liveAgentReachable && installedHelperWorks {
+    if liveAgentReachable && agentCurrent {
       return true
     }
 
@@ -339,6 +386,39 @@ extension SharedCompassVM {
     }
   }
 
+  /// Diagnostic suffix for SSH-resolution failures: a Compass instance
+  /// that was force-quit leaves its `Virtualization.VirtualMachine` XPC
+  /// process alive, and the orphaned guest keeps its DHCP lease — which
+  /// makes MAC-keyed IP discovery resolve to the orphan instead of the
+  /// real guest. Count live VZ VM processes so the error text can name
+  /// that failure mode explicitly.
+  static func staleVMProcessNote() -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+    process.arguments = ["-f", "com.apple.Virtualization.VirtualMachine"]
+    let stdout = Pipe()
+    process.standardOutput = stdout
+    process.standardError = Pipe()
+    do {
+      try process.run()
+      process.waitUntilExit()
+    } catch {
+      return ""
+    }
+    guard
+      let data = try? stdout.fileHandleForReading.readToEnd(),
+      let text = String(data: data, encoding: .utf8)
+    else { return "" }
+    let count =
+      text
+      .split(whereSeparator: { $0.isNewline || $0.isWhitespace })
+      .compactMap { pid_t($0) }
+      .count
+    guard count > 0 else { return "" }
+    return
+      " \(count) Virtualization VM process(es) are alive on this host — if Compass was force-quit earlier, an orphaned guest may be holding this VM's IP lease; kill stale com.apple.Virtualization.VirtualMachine processes (or run scripts/reset-compass-state.sh) and retry."
+  }
+
   /// Pauses the live VM. No-op if no VM is running.
   public func pause() {
     guard let machine = virtualMachine, machine.state == .running else { return }
@@ -376,6 +456,9 @@ extension SharedCompassVM {
       liveSSHDestination = nil
     }
 
+    postBootReadinessTask?.cancel()
+    postBootReadinessTask = nil
+
     defer {
       if let destination = liveSSHDestination {
         let options = SharedCompassVMGuestBridge.ConnectionOptions(
@@ -391,10 +474,18 @@ extension SharedCompassVM {
       }
     }
 
-    guard let machine = virtualMachine else { return }
+    guard let machine = virtualMachine else {
+      // No VM is running. If readiness is still parked in a live state
+      // (a `warmup()` placeholder no `start()` ever followed, or a
+      // previous stop), fold it to `.stopped` so the UI doesn't claim
+      // first-boot prep is in progress while nothing is happening.
+      foldLiveReadinessToStopped()
+      return
+    }
     if machine.state == .stopped {
       virtualMachine = nil
       tearDownConsolePipe()
+      foldLiveReadinessToStopped()
       return
     }
 
@@ -440,6 +531,22 @@ extension SharedCompassVM {
 
     virtualMachine = nil
     tearDownConsolePipe()
+    foldLiveReadinessToStopped()
+  }
+
+  /// Folds readiness to `.stopped` when no VM is running but the state
+  /// machine is still parked in a live state. `.error`, `.unavailable`,
+  /// and `.notProvisioned` are left untouched — the first two already
+  /// describe a not-running VM (and carry a diagnostic the user still
+  /// needs to see), and the last means there is nothing to stop.
+  private func foldLiveReadinessToStopped() {
+    switch readiness {
+    case .ready, .guestPrepping, .provisioningDevTools, .downloadingIPSW, .installing,
+      .starting:
+      transition(to: .stopped)
+    case .stopped, .notProvisioned, .unavailable, .error:
+      break
+    }
   }
 
   /// Marks the user-driven first-boot Setup Assistant as complete.
@@ -509,7 +616,7 @@ extension SharedCompassVM {
     )
     guard probeOK else {
       setupFailureMessage =
-        "SSH probe to \(destination) failed. Confirm the bootstrap script ran successfully inside the guest (sshd enabled, key authorised)."
+        "SSH probe to \(destination) failed. Confirm the bootstrap script ran successfully inside the guest (sshd enabled, key authorised).\(Self.staleVMProcessNote())"
       return
     }
     lastResolvedSSHDestination = destination

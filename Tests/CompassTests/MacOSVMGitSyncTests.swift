@@ -172,6 +172,25 @@ struct MacOSVMGitSyncTests {
     #expect(!script.contains("if \(SharedVMToolchainDefinition.rustVerificationCommand) >"))
   }
 
+  @Test
+  func rustInstallScriptIncludesLlvmToolsForCoverage() {
+    let script = SharedVMToolchainCatalog.definition(for: .rust).renderInstallScript()
+    #expect(script.contains("llvm-tools-preview"))
+  }
+
+  @Test
+  func cargoComponentInstallScriptsSymlinkBinariesOntoDefaultPATH() {
+    for id in [SharedVMToolchainID.cargoLlvmCov, .cargoMutants] {
+      let script = SharedVMToolchainCatalog.definition(for: id).renderInstallScript()
+      // `cargo install` lands binaries in ~/.cargo/bin, which the agent's
+      // PATH does not include — the script must link them into
+      // /usr/local/bin or post-install verification (and the agent) can't
+      // find them.
+      #expect(script.contains("/usr/local/bin"), "toolchain \(id.rawValue) must expose binaries on the default PATH")
+      #expect(script.contains("ln -sf \"$GUEST_HOME/.cargo/bin/$tool\" \"/usr/local/bin/$tool\""))
+    }
+  }
+
   // MARK: - Helpers
 
   private func makeTempRepo() throws -> URL {

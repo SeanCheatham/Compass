@@ -117,6 +117,29 @@ public final class SharedCompassVM: ObservableObject {
       // Re-warming an already-booted VM after a stop, or re-running
       // dev-tools provisioning.
       return true
+    case (.ready, .stopped),
+      (.guestPrepping, .stopped),
+      (.provisioningDevTools, .stopped),
+      (.downloadingIPSW, .stopped),
+      (.installing, .stopped),
+      (.starting, .stopped):
+      // `stop()` folds any live state to `.stopped`; the bundle on disk
+      // is untouched.
+      return true
+    case (.stopped, .downloadingIPSW),
+      (.stopped, .installing),
+      (.stopped, .guestPrepping),
+      (.stopped, .provisioningDevTools),
+      (.stopped, .ready),
+      (.stopped, .starting):
+      // Re-booting (or re-provisioning) a stopped VM re-enters the
+      // forward states directly — the persisted provision step decides
+      // which one `start()` lands on. `.starting` covers the post-boot
+      // SSH/agent poll for an already-provisioned bundle.
+      return true
+    case (.starting, .ready),
+      (.starting, .starting):
+      return true
     default:
       return false
     }
@@ -134,6 +157,8 @@ public final class SharedCompassVM: ObservableObject {
     case .provisioningDevTools: return "provisioningDevTools"
     case .ready: return "ready"
     case .error: return "error"
+    case .stopped: return "stopped"
+    case .starting: return "starting"
     }
   }
 
@@ -183,6 +208,11 @@ public final class SharedCompassVM: ObservableObject {
   /// Serializes concurrent `start()` calls so two simultaneous callers cannot
   /// each construct their own `VZVirtualMachine`.
   var startInFlight: Task<Void, Error>?
+
+  /// Background post-boot SSH/agent poll for an already-provisioned bundle.
+  /// Shared so a second `start()`/`ensureReady` while the guest is up does
+  /// not spawn a duplicate poller.
+  var postBootReadinessTask: Task<Void, Never>?
 
   /// Serializes restore-image installation. `VZMacOSInstaller` mutates the
   /// bundle's disk image, auxiliary storage, and platform identity files; only

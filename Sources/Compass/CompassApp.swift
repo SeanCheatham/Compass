@@ -18,13 +18,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   /// Gives the embedded macOS VM a chance to shut the guest down
   /// gracefully (flush APFS, stop services) before the process exits
-  /// and VZ pulls the power cord.
+  /// and VZ pulls the power cord. Hard-capped at 6s so a wedged guest
+  /// can never block app termination.
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     let vm = SharedCompassVM.shared
     guard vm.virtualMachine != nil else { return .terminateNow }
     vm.beginShutdown()
     Task { @MainActor in
-      await vm.stop()
+      await withTaskGroup(of: Void.self) { group in
+        group.addTask { @MainActor in
+          await vm.stop()
+        }
+        group.addTask {
+          try? await Task.sleep(nanoseconds: 6_000_000_000)
+        }
+        _ = await group.next()
+        group.cancelAll()
+      }
       NSApp.reply(toApplicationShouldTerminate: true)
     }
     return .terminateLater

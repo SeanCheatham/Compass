@@ -146,6 +146,60 @@ struct OpenAICompatibleRuntimeTests {
     #expect(settings.contextWindowTokens == 64_000)
     #expect(settings.hasCloudCredentials)
   }
+
+  @Test
+  func generateTextThrowsWhenResponseIsReasoningOnly() async throws {
+    final class JSONProtocol: URLProtocol, @unchecked Sendable {
+      nonisolated(unsafe) static var responseBody: String = ""
+
+      override class func canInit(with request: URLRequest) -> Bool { true }
+      override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+      override func startLoading() {
+        let body = Data(Self.responseBody.utf8)
+        let response = HTTPURLResponse(
+          url: request.url!,
+          statusCode: 200,
+          httpVersion: nil,
+          headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+      }
+
+      override func stopLoading() {}
+    }
+
+    JSONProtocol.responseBody = """
+      {"choices":[{"message":{"role":"assistant","content":"","reasoning_content":"I should call a tool."},"finish_reason":"stop"}]}
+      """
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [JSONProtocol.self]
+    let runtime = OpenAICompatibleModelRuntime(
+      endpoint: OpenAICompatibleEndpoint(
+        baseURL: URL(string: "https://api.example.com/v1")!,
+        apiKey: "sk-test",
+        model: "k3"
+      ),
+      session: URLSession(configuration: config)
+    )
+    do {
+      _ = try await runtime.generateText(
+        request: LocalModelGenerationRequest(systemPrompt: "sys", prompt: "hi")
+      )
+      Issue.record("expected reasoning-only response to throw")
+    } catch let error as OpenAICompatibleRuntimeError {
+      guard case .reasoningOnlyResponse(let finishReason, let reasoningCharacters) = error else {
+        Issue.record("expected reasoningOnlyResponse, got \(error)")
+        return
+      }
+      #expect(finishReason == "stop")
+      #expect(reasoningCharacters == "I should call a tool.".count)
+    } catch {
+      Issue.record("unexpected error: \(error)")
+    }
+  }
 }
 
 private final class RecordingModelRuntime: LocalModelGenerating, @unchecked Sendable {

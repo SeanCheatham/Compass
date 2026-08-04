@@ -27,17 +27,22 @@ extension SharedCompassVM {
       switch state.provisionStep {
       case .ready:
         // Persisted "ready" means the bundle was healthy last session,
-        // not that the guest's sshd is up *right now*. On app launch
-        // the VM has yet to be booted by `start()`, and macOS inside
-        // the guest takes several seconds to come back. Hold the
-        // in-memory readiness at `.guestPrepping` so the UI doesn't
-        // claim the VM is reachable before SSH actually responds —
-        // `performStart()` will probe and flip to `.ready` once the
-        // guest answers.
+        // not that anything is running *right now* — on app launch no
+        // VM has been booted yet. Report `.stopped` so the UI reflects
+        // reality; `start()` boots the guest and flips to `.ready` once
+        // SSH actually answers.
+        //
+        // Critical: `ensureReady()` / the runtime view call `warmup()`
+        // while a guest may already be running. Never demote a live VM
+        // to `.stopped` — `start()` no-ops when VZ is up and will not
+        // re-kick the SSH poll, which leaves bash hung and the UI stuck
+        // on Stopped.
         if let ip = state.lastKnownGoodIP {
           lastResolvedSSHDestination = "\(state.guestUserName)@\(ip)"
         }
-        transition(to: .guestPrepping)
+        if virtualMachine == nil {
+          transition(to: .stopped)
+        }
       case .guestPrepping:
         transition(to: .guestPrepping)
       case .provisioningDevTools:

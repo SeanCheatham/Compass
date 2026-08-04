@@ -174,8 +174,21 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
         throw VMRunnerError.vmNotReady(detail: detail)
       case .unavailable(let reason):
         throw VMRunnerError.vmNotReady(detail: reason)
+      case .stopped:
+        // A Stop during the wait (or a prior demotion) leaves us here.
+        // Re-invoke start(): boots when virtualMachine is nil, or resumes
+        // the SSH/agent poll when the guest is still up.
+        if vm.readiness != lastReadiness {
+          lastReadiness = vm.readiness
+          lastProgress = Date()
+        }
+        guard Date().timeIntervalSince(lastProgress) < TimeInterval(timeout) else {
+          throw VMRunnerError.readinessTimeout(seconds: timeout)
+        }
+        try await vm.start()
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
       case .notProvisioned, .downloadingIPSW, .installing, .guestPrepping,
-        .provisioningDevTools:
+        .provisioningDevTools, .starting:
         if vm.readiness != lastReadiness {
           lastReadiness = vm.readiness
           lastProgress = Date()

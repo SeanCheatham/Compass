@@ -75,17 +75,17 @@ run() {
 }
 
 compass_vz_helper_pids() {
-  local path pid command
-  for path in "${DISK_IMAGE}" "${AUXILIARY_STORAGE}"; do
-    [[ -e "${path}" ]] || continue
-    while read -r pid; do
-      [[ "${pid}" =~ ^[0-9]+$ ]] || continue
-      command="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
-      if [[ "${command}" =~ ${VZ_HELPER_PATTERN} ]]; then
-        printf '%s\n' "${pid}"
-      fi
-    done < <(lsof -t "${path}" 2>/dev/null || true)
-  done | sort -u
+  # Any VZ helper with an open file under the bundle directory — including
+  # deleted inodes. A VM orphaned before a reset keeps the *old* (now
+  # deleted) Disk.img open, so `lsof -t <path>` on current paths misses it;
+  # grepping the full lsof output for the bundle path catches "(deleted)"
+  # opens too. The VZ name pattern is a second safety net; the bundle-path
+  # filter is what keeps other apps' VMs (Docker Desktop, UTM) untouched.
+  lsof -nP 2>/dev/null \
+    | grep -F "${BUNDLE}" \
+    | grep -E "${VZ_HELPER_PATTERN}" \
+    | awk '{print $2}' \
+    | sort -u
 }
 
 # ---- 1. Make sure Compass is not running so its file handles are released.

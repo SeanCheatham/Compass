@@ -234,6 +234,17 @@ enum AgentFileOperations {
     if let workingDirectory {
       process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
     }
+    // The LaunchDaemon context supplies HOME=/var/empty and a bare
+    // PATH (/usr/bin:/bin:/usr/sbin:/sbin). Fix both from the account
+    // database so rustup proxies (which resolve $HOME/.rustup) and
+    // /usr/local/bin symlinks (cargo, rg) work in spawned commands.
+    var environment = ProcessInfo.processInfo.environment
+    if let pwent = getpwuid(getuid()) {
+      environment["HOME"] = String(cString: pwent.pointee.pw_dir)
+    }
+    environment["PATH"] =
+      "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    process.environment = environment
     let stdoutPipe = Pipe()
     let stderrPipe = Pipe()
     process.standardOutput = stdoutPipe

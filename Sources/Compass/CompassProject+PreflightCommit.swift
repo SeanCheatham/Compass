@@ -89,14 +89,23 @@ extension CompassProject {
     modelOverride: String,
     sessionNumber: Int?
   ) async throws -> DevelopSummary {
+    let modelRuntime = ModelRuntimeFactory.makeRouted(settings: agentSettings)
+    let promptMode = ModelRuntimeFactory.promptMode(
+      settings: agentSettings,
+      modelRuntime: modelRuntime
+    )
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: .develop,
       modelOverride: modelOverride,
       systemPrompt: Prompts.pendingChangesCommitSystemPrompt(
-        workingDirectoryPath: workspace.repoURL.path
+        workingDirectoryPath: workspace.repoURL.path,
+        promptMode: promptMode
       ),
-      userPrompt: Prompts.pendingChangesCommitPrompt(status: status),
+      userPrompt: Prompts.pendingChangesCommitPrompt(
+        status: status,
+        promptMode: promptMode
+      ),
       tools: [
         AgentReadFileTool(),
         AgentLsTool(),
@@ -104,6 +113,7 @@ extension CompassProject {
         AgentGlobTool(),
         AgentBashTool(),
       ],
+      modelRuntime: modelRuntime,
       submitResultSchema: AgentToolParametersSchema(json: Data(Prompts.developSchema.utf8)),
       workingDirectory: workspace.repoURL,
       filesystem: AgentHostFilesystem(),
@@ -115,6 +125,7 @@ extension CompassProject {
       validateSubmitResult: { args in
         _ = try JSONDecoder().decode(DevelopSummary.self, from: args)
       },
+      promptMode: promptMode,
       maxIterations: 96,
       wallClockTimeout: 15 * 60
     )

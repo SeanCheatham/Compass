@@ -77,7 +77,7 @@ Kimi/Moonshot, OpenAI, OpenRouter, and local proxies all work the same way as lo
 
 ### Local assist (optional)
 
-MLX can run `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit` after user-approved download into Compass Application Support. It is used for cheap assist tasks when available; cloud-only installs remain supported.
+MLX can run `mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit` after user-approved download into Compass Application Support. It is used for cheap assist tasks when available; cloud-only installs remain supported.
 
 ### Embedded macOS VM
 

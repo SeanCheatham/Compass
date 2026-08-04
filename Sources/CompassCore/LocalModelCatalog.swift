@@ -55,7 +55,7 @@ public struct LocalModelSnapshot: Equatable, Sendable {
 
 public enum LocalModelCatalog {
   public static let runtimeName = "MLX"
-  public static let blessedModelID = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+  public static let blessedModelID = "mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit"
   public static let defaultContextWindowTokens = 32_768
   public static let idleUnloadDelaySeconds: TimeInterval = 5 * 60
 
@@ -92,7 +92,7 @@ public enum LocalModelCatalog {
     #endif
     return modelsDirectory
       .appending(path: "mlx-community", directoryHint: .isDirectory)
-      .appending(path: "Qwen2.5-Coder-7B-Instruct-4bit", directoryHint: .isDirectory)
+      .appending(path: "Qwen2.5-Coder-1.5B-Instruct-4bit", directoryHint: .isDirectory)
   }
 
   public static var hubCacheDirectory: URL {
@@ -298,7 +298,7 @@ public final class LocalModelManager: ObservableObject {
     #if canImport(HuggingFace)
       let cache = HubCache(cacheDirectory: LocalModelCatalog.hubCacheDirectory)
       let client = HubClient(cache: cache)
-      let repoID = Repo.ID(namespace: "mlx-community", name: "Qwen2.5-Coder-7B-Instruct-4bit")
+      let repoID = Repo.ID(namespace: "mlx-community", name: "Qwen2.5-Coder-1.5B-Instruct-4bit")
       _ = try await client.downloadSnapshot(
         of: repoID,
         kind: .model,

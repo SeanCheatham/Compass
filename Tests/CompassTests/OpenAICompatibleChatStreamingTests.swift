@@ -121,6 +121,38 @@ struct OpenAICompatibleChatStreamingTests {
   }
 
   @Test
+  func streamsReasoningOnlyWithoutFinishReasonAsError() async throws {
+    SSEProtocol.responseBody = """
+      data: {"choices":[{"delta":{"reasoning_content":"thinking..."}}]}
+
+      data: [DONE]
+
+      """
+    await #expect(throws: OpenAICompatibleRuntimeError.self) {
+      _ = try await runtime().generateChat(
+        request: AgentChatRequest(modelID: "k3", messages: [.user("hi")])
+      )
+    }
+  }
+
+  @Test
+  func streamsReasoningThenStopWithoutContentSucceedsEmpty() async throws {
+    SSEProtocol.responseBody = """
+      data: {"choices":[{"delta":{"reasoning_content":"thinking..."}}]}
+
+      data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+
+      data: [DONE]
+
+      """
+    let response = try await runtime().generateChat(
+      request: AgentChatRequest(modelID: "k3", messages: [.user("hi")])
+    )
+    #expect(response.text.isEmpty)
+    #expect(response.toolCalls.isEmpty)
+  }
+
+  @Test
   func encodesAssistantToolCallsAndToolResults() async throws {
     SSEProtocol.responseBody = "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n"
     _ = try await runtime().generateChat(

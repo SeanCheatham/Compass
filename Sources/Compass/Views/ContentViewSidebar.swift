@@ -153,6 +153,8 @@ struct SidebarSandboxRow: View {
     switch vm.readiness {
     case .ready: return "Ready"
     case .notProvisioned: return "Not provisioned"
+    case .stopped: return "Stopped"
+    case .starting: return "Starting..."
     case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
       return "Provisioning..."
     case .error, .unavailable: return "Needs attention"

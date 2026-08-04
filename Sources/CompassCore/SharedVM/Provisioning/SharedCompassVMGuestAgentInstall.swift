@@ -1,8 +1,8 @@
+import CryptoKit
 import Foundation
 
 enum SharedCompassVMGuestAgentInstall {
   static let binaryGuestPath = "/usr/local/libexec/compass-guest-agent"
-  static let remoteHelperGuestPath = "/usr/local/bin/git-remote-compass"
   static let launchDaemonGuestPath =
     "/Library/LaunchDaemons/com.seancheatham.Compass.guest-agent.plist"
   static let launchDaemonLabel = "com.seancheatham.Compass.guest-agent"
@@ -46,26 +46,9 @@ enum SharedCompassVMGuestAgentInstall {
     throw InstallError.missingBundledBinary(candidates.map(\.path))
   }
 
-  static func remoteHelperInstallCommand(
-    guestAgentBinaryPath: String = SharedCompassVMGuestAgentInstall.binaryGuestPath,
-    remoteHelperPath: String = SharedCompassVMGuestAgentInstall.remoteHelperGuestPath
-  ) -> String {
-    let wrapperExecLine =
-      "exec \(SharedCompassVMGuestBridge.posixQuote(guestAgentBinaryPath)) --git-remote-helper \"$@\""
-    return """
-      set -euo pipefail
-      sudo /bin/mkdir -p \(SharedCompassVMGuestBridge.posixQuote(remoteHelperPath.directoryComponent))
-      sudo /bin/rm -f \(SharedCompassVMGuestBridge.posixQuote(remoteHelperPath))
-      /usr/bin/printf '%s\\n' '#!/bin/sh' \(SharedCompassVMGuestBridge.posixQuote(wrapperExecLine)) | sudo /usr/bin/tee \(SharedCompassVMGuestBridge.posixQuote(remoteHelperPath)) >/dev/null
-      sudo /bin/chmod 0755 \(SharedCompassVMGuestBridge.posixQuote(remoteHelperPath))
-      \(SharedCompassVMGuestBridge.posixQuote(remoteHelperPath)) --version >/dev/null
-      """
-  }
-
   static func sshRepairCommand(
     temporaryGuestPath: String,
     guestAgentBinaryPath: String = SharedCompassVMGuestAgentInstall.binaryGuestPath,
-    remoteHelperPath: String = SharedCompassVMGuestAgentInstall.remoteHelperGuestPath,
     launchDaemonGuestPath: String = SharedCompassVMGuestAgentInstall.launchDaemonGuestPath,
     launchDaemonLabel: String = SharedCompassVMGuestAgentInstall.launchDaemonLabel
   ) -> String {
@@ -78,7 +61,6 @@ enum SharedCompassVMGuestAgentInstall {
       sudo /bin/mkdir -p \(SharedCompassVMGuestBridge.posixQuote(guestAgentBinaryPath.directoryComponent))
       sudo /usr/bin/install -m 0755 -o root -g wheel \(quotedTemporaryPath) \(quotedBinaryPath)
       /bin/rm -f \(quotedTemporaryPath)
-      \(remoteHelperInstallCommand(guestAgentBinaryPath: guestAgentBinaryPath, remoteHelperPath: remoteHelperPath))
       if [ -f \(quotedLaunchDaemonPath) ]; then
         sudo /bin/launchctl bootout system \(quotedLaunchDaemonPath) 2>/dev/null || true
         sudo /bin/launchctl bootstrap system \(quotedLaunchDaemonPath) 2>/dev/null || true
@@ -128,22 +110,35 @@ enum SharedCompassVMGuestAgentInstall {
     }
   }
 
-  static func probeInstalledHelperOverSSH(
+  /// SHA-256 of the bundled agent binary the host would plant.
+  static func hostBinarySHA256(fileManager: FileManager = .default) throws -> String {
+    let data = try Data(contentsOf: locateBundledBinary(fileManager: fileManager))
+    return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+  }
+
+  /// True when the guest's planted agent binary is byte-identical to the
+  /// host's bundled one. The guest agent answers vsock probes even when
+  /// it's an older build, so readiness alone can't drive updates — the
+  /// hash comparison is what triggers a replant after a Compass upgrade
+  /// changes the agent.
+  static func installedAgentMatchesHost(
     destination: String,
     options: SharedCompassVMGuestBridge.ConnectionOptions,
-    remoteHelperPath: String = SharedCompassVMGuestAgentInstall.remoteHelperGuestPath
+    fileManager: FileManager = .default
   ) async -> Bool {
+    guard let hostHash = try? hostBinarySHA256(fileManager: fileManager) else { return false }
     let result = try? await ProcessRunner.run(
       executable: options.executablePath,
       arguments: SharedCompassVMGuestBridge.sshArguments(
         destination: destination,
         remoteCommand:
-          "\(SharedCompassVMGuestBridge.posixQuote(remoteHelperPath)) --version >/dev/null",
+          "shasum -a 256 \(SharedCompassVMGuestBridge.posixQuote(binaryGuestPath)) | awk '{print $1}'",
         options: options
       ),
       timeout: 8
     )
-    return result?.exitCode == 0
+    guard let result, result.exitCode == 0 else { return false }
+    return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == hostHash
   }
 }
 

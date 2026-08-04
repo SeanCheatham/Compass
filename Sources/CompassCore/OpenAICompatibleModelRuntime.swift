@@ -34,6 +34,9 @@ public enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
   case invalidBaseURL(String)
   case httpStatus(Int, String)
   case emptyResponse
+  /// Provider finished a turn with reasoning tokens but no assistant `content`
+  /// (common with thinking models when the prompt confuses the final answer).
+  case reasoningOnlyResponse(finishReason: String?, reasoningCharacters: Int)
   case decodeFailed(String)
 
   public var errorDescription: String? {
@@ -48,6 +51,12 @@ public enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
       return "OpenAI-compatible request failed (\(code)): \(clipped)"
     case .emptyResponse:
       return "OpenAI-compatible response contained no assistant text."
+    case .reasoningOnlyResponse(let finishReason, let reasoningCharacters):
+      let reason = finishReason?.trimmingCharacters(in: .whitespacesAndNewlines)
+      let reasonSuffix =
+        (reason?.isEmpty == false) ? " finish_reason=\(reason!)." : ""
+      return
+        "OpenAI-compatible response contained reasoning (\(reasoningCharacters) chars) but no assistant text.\(reasonSuffix)"
     case .decodeFailed(let detail):
       return "OpenAI-compatible response decode failed: \(detail)"
     }
@@ -186,13 +195,25 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
       throw OpenAICompatibleRuntimeError.decodeFailed(error.localizedDescription)
     }
 
+    let choice = decoded.choices.first
     let text =
       decoded.choices
       .compactMap { $0.message?.content }
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .first { !$0.isEmpty }
       ?? ""
-    guard !text.isEmpty else {
+    if text.isEmpty {
+      let reasoning =
+        decoded.choices
+        .compactMap { $0.message?.reasoningContent }
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty }
+      if let reasoning {
+        throw OpenAICompatibleRuntimeError.reasoningOnlyResponse(
+          finishReason: choice?.finishReason,
+          reasoningCharacters: reasoning.count
+        )
+      }
       throw OpenAICompatibleRuntimeError.emptyResponse
     }
 
@@ -265,9 +286,11 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
     }
 
     var content = ""
+    var reasoningContent = ""
     var toolCalls: [Int: (id: String, name: String, arguments: String)] = [:]
     var usage: OpenAIChatCompletionsResponse.Usage?
     var sawFinishReason = false
+    var lastFinishReason: String?
 
     for try await line in bytes.lines {
       guard line.hasPrefix("data:") else { continue }
@@ -282,12 +305,16 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
         usage = chunkUsage
       }
       for choice in chunk.choices {
-        if choice.finishReason != nil {
+        if let finishReason = choice.finishReason {
           sawFinishReason = true
+          lastFinishReason = finishReason
         }
         guard let delta = choice.delta else { continue }
         if let text = delta.content {
           content += text
+        }
+        if let reasoning = delta.reasoningContent {
+          reasoningContent += reasoning
         }
         for toolDelta in delta.toolCalls ?? [] {
           let index = toolDelta.index ?? 0
@@ -317,7 +344,14 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
       }
 
     let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedReasoning = reasoningContent.trimmingCharacters(in: .whitespacesAndNewlines)
     if resolvedToolCalls.isEmpty && trimmed.isEmpty && !sawFinishReason {
+      if !trimmedReasoning.isEmpty {
+        throw OpenAICompatibleRuntimeError.reasoningOnlyResponse(
+          finishReason: lastFinishReason,
+          reasoningCharacters: trimmedReasoning.count
+        )
+      }
       throw OpenAICompatibleRuntimeError.emptyResponse
     }
 
@@ -381,11 +415,13 @@ public struct OpenAIChatStreamChunk: Decodable, Equatable, Sendable {
 
       public var role: String?
       public var content: String?
+      public var reasoningContent: String?
       public var toolCalls: [ToolCall]?
 
       public enum CodingKeys: String, CodingKey {
         case role
         case content
+        case reasoningContent = "reasoning_content"
         case toolCalls = "tool_calls"
       }
     }
@@ -427,9 +463,22 @@ public struct OpenAIChatCompletionsResponse: Decodable, Equatable, Sendable {
     public struct Message: Decodable, Equatable, Sendable {
       public var role: String?
       public var content: String?
+      public var reasoningContent: String?
+
+      public enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case reasoningContent = "reasoning_content"
+      }
     }
 
     public var message: Message?
+    public var finishReason: String?
+
+    public enum CodingKeys: String, CodingKey {
+      case message
+      case finishReason = "finish_reason"
+    }
   }
 
   public struct Usage: Decodable, Equatable, Sendable {

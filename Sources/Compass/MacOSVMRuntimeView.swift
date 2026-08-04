@@ -78,8 +78,19 @@ struct MacOSVMRuntimeView: View {
     .padding(28)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .sheet(isPresented: $showingConsole) {
-      SharedCompassVMView(virtualMachine: vm.virtualMachine)
+      NavigationStack {
+        SharedCompassVMView(
+          virtualMachine: vm.virtualMachine,
+          becomesFirstResponderOnAppear: false
+        )
         .frame(minWidth: 960, minHeight: 640)
+        .toolbar {
+          ToolbarItem(placement: .confirmationAction) {
+            Button("Done") { showingConsole = false }
+              .keyboardShortcut(.defaultAction)
+          }
+        }
+      }
     }
     .task {
       try? await vm.warmup()
@@ -118,6 +129,8 @@ struct MacOSVMRuntimeView: View {
       return "Installing developer tools (\(Int(fraction * 100))%)"
     case .ready(let destination): return "Ready — \(destination)"
     case .error(let detail): return "Error — \(detail)"
+    case .stopped: return "Stopped"
+    case .starting: return "Starting (waiting for guest SSH)"
     }
   }
 

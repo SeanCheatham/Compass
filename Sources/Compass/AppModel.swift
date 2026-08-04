@@ -98,6 +98,23 @@ final class AppModel: ObservableObject {
         await project.refresh()
       }
     }
+
+    // Auto-start the Shared VM when a provisioned bundle exists so the
+    // guest is booted (or first-boot/dev-tools resume is underway) by
+    // the time an agent task needs it. Bundles still mid-install are
+    // left alone — resuming an interrupted IPSW install is a manual
+    // "Provision & Start" decision. Failures surface through
+    // `vm.readiness` (`.error`) rather than alert UI.
+    Task {
+      let vm = SharedCompassVM.shared
+      try? await vm.warmup()
+      switch vm.readiness {
+      case .stopped, .guestPrepping, .provisioningDevTools:
+        try? await vm.start()
+      default:
+        break
+      }
+    }
   }
 
   func chooseRepository() async {

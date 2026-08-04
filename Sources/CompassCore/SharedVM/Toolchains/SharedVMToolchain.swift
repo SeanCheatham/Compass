@@ -74,12 +74,14 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
       return Self.renderCargoComponentInstallScript(
         id: SharedVMToolchainID.cargoLlvmCov.rawValue,
         crate: "cargo-llvm-cov",
+        installedBinaries: ["cargo-llvm-cov"],
         verificationCommand: "/usr/local/bin/cargo llvm-cov --version"
       )
     case .cargoMutants:
       return Self.renderCargoComponentInstallScript(
         id: SharedVMToolchainID.cargoMutants.rawValue,
         crate: "cargo-mutants",
+        installedBinaries: ["cargo-mutants"],
         verificationCommand: "/usr/local/bin/cargo mutants --version"
       )
     case .node:
@@ -249,11 +251,11 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
         else
           if [ ! -x "$GUEST_HOME/.cargo/bin/rustup" ]; then
             echo "\(SharedVMToolchainPaths.logTag(id: id)) installing rustup stable toolchain"
-            su - "$GUEST_USER" -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default --component rustfmt --component clippy' \\
+            su - "$GUEST_USER" -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default --component rustfmt --component clippy --component llvm-tools-preview' \\
               || fail 2 "rustup install failed"
           else
             echo "\(SharedVMToolchainPaths.logTag(id: id)) rustup present, ensuring components"
-            su - "$GUEST_USER" -c '"$HOME/.cargo/bin/rustup" component add rustfmt clippy' \\
+            su - "$GUEST_USER" -c '"$HOME/.cargo/bin/rustup" component add rustfmt clippy llvm-tools-preview' \\
               || fail 3 "rustup component add failed"
           fi
           # The guest agent's bash is non-interactive and never sources
@@ -275,13 +277,16 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
   private static func renderCargoComponentInstallScript(
     id: String,
     crate: String,
+    installedBinaries: [String],
     verificationCommand: String
   ) -> String {
     let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
+    let binaries = installedBinaries.joined(separator: " ")
     return renderScriptShell(
       id: id,
       body: """
         GUEST_USER="\(guestUser)"
+        GUEST_HOME="$(eval echo ~"$GUEST_USER")"
         if su - "$GUEST_USER" -c '\(verificationCommand)' >/dev/null 2>&1; then
           echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
         else
@@ -290,6 +295,15 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
           echo "\(SharedVMToolchainPaths.logTag(id: id)) cargo install \(crate) --locked"
           su - "$GUEST_USER" -c '/usr/local/bin/cargo install \(crate) --locked' \\
             || fail 3 "cargo install \(crate) failed"
+          # `cargo install` drops binaries in ~/.cargo/bin, which is not on
+          # the agent's PATH — expose them via /usr/local/bin like the
+          # rustup proxies.
+          install -d -o root -g wheel -m 0755 /usr/local/bin
+          for tool in \(binaries); do
+            if [ -x "$GUEST_HOME/.cargo/bin/$tool" ]; then
+              ln -sf "$GUEST_HOME/.cargo/bin/$tool" "/usr/local/bin/$tool"
+            fi
+          done
           su - "$GUEST_USER" -c '\(verificationCommand)' >/dev/null 2>&1 \\
             || fail 4 "\(crate) verification failed"
           echo "\(SharedVMToolchainPaths.logTag(id: id)) installed \(crate)"
