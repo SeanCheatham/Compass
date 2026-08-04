@@ -28,15 +28,15 @@ struct MacOSVMGitSyncTests {
   @Test
   func gitSSHCommandQuotesPathsWithSpaces() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
-      identityFile: "/Users/sean/Library/Application Support/Compass/SharedVM/bundle.vmbundle/id_ed25519",
-      knownHostsFile: "/Users/sean/Library/Application Support/Compass/SharedVM/bundle.vmbundle/known_hosts",
+      identityFile: "/Users/example/Library/Application Support/Compass/SharedVM/bundle.vmbundle/id_ed25519",
+      knownHostsFile: "/Users/example/Library/Application Support/Compass/SharedVM/bundle.vmbundle/known_hosts",
       connectTimeoutSeconds: 10
     )
     let command = SharedCompassVMGitSSHSync.gitSSHCommand(options: options)
     #expect(command.hasPrefix("/usr/bin/ssh"))
     #expect(
       command.contains(
-        "-i '/Users/sean/Library/Application Support/Compass/SharedVM/bundle.vmbundle/id_ed25519'"
+        "-i '/Users/example/Library/Application Support/Compass/SharedVM/bundle.vmbundle/id_ed25519'"
       ))
     #expect(command.contains("StrictHostKeyChecking=yes"))
     #expect(command.contains("BatchMode=yes"))

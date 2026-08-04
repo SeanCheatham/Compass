@@ -42,7 +42,7 @@ struct AgentToolPathSpaceTests {
 
   @Test
   func displayPathAndSanitizeHideHostPrefixes() {
-    let host = URL(fileURLWithPath: "/Users/sean/git/demo")
+    let host = URL(fileURLWithPath: "/Users/example/git/demo")
     let context = AgentToolContext(
       workingDirectory: host,
       agentVisibleWorkspacePath: "/workspace"
@@ -53,7 +53,7 @@ struct AgentToolPathSpaceTests {
     #expect(context.displayPath(for: fileURL) == "/workspace/crates/core/src/lib.rs")
     #expect(
       context.sanitizeHostPaths(
-        in: "failed in /Users/sean/git/demo/crates/core/src/lib.rs under /Users/sean/git/demo"
+        in: "failed in /Users/example/git/demo/crates/core/src/lib.rs under /Users/example/git/demo"
       )
         == "failed in /workspace/crates/core/src/lib.rs under /workspace"
     )
