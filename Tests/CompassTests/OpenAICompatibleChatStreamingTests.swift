@@ -180,4 +180,80 @@ struct OpenAICompatibleChatStreamingTests {
     #expect(messages[3]["role"] as? String == "tool")
     #expect(messages[3]["tool_call_id"] as? String == "c1")
   }
+
+  @Test
+  func generateChatRetriesTransientOverloadThenSucceeds() async throws {
+    final class FlakySSEProtocol: URLProtocol, @unchecked Sendable {
+      nonisolated(unsafe) static var callCount = 0
+
+      override class func canInit(with request: URLRequest) -> Bool { true }
+      override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+      override func startLoading() {
+        Self.callCount += 1
+        if Self.callCount == 1 {
+          let body = Data(
+            #"{"error":{"message":"The engine is currently overloaded, please try again later","type":"engine_overloaded_error"}}"#
+              .utf8
+          )
+          let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 429,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+          )!
+          client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+          client?.urlProtocol(self, didLoad: body)
+          client?.urlProtocolDidFinishLoading(self)
+          return
+        }
+
+        let body = Data(
+          """
+          data: {"choices":[{"delta":{"content":"recovered"}}]}
+
+          data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+
+          data: [DONE]
+
+          """.utf8
+        )
+        let response = HTTPURLResponse(
+          url: request.url!,
+          statusCode: 200,
+          httpVersion: nil,
+          headerFields: ["Content-Type": "text/event-stream"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+      }
+
+      override func stopLoading() {}
+    }
+
+    FlakySSEProtocol.callCount = 0
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [FlakySSEProtocol.self]
+    let runtime = OpenAICompatibleModelRuntime(
+      endpoint: OpenAICompatibleEndpoint(
+        baseURL: URL(string: "https://api.example.com/v1")!,
+        apiKey: "sk-test",
+        model: "k3"
+      ),
+      session: URLSession(configuration: config),
+      retryPolicy: OpenAICompatibleRetryPolicy(
+        maxAttempts: 3,
+        initialBackoffNanoseconds: 50,
+        maxBackoffNanoseconds: 500,
+        jitterFraction: 0
+      ),
+      sleep: { _ in }
+    )
+    let response = try await runtime.generateChat(
+      request: AgentChatRequest(modelID: "k3", messages: [.user("hi")])
+    )
+    #expect(response.text == "recovered")
+    #expect(FlakySSEProtocol.callCount == 2)
+  }
 }

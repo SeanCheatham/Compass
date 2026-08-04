@@ -200,6 +200,176 @@ struct OpenAICompatibleRuntimeTests {
       Issue.record("unexpected error: \(error)")
     }
   }
+
+  @Test
+  func transientStatusCodesIncludeOverloadAndGatewayFailures() {
+    for code in [408, 429, 500, 502, 503, 504] {
+      #expect(OpenAICompatibleRetryPolicy.isTransientHTTPStatus(code))
+      #expect(
+        OpenAICompatibleRuntimeError.httpStatus(code, "overloaded", retryAfterSeconds: nil)
+          .isTransient
+      )
+    }
+    for code in [400, 401, 403, 404, 422] {
+      #expect(!OpenAICompatibleRetryPolicy.isTransientHTTPStatus(code))
+      #expect(
+        !OpenAICompatibleRuntimeError.httpStatus(code, "nope", retryAfterSeconds: nil).isTransient
+      )
+    }
+  }
+
+  @Test
+  func retryPolicyDoublesBackoffAndHonorsRetryAfter() {
+    let policy = OpenAICompatibleRetryPolicy(
+      maxAttempts: 5,
+      initialBackoffNanoseconds: 1_000_000_000,
+      maxBackoffNanoseconds: 8_000_000_000,
+      jitterFraction: 0
+    )
+    #expect(policy.delayNanoseconds(afterFailedAttempt: 1) == 1_000_000_000)
+    #expect(policy.delayNanoseconds(afterFailedAttempt: 2) == 2_000_000_000)
+    #expect(policy.delayNanoseconds(afterFailedAttempt: 3) == 4_000_000_000)
+    #expect(policy.delayNanoseconds(afterFailedAttempt: 4) == 8_000_000_000)
+    #expect(policy.delayNanoseconds(afterFailedAttempt: 5) == 8_000_000_000)
+    #expect(
+      policy.delayNanoseconds(afterFailedAttempt: 1, retryAfterSeconds: 3) == 3_000_000_000
+    )
+  }
+
+  @Test
+  func generateTextRetriesTransientOverloadThenSucceeds() async throws {
+    final class FlakyProtocol: URLProtocol, @unchecked Sendable {
+      nonisolated(unsafe) static var callCount = 0
+
+      override class func canInit(with request: URLRequest) -> Bool { true }
+      override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+      override func startLoading() {
+        Self.callCount += 1
+        if Self.callCount == 1 {
+          let body = Data(
+            #"{"error":{"message":"The engine is currently overloaded, please try again later","type":"engine_overloaded_error"}}"#
+              .utf8
+          )
+          let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 429,
+            httpVersion: nil,
+            headerFields: [
+              "Content-Type": "application/json",
+              "Retry-After": "0",
+            ]
+          )!
+          client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+          client?.urlProtocol(self, didLoad: body)
+          client?.urlProtocolDidFinishLoading(self)
+          return
+        }
+
+        let body = Data(
+          #"{"choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"#
+            .utf8
+        )
+        let response = HTTPURLResponse(
+          url: request.url!,
+          statusCode: 200,
+          httpVersion: nil,
+          headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+      }
+
+      override func stopLoading() {}
+    }
+
+    FlakyProtocol.callCount = 0
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [FlakyProtocol.self]
+    final class SleepCounter: @unchecked Sendable {
+      var delays: [UInt64] = []
+    }
+    let sleeps = SleepCounter()
+    let runtime = OpenAICompatibleModelRuntime(
+      endpoint: OpenAICompatibleEndpoint(
+        baseURL: URL(string: "https://api.example.com/v1")!,
+        apiKey: "sk-test",
+        model: "k3"
+      ),
+      session: URLSession(configuration: config),
+      retryPolicy: OpenAICompatibleRetryPolicy(
+        maxAttempts: 3,
+        initialBackoffNanoseconds: 100,
+        maxBackoffNanoseconds: 1_000,
+        jitterFraction: 0
+      ),
+      sleep: { ns in sleeps.delays.append(ns) }
+    )
+
+    let result = try await runtime.generateText(
+      request: LocalModelGenerationRequest(systemPrompt: "sys", prompt: "hi")
+    )
+    #expect(result.text == "ok")
+    #expect(FlakyProtocol.callCount == 2)
+    #expect(sleeps.delays.count == 1)
+  }
+
+  @Test
+  func generateTextDoesNotRetryClientErrors() async throws {
+    final class AuthProtocol: URLProtocol, @unchecked Sendable {
+      nonisolated(unsafe) static var callCount = 0
+
+      override class func canInit(with request: URLRequest) -> Bool { true }
+      override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+      override func startLoading() {
+        Self.callCount += 1
+        let body = Data(#"{"error":{"message":"invalid api key"}}"#.utf8)
+        let response = HTTPURLResponse(
+          url: request.url!,
+          statusCode: 401,
+          httpVersion: nil,
+          headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+      }
+
+      override func stopLoading() {}
+    }
+
+    AuthProtocol.callCount = 0
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [AuthProtocol.self]
+    let runtime = OpenAICompatibleModelRuntime(
+      endpoint: OpenAICompatibleEndpoint(
+        baseURL: URL(string: "https://api.example.com/v1")!,
+        apiKey: "sk-bad",
+        model: "k3"
+      ),
+      session: URLSession(configuration: config),
+      retryPolicy: .default,
+      sleep: { _ in Issue.record("should not sleep for non-transient errors") }
+    )
+
+    do {
+      _ = try await runtime.generateText(
+        request: LocalModelGenerationRequest(systemPrompt: "sys", prompt: "hi")
+      )
+      Issue.record("expected 401 to throw")
+    } catch let error as OpenAICompatibleRuntimeError {
+      guard case .httpStatus(let code, _, _) = error else {
+        Issue.record("expected httpStatus, got \(error)")
+        return
+      }
+      #expect(code == 401)
+      #expect(AuthProtocol.callCount == 1)
+    } catch {
+      Issue.record("unexpected error: \(error)")
+    }
+  }
 }
 
 private final class RecordingModelRuntime: LocalModelGenerating, @unchecked Sendable {

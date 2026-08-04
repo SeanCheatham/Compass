@@ -32,7 +32,8 @@ public struct OpenAICompatibleEndpoint: Sendable, Equatable {
 public enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
   case notConfigured
   case invalidBaseURL(String)
-  case httpStatus(Int, String)
+  /// Non-2xx HTTP response. `retryAfterSeconds` is parsed from `Retry-After` when present.
+  case httpStatus(Int, String, retryAfterSeconds: Double?)
   case emptyResponse
   /// Provider finished a turn with reasoning tokens but no assistant `content`
   /// (common with thinking models when the prompt confuses the final answer).
@@ -45,7 +46,7 @@ public enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
       return "OpenAI-compatible cloud provider is not configured (need API key, base URL, and model)."
     case .invalidBaseURL(let value):
       return "Invalid OpenAI-compatible base URL: \(value)"
-    case .httpStatus(let code, let body):
+    case .httpStatus(let code, let body, _):
       let preview = body.trimmingCharacters(in: .whitespacesAndNewlines)
       let clipped = preview.count > 400 ? String(preview.prefix(400)) + "…" : preview
       return "OpenAI-compatible request failed (\(code)): \(clipped)"
@@ -60,6 +61,140 @@ public enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
     case .decodeFailed(let detail):
       return "OpenAI-compatible response decode failed: \(detail)"
     }
+  }
+
+  /// True for overloaded / rate-limited / temporary upstream failures that are
+  /// worth retrying with backoff (e.g. 429 `engine_overloaded_error`).
+  public var isTransient: Bool {
+    switch self {
+    case .httpStatus(let code, _, _):
+      return OpenAICompatibleRetryPolicy.isTransientHTTPStatus(code)
+    case .notConfigured, .invalidBaseURL, .emptyResponse, .reasoningOnlyResponse, .decodeFailed:
+      return false
+    }
+  }
+
+  public var retryAfterSeconds: Double? {
+    switch self {
+    case .httpStatus(_, _, let retryAfterSeconds):
+      return retryAfterSeconds
+    default:
+      return nil
+    }
+  }
+}
+
+/// Exponential-backoff policy for transient OpenAI-compatible HTTP failures.
+public struct OpenAICompatibleRetryPolicy: Sendable, Equatable {
+  /// Total attempts including the first try. `1` disables retries.
+  public var maxAttempts: Int
+  public var initialBackoffNanoseconds: UInt64
+  public var maxBackoffNanoseconds: UInt64
+  /// Extra random delay as a fraction of the computed backoff (`0` disables jitter).
+  public var jitterFraction: Double
+
+  public static let `default` = OpenAICompatibleRetryPolicy(
+    maxAttempts: 5,
+    initialBackoffNanoseconds: 1_000_000_000,
+    maxBackoffNanoseconds: 32_000_000_000,
+    jitterFraction: 0.25
+  )
+
+  public static let disabled = OpenAICompatibleRetryPolicy(
+    maxAttempts: 1,
+    initialBackoffNanoseconds: 0,
+    maxBackoffNanoseconds: 0,
+    jitterFraction: 0
+  )
+
+  public init(
+    maxAttempts: Int,
+    initialBackoffNanoseconds: UInt64,
+    maxBackoffNanoseconds: UInt64,
+    jitterFraction: Double
+  ) {
+    self.maxAttempts = max(1, maxAttempts)
+    self.initialBackoffNanoseconds = initialBackoffNanoseconds
+    self.maxBackoffNanoseconds = maxBackoffNanoseconds
+    self.jitterFraction = max(0, jitterFraction)
+  }
+
+  public static func isTransientHTTPStatus(_ code: Int) -> Bool {
+    switch code {
+    case 408, 429, 500, 502, 503, 504:
+      return true
+    default:
+      return false
+    }
+  }
+
+  public static func isTransientURLError(_ error: URLError) -> Bool {
+    switch error.code {
+    case .timedOut,
+      .networkConnectionLost,
+      .notConnectedToInternet,
+      .cannotConnectToHost,
+      .dnsLookupFailed,
+      .cannotFindHost,
+      .resourceUnavailable,
+      .internationalRoamingOff,
+      .callIsActive,
+      .dataNotAllowed:
+      return true
+    default:
+      return false
+    }
+  }
+
+  /// Parses `Retry-After` as delay-seconds or HTTP-date.
+  public static func retryAfterSeconds(from response: HTTPURLResponse) -> Double? {
+    guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
+      .trimmingCharacters(in: .whitespacesAndNewlines),
+      !raw.isEmpty
+    else {
+      return nil
+    }
+    if let seconds = Double(raw), seconds >= 0 {
+      return seconds
+    }
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+    if let date = formatter.date(from: raw) {
+      return max(0, date.timeIntervalSinceNow)
+    }
+    return nil
+  }
+
+  /// Backoff after a failed attempt (`attempt` is 1-based and already failed).
+  /// Prefers a provider `Retry-After` hint when present, otherwise doubles from
+  /// `initialBackoffNanoseconds` up to `maxBackoffNanoseconds`, with optional jitter.
+  public func delayNanoseconds(
+    afterFailedAttempt attempt: Int,
+    retryAfterSeconds: Double? = nil
+  ) -> UInt64 {
+    let cappedAttempt = max(1, attempt)
+    var base: UInt64
+    if let retryAfterSeconds, retryAfterSeconds > 0 {
+      let fromHeader = UInt64(min(retryAfterSeconds, Double(UInt64.max) / 1_000_000_000) * 1_000_000_000)
+      base = min(max(fromHeader, initialBackoffNanoseconds), maxBackoffNanoseconds)
+    } else {
+      var delay = initialBackoffNanoseconds
+      for _ in 1..<cappedAttempt {
+        if delay >= maxBackoffNanoseconds / 2 {
+          delay = maxBackoffNanoseconds
+          break
+        }
+        delay = min(delay * 2, maxBackoffNanoseconds)
+      }
+      base = min(delay, maxBackoffNanoseconds)
+    }
+    guard jitterFraction > 0, base > 0 else { return base }
+    let span = Double(base) * jitterFraction
+    let jitter = Double.random(in: -span...span)
+    let adjusted = Double(base) + jitter
+    return UInt64(max(0, adjusted))
   }
 }
 
@@ -81,20 +216,36 @@ public struct OpenAICompatiblePingResult: Sendable, Equatable {
 public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
   private let endpoint: OpenAICompatibleEndpoint
   private let session: URLSession
+  private let retryPolicy: OpenAICompatibleRetryPolicy
+  private let sleep: @Sendable (UInt64) async -> Void
 
-  public init(endpoint: OpenAICompatibleEndpoint, session: URLSession = .shared) {
+  public init(
+    endpoint: OpenAICompatibleEndpoint,
+    session: URLSession = .shared,
+    retryPolicy: OpenAICompatibleRetryPolicy = .default,
+    sleep: @escaping @Sendable (UInt64) async -> Void = { ns in
+      try? await Task.sleep(nanoseconds: ns)
+    }
+  ) {
     self.endpoint = endpoint
     self.session = session
+    self.retryPolicy = retryPolicy
+    self.sleep = sleep
   }
 
-  public init(settings: AgentRuntimeSettings, session: URLSession = .shared) {
+  public init(
+    settings: AgentRuntimeSettings,
+    session: URLSession = .shared,
+    retryPolicy: OpenAICompatibleRetryPolicy = .default
+  ) {
     self.init(
       endpoint: OpenAICompatibleEndpoint(
         baseURL: settings.baseURL,
         apiKey: settings.apiKey,
         model: settings.model
       ),
-      session: session
+      session: session,
+      retryPolicy: retryPolicy
     )
   }
 
@@ -138,7 +289,11 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
       }
       guard (200..<300).contains(http.statusCode) else {
         let bodyText = String(data: data, encoding: .utf8) ?? ""
-        let error = OpenAICompatibleRuntimeError.httpStatus(http.statusCode, bodyText)
+        let error = OpenAICompatibleRuntimeError.httpStatus(
+          http.statusCode,
+          bodyText,
+          retryAfterSeconds: OpenAICompatibleRetryPolicy.retryAfterSeconds(from: http)
+        )
         return result(ok: false, statusCode: http.statusCode, message: error.localizedDescription)
       }
       return result(
@@ -179,57 +334,91 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
     urlRequest.httpBody = try JSONEncoder().encode(body)
 
     let startedAt = Date()
-    let (data, response) = try await session.data(for: urlRequest)
-    guard let http = response as? HTTPURLResponse else {
-      throw OpenAICompatibleRuntimeError.decodeFailed("Missing HTTP response.")
-    }
-    guard (200..<300).contains(http.statusCode) else {
-      let bodyText = String(data: data, encoding: .utf8) ?? ""
-      throw OpenAICompatibleRuntimeError.httpStatus(http.statusCode, bodyText)
-    }
-
-    let decoded: OpenAIChatCompletionsResponse
-    do {
-      decoded = try JSONDecoder().decode(OpenAIChatCompletionsResponse.self, from: data)
-    } catch {
-      throw OpenAICompatibleRuntimeError.decodeFailed(error.localizedDescription)
-    }
-
-    let choice = decoded.choices.first
-    let text =
-      decoded.choices
-      .compactMap { $0.message?.content }
-      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      .first { !$0.isEmpty }
-      ?? ""
-    if text.isEmpty {
-      let reasoning =
-        decoded.choices
-        .compactMap { $0.message?.reasoningContent }
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .first { !$0.isEmpty }
-      if let reasoning {
-        throw OpenAICompatibleRuntimeError.reasoningOnlyResponse(
-          finishReason: choice?.finishReason,
-          reasoningCharacters: reasoning.count
+    return try await withTransientRetry {
+      let (data, response) = try await session.data(for: urlRequest)
+      guard let http = response as? HTTPURLResponse else {
+        throw OpenAICompatibleRuntimeError.decodeFailed("Missing HTTP response.")
+      }
+      guard (200..<300).contains(http.statusCode) else {
+        let bodyText = String(data: data, encoding: .utf8) ?? ""
+        throw OpenAICompatibleRuntimeError.httpStatus(
+          http.statusCode,
+          bodyText,
+          retryAfterSeconds: OpenAICompatibleRetryPolicy.retryAfterSeconds(from: http)
         )
       }
-      throw OpenAICompatibleRuntimeError.emptyResponse
-    }
 
-    var tokenUsage = AgentRunTokenUsage()
-    let inputTokens = decoded.usage?.promptTokens ?? 0
-    let outputTokens = decoded.usage?.completionTokens ?? 0
-    let totalTokens = decoded.usage?.totalTokens ?? (inputTokens + outputTokens)
-    tokenUsage.recordTurn(
-      inputTokens: inputTokens,
-      outputTokens: outputTokens,
-      totalTokens: totalTokens,
-      isEstimated: decoded.usage == nil,
-      streamedUsageAvailable: decoded.usage != nil
-    )
-    tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
-    return LocalModelGenerationResult(text: text, tokenUsage: tokenUsage)
+      let decoded: OpenAIChatCompletionsResponse
+      do {
+        decoded = try JSONDecoder().decode(OpenAIChatCompletionsResponse.self, from: data)
+      } catch {
+        throw OpenAICompatibleRuntimeError.decodeFailed(error.localizedDescription)
+      }
+
+      let choice = decoded.choices.first
+      let text =
+        decoded.choices
+        .compactMap { $0.message?.content }
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty }
+        ?? ""
+      if text.isEmpty {
+        let reasoning =
+          decoded.choices
+          .compactMap { $0.message?.reasoningContent }
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+          .first { !$0.isEmpty }
+        if let reasoning {
+          throw OpenAICompatibleRuntimeError.reasoningOnlyResponse(
+            finishReason: choice?.finishReason,
+            reasoningCharacters: reasoning.count
+          )
+        }
+        throw OpenAICompatibleRuntimeError.emptyResponse
+      }
+
+      var tokenUsage = AgentRunTokenUsage()
+      let inputTokens = decoded.usage?.promptTokens ?? 0
+      let outputTokens = decoded.usage?.completionTokens ?? 0
+      let totalTokens = decoded.usage?.totalTokens ?? (inputTokens + outputTokens)
+      tokenUsage.recordTurn(
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        totalTokens: totalTokens,
+        isEstimated: decoded.usage == nil,
+        streamedUsageAvailable: decoded.usage != nil
+      )
+      tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
+      return LocalModelGenerationResult(text: text, tokenUsage: tokenUsage)
+    }
+  }
+
+  /// Retries transient HTTP / transport failures with exponential backoff.
+  /// Non-transient errors (4xx auth, empty response, decode) fail immediately.
+  private func withTransientRetry<T: Sendable>(
+    operation: () async throws -> T
+  ) async throws -> T {
+    var attempt = 0
+    while true {
+      attempt += 1
+      do {
+        return try await operation()
+      } catch let error as OpenAICompatibleRuntimeError where error.isTransient {
+        guard attempt < retryPolicy.maxAttempts else { throw error }
+        let delay = retryPolicy.delayNanoseconds(
+          afterFailedAttempt: attempt,
+          retryAfterSeconds: error.retryAfterSeconds
+        )
+        await sleep(delay)
+      } catch let error as URLError
+      where OpenAICompatibleRetryPolicy.isTransientURLError(error) {
+        guard attempt < retryPolicy.maxAttempts else { throw error }
+        let delay = retryPolicy.delayNanoseconds(afterFailedAttempt: attempt)
+        await sleep(delay)
+      } catch {
+        throw error
+      }
+    }
   }
 }
 
@@ -272,103 +461,109 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
     urlRequest.httpBody = try JSONSerialization.data(withJSONObject: bodyObject)
 
     let startedAt = Date()
-    let (bytes, response) = try await session.bytes(for: urlRequest)
-    guard let http = response as? HTTPURLResponse else {
-      throw OpenAICompatibleRuntimeError.decodeFailed("Missing HTTP response.")
-    }
-    guard (200..<300).contains(http.statusCode) else {
-      var errorBody = ""
+    return try await withTransientRetry {
+      let (bytes, response) = try await session.bytes(for: urlRequest)
+      guard let http = response as? HTTPURLResponse else {
+        throw OpenAICompatibleRuntimeError.decodeFailed("Missing HTTP response.")
+      }
+      guard (200..<300).contains(http.statusCode) else {
+        var errorBody = ""
+        for try await line in bytes.lines {
+          errorBody += line
+          if errorBody.count > 4_000 { break }
+        }
+        throw OpenAICompatibleRuntimeError.httpStatus(
+          http.statusCode,
+          errorBody,
+          retryAfterSeconds: OpenAICompatibleRetryPolicy.retryAfterSeconds(from: http)
+        )
+      }
+
+      var content = ""
+      var reasoningContent = ""
+      var toolCalls: [Int: (id: String, name: String, arguments: String)] = [:]
+      var usage: OpenAIChatCompletionsResponse.Usage?
+      var sawFinishReason = false
+      var lastFinishReason: String?
+
       for try await line in bytes.lines {
-        errorBody += line
-        if errorBody.count > 4_000 { break }
-      }
-      throw OpenAICompatibleRuntimeError.httpStatus(http.statusCode, errorBody)
-    }
-
-    var content = ""
-    var reasoningContent = ""
-    var toolCalls: [Int: (id: String, name: String, arguments: String)] = [:]
-    var usage: OpenAIChatCompletionsResponse.Usage?
-    var sawFinishReason = false
-    var lastFinishReason: String?
-
-    for try await line in bytes.lines {
-      try Task.checkCancellation()
-      guard line.hasPrefix("data:") else { continue }
-      let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
-      if payload == "[DONE]" { break }
-      guard let data = payload.data(using: .utf8),
-        let chunk = try? JSONDecoder().decode(OpenAIChatStreamChunk.self, from: data)
-      else {
-        continue
-      }
-      if let chunkUsage = chunk.usage {
-        usage = chunkUsage
-      }
-      for choice in chunk.choices {
-        if let finishReason = choice.finishReason {
-          sawFinishReason = true
-          lastFinishReason = finishReason
+        try Task.checkCancellation()
+        guard line.hasPrefix("data:") else { continue }
+        let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+        if payload == "[DONE]" { break }
+        guard let data = payload.data(using: .utf8),
+          let chunk = try? JSONDecoder().decode(OpenAIChatStreamChunk.self, from: data)
+        else {
+          continue
         }
-        guard let delta = choice.delta else { continue }
-        if let text = delta.content {
-          content += text
+        if let chunkUsage = chunk.usage {
+          usage = chunkUsage
         }
-        if let reasoning = delta.reasoningContent {
-          reasoningContent += reasoning
-        }
-        for toolDelta in delta.toolCalls ?? [] {
-          let index = toolDelta.index ?? 0
-          var accumulated = toolCalls[index] ?? (id: "", name: "", arguments: "")
-          if let id = toolDelta.id, !id.isEmpty {
-            accumulated.id = id
+        for choice in chunk.choices {
+          if let finishReason = choice.finishReason {
+            sawFinishReason = true
+            lastFinishReason = finishReason
           }
-          if let name = toolDelta.function?.name, !name.isEmpty {
-            accumulated.name = name
+          guard let delta = choice.delta else { continue }
+          if let text = delta.content {
+            content += text
           }
-          if let arguments = toolDelta.function?.arguments {
-            accumulated.arguments += arguments
+          if let reasoning = delta.reasoningContent {
+            reasoningContent += reasoning
           }
-          toolCalls[index] = accumulated
+          for toolDelta in delta.toolCalls ?? [] {
+            let index = toolDelta.index ?? 0
+            var accumulated = toolCalls[index] ?? (id: "", name: "", arguments: "")
+            if let id = toolDelta.id, !id.isEmpty {
+              accumulated.id = id
+            }
+            if let name = toolDelta.function?.name, !name.isEmpty {
+              accumulated.name = name
+            }
+            if let arguments = toolDelta.function?.arguments {
+              accumulated.arguments += arguments
+            }
+            toolCalls[index] = accumulated
+          }
         }
       }
-    }
 
-    let resolvedToolCalls: [AgentChatToolCall] = toolCalls
-      .sorted { $0.key < $1.key }
-      .map { index, accumulated in
-        AgentChatToolCall(
-          id: accumulated.id.isEmpty ? "toolcall_\(index)" : accumulated.id,
-          name: accumulated.name,
-          argumentsJSON: accumulated.arguments
-        )
+      let resolvedToolCalls: [AgentChatToolCall] = toolCalls
+        .sorted { $0.key < $1.key }
+        .map { index, accumulated in
+          AgentChatToolCall(
+            id: accumulated.id.isEmpty ? "toolcall_\(index)" : accumulated.id,
+            name: accumulated.name,
+            argumentsJSON: accumulated.arguments
+          )
+        }
+
+      let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+      let trimmedReasoning = reasoningContent.trimmingCharacters(in: .whitespacesAndNewlines)
+      if resolvedToolCalls.isEmpty && trimmed.isEmpty && !sawFinishReason {
+        if !trimmedReasoning.isEmpty {
+          throw OpenAICompatibleRuntimeError.reasoningOnlyResponse(
+            finishReason: lastFinishReason,
+            reasoningCharacters: trimmedReasoning.count
+          )
+        }
+        throw OpenAICompatibleRuntimeError.emptyResponse
       }
 
-    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-    let trimmedReasoning = reasoningContent.trimmingCharacters(in: .whitespacesAndNewlines)
-    if resolvedToolCalls.isEmpty && trimmed.isEmpty && !sawFinishReason {
-      if !trimmedReasoning.isEmpty {
-        throw OpenAICompatibleRuntimeError.reasoningOnlyResponse(
-          finishReason: lastFinishReason,
-          reasoningCharacters: trimmedReasoning.count
-        )
-      }
-      throw OpenAICompatibleRuntimeError.emptyResponse
+      var tokenUsage = AgentRunTokenUsage()
+      let inputTokens = usage?.promptTokens ?? 0
+      let outputTokens = usage?.completionTokens ?? 0
+      let totalTokens = usage?.totalTokens ?? (inputTokens + outputTokens)
+      tokenUsage.recordTurn(
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        totalTokens: totalTokens,
+        isEstimated: usage == nil,
+        streamedUsageAvailable: usage != nil
+      )
+      tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
+      return AgentChatResponse(text: trimmed, toolCalls: resolvedToolCalls, tokenUsage: tokenUsage)
     }
-
-    var tokenUsage = AgentRunTokenUsage()
-    let inputTokens = usage?.promptTokens ?? 0
-    let outputTokens = usage?.completionTokens ?? 0
-    let totalTokens = usage?.totalTokens ?? (inputTokens + outputTokens)
-    tokenUsage.recordTurn(
-      inputTokens: inputTokens,
-      outputTokens: outputTokens,
-      totalTokens: totalTokens,
-      isEstimated: usage == nil,
-      streamedUsageAvailable: usage != nil
-    )
-    tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
-    return AgentChatResponse(text: trimmed, toolCalls: resolvedToolCalls, tokenUsage: tokenUsage)
   }
 
   private static func wireMessage(_ message: AgentChatMessage) -> [String: Any] {
