@@ -90,7 +90,11 @@ public struct VerifyFailureInsight: Equatable {
     }
     if containsAny(
       text,
-      ["command not found", "no such file or directory", "could not find command"]
+      [
+        "command not found",
+        "could not find command",
+        "no such command:",
+      ]
     ) {
       return .missingTool
     }

@@ -46,6 +46,27 @@ struct VerifyFailureInsightTests {
   }
 
   @Test
+  func missingSourcePathIsNotMissingTool() {
+    // Bare "No such file or directory" used to force missingTool even for
+    // ordinary compile/path errors inside project sources.
+    let detail = """
+      error: couldn't read crates/core/src/missing.rs: No such file or directory (os error 2)
+      """
+    let insight = VerifyFailureInsight(detail: detail, metadata: "exitCode=1")
+    #expect(insight.kind != .missingTool)
+    #expect(insight.kind == .buildFailure)
+  }
+
+  @Test
+  func commandNotFoundStillMissingTool() {
+    let insight = VerifyFailureInsight(
+      detail: "bash: cargo-llvm-cov: command not found",
+      metadata: "exitCode=127"
+    )
+    #expect(insight.kind == .missingTool)
+  }
+
+  @Test
   func assertionFailuresAreTestFailures() {
     let detail = """
       thread 'cli_tests::prints_help' panicked at crates/cli/tests/cli.rs:20:5:

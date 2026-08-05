@@ -61,16 +61,19 @@ public enum AgentBashMutationPolicy {
     guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
     let ns = command as NSString
     let range = NSRange(location: 0, length: ns.length)
-    guard let match = regex.firstMatch(in: command, range: range) else { return nil }
-    let digits = match.range(at: 1)
-    let op = match.range(at: 2)
-    // Allow 2> / 2>> (stderr redirect) and N>&M fd dupes already excluded by (?!&)
-    if digits.location != NSNotFound, digits.length > 0 {
-      let fd = ns.substring(with: digits)
-      if fd == "2" { return nil }
+    let matches = regex.matches(in: command, range: range)
+    for match in matches {
+      let digits = match.range(at: 1)
+      let op = match.range(at: 2)
+      // Allow 2> / 2>> (stderr redirect); keep scanning for later stdout redirects.
+      if digits.location != NSNotFound, digits.length > 0 {
+        let fd = ns.substring(with: digits)
+        if fd == "2" { continue }
+      }
+      guard op.location != NSNotFound else { continue }
+      return ns.substring(with: op)
     }
-    guard op.location != NSNotFound else { return nil }
-    return ns.substring(with: op)
+    return nil
   }
 
   private static let mutatingGitPatterns: [String] = [

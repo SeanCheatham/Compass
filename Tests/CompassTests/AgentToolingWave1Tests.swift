@@ -15,6 +15,7 @@ struct AgentBashMutationPolicyTests {
   @Test(arguments: [
     "rm -rf src",
     "echo hi > out.txt",
+    "echo hi 2>/dev/null > out.txt",
     "git commit -am 'x'",
     "git add .",
     "mkdir -p foo",
