@@ -1,10 +1,10 @@
 import Foundation
 
-/// Rewrites raw agent thinking into a single spoken sentence for Studio's
-/// audible narration. Uses the shared assist text path (local-first) and
-/// falls back to a truncated verbatim line when no model is available.
+/// Rewrites raw agent thinking into spoken prose for Studio's audible
+/// narration. Uses the shared assist text path (local-first) and falls back
+/// to a truncated verbatim line when no model is available.
 public enum StudioThinkingNarrator {
-  public static let maxSpokenCharacters = 220
+  public static let maxSpokenCharacters = 360
   public static let maxInputCharacters = 1500
 
   public static func narrate(thinking: String) async -> String? {
@@ -25,10 +25,14 @@ public enum StudioThinkingNarrator {
 
   public static func prompt(for thinking: String) -> String {
     """
-    You are the voice of a software agent working in an IDE. Rewrite its private \
-    thought below as one short spoken sentence for someone listening, not reading. \
-    Use plain words. Do not read out code, symbols, file paths, or line numbers — \
-    describe the intent instead. Under 30 words. No Markdown. No preamble.
+    You are the agent's inner voice, thinking out loud while working in an IDE. \
+    Rewrite the private thought below as natural first-person prose someone might \
+    murmur to themselves — curious, slightly reflective, not a status update or \
+    progress report. Prefer cadence and connective phrasing over clipped brevity. \
+    One or two sentences. Use commas, em dashes, or ellipses where they help speech \
+    breathe. Do not read out code, symbols, file paths, or line numbers — describe \
+    the intent instead. Under 50 words. No Markdown. No lists. No preamble. \
+    No quotes wrapping the whole answer.
 
     Agent thought:
     \(thinking)

@@ -76,6 +76,8 @@ struct StudioThinkingNarratorTests {
   func promptIncludesThoughtAndConstraints() {
     let prompt = StudioThinkingNarrator.prompt(for: "thinking about tests")
     #expect(prompt.contains("thinking about tests"))
-    #expect(prompt.contains("Under 30 words"))
+    #expect(prompt.contains("inner voice"))
+    #expect(prompt.contains("Under 50 words"))
+    #expect(prompt.contains("first-person"))
   }
 }

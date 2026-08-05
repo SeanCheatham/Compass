@@ -70,8 +70,7 @@ final class StudioThinkingSpeechService: NSObject, ObservableObject {
         return
       }
       let utterance = AVSpeechUtterance(string: spoken)
-      utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-      utterance.volume = 0.8
+      PreferredSpeechVoice.configure(utterance)
       self.synthesizer.speak(utterance)
     }
   }

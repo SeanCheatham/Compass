@@ -526,8 +526,7 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
       return
     }
     let utterance = AVSpeechUtterance(string: phrase)
-    utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-    utterance.volume = 0.8
+    PreferredSpeechVoice.configure(utterance)
     speechSynthesizer.speak(utterance)
     lastSpeechStateIdentifier = "speaking"
   }
