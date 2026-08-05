@@ -1,16 +1,16 @@
 import Foundation
 
-public extension Prompts {
+extension Prompts {
   /// Phase output schemas live as standalone `.json` files under
   /// `Resources/Schemas/`. They are loaded once on first access and
   /// cached for the lifetime of the process. If a schema is missing or
   /// malformed, this trips a `fatalError` at first read rather than
   /// silently shipping a broken phase. Schemas are validated as JSON at
   /// load time so a hand-edit that breaks syntax is caught immediately.
-  static let planSchema = loadSchema("plan")
-  static let developSchema = loadSchema("develop")
-  static let criticSchema = loadSchema("critic")
-  static let subAgentSchema = loadSchema("subAgent")
+  public static let planSchema = loadSchema("plan")
+  public static let developSchema = loadSchema("develop")
+  public static let criticSchema = loadSchema("critic")
+  public static let subAgentSchema = loadSchema("subAgent")
 
   /// Token type used to anchor `Bundle(for:)` lookups in the Xcode-built
   /// app bundle. `Bundle.module` is only synthesized by SwiftPM, so the

@@ -88,7 +88,8 @@ public struct AgentBashTool: AgentTool {
     )
   }
 
-  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws
+    -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -186,7 +187,8 @@ public struct AgentBashTool: AgentTool {
   }
 
   public static func isVerifyCommand(_ command: String) -> Bool {
-    let normalized = command
+    let normalized =
+      command
       .lowercased()
       .components(separatedBy: .whitespacesAndNewlines)
       .filter { !$0.isEmpty }

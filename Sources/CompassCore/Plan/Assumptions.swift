@@ -88,7 +88,9 @@ public struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     self.supersededBy = Self.optionalSanitized(supersededBy, limit: 80)
   }
 
-  public init(draft: AssumptionDraft, phase: AgentPhase, sessionNumber: Int?, now: Date = Date()) throws {
+  public init(draft: AssumptionDraft, phase: AgentPhase, sessionNumber: Int?, now: Date = Date())
+    throws
+  {
     let text = Self.sanitized(draft.text, limit: Self.textLimit)
     guard !text.isEmpty else {
       throw AssumptionLedgerError.emptyAssumption
@@ -121,7 +123,9 @@ public struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     Self.normalizedKey(text)
   }
 
-  public mutating func mergeNewObservation(from draft: AssumptionDraft, phase: AgentPhase, now: Date) {
+  public mutating func mergeNewObservation(
+    from draft: AssumptionDraft, phase: AgentPhase, now: Date
+  ) {
     let incoming = try? AssumptionRecord(
       draft: draft,
       phase: phase,
@@ -431,16 +435,16 @@ public enum AssumptionLedgerError: LocalizedError, Equatable {
   }
 }
 
-public extension CompassWorkspace {
-  func readAssumptionLedger() throws -> AssumptionLedger {
+extension CompassWorkspace {
+  public func readAssumptionLedger() throws -> AssumptionLedger {
     try AssumptionLedgerStore(url: assumptionsURL).read()
   }
 
-  func writeAssumptionLedger(_ ledger: AssumptionLedger) throws {
+  public func writeAssumptionLedger(_ ledger: AssumptionLedger) throws {
     try AssumptionLedgerStore(url: assumptionsURL).write(ledger)
   }
 
-  func recordAssumption(
+  public func recordAssumption(
     _ draft: AssumptionDraft,
     phase: AgentPhase,
     sessionNumber: Int?
@@ -452,7 +456,7 @@ public extension CompassWorkspace {
     )
   }
 
-  func reviewAssumption(
+  public func reviewAssumption(
     id: String,
     status: AssumptionRecord.Status,
     comment: String?
@@ -464,7 +468,7 @@ public extension CompassWorkspace {
     )
   }
 
-  func removeAssumption(
+  public func removeAssumption(
     id: String,
     comment: String?
   ) throws -> AssumptionRecord {

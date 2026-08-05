@@ -21,7 +21,8 @@ struct AgentEditFileTextToolTests {
     let workspace = try makeWorkspace()
     defer { try? FileManager.default.removeItem(at: workspace) }
     let file = workspace.appending(path: "main.rs")
-    try "fn main() {\n    println!(\"old\");\n}\n".write(to: file, atomically: true, encoding: .utf8)
+    try "fn main() {\n    println!(\"old\");\n}\n".write(
+      to: file, atomically: true, encoding: .utf8)
 
     let tool = AgentEditFileTextTool()
     let result = try await tool.invoke(
@@ -143,8 +144,9 @@ struct AgentEditFileTextToolTests {
       context: context(for: workspace)
     )
     #expect(result.isError)
-    #expect(result.content.lowercased().contains("placeholder") || result.content.contains("TODO")
-      || result.content.lowercased().contains("implement"))
+    #expect(
+      result.content.lowercased().contains("placeholder") || result.content.contains("TODO")
+        || result.content.lowercased().contains("implement"))
     #expect(try String(contentsOf: file, encoding: .utf8) == "pub fn ready() { 1 }\n")
   }
 }

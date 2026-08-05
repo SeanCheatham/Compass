@@ -8,7 +8,9 @@ public struct ProjectRunControlGuideNarration: Equatable, Sendable {
 public enum ProjectRunControlGuideNarrator {
   public static let maxCharacters = 320
 
-  public static func narrate(guide: ProjectRunControlGuide) async -> ProjectRunControlGuideNarration? {
+  public static func narrate(guide: ProjectRunControlGuide) async
+    -> ProjectRunControlGuideNarration?
+  {
     guard guide.allowsNarration else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 

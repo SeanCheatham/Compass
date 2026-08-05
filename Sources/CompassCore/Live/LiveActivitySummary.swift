@@ -492,7 +492,7 @@ private func firstLine(_ text: String?) -> String? {
     .map(String.init)
 }
 
-public extension LiveLine.Level {
+extension LiveLine.Level {
   fileprivate var summaryName: String {
     switch self {
     case .info: return "info"
@@ -504,7 +504,7 @@ public extension LiveLine.Level {
   }
 }
 
-public extension LiveLine.Kind {
+extension LiveLine.Kind {
   fileprivate var summaryName: String {
     switch self {
     case .message: return "message"
@@ -516,7 +516,7 @@ public extension LiveLine.Kind {
   }
 }
 
-public extension LiveLine.Status {
+extension LiveLine.Status {
   fileprivate var summaryName: String {
     switch self {
     case .none: return "noted"

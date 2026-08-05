@@ -119,7 +119,8 @@ struct OpenAICompatibleRuntimeTests {
 
   @Test
   func settingsStoreLoadsCloudFieldsFromEnvironment() {
-    let defaults = UserDefaults(suiteName: "CompassOpenAICompatibleRuntimeTests.\(UUID().uuidString)")!
+    let defaults = UserDefaults(
+      suiteName: "CompassOpenAICompatibleRuntimeTests.\(UUID().uuidString)")!
     defer {
       for key in AgentSettingsStore.Key.allCases {
         defaults.removeObject(forKey: key.rawValue)
@@ -380,7 +381,8 @@ private final class RecordingModelRuntime: LocalModelGenerating, @unchecked Send
     self.name = name
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult
+  {
     lastModelID = request.modelID
     return LocalModelGenerationResult(text: name, tokenUsage: AgentRunTokenUsage())
   }

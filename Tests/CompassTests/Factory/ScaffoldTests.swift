@@ -1,11 +1,12 @@
 import Foundation
 import Testing
+
 @testable import Compass
 @testable import CompassCore
 
 @Suite("Rust scaffold")
 struct ScaffoldTests {
-@Test
+  @Test
   func rustScaffoldHasCargoWorkspaceAndCrates() throws {
     let files = RustProjectScaffold.files(
       options: .init(projectName: "My Factory App")
@@ -49,7 +50,9 @@ struct ScaffoldTests {
     let uiSmoke = try #require(byPath["scripts/macos-ui-smoke.sh"])
     #expect(uiSmoke.contains("launchctl asuser"))
     #expect(uiSmoke.contains("screencapture"))
-    #expect(uiSmoke.contains("greeting.label") || byPath["scripts/macos-ax-smoke.swift"]!.contains("greeting.label"))
+    #expect(
+      uiSmoke.contains("greeting.label")
+        || byPath["scripts/macos-ax-smoke.swift"]!.contains("greeting.label"))
 
     let axSmoke = try #require(byPath["scripts/macos-ax-smoke.swift"])
     #expect(axSmoke.contains("greeting.label"))
@@ -64,7 +67,7 @@ struct ScaffoldTests {
     #expect(readme.contains("cargo llvm-cov"))
     #expect(readme.contains("verify-macos"))
   }
-@Test
+  @Test
   func rustScaffoldCliOnlyOmitsMacOS() throws {
     let files = RustProjectScaffold.files(
       options: .init(projectName: "CLI Only", products: [.cli])
@@ -76,7 +79,7 @@ struct ScaffoldTests {
     #expect(!paths.contains("apps/macos/Package.swift"))
     #expect(!paths.contains("scripts/verify-macos.sh"))
   }
-@Test
+  @Test
   func rustScaffoldMacOSOnlyOmitsCLI() throws {
     let files = RustProjectScaffold.files(
       options: .init(projectName: "Mac Only", products: [.macos])
@@ -87,7 +90,7 @@ struct ScaffoldTests {
     #expect(paths.contains("apps/macos/Package.swift"))
     #expect(!paths.contains("crates/cli/Cargo.toml"))
   }
-@Test
+  @Test
   func rustScaffoldDetectsGeneratedWorkspace() throws {
     let tempURL = FileManager.default.temporaryDirectory
       .appending(path: "CompassRustScaffoldTests-\(UUID().uuidString)")
@@ -105,7 +108,7 @@ struct ScaffoldTests {
     #expect(RustProjectScaffold.isGeneratedWorkspace(at: tempURL))
     #expect(RepositoryManifestHint.cargoToml.language == .rust)
   }
-@Test
+  @Test
   func generatedVerifyGateAcceptsCompassStandardVerify() {
     let standardVerify =
       GeneratedProjectQuality.standardVerifyCommand
@@ -113,7 +116,8 @@ struct ScaffoldTests {
       GeneratedVerifyValidator.coverageViolation(verify: standardVerify) == nil
     )
     #expect(
-      GeneratedVerifyValidator.coverageViolation(verify: "cargo llvm-cov --workspace --summary-only")
+      GeneratedVerifyValidator.coverageViolation(
+        verify: "cargo llvm-cov --workspace --summary-only")
         == nil
     )
     #expect(

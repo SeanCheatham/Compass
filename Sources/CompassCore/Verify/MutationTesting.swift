@@ -57,7 +57,9 @@ public enum MutationSnapshotStore {
     return try? decoder.decode(MutationSnapshot.self, from: data)
   }
 
-  public static func writeMutationSnapshot(_ snapshot: MutationSnapshot, workspace: CompassWorkspace)
+  public static func writeMutationSnapshot(
+    _ snapshot: MutationSnapshot, workspace: CompassWorkspace
+  )
     throws
   {
     let url = mutationSnapshotURL(in: workspace)
@@ -125,14 +127,17 @@ public enum MutationReportParser {
       let lowered = line.lowercased()
       guard line.contains(".rs") else { continue }
       let cleaned: String
-      if let prefixed = stripStatusPrefix(["missed", "not caught", "not_caught"], from: lowered, original: line) {
+      if let prefixed = stripStatusPrefix(
+        ["missed", "not caught", "not_caught"], from: lowered, original: line)
+      {
         cleaned = strippingTimingSuffix(from: prefixed)
       } else if lowered.hasSuffix("missed") || lowered.hasSuffix("not caught")
         || lowered.contains("... missed") || lowered.contains("... not caught")
       {
         cleaned =
           line
-          .replacingOccurrences(of: #"\s*\.\.\.\s*(missed|not caught).*$"#, with: "", options: .regularExpression)
+          .replacingOccurrences(
+            of: #"\s*\.\.\.\s*(missed|not caught).*$"#, with: "", options: .regularExpression)
       } else {
         continue
       }
@@ -167,10 +172,10 @@ public enum MutationReportParser {
   }
 }
 
-public extension GeneratedProjectQuality {
+extension GeneratedProjectQuality {
   /// Builds a mutation command scoped to the Rust source files changed in the
   /// current iteration, so post-verify mutation runs stay fast and relevant.
-  static func mutationTestCommand(forChangedFiles changedFiles: [String]) -> String {
+  public static func mutationTestCommand(forChangedFiles changedFiles: [String]) -> String {
     let sources = changedFiles.filter {
       $0.hasSuffix(".rs") && !$0.contains("/tests/") && !$0.hasSuffix("_tests.rs")
     }

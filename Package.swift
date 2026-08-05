@@ -73,7 +73,7 @@ let package = Package(
     .executableTarget(
       name: "Compass",
       dependencies: [
-        "CompassCore",
+        "CompassCore"
       ]
     ),
     .testTarget(

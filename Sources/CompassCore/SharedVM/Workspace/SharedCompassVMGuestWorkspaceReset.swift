@@ -174,7 +174,8 @@ public enum SharedCompassVMGuestWorkspaceReset {
         previousWorkspaceID: previous?.id,
         workspaceID: nil,
         guestWorktreePath: nil,
-        detail: "Removed guest workspace\(previous.map { " \($0.id)" } ?? "") and host catalog entry."
+        detail:
+          "Removed guest workspace\(previous.map { " \($0.id)" } ?? "") and host catalog entry."
       )
     }
 

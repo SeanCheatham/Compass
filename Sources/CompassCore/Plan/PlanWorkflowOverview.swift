@@ -1,6 +1,5 @@
 import Foundation
 
-
 public struct PlanVerifyCommandSummary: Equatable, Sendable {
   public static let commandLimit = 180
   public static let detailLimit = 220
@@ -538,14 +537,13 @@ public struct PlanHandoffDigest: Equatable, Sendable {
   )
 }
 
-public extension Array where Element == PlanHandoffDigest.MissingPiece {
+extension Array where Element == PlanHandoffDigest.MissingPiece {
   fileprivate var requiredLabels: [String] {
     filter { $0.isRequired }.map(\.label)
   }
 }
 
-
-public extension String {
+extension String {
   fileprivate var nilIfEmpty: String? {
     isEmpty ? nil : self
   }

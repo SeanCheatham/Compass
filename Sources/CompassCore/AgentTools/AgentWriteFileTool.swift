@@ -78,7 +78,8 @@ public struct AgentWriteFileTool: AgentTool {
     )
   }
 
-  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws
+    -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -475,7 +476,9 @@ public struct AgentWriteFileTool: AgentTool {
   }
 
   private static func inappropriateRustTestCode(in text: String, url: URL) -> String? {
-    guard url.pathExtension.lowercased() == "rs", !AgentEditSafety.isTestFile(url) else { return nil }
+    guard url.pathExtension.lowercased() == "rs", !AgentEditSafety.isTestFile(url) else {
+      return nil
+    }
     let path = url.path.lowercased()
     guard path.contains("/src/") else { return nil }
     for line in text.components(separatedBy: "\n") {

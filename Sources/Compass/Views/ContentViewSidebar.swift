@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import CompassCore
+import SwiftUI
 
 struct SidebarView: View {
   @EnvironmentObject private var model: AppModel

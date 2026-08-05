@@ -71,7 +71,8 @@ struct AgentNativeLoopTests {
       chatRuntime: runtime,
       textRuntime: runtime
     )
-    let decoded = try JSONSerialization.jsonObject(with: result.submitResultArguments) as? [String: Any]
+    let decoded =
+      try JSONSerialization.jsonObject(with: result.submitResultArguments) as? [String: Any]
     #expect(decoded?["status"] as? String == "succeeded")
     #expect(result.iterations == 1)
 
@@ -94,14 +95,16 @@ struct AgentNativeLoopTests {
       AgentChatResponse(
         text: "",
         toolCalls: [
-          AgentChatToolCall(id: "c1", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
+          AgentChatToolCall(
+            id: "c1", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
         ],
         tokenUsage: usage()
       ),
       AgentChatResponse(
         text: "",
         toolCalls: [
-          AgentChatToolCall(id: "c2", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
+          AgentChatToolCall(
+            id: "c2", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
         ],
         tokenUsage: usage()
       ),
@@ -139,7 +142,8 @@ struct AgentNativeLoopTests {
       AgentChatResponse(
         text: "",
         toolCalls: [
-          AgentChatToolCall(id: "c2", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
+          AgentChatToolCall(
+            id: "c2", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
         ],
         tokenUsage: usage()
       ),
@@ -156,7 +160,10 @@ struct AgentNativeLoopTests {
     let result = try await executor.runNative(config, chatRuntime: runtime, textRuntime: runtime)
 
     #expect(result.reasoningText == "I need to inspect note.txt before editing.")
-    #expect(sink.events.contains { $0.payload == .thinking(text: "I need to inspect note.txt before editing.") })
+    #expect(
+      sink.events.contains {
+        $0.payload == .thinking(text: "I need to inspect note.txt before editing.")
+      })
 
     let secondRequest = try #require(runtime.requests.dropFirst().first)
     let observation = secondRequest.messages.last { $0.role == .tool }
@@ -188,7 +195,8 @@ struct AgentNativeLoopTests {
       AgentChatResponse(
         text: "",
         toolCalls: [
-          AgentChatToolCall(id: "c3", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
+          AgentChatToolCall(
+            id: "c3", name: "develop_submit", argumentsJSON: #"{"status":"succeeded"}"#)
         ],
         tokenUsage: usage()
       ),
@@ -318,7 +326,8 @@ struct AgentNativeLoopTests {
 }
 
 extension AgentNativeLoopTests.ScriptedChatRuntime: LocalModelGenerating {
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult
+  {
     throw AgentExecutionError.streamFailed("text generation not scripted")
   }
 }

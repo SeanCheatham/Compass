@@ -1,11 +1,12 @@
 import Foundation
 import Testing
+
 @testable import Compass
 @testable import CompassCore
 
 @Suite("Runtime readiness")
 struct RuntimeLeaseTests {
-@Test
+  @Test
   func hybridRuntimeReadiness() {
     let cloud = AgentRuntimeSettings(
       textProvider: .openAICompatible,
@@ -29,7 +30,7 @@ struct RuntimeLeaseTests {
     #expect(local.isTextCapabilityRunnable(localModelReady: true))
     #expect(!local.isTextCapabilityRunnable(localModelReady: false))
   }
-@Test
+  @Test
   func localModelLeaseAllowsOneLoadedModelAndUnloadsAfterIdle() async throws {
     await LocalModelLease.shared.resetForTesting()
     await LocalModelLease.shared.setIdleTimeoutForTesting(seconds: 0.01)
@@ -48,7 +49,7 @@ struct RuntimeLeaseTests {
     #expect(snapshot.activeRunCount == 0)
     await LocalModelLease.shared.resetForTesting()
   }
-@Test
+  @Test
   func localModelCatalogMissingAndReadyStates() throws {
     let missingURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: missingURL) }
@@ -60,7 +61,8 @@ struct RuntimeLeaseTests {
     let readyURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: readyURL) }
     try "{}".write(to: readyURL.appending(path: "config.json"), atomically: true, encoding: .utf8)
-    try "{}".write(to: readyURL.appending(path: "tokenizer.json"), atomically: true, encoding: .utf8)
+    try "{}".write(
+      to: readyURL.appending(path: "tokenizer.json"), atomically: true, encoding: .utf8)
     try Data([0]).write(to: readyURL.appending(path: "model.safetensors"))
     LocalModelCatalog.withTestingModelDirectory(readyURL) {
       #expect(LocalModelCatalog.isBlessedModelReady())

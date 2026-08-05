@@ -1,5 +1,5 @@
-import SwiftUI
 import CompassCore
+import SwiftUI
 
 struct CompassSettingsView: View {
   @EnvironmentObject var model: AppModel
@@ -114,7 +114,8 @@ private struct AgentSettingsTab: View {
           } label: {
             Label("Delete", systemImage: "trash")
           }
-          .disabled(localModelManager.isDownloadActive || localModelManager.snapshot.status == .missing)
+          .disabled(
+            localModelManager.isDownloadActive || localModelManager.snapshot.status == .missing)
 
           Button {
             localModelManager.openModelFolder()

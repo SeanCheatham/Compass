@@ -402,7 +402,9 @@ struct PlanTransitionValidatorTests {
   }
 }
 
-private func planState(_ plan: String, verify: String = GeneratedProjectQuality.standardVerifyCommand) -> PlanState {
+private func planState(
+  _ plan: String, verify: String = GeneratedProjectQuality.standardVerifyCommand
+) -> PlanState {
   PlanState(
     completed: [],
     immediate: PlanNext(

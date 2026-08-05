@@ -43,7 +43,8 @@ public enum OpenAICompatibleRuntimeError: LocalizedError, Equatable {
   public var errorDescription: String? {
     switch self {
     case .notConfigured:
-      return "OpenAI-compatible cloud provider is not configured (need API key, base URL, and model)."
+      return
+        "OpenAI-compatible cloud provider is not configured (need API key, base URL, and model)."
     case .invalidBaseURL(let value):
       return "Invalid OpenAI-compatible base URL: \(value)"
     case .httpStatus(let code, let body, _):
@@ -148,8 +149,9 @@ public struct OpenAICompatibleRetryPolicy: Sendable, Equatable {
 
   /// Parses `Retry-After` as delay-seconds or HTTP-date.
   public static func retryAfterSeconds(from response: HTTPURLResponse) -> Double? {
-    guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
-      .trimmingCharacters(in: .whitespacesAndNewlines),
+    guard
+      let raw = response.value(forHTTPHeaderField: "Retry-After")?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
       !raw.isEmpty
     else {
       return nil
@@ -177,7 +179,8 @@ public struct OpenAICompatibleRetryPolicy: Sendable, Equatable {
     let cappedAttempt = max(1, attempt)
     var base: UInt64
     if let retryAfterSeconds, retryAfterSeconds > 0 {
-      let fromHeader = UInt64(min(retryAfterSeconds, Double(UInt64.max) / 1_000_000_000) * 1_000_000_000)
+      let fromHeader = UInt64(
+        min(retryAfterSeconds, Double(UInt64.max) / 1_000_000_000) * 1_000_000_000)
       base = min(max(fromHeader, initialBackoffNanoseconds), maxBackoffNanoseconds)
     } else {
       var delay = initialBackoffNanoseconds
@@ -314,7 +317,9 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
     }
   }
 
-  public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  public func generateText(request: LocalModelGenerationRequest) async throws
+    -> LocalModelGenerationResult
+  {
     guard endpoint.isConfigured else {
       throw OpenAICompatibleRuntimeError.notConfigured
     }
@@ -423,7 +428,8 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
         )
         await sleep(delay)
       } catch let error as URLError
-      where OpenAICompatibleRetryPolicy.isTransientURLError(error) {
+        where OpenAICompatibleRetryPolicy.isTransientURLError(error)
+      {
         guard attempt < retryPolicy.maxAttempts else { throw error }
         let delay = retryPolicy.delayNanoseconds(afterFailedAttempt: attempt)
         await sleep(delay)
@@ -539,7 +545,8 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
         }
       }
 
-      let resolvedToolCalls: [AgentChatToolCall] = toolCalls
+      let resolvedToolCalls: [AgentChatToolCall] =
+        toolCalls
         .sorted { $0.key < $1.key }
         .map { index, accumulated in
           AgentChatToolCall(

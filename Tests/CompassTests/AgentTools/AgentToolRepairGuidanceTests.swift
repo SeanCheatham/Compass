@@ -238,13 +238,13 @@ struct AgentToolRepairGuidanceTests {
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
     let mainURL = srcURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(): string {
-      return summarizeQueue([]);
-    }
-    """
+      export function main(): string {
+        return summarizeQueue([]);
+      }
+      """
     try original.write(to: mainURL, atomically: true, encoding: .utf8)
     try "export function summarizeCLI() { return ''; }\n".write(
       to: srcURL.appending(path: "summarize.ts"),
@@ -754,18 +754,18 @@ struct AgentToolRepairGuidanceTests {
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
     let mainURL = srcURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      }
 
-    if (import.meta.url === `file://${process.argv[1]}`) {
-      console.log(main());
-    }
-    """
+      if (import.meta.url === `file://${process.argv[1]}`) {
+        console.log(main());
+      }
+      """
     try original.write(to: mainURL, atomically: true, encoding: .utf8)
     try "export function summarizeCLI() { return ''; }\n".write(
       to: srcURL.appending(path: "summarize.ts"),
@@ -807,18 +807,18 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      }
 
-    if (import.meta.url === `file://${process.argv[1]}`) {
-      console.log(main());
-    }
-    """
+      if (import.meta.url === `file://${process.argv[1]}`) {
+        console.log(main());
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -860,18 +860,18 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      }
 
-    if (import.meta.url === `file://${process.argv[1]}`) {
-      console.log(main());
-    }
-    """
+      if (import.meta.url === `file://${process.argv[1]}`) {
+        console.log(main());
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -880,16 +880,16 @@ struct AgentToolRepairGuidanceTests {
     )
 
     let replacement = """
-    // Parse --done and the following numeric string as separate argv entries
-    const doneIndex = argv.indexOf('--done');
-    if (doneIndex !== -1 && doneIndex + 1 < argv.length) {
-      const done = parseInt(argv[doneIndex + 1], 10);
-      argv = argv.slice(0, doneIndex).concat(argv.slice(doneIndex + 2));
-    }
+      // Parse --done and the following numeric string as separate argv entries
+      const doneIndex = argv.indexOf('--done');
+      if (doneIndex !== -1 && doneIndex + 1 < argv.length) {
+        const done = parseInt(argv[doneIndex + 1], 10);
+        argv = argv.slice(0, doneIndex).concat(argv.slice(doneIndex + 2));
+      }
 
-    const title = argv.join(' ').trim() || 'First Compass task';
-    return summarizeQueue([{ id: 'task-1', title, done: done || false }]);
-    """
+      const title = argv.join(' ').trim() || 'First Compass task';
+      return summarizeQueue([{ id: 'task-1', title, done: done || false }]);
+      """
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
         #"{"path":"main.ts","startLine":4,"endLine":7,"content":\#(toolGuidanceJSONStringLiteral(replacement))}"#
@@ -918,14 +918,14 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
-    """
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -957,15 +957,15 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.test.ts")
     let original = """
-    import { describe, expect, it } from "vitest";
-    import { main } from "./main";
+      import { describe, expect, it } from "vitest";
+      import { main } from "./main";
 
-    describe("cli", () => {
-      it("prints the queue summary", () => {
-        expect(main(["Ship", "it"])).toBe("1 open / 1 total");
+      describe("cli", () => {
+        it("prints the queue summary", () => {
+          expect(main(["Ship", "it"])).toBe("1 open / 1 total");
+        });
       });
-    });
-    """
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -983,7 +983,8 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("argument-parsing implementation code into test file main.test.ts"))
+    #expect(
+      result.content.contains("argument-parsing implementation code into test file main.test.ts"))
     #expect(result.content.contains("Do not repair production behavior"))
     #expect(result.content.contains("Edit main.ts with the implementation"))
     #expect(result.content.contains("keep test edits focused"))
@@ -998,15 +999,15 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.test.ts")
     let original = """
-    import { describe, expect, it } from "vitest";
-    import { main } from "./main";
+      import { describe, expect, it } from "vitest";
+      import { main } from "./main";
 
-    describe("cli", () => {
-      it("prints the queue summary", () => {
-        expect(main(["Ship", "it"])).toBe("1 open / 1 total");
+      describe("cli", () => {
+        it("prints the queue summary", () => {
+          expect(main(["Ship", "it"])).toBe("1 open / 1 total");
+        });
       });
-    });
-    """
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1025,7 +1026,9 @@ struct AgentToolRepairGuidanceTests {
     #expect(!result.isError)
     let edited = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(edited.contains("handles --done with count"))
-    #expect(edited.contains("expect(main([\"--done\", \"1\", \"Ship\", \"it\"])).toBe(\"0 open / 1 total\")"))
+    #expect(
+      edited.contains(
+        "expect(main([\"--done\", \"1\", \"Ship\", \"it\"])).toBe(\"0 open / 1 total\")"))
   }
 
   @Test
@@ -1035,12 +1038,12 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "summarize.ts")
     let original = """
-    import { summarizeQueue } from "@compass-test/core";
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
-      return summarizeQueue(entries);
-    }
-    """
+      export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
+        return summarizeQueue(entries);
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1070,20 +1073,20 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-      const limit = parseInt(argv.shift(), 10);
-      if (!isNaN(limit)) {
-        argv.unshift(title);
-        title = `Open ${limit} / ${limit} total`;
+        const limit = parseInt(argv.shift(), 10);
+        if (!isNaN(limit)) {
+          argv.unshift(title);
+          title = `Open ${limit} / ${limit} total`;
+        }
+
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
       }
-
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
-    """
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1159,12 +1162,12 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "summarize.ts")
     let original = """
-    export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
-      const doneCount = entries.filter(entry => entry.done).length;
-      const totalCount = entries.length;
-      return `${doneCount} of ${totalCount} tasks done.`;
-    }
-    """
+      export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
+        const doneCount = entries.filter(entry => entry.done).length;
+        const totalCount = entries.length;
+        return `${doneCount} of ${totalCount} tasks done.`;
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1195,12 +1198,12 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "summarize.ts")
     let original = """
-    export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
-      const doneCount = entries.filter(entry => entry.done).length;
-      const totalCount = entries.length;
-      return `${doneCount} of ${totalCount} tasks done.`;
-    }
-    """
+      export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
+        const doneCount = entries.filter(entry => entry.done).length;
+        const totalCount = entries.length;
+        return `${doneCount} of ${totalCount} tasks done.`;
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1231,18 +1234,18 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      }
 
-    if (import.meta.url === `file://${process.argv[1]}`) {
-      console.log(main());
-    }
-    """
+      if (import.meta.url === `file://${process.argv[1]}`) {
+        console.log(main());
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1273,14 +1276,14 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
-    """
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1342,18 +1345,18 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      }
 
-    if (import.meta.url === `file://${process.argv[1]}`) {
-      console.log(main());
-    }
-    """
+      if (import.meta.url === `file://${process.argv[1]}`) {
+        console.log(main());
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1385,18 +1388,18 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(argv = process.argv.slice(2)): string {
-      const title = argv.join(" ").trim() || "First Compass task";
-      return summarizeQueue([{ id: "task-1", title, done: false }]);
-    }
+      export function main(argv = process.argv.slice(2)): string {
+        const title = argv.join(" ").trim() || "First Compass task";
+        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      }
 
-    if (import.meta.url === `file://${process.argv[1]}`) {
-      console.log(main());
-    }
-    """
+      if (import.meta.url === `file://${process.argv[1]}`) {
+        console.log(main());
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
@@ -1429,13 +1432,13 @@ struct AgentToolRepairGuidanceTests {
 
     let fileURL = tempURL.appending(path: "main.ts")
     let original = """
-    #!/usr/bin/env tsx
-    import { summarizeQueue } from "@compass-test/core";
+      #!/usr/bin/env tsx
+      import { summarizeQueue } from "@compass-test/core";
 
-    export function main(): string {
-      return summarizeQueue([]);
-    }
-    """
+      export function main(): string {
+        return summarizeQueue([]);
+      }
+      """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(

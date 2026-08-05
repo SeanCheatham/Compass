@@ -66,9 +66,11 @@ struct CompassCLITests {
       }
     }
 
-    if case .scaffoldRust(let path, let name, let products, let format) = try CompassCLICommand.parse([
-      "scaffold", "rust", "/tmp/new-project", "--name", "new-project",
-    ]) {
+    if case .scaffoldRust(let path, let name, let products, let format) =
+      try CompassCLICommand.parse([
+        "scaffold", "rust", "/tmp/new-project", "--name", "new-project",
+      ])
+    {
       #expect(path.path == "/tmp/new-project")
       #expect(name == "new-project")
       #expect(products == GeneratedProducts.default)
@@ -130,10 +132,15 @@ struct CompassCLITests {
     }
 
     if case .verify(let repo, let command, let format) = try CompassCLICommand.parse([
-      "verify", "--repo", "/tmp/project", "--command", "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace", "--format", "text",
+      "verify", "--repo", "/tmp/project", "--command",
+      "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
+      "--format", "text",
     ]) {
       #expect(repo.path == "/tmp/project")
-      #expect(command == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace")
+      #expect(
+        command
+          == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+      )
       #expect(format == .text)
     } else {
       Issue.record("Expected verify command.")
@@ -371,9 +378,10 @@ struct CompassCLITests {
           .utf8
       )
     )
-    #expect(insertion.edits[0].replacementLines == [
-      "import { summarizeCLI } from './summarize';", "",
-    ])
+    #expect(
+      insertion.edits[0].replacementLines == [
+        "import { summarizeCLI } from './summarize';", "",
+      ])
   }
 
   @Test
@@ -427,7 +435,8 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-multi-session-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-multi-session-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "multi-session-fixture.jsonl")
     try fixtureJSONL.write(to: fixtureURL, atomically: true, encoding: .utf8)
@@ -466,7 +475,8 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-retry-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-retry-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "retry-fixture.jsonl")
     try writeFixture(retryFixtureOutputs, to: fixtureURL)
@@ -509,7 +519,8 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       RustToolchainBootstrapFailureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-bootstrap-failure-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-bootstrap-failure-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "package-bootstrap-develop-fixture.jsonl")
     try writeFixture(packageBootstrapDevelopFailureFixtureOutputs, to: fixtureURL)
@@ -549,7 +560,8 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       RustToolchainBootstrapFailureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-bootstrap-verify-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-bootstrap-verify-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "package-bootstrap-verify-fixture.jsonl")
     try writeFixture(packageBootstrapVerifyFailureFixtureOutputs, to: fixtureURL)
@@ -574,7 +586,10 @@ struct CompassCLITests {
     let sessionEnd = try #require(snapshot.last { $0.kind == "session_end" })
     #expect(sessionEnd.message == "Verify hit a package-manager bootstrap failure.")
     #expect(sessionEnd.metadata?["retryKind"] == "infrastructure_failure")
-    #expect(sessionEnd.metadata?["command"] == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace")
+    #expect(
+      sessionEnd.metadata?["command"]
+        == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+    )
     #expect(sessionEnd.detail?.contains("Do not ask Develop to rewrite app code") == true)
   }
 
@@ -589,7 +604,8 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-no-change-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-no-change-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "no-change-fixture.jsonl")
     try writeFixture(noChangeRetryFixtureOutputs, to: fixtureURL)
@@ -632,7 +648,8 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-verify-repair-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-verify-repair-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "verify-repair-fixture.jsonl")
     try writeFixture(verifyRepairFixtureOutputs, to: fixtureURL)
@@ -685,7 +702,8 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-coverage-gap-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-coverage-gap-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "coverage-gap-fixture.jsonl")
@@ -720,7 +738,8 @@ struct CompassCLITests {
       $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "coverage_gap"
     }
     #expect(coverageRetry?.detail?.contains("Coverage repair instructions") == true)
-    #expect(coverageRetry?.detail?.contains("Your next Develop action should be test-focused") == true)
+    #expect(
+      coverageRetry?.detail?.contains("Your next Develop action should be test-focused") == true)
     #expect(coverageRetry?.detail?.contains("Suggested test targets") == true)
     #expect(
       coverageRetry?.detail?.contains(
@@ -748,7 +767,8 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-required-tests-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-required-tests-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "required-tests-fixture.jsonl")
@@ -798,7 +818,8 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-flag-split-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-flag-split-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "weak-cli-flag-fixture.jsonl")
@@ -848,7 +869,8 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "missing-entry-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "missing-entry-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "missing-entry-fixture.jsonl")
@@ -898,7 +920,8 @@ struct CompassCLITests {
       }
       return FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "metadata-only-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "metadata-only-fixture", products: [.cli], onEvent: record)
     try await initializeFixtureGitRepo(at: tempURL)
 
     let fixtureURL = tempURL.appending(path: "metadata-only-fixture.jsonl")
@@ -944,7 +967,8 @@ struct CompassCLITests {
     let runner = HeadlessCompassRunner { _, _ in
       FixtureBashRunner()
     }
-    try runner.scaffoldRust(at: tempURL, name: "cli-budget-fixture", products: [.cli], onEvent: record)
+    try runner.scaffoldRust(
+      at: tempURL, name: "cli-budget-fixture", products: [.cli], onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "budget-fixture.jsonl")
     try writeFixture(budgetExhaustionFixtureOutputs, to: fixtureURL)
@@ -994,7 +1018,9 @@ private struct FixtureBashRunner: AgentBashRunner {
       if command.contains("Fixed verify marker") && readme.contains("Fixed verify marker.") {
         return ProcessResult(exitCode: 0, stdout: "Fixed verify marker present.\n", stderr: "")
       }
-      if command.contains("Package bootstrap marker") && readme.contains("Package bootstrap marker.") {
+      if command.contains("Package bootstrap marker")
+        && readme.contains("Package bootstrap marker.")
+      {
         return ProcessResult(exitCode: 0, stdout: "Package bootstrap marker present.\n", stderr: "")
       }
       return ProcessResult(exitCode: 1, stdout: "", stderr: "README marker missing.\n")
@@ -1032,7 +1058,10 @@ private struct RustToolchainBootstrapFailureBashRunner: AgentBashRunner {
     workingDirectory: URL,
     timeout: TimeInterval
   ) async throws -> ProcessResult {
-    guard command.trimmingCharacters(in: .whitespacesAndNewlines) == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace" else {
+    guard
+      command.trimmingCharacters(in: .whitespacesAndNewlines)
+        == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+    else {
       return try await FixtureBashRunner().run(
         command: command,
         workingDirectory: workingDirectory,
@@ -1051,7 +1080,10 @@ private final class CoverageGapFixtureBashRunner: AgentBashRunner, @unchecked Se
     workingDirectory: URL,
     timeout: TimeInterval
   ) async throws -> ProcessResult {
-    guard command.trimmingCharacters(in: .whitespacesAndNewlines) == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace" else {
+    guard
+      command.trimmingCharacters(in: .whitespacesAndNewlines)
+        == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+    else {
       return try await FixtureBashRunner().run(
         command: command,
         workingDirectory: workingDirectory,
@@ -1077,7 +1109,10 @@ private final class RequiredTestsFixtureBashRunner: AgentBashRunner, @unchecked 
     workingDirectory: URL,
     timeout: TimeInterval
   ) async throws -> ProcessResult {
-    guard command.trimmingCharacters(in: .whitespacesAndNewlines) == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace" else {
+    guard
+      command.trimmingCharacters(in: .whitespacesAndNewlines)
+        == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+    else {
       return try await FixtureBashRunner().run(
         command: command,
         workingDirectory: workingDirectory,
@@ -1101,14 +1136,21 @@ private struct CargoVerifyAlwaysPassBashRunner: AgentBashRunner {
     workingDirectory: URL,
     timeout: TimeInterval
   ) async throws -> ProcessResult {
-    guard command.trimmingCharacters(in: .whitespacesAndNewlines) == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace" else {
+    guard
+      command.trimmingCharacters(in: .whitespacesAndNewlines)
+        == "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+    else {
       return try await FixtureBashRunner().run(
         command: command,
         workingDirectory: workingDirectory,
         timeout: timeout
       )
     }
-    return ProcessResult(exitCode: 0, stdout: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passed.\n", stderr: "")
+    return ProcessResult(
+      exitCode: 0,
+      stdout:
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passed.\n",
+      stderr: "")
   }
 }
 
@@ -1119,7 +1161,8 @@ private actor StaticLocalModelRuntime: LocalModelGenerating {
     self.output = output
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult
+  {
     LocalModelGenerationResult(
       text: output,
       tokenUsage: .estimated(
@@ -1231,10 +1274,10 @@ private let packageBootstrapVerifyFailureFixtureOutputs = [
 ]
 
 private let rustToolchainBootstrapFailureOutput = """
-cargo install cargo-llvm-cov --locked
-error: failed to download from https://crates.io
-network: Error when performing the request
-"""
+  cargo install cargo-llvm-cov --locked
+  error: failed to download from https://crates.io
+  network: Error when performing the request
+  """
 
 private let noChangeRetryFixtureOutputs = [
   """
@@ -1435,71 +1478,71 @@ private let budgetExhaustionFixtureOutputs = [
 ]
 
 private let firstCoverageGapVerifyOutput = """
- RUN  v2.1.9 /workspace
-      Coverage enabled with v8
+   RUN  v2.1.9 /workspace
+        Coverage enabled with v8
 
- ✓ crates/cli/tests/cli.rs (1 test) 1ms
+   ✓ crates/cli/tests/cli.rs (1 test) 1ms
 
- % Coverage report from v8
--------------------|---------|----------|---------|---------|-------------------
-File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
--------------------|---------|----------|---------|---------|-------------------
-All files          |   17.02 |     37.5 |   33.33 |   17.02 |
- crates/cli/src |   31.57 |       25 |      50 |   31.57 |
-  main.rs          |      75 |    33.33 |     100 |      75 | 10-11
-  summarize.rs     |       0 |        0 |       0 |       0 | 1-3
--------------------|---------|----------|---------|---------|-------------------
-"""
+   % Coverage report from v8
+  -------------------|---------|----------|---------|---------|-------------------
+  File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+  -------------------|---------|----------|---------|---------|-------------------
+  All files          |   17.02 |     37.5 |   33.33 |   17.02 |
+   crates/cli/src |   31.57 |       25 |      50 |   31.57 |
+    main.rs          |      75 |    33.33 |     100 |      75 | 10-11
+    summarize.rs     |       0 |        0 |       0 |       0 | 1-3
+  -------------------|---------|----------|---------|---------|-------------------
+  """
 
 private let repairedCoverageVerifyOutput = """
- RUN  v2.1.9 /workspace
-      Coverage enabled with v8
+   RUN  v2.1.9 /workspace
+        Coverage enabled with v8
 
- ✓ crates/cli/tests/summarize.rs (1 test) 1ms
- ✓ crates/cli/tests/cli.rs (1 test) 1ms
+   ✓ crates/cli/tests/summarize.rs (1 test) 1ms
+   ✓ crates/cli/tests/cli.rs (1 test) 1ms
 
- % Coverage report from v8
--------------------|---------|----------|---------|---------|-------------------
-File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
--------------------|---------|----------|---------|---------|-------------------
-All files          |     100 |      100 |     100 |     100 |
- crates/cli/src |     100 |      100 |     100 |     100 |
-  main.rs          |     100 |      100 |     100 |     100 |
-  summarize.rs     |     100 |      100 |     100 |     100 |
--------------------|---------|----------|---------|---------|-------------------
-"""
+   % Coverage report from v8
+  -------------------|---------|----------|---------|---------|-------------------
+  File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+  -------------------|---------|----------|---------|---------|-------------------
+  All files          |     100 |      100 |     100 |     100 |
+   crates/cli/src |     100 |      100 |     100 |     100 |
+    main.rs          |     100 |      100 |     100 |     100 |
+    summarize.rs     |     100 |      100 |     100 |     100 |
+  -------------------|---------|----------|---------|---------|-------------------
+  """
 
 private let requiredTestsFirstVerifyOutput = """
- RUN  v2.1.9 /workspace
-      Coverage enabled with v8
+   RUN  v2.1.9 /workspace
+        Coverage enabled with v8
 
- ✓ crates/cli/tests/cli.rs (1 test) 1ms
+   ✓ crates/cli/tests/cli.rs (1 test) 1ms
 
- % Coverage report from v8
--------------------|---------|----------|---------|---------|-------------------
-File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
--------------------|---------|----------|---------|---------|-------------------
-All files          |   47.05 |       50 |      50 |   47.05 |
- crates/cli/src |   77.77 |       40 |     100 |   77.77 |
-  main.rs          |   77.77 |       40 |     100 |   77.77 | 11-12
--------------------|---------|----------|---------|---------|-------------------
-"""
+   % Coverage report from v8
+  -------------------|---------|----------|---------|---------|-------------------
+  File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+  -------------------|---------|----------|---------|---------|-------------------
+  All files          |   47.05 |       50 |      50 |   47.05 |
+   crates/cli/src |   77.77 |       40 |     100 |   77.77 |
+    main.rs          |   77.77 |       40 |     100 |   77.77 | 11-12
+  -------------------|---------|----------|---------|---------|-------------------
+  """
 
 private let requiredTestsRepairedVerifyOutput = """
- RUN  v2.1.9 /workspace
-      Coverage enabled with v8
+   RUN  v2.1.9 /workspace
+        Coverage enabled with v8
 
- ✓ crates/cli/tests/cli.rs (2 tests) 1ms
+   ✓ crates/cli/tests/cli.rs (2 tests) 1ms
 
- % Coverage report from v8
--------------------|---------|----------|---------|---------|-------------------
-File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
--------------------|---------|----------|---------|---------|-------------------
-All files          |     100 |      100 |     100 |     100 |
- crates/cli/src |     100 |      100 |     100 |     100 |
-  main.rs          |     100 |      100 |     100 |     100 |
--------------------|---------|----------|---------|---------|-------------------
-"""
+   % Coverage report from v8
+  -------------------|---------|----------|---------|---------|-------------------
+  File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+  -------------------|---------|----------|---------|---------|-------------------
+  All files          |     100 |      100 |     100 |     100 |
+   crates/cli/src |     100 |      100 |     100 |     100 |
+    main.rs          |     100 |      100 |     100 |     100 |
+  -------------------|---------|----------|---------|---------|-------------------
+  """
 
 private let fixtureJSONL = """
   {"text":"{\\"kind\\":\\"plan_submit\\",\\"payload\\":{\\"state\\":{\\"immediate\\":{\\"plan\\":\\"## Outcome\\\\nAdd a short README note that says Fixture smoke note.\\\\n\\\\n## Why it matters\\\\nThis proves the CLI fixture loop can plan a small observable documentation edit.\\\\n\\\\n## Acceptance checks\\\\n- README.md contains the sentence Fixture smoke note.\\",\\"verify\\":\\"grep -q 'Fixture smoke note.' README.md\\",\\"verifyTimeoutMs\\":60000,\\"estimatedDifficulty\\":\\"low\\",\\"selectedBecause\\":\\"This is a tiny deterministic slice for the CLI fixture harness.\\",\\"source\\":\\"repository\\",\\"candidateID\\":null},\\"queue\\":[],\\"brief\\":{\\"summary\\":\\"Smoke test the CompassCLI fixture harness on a generated Rust workspace.\\",\\"targetUsers\\":[\\"Compass maintainers\\"],\\"desiredOutcomes\\":[\\"A deterministic CLI run edits a file and verifies on host.\\"],\\"constraints\\":[\\"No cargo dependency for this smoke test.\\"],\\"acceptanceSignals\\":[\\"README.md contains Fixture smoke note.\\"]},\\"openQuestions\\":[]},\\"lessonEdits\\":[]}}"}

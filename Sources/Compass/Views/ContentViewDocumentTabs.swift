@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import CompassCore
+import SwiftUI
 
 struct VisionTab: View {
   @ObservedObject var project: CompassProject

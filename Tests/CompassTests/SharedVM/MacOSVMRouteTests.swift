@@ -89,7 +89,8 @@ struct MacOSVMRouteTests {
     #expect(
       HeadlessCompassRunner.bashRuntimeSelection(
         environment: ["COMPASS_BASH_RUNTIME": "containerized_linux"]) == .macOSVM)
-    #expect(!HeadlessCompassRunner.bashRuntimePrefersHost(environment: ["COMPASS_BASH_RUNTIME": "host"]))
+    #expect(
+      !HeadlessCompassRunner.bashRuntimePrefersHost(environment: ["COMPASS_BASH_RUNTIME": "host"]))
   }
 
   // MARK: - Guest working directory mapping

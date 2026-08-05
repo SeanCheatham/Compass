@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import CompassCore
+import SwiftUI
 
 struct ContentView: View {
   @EnvironmentObject private var model: AppModel

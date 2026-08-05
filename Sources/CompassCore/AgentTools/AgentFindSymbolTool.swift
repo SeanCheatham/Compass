@@ -69,7 +69,8 @@ public struct AgentFindSymbolTool: AgentTool {
     )
   }
 
-  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws
+    -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -128,11 +129,11 @@ public struct AgentFindSymbolTool: AgentTool {
   }
 }
 
-public extension CodemapSymbolKind {
+extension CodemapSymbolKind {
   /// JSON-Schema-friendly list of allowed `kind` values for tool input
   /// validation. Follows `CaseIterable` declaration order so schema diffs
   /// stay minimal when kinds are appended at the end of the enum.
-  static var allRawValues: [String] {
+  public static var allRawValues: [String] {
     allCases.map(\.rawValue)
   }
 }

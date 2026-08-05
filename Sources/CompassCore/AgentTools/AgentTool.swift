@@ -288,7 +288,7 @@ public enum AgentToolError: LocalizedError, Equatable {
   }
 }
 
-public extension AgentToolContext {
+extension AgentToolContext {
   /// Resolve a possibly-relative path against the working directory. Paths
   /// that resolve outside the working directory are rejected so a buggy or
   /// adversarial tool call can't read `/etc/passwd` from a sandbox-style
@@ -299,7 +299,7 @@ public extension AgentToolContext {
   ///
   /// Symlinks are resolved before the worktree check so a symlink inside
   /// the worktree cannot escape to the host filesystem.
-  func resolvePath(_ raw: String) throws -> URL {
+  public func resolvePath(_ raw: String) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       throw AgentToolError.invalidArguments("path is empty")
@@ -325,7 +325,7 @@ public extension AgentToolContext {
 
   /// Convert an absolute URL to the path space the model should see:
   /// relative when no virtual root is configured, otherwise `/workspace/...`.
-  func displayPath(for url: URL) -> String {
+  public func displayPath(for url: URL) -> String {
     let relative = relativize(url)
     guard let visible = agentVisibleWorkspacePath else {
       return relative
@@ -339,7 +339,7 @@ public extension AgentToolContext {
   /// Convert an absolute URL back to a path relative to the working
   /// directory. Used by tools that report match results so the model sees
   /// short paths instead of `/Users/...` prefixes that change per machine.
-  func relativize(_ url: URL) -> String {
+  public func relativize(_ url: URL) -> String {
     let workingPath = workingDirectory.standardizedFileURL.path
     let absolutePath = url.standardizedFileURL.path
     if absolutePath == workingPath { return "." }
@@ -352,7 +352,7 @@ public extension AgentToolContext {
   /// Rewrite host absolute worktree prefixes to the agent-visible root so
   /// tool observations never leak `/Users/...` paths during VM
   /// runs.
-  func sanitizeHostPaths(in text: String) -> String {
+  public func sanitizeHostPaths(in text: String) -> String {
     guard let visible = agentVisibleWorkspacePath else { return text }
     let host = workingDirectory.standardizedFileURL.path
     guard !host.isEmpty else { return text }
@@ -365,7 +365,7 @@ public extension AgentToolContext {
   /// Codemap cache directory for this run. Tools read this rather than
   /// re-deriving the path so the executor can point them at the
   /// host-side store even when bash runs in the macOS VM.
-  func codemapStore() -> CodemapStore {
+  public func codemapStore() -> CodemapStore {
     CodemapStore(directory: codemapStoreDirectory)
   }
 

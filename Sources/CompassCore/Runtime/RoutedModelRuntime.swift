@@ -74,7 +74,9 @@ public struct RoutedModelRuntime: LocalModelGenerating, Sendable {
     self.preferCloudWhenAvailable = preferCloudWhenAvailable
   }
 
-  public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  public func generateText(request: LocalModelGenerationRequest) async throws
+    -> LocalModelGenerationResult
+  {
     let runtime = try selectRuntime(for: request.routingHint)
     var resolvedRequest = request
     if let local, isSameBackend(runtime, local) {
@@ -118,17 +120,18 @@ public struct RoutedModelRuntime: LocalModelGenerating, Sendable {
   /// tool-calling interface when it supports one. Returns `nil` for
   /// text-only backends (fixtures, legacy runtimes), which keeps those
   /// callers on the envelope loop.
-  public func chatBackend(for hint: ModelRoutingHint = .cloudPrimary) -> (any AgentChatGenerating)? {
+  public func chatBackend(for hint: ModelRoutingHint = .cloudPrimary) -> (any AgentChatGenerating)?
+  {
     try? selectRuntime(for: hint) as? AgentChatGenerating
   }
 }
 
-public extension ModelRuntimeFactory {
+extension ModelRuntimeFactory {
   /// Prompt mode callers should use when building phase prompts for the
   /// runtime this configuration will resolve to. Both real backends (cloud,
   /// MLX) support native tool calling; injected text-only runtimes stay on
   /// the envelope protocol.
-  static func promptMode(
+  public static func promptMode(
     settings: AgentRuntimeSettings,
     modelRuntime: (any LocalModelGenerating)? = nil
   ) -> AgentPromptMode {

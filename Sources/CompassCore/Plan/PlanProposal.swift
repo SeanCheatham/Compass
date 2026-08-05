@@ -186,7 +186,7 @@ public struct PlanProposal: Codable, Equatable {
   }
 }
 
-public extension PlanStrategicContext {
+extension PlanStrategicContext {
   fileprivate func preservingMissingFields(
     from current: PlanStrategicContext
   ) -> PlanStrategicContext {

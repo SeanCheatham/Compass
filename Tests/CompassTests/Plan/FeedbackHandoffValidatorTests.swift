@@ -28,7 +28,8 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Edited the utility.",
-      feedback: "Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes pass the verification process.",
+      feedback:
+        "Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes pass the verification process.",
       bypassVerify: false
     )
 
@@ -37,7 +38,10 @@ struct FeedbackHandoffValidatorTests {
       Issue.record("Expected run-verify feedback rejection.")
     } catch let error as DevelopFeedbackValidationError {
       #expect(error.reason == .unfinishedSuccess)
-      #expect(error.feedback?.contains("cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace") == true)
+      #expect(
+        error.feedback?.contains(
+          "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+        ) == true)
     }
   }
 
@@ -82,7 +86,8 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Created the summarize helper.",
-      feedback: "Verify the changes with `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`.",
+      feedback:
+        "Verify the changes with `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`.",
       bypassVerify: false
     )
 
@@ -219,7 +224,8 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Moved existing logic to crates/cli/src/summarize.rs.",
-      feedback: "Edit the existing file with the new logic and prepare for adding a test function next.",
+      feedback:
+        "Edit the existing file with the new logic and prepare for adding a test function next.",
       bypassVerify: false
     )
 
@@ -237,7 +243,8 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Added the CLI JSON flag and touched the tests.",
-      feedback: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace now fails due to type errors. Resolve the type errors before proceeding.",
+      feedback:
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace now fails due to type errors. Resolve the type errors before proceeding.",
       bypassVerify: false
     )
 
@@ -255,7 +262,8 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Updated the CLI entrypoint.",
-      feedback: "Fix the syntax error in crates/cli/src/main.rs and then run cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace again.",
+      feedback:
+        "Fix the syntax error in crates/cli/src/main.rs and then run cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace again.",
       bypassVerify: false
     )
 
@@ -273,7 +281,8 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Updated the CLI and tests.",
-      feedback: "Fixed the failing CLI assertion and verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.",
+      feedback:
+        "Fixed the failing CLI assertion and verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes.",
       bypassVerify: false
     )
 
@@ -285,7 +294,8 @@ struct FeedbackHandoffValidatorTests {
     let summary = DevelopSummary(
       status: .succeeded,
       summary: "Updated the CLI and tests.",
-      feedback: "Verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes with the CLI summary assertion in main.test.ts.",
+      feedback:
+        "Verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes with the CLI summary assertion in main.test.ts.",
       bypassVerify: false
     )
 

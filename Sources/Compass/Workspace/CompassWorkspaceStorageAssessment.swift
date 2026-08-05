@@ -1,5 +1,5 @@
-import Foundation
 import CompassCore
+import Foundation
 
 struct CompassWorkspaceStorageAssessment: Equatable {
   static let maxProjectIdentifierLength = 64

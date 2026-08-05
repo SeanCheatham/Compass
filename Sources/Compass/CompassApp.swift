@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import CompassCore
+import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {

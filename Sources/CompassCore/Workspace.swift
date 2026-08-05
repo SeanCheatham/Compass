@@ -22,7 +22,9 @@ public struct CompassWorkspace {
   public var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
   public var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   public var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
-  public var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
+  public var sessionsURL: URL {
+    compassURL.appending(path: "sessions", directoryHint: .isDirectory)
+  }
   public var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
   public var sessionRecordStore: SessionRecordStore {
     SessionRecordStore(compassURL: compassURL)
@@ -235,7 +237,9 @@ public struct CompassWorkspace {
     sessionRecordStore.maxSessionNumber()
   }
 
-  public func previousSessionFeedback(excluding session: Int, activeSessions: [SessionRecord]) -> String {
+  public func previousSessionFeedback(excluding session: Int, activeSessions: [SessionRecord])
+    -> String
+  {
     sessionRecordStore.previousFeedback(excluding: session, activeSessions: activeSessions)
   }
 

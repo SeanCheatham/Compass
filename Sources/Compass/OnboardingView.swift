@@ -1,5 +1,5 @@
-import SwiftUI
 import CompassCore
+import SwiftUI
 
 struct OnboardingView: View {
   @ObservedObject private var localModelManager = LocalModelManager.shared

@@ -65,7 +65,9 @@ public actor MLXLocalModelRuntime: LocalModelGenerating {
     private var loadedModel: ModelContainer?
   #endif
 
-  public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  public func generateText(request: LocalModelGenerationRequest) async throws
+    -> LocalModelGenerationResult
+  {
     guard request.modelID == LocalModelCatalog.blessedModelID else {
       throw LocalModelRuntimeError.generationFailed(
         "Local MLX runtime only supports \(LocalModelCatalog.blessedModelID); cannot serve model \"\(request.modelID)\"."

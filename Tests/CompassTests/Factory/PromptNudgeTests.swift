@@ -1,11 +1,12 @@
 import Foundation
 import Testing
+
 @testable import Compass
 @testable import CompassCore
 
 @Suite("Prompt nudges")
 struct PromptNudgeTests {
-@Test
+  @Test
   func modelDownloadingGuidesDoNotReportBlocked() {
     let snapshot = LocalModelSnapshot(
       runtimeName: LocalModelCatalog.runtimeName,
@@ -25,18 +26,21 @@ struct PromptNudgeTests {
     #expect(!settingsGuide.actionLabel.localizedCaseInsensitiveContains("blocked"))
 
   }
-@Test
+  @Test
   func promptsDoNotMentionRemovedDirections() throws {
     let state = PlanProposal(from: PlanState.empty)
     let next = PlanNext(
-      plan: "## Outcome\nAdd a Rust slice\n\n## Acceptance checks\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
-      verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
+      plan:
+        "## Outcome\nAdd a Rust slice\n\n## Acceptance checks\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
+      verify:
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
     )
     let developSummary = DevelopSummary(
       status: .succeeded,
       summary: "Implemented the slice",
-      feedback: "Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
+      feedback:
+        "Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       bypassVerify: false,
       lessonEdits: []
     )
@@ -60,7 +64,8 @@ struct PromptNudgeTests {
       Prompts.criticPrompt(
         next: next,
         developSummary: developSummary,
-        verifyCommand: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
+        verifyCommand:
+          "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
         verifyExitCode: 0,
         verifyOutput: "ok",
         gitDiff: "",
@@ -97,7 +102,7 @@ struct PromptNudgeTests {
     #expect(prompts.contains("develop_submit"))
     #expect(prompts.contains("OpenAI-compatible"))
   }
-@Test
+  @Test
   func developFirstAttemptPromptPrioritizesAcceptanceTestFiles() {
     let next = PlanNext(
       plan: """
@@ -108,7 +113,8 @@ struct PromptNudgeTests {
         - `crates/core/src/lib.rs` covers the streak helper.
         - `crates/cli/tests/cli.rs` calls `main(["--streak", "done", "done"])`.
         """,
-      verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
+      verify:
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
     )
 
@@ -127,7 +133,7 @@ struct PromptNudgeTests {
     #expect(prompt.contains("crates/core/src/lib.rs"))
     #expect(prompt.contains("source-only edit"))
   }
-@Test
+  @Test
   func developRetryPromptPrioritizesSuggestedTestTargets() {
     let next = PlanNext(
       plan: """
@@ -137,7 +143,8 @@ struct PromptNudgeTests {
         ## Acceptance checks
         - `crates/cli/tests/cli.rs` calls `main(["--signal", "api:green"])`.
         """,
-      verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
+      verify:
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
     )
 
@@ -164,7 +171,7 @@ struct PromptNudgeTests {
     #expect(prompt.contains("Do not submit success or rerun verify until you have changed a file"))
     #expect(prompt.contains("crates/core/tests/signal_board.rs"))
   }
-@Test
+  @Test
   func developRetryPromptPrioritizesRequestedTestFiles() {
     let next = PlanNext(
       plan: """
@@ -174,7 +181,8 @@ struct PromptNudgeTests {
         ## Acceptance checks
         - `crates/cli/tests/cli.rs` calls `main(["--format", "json", "Ship", "it"])`.
         """,
-      verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
+      verify:
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace",
       estimatedDifficulty: .low
     )
 
@@ -198,7 +206,7 @@ struct PromptNudgeTests {
     #expect(prompt.contains("Do not edit source files again until that requested test"))
     #expect(prompt.contains("crates/cli/tests/cli.rs"))
   }
-@Test
+  @Test
   func coverageRepairNudgeNamesExactRustVerifyCommand() {
     let error = PlanTransitionValidationError(
       message: "Verify command must collect coverage.",
@@ -213,13 +221,14 @@ struct PromptNudgeTests {
     #expect(nudge.userMessage.contains("`cargo test --workspace`"))
     #expect(nudge.userMessage.contains(GeneratedProjectQuality.standardVerifyCommand))
   }
-@Test
+  @Test
   func weakCLIProofNudgeShowsRepeatedSplitArgvShape() {
     let error = PlanTransitionValidationError(
       message:
         "Plan selected generic `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` for repeated `--signal` CLI behavior without a CLI test.",
       reason: .weakVerifyCoverage,
-      rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+      rejectedVerify:
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
@@ -233,13 +242,14 @@ struct PromptNudgeTests {
       )
     )
   }
-@Test
+  @Test
   func unfinishedDevelopSuccessNudgeTellsAgentToContinueOrFail() {
     let error = DevelopFeedbackValidationError(
       message:
         "Develop reported status=succeeded, but feedback says planned work remains: `Run cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`.",
       reason: .unfinishedSuccess,
-      feedback: "Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes pass."
+      feedback:
+        "Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes pass."
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .develop)
@@ -255,7 +265,7 @@ struct PromptNudgeTests {
     #expect(nudge.userMessage.contains("cargo test --workspace"))
     #expect(nudge.userMessage.contains("Do not call `read_file`"))
   }
-@Test
+  @Test
   func macOSVMPromptAndToolsAreRustGenerated() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,

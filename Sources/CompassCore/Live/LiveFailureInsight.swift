@@ -300,7 +300,10 @@ public struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["cargo: command not found", "rustc: command not found", "rustup: command not found"]) {
+    if containsAny(
+      normalized,
+      ["cargo: command not found", "rustc: command not found", "rustup: command not found"])
+    {
       return (
         .unavailableService,
         "Rust Toolchain Is Not Ready",
@@ -311,7 +314,9 @@ public struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["llvm-cov: command not found", "could not find `llvm-cov`", "cargo-llvm-cov"]) {
+    if containsAny(
+      normalized, ["llvm-cov: command not found", "could not find `llvm-cov`", "cargo-llvm-cov"])
+    {
       return (
         .commandFailure,
         "Coverage Tooling Is Missing",
@@ -363,7 +368,9 @@ public struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["cargo err!", "failed to select a version", "failed to parse manifest"]) {
+    if containsAny(
+      normalized, ["cargo err!", "failed to select a version", "failed to parse manifest"])
+    {
       return (
         .commandFailure,
         "Cargo Command Failed",

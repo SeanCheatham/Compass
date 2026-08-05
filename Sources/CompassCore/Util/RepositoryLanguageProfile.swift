@@ -120,7 +120,9 @@ public enum RepositoryWalkRules {
     "target",
   ]
 
-  public static func shouldInclude(name: String, isDirectory: Bool, isTopLevel: Bool = false) -> Bool {
+  public static func shouldInclude(name: String, isDirectory: Bool, isTopLevel: Bool = false)
+    -> Bool
+  {
     if name.hasPrefix(".") { return false }
     if isTopLevel && name == "Compass" { return false }
     if isDirectory && name.hasSuffix(".xcodeproj") { return false }

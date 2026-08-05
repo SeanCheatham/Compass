@@ -288,9 +288,11 @@ struct MacOSVMDiagnosticConsoleView: View {
         ScrollView {
           LazyVStack(alignment: .leading, spacing: 2) {
             if vm.diagnosticLines.isEmpty {
-              Text("No diagnostics yet. Start the VM to capture readiness, virtio, and guest log output.")
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 8)
+              Text(
+                "No diagnostics yet. Start the VM to capture readiness, virtio, and guest log output."
+              )
+              .foregroundStyle(.secondary)
+              .padding(.vertical, 8)
             }
             ForEach(vm.diagnosticLines) { line in
               Text(line.displayText)

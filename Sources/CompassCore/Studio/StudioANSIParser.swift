@@ -229,7 +229,8 @@ public enum StudioANSIParser {
   }
 
   private static func basicColor(_ index: Int, bright: Bool) -> NSColor {
-    let palette: [(CGFloat, CGFloat, CGFloat)] = bright
+    let palette: [(CGFloat, CGFloat, CGFloat)] =
+      bright
       ? [
         (0.5, 0.5, 0.5), (1, 0.4, 0.4), (0.4, 1, 0.4), (1, 1, 0.4),
         (0.4, 0.6, 1), (1, 0.4, 1), (0.4, 1, 1), (1, 1, 1),

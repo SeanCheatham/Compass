@@ -20,7 +20,8 @@ struct AgentListFilesToolTests {
     let cliTests = tempURL.appending(path: "crates/cli/tests", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: cliTests, withIntermediateDirectories: true)
-    try "fn main() {}\n".write(to: cliSrc.appending(path: "main.rs"), atomically: true, encoding: .utf8)
+    try "fn main() {}\n".write(
+      to: cliSrc.appending(path: "main.rs"), atomically: true, encoding: .utf8)
     try "#[test] fn smoke() {}\n".write(
       to: cliTests.appending(path: "cli.rs"), atomically: true, encoding: .utf8)
 
@@ -109,7 +110,8 @@ struct AgentListFilesToolTests {
       )
     )
     #expect(!emptyDirectoryResult.isError)
-    #expect(emptyDirectoryResult.content.contains("(no source files matching 'crates/cli/benches')"))
+    #expect(
+      emptyDirectoryResult.content.contains("(no source files matching 'crates/cli/benches')"))
     #expect(emptyDirectoryResult.content.contains("try a broader filter such as 'crates/cli'"))
   }
 }

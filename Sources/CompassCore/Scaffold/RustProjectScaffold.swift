@@ -36,7 +36,8 @@ public enum RustProjectScaffold {
 
     var files: [ScaffoldFile] = [
       ScaffoldFile(path: ".gitignore", contents: gitignore(hasMacOS: hasMacOS)),
-      ScaffoldFile(path: "Cargo.toml", contents: workspaceManifest(hasCLI: hasCLI, hasMacOS: hasMacOS)),
+      ScaffoldFile(
+        path: "Cargo.toml", contents: workspaceManifest(hasCLI: hasCLI, hasMacOS: hasMacOS)),
       ScaffoldFile(path: "rust-toolchain.toml", contents: rustToolchain),
       ScaffoldFile(
         path: "README.md",

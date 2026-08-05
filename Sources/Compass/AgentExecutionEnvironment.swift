@@ -1,5 +1,5 @@
-import Foundation
 import CompassCore
+import Foundation
 
 struct AgentExecutionEnvironmentPresentation: Equatable {
   static let titleLimit = 48

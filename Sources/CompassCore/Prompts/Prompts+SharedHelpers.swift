@@ -1,11 +1,11 @@
 import Foundation
 
-public extension Prompts {
+extension Prompts {
   /// Instruction appended to the live conversation when the executor
   /// needs to compact the message history. The model is asked to drop
   /// what it was doing and emit a plain-text summary that the next
   /// iteration can resume from.
-  static let conversationSummarizationInstruction = """
+  public static let conversationSummarizationInstruction = """
     STOP. Do not call any tools. Do not continue the task.
 
     The context window is filling up. Write a compact summary of THIS conversation so far so the agent can resume in a fresh window. Cover, in order:
@@ -19,29 +19,29 @@ public extension Prompts {
     Be terse but specific. Reply ONLY with the summary as plain text — no preamble, no tool call, no submit envelope. The next turn will receive only this summary plus the original task.
     """
 
-  static func generatedProjectConventionsSection() -> String {
+  public static func generatedProjectConventionsSection() -> String {
     """
-      ## Generated project conventions
-      \(GeneratedProjectQuality.planningGuidance)
-      """
+    ## Generated project conventions
+    \(GeneratedProjectQuality.planningGuidance)
+    """
   }
 
-  static func generatedCoveragePlanningRules() -> String {
+  public static func generatedCoveragePlanningRules() -> String {
     """
-      - Coverage rule: \(GeneratedProjectQuality.coverageRequirementHint)
-      - When Plan focus is `test` or `bugHunt`, prefer increments that raise \
-      coverage on the lowest-covered files listed in the Coverage section.
-      """
+    - Coverage rule: \(GeneratedProjectQuality.coverageRequirementHint)
+    - When Plan focus is `test` or `bugHunt`, prefer increments that raise \
+    coverage on the lowest-covered files listed in the Coverage section.
+    """
   }
 
-  static func encodeSessions(_ sessions: [SessionRecord]) throws -> String {
+  public static func encodeSessions(_ sessions: [SessionRecord]) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(sessions)
     return String(decoding: data, as: UTF8.self)
   }
 
-  static func fencedOrEmpty(_ text: String, empty: String) -> String {
+  public static func fencedOrEmpty(_ text: String, empty: String) -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return empty }
     return """

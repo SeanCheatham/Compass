@@ -34,7 +34,9 @@ public actor FixtureLocalModelRuntime: LocalModelGenerating {
     self.promptLogDirectory = promptLogDirectory
   }
 
-  public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  public func generateText(request: LocalModelGenerationRequest) async throws
+    -> LocalModelGenerationResult
+  {
     let artifacts = try promptLogDirectory.map {
       try PromptLogWriter.writePromptLog(request: request, turn: cursor + 1, in: $0)
     }

@@ -1,13 +1,13 @@
 import Foundation
 
-public extension AgentExecutor {
-  struct InvalidToolArgumentsNudge: Equatable {
+extension AgentExecutor {
+  public struct InvalidToolArgumentsNudge: Equatable {
     public var eventText: String
     public var eventDetail: String
     public var userMessage: String
   }
 
-  static func submitResultValidationNudge(
+  public static func submitResultValidationNudge(
     for error: Error,
     phase: AgentPhase? = nil
   ) -> InvalidToolArgumentsNudge {
@@ -197,7 +197,7 @@ public extension AgentExecutor {
     )
   }
 
-  static func decodingErrorMessage(_ error: Error) -> String {
+  public static func decodingErrorMessage(_ error: Error) -> String {
     guard let decoding = error as? DecodingError else {
       return error.localizedDescription
     }
@@ -221,7 +221,7 @@ public extension AgentExecutor {
     }
   }
 
-  static func invalidSubmitResultDecodeNudge(
+  public static func invalidSubmitResultDecodeNudge(
     errorMessage: String,
     phase: AgentPhase? = nil
   ) -> InvalidToolArgumentsNudge {
@@ -282,7 +282,7 @@ public extension AgentExecutor {
     return ""
   }
 
-  static func missingSubmitResultNudge(
+  public static func missingSubmitResultNudge(
     finishReason: String?,
     maxCompletionTokens: Int,
     phase: AgentPhase? = nil
@@ -290,7 +290,8 @@ public extension AgentExecutor {
     _ = maxCompletionTokens
     let detail: String
     if let finishReason, !finishReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      detail = "Model ended with finish_reason=\(finishReason) without returning a phase submit envelope."
+      detail =
+        "Model ended with finish_reason=\(finishReason) without returning a phase submit envelope."
     } else {
       detail = "Model ended without returning a phase submit envelope."
     }
@@ -306,7 +307,7 @@ public extension AgentExecutor {
     )
   }
 
-  static func submitResultDecodeRetryShape(for phase: AgentPhase?) -> String {
+  public static func submitResultDecodeRetryShape(for phase: AgentPhase?) -> String {
     switch phase {
     case .plan:
       return """
@@ -381,7 +382,8 @@ public extension AgentExecutor {
     guard let feedback, !feedback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       return nil
     }
-    let normalized = feedback
+    let normalized =
+      feedback
       .replacingOccurrences(of: "`", with: " ")
       .replacingOccurrences(of: "\"", with: "")
     let patterns = [

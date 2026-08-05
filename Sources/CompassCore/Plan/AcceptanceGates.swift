@@ -64,7 +64,8 @@ public struct AcceptanceGates: Codable, Equatable, Sendable {
       } else {
         issues.append(
           String(
-            format: "coverage gate requires >= %.1f%% line coverage, but no coverage snapshot was collected.",
+            format:
+              "coverage gate requires >= %.1f%% line coverage, but no coverage snapshot was collected.",
             minimum))
       }
     }
@@ -79,7 +80,8 @@ public struct AcceptanceGates: Codable, Equatable, Sendable {
       } else {
         issues.append(
           String(
-            format: "mutation gate requires >= %.1f%% mutation score, but no mutation snapshot was collected.",
+            format:
+              "mutation gate requires >= %.1f%% mutation score, but no mutation snapshot was collected.",
             minimum))
       }
     }
@@ -87,21 +89,23 @@ public struct AcceptanceGates: Codable, Equatable, Sendable {
       if let mutation {
         if mutation.missed > maximum {
           issues.append(
-            "mutation gate: \(mutation.missed) surviving mutants exceed the allowed maximum of \(maximum).")
+            "mutation gate: \(mutation.missed) surviving mutants exceed the allowed maximum of \(maximum)."
+          )
         }
       } else {
         issues.append(
-          "mutation gate allows at most \(maximum) surviving mutants, but no mutation snapshot was collected.")
+          "mutation gate allows at most \(maximum) surviving mutants, but no mutation snapshot was collected."
+        )
       }
     }
     return issues
   }
 }
 
-public extension AcceptanceGates {
+extension AcceptanceGates {
   /// Resolves the active gates: explicit state gates win, environment defaults
   /// apply otherwise, and no gates means no post-verify acceptance checks.
-  static func active(
+  public static func active(
     from state: PlanState,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> AcceptanceGates? {

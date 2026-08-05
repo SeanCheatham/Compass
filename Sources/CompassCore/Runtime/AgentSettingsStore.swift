@@ -50,7 +50,7 @@ public final class AgentSettingsStore: @unchecked Sendable {
     let contextWindow =
       environment.trimmedValue("COMPASS_AGENT_CONTEXT_WINDOW_TOKENS").flatMap(Int.init)
       ?? defaults.string(forKey: Key.contextWindowTokens.rawValue)
-        .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+      .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
       ?? textProvider.textContextWindowTokens(for: model)
 
     return AgentRuntimeSettings(

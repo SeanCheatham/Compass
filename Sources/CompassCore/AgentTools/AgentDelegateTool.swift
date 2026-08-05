@@ -141,7 +141,8 @@ public struct AgentDelegateTool: AgentTool {
     )
   }
 
-  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws
+    -> AgentToolInvocationResult
   {
     let args: Arguments
     do {

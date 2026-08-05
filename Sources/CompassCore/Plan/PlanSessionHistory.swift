@@ -396,7 +396,7 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
         "downloading-ipsw",
         "installing",
         "first-boot-pending",
-                "ready",
+        "ready",
         "error",
         "not-inspected":
         return identifier

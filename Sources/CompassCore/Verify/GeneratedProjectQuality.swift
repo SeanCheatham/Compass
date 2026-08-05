@@ -143,7 +143,9 @@ public enum CoverageSnapshotStore {
     return try? decoder.decode(CoverageSnapshot.self, from: data)
   }
 
-  public static func writeCoverageSnapshot(_ snapshot: CoverageSnapshot, workspace: CompassWorkspace)
+  public static func writeCoverageSnapshot(
+    _ snapshot: CoverageSnapshot, workspace: CompassWorkspace
+  )
     throws
   {
     let url = coverageSnapshotURL(in: workspace)

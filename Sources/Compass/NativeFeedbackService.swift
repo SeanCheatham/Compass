@@ -1,7 +1,7 @@
 import AVFoundation
+import CompassCore
 import Foundation
 import UserNotifications
-import CompassCore
 
 enum NativeFeedbackMode: String, CaseIterable, Codable, Identifiable {
   case off

@@ -781,7 +781,8 @@ public enum PlanTransitionValidator {
   }
 
   private static func isSimpleDocumentationGrepVerify(_ verify: String) -> Bool {
-    let normalized = verify
+    let normalized =
+      verify
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
     let pattern =

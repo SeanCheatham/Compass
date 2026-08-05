@@ -142,7 +142,7 @@ public struct SymbolExtractor: Sendable {
   }
 }
 
-public extension SymbolExtractor {
+extension SymbolExtractor {
   fileprivate struct SymbolKey: Hashable {
     public let kind: CodemapSymbolKind
     public let name: String

@@ -179,7 +179,8 @@ struct OpenAICompatibleChatStreamingTests {
 
   @Test
   func encodesAssistantReasoningContentForPreservedThinking() async throws {
-    SSEProtocol.responseBody = "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n"
+    SSEProtocol.responseBody =
+      "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n"
     _ = try await runtime().generateChat(
       request: AgentChatRequest(
         modelID: "k3",
@@ -188,7 +189,9 @@ struct OpenAICompatibleChatStreamingTests {
           .user("work"),
           .assistant(
             "",
-            toolCalls: [AgentChatToolCall(id: "c1", name: "read_file", argumentsJSON: #"{"path":"a"}"#)],
+            toolCalls: [
+              AgentChatToolCall(id: "c1", name: "read_file", argumentsJSON: #"{"path":"a"}"#)
+            ],
             reasoningContent: "I should read the file first."
           ),
           .toolResult("contents", toolCallID: "c1"),
@@ -205,7 +208,8 @@ struct OpenAICompatibleChatStreamingTests {
 
   @Test
   func encodesAssistantToolCallsAndToolResults() async throws {
-    SSEProtocol.responseBody = "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n"
+    SSEProtocol.responseBody =
+      "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n"
     _ = try await runtime().generateChat(
       request: AgentChatRequest(
         modelID: "k3",
@@ -214,7 +218,9 @@ struct OpenAICompatibleChatStreamingTests {
           .user("work"),
           .assistant(
             "",
-            toolCalls: [AgentChatToolCall(id: "c1", name: "read_file", argumentsJSON: #"{"path":"a"}"#)]
+            toolCalls: [
+              AgentChatToolCall(id: "c1", name: "read_file", argumentsJSON: #"{"path":"a"}"#)
+            ]
           ),
           .toolResult("contents", toolCallID: "c1"),
         ]

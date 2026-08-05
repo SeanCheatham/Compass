@@ -17,10 +17,10 @@ public enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
   }
 }
 
-public extension CodemapLanguage {
+extension CodemapLanguage {
   /// Map a file path's extension to a language. Returns nil for unsupported
   /// extensions so the indexer can skip them without a separate allow-list.
-  static func forFile(at path: String) -> CodemapLanguage? {
+  public static func forFile(at path: String) -> CodemapLanguage? {
     let ext = (path as NSString).pathExtension.lowercased()
     return extensionMap[ext]
   }
@@ -28,7 +28,7 @@ public extension CodemapLanguage {
   /// Map a relative path string to a language. Convenience wrapper around
   /// `forFile(at:)` that handles trailing path components correctly when the
   /// caller already has a relative-path string in hand.
-  static func forRelativePath(_ rel: String) -> CodemapLanguage? {
+  public static func forRelativePath(_ rel: String) -> CodemapLanguage? {
     forFile(at: rel)
   }
 

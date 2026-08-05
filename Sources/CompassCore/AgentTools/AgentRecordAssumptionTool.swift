@@ -55,7 +55,8 @@ public struct AgentRecordAssumptionTool: AgentTool {
     )
   }
 
-  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws
+    -> AgentToolInvocationResult
   {
     let draft: AssumptionDraft
     do {

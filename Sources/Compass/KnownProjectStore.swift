@@ -1,6 +1,6 @@
 import AppKit
-import Foundation
 import CompassCore
+import Foundation
 
 struct CompassProjectStorageResolver: Equatable {
   var repoURL: URL

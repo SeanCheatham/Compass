@@ -52,7 +52,8 @@ struct GeneratedArtifactHygieneTests {
   @Test
   func formattedIssueIncludesHiddenCount() throws {
     let issues = (0..<15).map {
-      GeneratedArtifactHygieneIssue(path: "dist/\($0).js", reason: "inside generated directory component `dist/`")
+      GeneratedArtifactHygieneIssue(
+        path: "dist/\($0).js", reason: "inside generated directory component `dist/`")
     }
     let message = try #require(GeneratedArtifactHygiene.formattedIssue(from: issues, limit: 3))
     #expect(message.contains("[artifact-hygiene]"))

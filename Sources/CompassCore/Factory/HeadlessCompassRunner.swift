@@ -100,7 +100,8 @@ public struct HeadlessVerifyOptions: Equatable, Sendable {
 
 public struct HeadlessCompassRunner: Sendable {
   public typealias BashRunnerFactory = @Sendable (URL, String) -> any AgentBashRunner
-  public typealias CloudPingHandler = @Sendable (OpenAICompatibleEndpoint) async
+  public typealias CloudPingHandler =
+    @Sendable (OpenAICompatibleEndpoint) async
     -> OpenAICompatiblePingResult
 
   private let bashRunnerFactory: BashRunnerFactory
@@ -128,7 +129,7 @@ public struct HeadlessCompassRunner: Sendable {
   }
 
   private static let readOnlyBashLabels: Set<String> = [
-    "verify", "coverage", "mutation", "doctor", "macos-verify"
+    "verify", "coverage", "mutation", "doctor", "macos-verify",
   ]
 
   /// Factory bash/verify always use the embedded macOS VM. Legacy
@@ -625,7 +626,8 @@ public struct HeadlessCompassRunner: Sendable {
             onEvent: onEvent
           )
         } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
-          let issue = DevelopPostCheckIssues.developBudgetExhaustionIssue(attempt: attempt, error: error)
+          let issue = DevelopPostCheckIssues.developBudgetExhaustionIssue(
+            attempt: attempt, error: error)
           session.notes.append(issue)
           if attempt < options.maxDevelopAttempts {
             priorIssues = [issue]
@@ -661,7 +663,9 @@ public struct HeadlessCompassRunner: Sendable {
 
         guard develop.status == .succeeded, develop.bypassVerify != true else {
           let issue = DevelopPostCheckIssues.developFailureIssue(develop)
-          if let infrastructureIssue = DevelopPostCheckIssues.packageManagerBootstrapFailureIssue(from: issue) {
+          if let infrastructureIssue = DevelopPostCheckIssues.packageManagerBootstrapFailureIssue(
+            from: issue)
+          {
             session.notes.append(infrastructureIssue)
             session.status = .failed
             session.endedAt = Date().timeIntervalSince1970 * 1000
@@ -788,7 +792,8 @@ public struct HeadlessCompassRunner: Sendable {
           case "weak_cli_flag_tests":
             session.notes.append("Verify attempt \(attempt) passed with weak CLI flag tests.")
           case "missing_package_entry":
-            session.notes.append("Verify attempt \(attempt) passed with broken package entry points.")
+            session.notes.append(
+              "Verify attempt \(attempt) passed with broken package entry points.")
           case "metadata_only_implementation":
             session.notes.append("Verify attempt \(attempt) passed after metadata-only changes.")
           default:
@@ -854,7 +859,8 @@ public struct HeadlessCompassRunner: Sendable {
               timeout: QualityCollectionTimeout.seconds()
             )
             let macosResult = macosOutcome.result
-            let macosFallbackNote = macosOutcome.fallbackReason.map { " (VM unavailable: \($0))" }
+            let macosFallbackNote =
+              macosOutcome.fallbackReason.map { " (VM unavailable: \($0))" }
               ?? ""
             _ = try? workspace.writeSessionAuditArtifact(
               session: sessionNumber,
@@ -911,7 +917,8 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
-        let issue = DevelopPostCheckIssues.verifyFailureIssue(command: immediate.verify, result: verify)
+        let issue = DevelopPostCheckIssues.verifyFailureIssue(
+          command: immediate.verify, result: verify)
         if let infrastructureIssue = DevelopPostCheckIssues.packageManagerBootstrapFailureIssue(
           from: verify.stdout + verify.stderr
         ) {
@@ -1061,7 +1068,8 @@ public struct HeadlessCompassRunner: Sendable {
   }
 
   private static func compactBriefSummary(_ brief: String, limit: Int = 280) -> String {
-    let compact = brief
+    let compact =
+      brief
       .components(separatedBy: .whitespacesAndNewlines)
       .filter { !$0.isEmpty }
       .joined(separator: " ")
@@ -1687,7 +1695,8 @@ public struct HeadlessCompassRunner: Sendable {
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) {
     let lastCompleted = (try? workspace.readState().completed.last) ?? nil
-    let title = lastCompleted.map { Self.compactBriefSummary($0, limit: 72) }
+    let title =
+      lastCompleted.map { Self.compactBriefSummary($0, limit: 72) }
       ?? "iteration \(sessionNumber)"
     let message = "Compass iteration \(sessionNumber): \(title)"
     let escaped = message.replacingOccurrences(of: "'", with: "'\\''")
@@ -1716,7 +1725,9 @@ public struct HeadlessCompassRunner: Sendable {
         status: result.exitCode == 0 ? "completed" : "failed",
         message:
           result.exitCode == 0
-          ? (committed ? "Committed iteration \(sessionNumber) changes." : "Nothing to commit for iteration \(sessionNumber).")
+          ? (committed
+            ? "Committed iteration \(sessionNumber) changes."
+            : "Nothing to commit for iteration \(sessionNumber).")
           : "Iteration commit failed (session still succeeded): \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))"
       )
     )
@@ -1763,9 +1774,11 @@ public struct HeadlessCompassRunner: Sendable {
     do {
       try process.run()
       process.waitUntilExit()
-      let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+      let stdout =
+        String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         ?? ""
-      let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+      let stderr =
+        String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         ?? ""
       return ProcessResult(exitCode: process.terminationStatus, stdout: stdout, stderr: stderr)
     } catch {

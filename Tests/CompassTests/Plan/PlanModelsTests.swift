@@ -1,11 +1,12 @@
 import Foundation
 import Testing
+
 @testable import Compass
 @testable import CompassCore
 
 @Suite("Plan models")
 struct PlanModelsTests {
-@Test
+  @Test
   func factoryStateCreatesAndEncodesNewShape() throws {
     let state = PlanState.empty
 
@@ -26,7 +27,7 @@ struct PlanModelsTests {
     #expect(!json.contains("\"strategicContext\""))
     #expect(!json.contains("\"candidates\""))
   }
-@Test
+  @Test
   func factoryStateDecodesLegacyPlanningShape() throws {
     let legacy = """
       {
@@ -62,7 +63,7 @@ struct PlanModelsTests {
     #expect(decoded.brief.acceptanceSignals == ["Verify with tests"])
     #expect(decoded.queue.map(\.id) == ["slice-one"])
   }
-@Test
+  @Test
   func planQueueDecodesHumanEnumAliases() throws {
     let payload = """
       {
@@ -122,7 +123,7 @@ struct PlanModelsTests {
     #expect(decoded.state.candidates.map(\.priority) == [PlanCandidate.Priority.high, .medium])
     #expect(decoded.state.candidates.map(\.status) == [PlanCandidate.Status.available, .active])
   }
-@Test
+  @Test
   func applyingPlanProposalPreservesOmittedBriefFields() {
     let current = PlanState(
       completed: [],
@@ -132,13 +133,17 @@ struct PlanModelsTests {
         targetUsers: ["Product teams"],
         desiredOutcomes: ["List decision records"],
         constraints: ["No new dependencies"],
-        acceptanceSignals: ["cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"]
+        acceptanceSignals: [
+          "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"
+        ]
       )
     )
     let proposal = PlanProposal(
       immediate: PlanNext(
-        plan: "## Outcome\nAdd decision records\n\n## Acceptance checks\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
-        verify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+        plan:
+          "## Outcome\nAdd decision records\n\n## Acceptance checks\n- cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes",
+        verify:
+          "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
       ),
       candidates: [],
       strategicContext: PlanStrategicContext(summary: "Build decision notes."),
@@ -151,9 +156,12 @@ struct PlanModelsTests {
     #expect(next.brief.targetUsers == ["Product teams"])
     #expect(next.brief.desiredOutcomes == ["List decision records"])
     #expect(next.brief.constraints == ["No new dependencies"])
-    #expect(next.brief.acceptanceSignals == ["cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"])
+    #expect(
+      next.brief.acceptanceSignals == [
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"
+      ])
   }
-@Test
+  @Test
   func droppedBriefNudgeTellsPlanToResubmitWithoutTools() {
     let error = PlanTransitionValidationError(
       message: """
@@ -173,9 +181,12 @@ struct PlanModelsTests {
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
     #expect(nudge.userMessage.contains("copy the current `state.brief` exactly"))
-    #expect(nudge.userMessage.contains(#""acceptanceSignals":["cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"]"#))
+    #expect(
+      nudge.userMessage.contains(
+        #""acceptanceSignals":["cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace passes"]"#
+      ))
   }
-@Test
+  @Test
   func ungroundedPathNudgeTellsPlanToResubmitWithoutTools() {
     let error = PlanTransitionValidationError(
       message: """
@@ -195,7 +206,7 @@ struct PlanModelsTests {
     #expect(nudge.userMessage.contains("crates/cli/tests/cli.rs"))
     #expect(nudge.userMessage.contains("create new file <path>"))
   }
-@Test
+  @Test
   func planQueueDecodeNudgeTellsPlanToUseEmptyQueueWithoutTools() throws {
     let invalidPayload = """
       {
@@ -239,7 +250,7 @@ struct PlanModelsTests {
       #expect(nudge.userMessage.contains("`id`, `title`, `outcome`"))
     }
   }
-@Test
+  @Test
   func planQueueEnumDecodeNudgeNamesAllowedValues() throws {
     let invalidPayload = """
       {
@@ -293,7 +304,7 @@ struct PlanModelsTests {
       #expect(nudge.userMessage.contains("Do not call a tool just to repair queue JSON"))
     }
   }
-@Test
+  @Test
   func weakCLIProofNudgeTellsPlanToRepairWithoutTools() {
     let error = PlanTransitionValidationError(
       message: """
@@ -302,7 +313,8 @@ struct PlanModelsTests {
         `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `crates/cli/tests/cli.rs`.
         """,
       reason: .weakVerifyCoverage,
-      rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+      rejectedVerify:
+        "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
     )
 
     let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
@@ -312,7 +324,10 @@ struct PlanModelsTests {
     #expect(nudge.userMessage.contains("crates/cli/tests/cli.rs"))
     #expect(nudge.userMessage.contains(#"["--format", "json", "Ship", "it"]"#))
     #expect(nudge.userMessage.contains("parsed JSON title is `Ship it`"))
-    #expect(nudge.userMessage.contains("Keep `state.immediate.verify` as `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`"))
+    #expect(
+      nudge.userMessage.contains(
+        "Keep `state.immediate.verify` as `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace`"
+      ))
     #expect(nudge.userMessage.contains("narrow the Outcome to core-only work"))
     #expect(nudge.userMessage.contains("exactly one repair"))
   }

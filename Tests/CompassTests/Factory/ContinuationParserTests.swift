@@ -1,11 +1,12 @@
 import Foundation
 import Testing
+
 @testable import Compass
 @testable import CompassCore
 
 @Suite("Continuation parser")
 struct ContinuationParserTests {
-@Test
+  @Test
   func continuationParserAcceptsValidContinuePerPhase() throws {
     let tools: Set<String> = ["read_file", "bash"]
     for phase in AgentContinuationPhase.allCases {
@@ -23,7 +24,8 @@ struct ContinuationParserTests {
         phase: phase,
         availableToolNames: tools
       )
-      guard case .continueTool(let toolName, let arguments, let reason, let note) = parsed.action else {
+      guard case .continueTool(let toolName, let arguments, let reason, let note) = parsed.action
+      else {
         Issue.record("Expected continue action")
         return
       }
@@ -33,7 +35,7 @@ struct ContinuationParserTests {
       #expect(note == "If scripts exist, choose the matching verify command.")
     }
   }
-@Test
+  @Test
   func continuationParserUnwrapsSingleJSONCodeFence() throws {
     let json = """
       ```json
@@ -53,7 +55,8 @@ struct ContinuationParserTests {
       availableToolNames: ["read_file"]
     )
 
-    guard case .continueTool(let toolName, let arguments, let reason, let note) = parsed.action else {
+    guard case .continueTool(let toolName, let arguments, let reason, let note) = parsed.action
+    else {
       Issue.record("Expected continue action")
       return
     }
@@ -62,7 +65,7 @@ struct ContinuationParserTests {
     #expect(reason == "Need current package scripts.")
     #expect(note == nil)
   }
-@Test
+  @Test
   func continuationParserSanitizesAndRejectsNotes() throws {
     let emptyNote = try AgentContinuationParser.parse(
       #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":"   "}"#,
@@ -98,11 +101,13 @@ struct ContinuationParserTests {
       )
     }
   }
-@Test
+  @Test
   func continuationParserAcceptsValidSubmitPerPhase() throws {
     let payloads: [AgentContinuationPhase: String] = [
-      .plan: #"{"state":{"immediate":null,"queue":[],"brief":{"summary":"","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}"#,
-      .develop: #"{"status":"succeeded","summary":"Done","feedback":"Verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","bypassVerify":false,"lessonEdits":[]}"#,
+      .plan:
+        #"{"state":{"immediate":null,"queue":[],"brief":{"summary":"","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}"#,
+      .develop:
+        #"{"status":"succeeded","summary":"Done","feedback":"Verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","bypassVerify":false,"lessonEdits":[]}"#,
       .critic: #"{"verdict":"approve","summary":"No blockers","feedback":""}"#,
       .delegate: #"{"findings":"No blockers found."}"#,
     ]
@@ -121,7 +126,7 @@ struct ContinuationParserTests {
       #expect(!payload.isEmpty)
     }
   }
-@Test
+  @Test
   func continuationParserRejectsMalformedAndInvalidContinuations() {
     #expect(throws: AgentContinuationParseError.self) {
       try AgentContinuationParser.parse("not json", phase: .develop, availableToolNames: [])
@@ -160,7 +165,7 @@ struct ContinuationParserTests {
       )
     }
   }
-@Test
+  @Test
   func continuationParserExplainsBacktickTemplateLiteralJSON() {
     do {
       _ = try AgentContinuationParser.parse(

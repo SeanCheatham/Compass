@@ -39,7 +39,8 @@ public struct RepoSummarizer: Sendable {
 
   /// Given a prompt and model name, return the summary string. Kept injectable
   /// so tests can override the deterministic default.
-  public typealias ChatRequest = @Sendable (_ prompt: String, _ model: String) async throws -> String
+  public typealias ChatRequest =
+    @Sendable (_ prompt: String, _ model: String) async throws -> String
 
   public let workingDirectory: URL
   public let store: CodemapStore
@@ -85,7 +86,8 @@ public struct RepoSummarizer: Sendable {
         .dropFirst()
         .prefix(8)
         .joined(separator: " ")
-      let summary = "\(fileLine.replacingOccurrences(of: "File: ", with: "")) provides source code. Key local context: \(sample)"
+      let summary =
+        "\(fileLine.replacingOccurrences(of: "File: ", with: "")) provides source code. Key local context: \(sample)"
       return String(summary.prefix(500)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
   }

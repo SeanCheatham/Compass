@@ -37,7 +37,9 @@ struct MacOSVMCASSyncTests {
       to: repo.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
     let third = try SharedCompassVMCASSync.buildHostManifest(at: repo)
     #expect(third.id != first.id)
-    #expect(third.entries.first { $0.path == "file.txt" }?.hash != first.entries.first { $0.path == "file.txt" }?.hash)
+    #expect(
+      third.entries.first { $0.path == "file.txt" }?.hash
+        != first.entries.first { $0.path == "file.txt" }?.hash)
   }
 
   @Test
@@ -89,10 +91,12 @@ struct MacOSVMCASSyncTests {
     process.standardError = stderr
     try process.run()
     process.waitUntilExit()
-    let out = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+    let out =
+      String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
       .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     guard process.terminationStatus == 0 else {
-      let err = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+      let err =
+        String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
       throw NSError(
         domain: "MacOSVMCASSyncTests", code: Int(process.terminationStatus),
         userInfo: [NSLocalizedDescriptionKey: "git \(args.joined(separator: " ")) failed: \(err)"])

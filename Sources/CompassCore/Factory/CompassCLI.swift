@@ -517,8 +517,8 @@ public enum CompassCLIError: LocalizedError, Equatable {
   public var exitCode: Int { 64 }
 }
 
-public extension CompassCLI {
-  static let usageText = """
+extension CompassCLI {
+  public static let usageText = """
     Usage:
       compass-cli help [--format json|text]
       compass-cli doctor --repo <path> [--check-cloud] [--format json|text]

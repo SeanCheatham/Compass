@@ -1059,4 +1059,3 @@ private struct LossyString: Decodable {
     value = try? container.decode(String.self)
   }
 }
-

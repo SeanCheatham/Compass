@@ -31,7 +31,8 @@ public enum DotEnvLoader {
       }
       guard let separator = line.firstIndex(of: "=") else { continue }
       let key = String(line[line.startIndex..<separator]).trimmingCharacters(in: .whitespaces)
-      guard !key.isEmpty, key.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil
+      guard !key.isEmpty,
+        key.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil
       else { continue }
       var value = String(line[line.index(after: separator)...])
         .trimmingCharacters(in: .whitespaces)

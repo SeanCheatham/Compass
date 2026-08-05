@@ -7,7 +7,8 @@ import Testing
 struct SharedCompassVMGuestWorkspaceResetTests {
   @Test
   func validateWorkspaceIDAcceptsCatalogStyleUUIDs() throws {
-    try SharedCompassVMGuestWorkspaceReset.validateWorkspaceID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    try SharedCompassVMGuestWorkspaceReset.validateWorkspaceID(
+      "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
     try SharedCompassVMGuestWorkspaceReset.validateWorkspaceID("abc")
   }
 
@@ -26,7 +27,8 @@ struct SharedCompassVMGuestWorkspaceResetTests {
 
   @Test
   func guestWorkspaceRootPathNestsUnderRepos() {
-    let entry = SharedCompassVMGuestWorkspaceCatalog.CatalogEntry(id: "deadbeef-0000-0000-0000-000000000001")
+    let entry = SharedCompassVMGuestWorkspaceCatalog.CatalogEntry(
+      id: "deadbeef-0000-0000-0000-000000000001")
     let root = SharedCompassVMGuestWorkspaceCatalog.guestWorkspaceRootPath(forEntry: entry)
     #expect(root == "/Users/compass/Compass/Repos/deadbeef-0000-0000-0000-000000000001")
     let worktree = SharedCompassVMGuestWorkspaceCatalog.guestWorktreePath(forEntry: entry)
@@ -56,7 +58,10 @@ struct SharedCompassVMGuestWorkspaceResetTests {
       fileSet: ["Cargo.toml"]
     )
     #expect(try SharedCompassVMGuestWorkspaceCatalog.loadEntry(forRepoURL: repo) != nil)
-    #expect(try SharedCompassVMGuestWorkspaceCatalog.loadLastSyncedFileSet(forRepoURL: repo) == ["Cargo.toml"])
+    #expect(
+      try SharedCompassVMGuestWorkspaceCatalog.loadLastSyncedFileSet(forRepoURL: repo) == [
+        "Cargo.toml"
+      ])
 
     try SharedCompassVMGuestWorkspaceCatalog.removeEntry(forRepoURL: repo)
     #expect(try SharedCompassVMGuestWorkspaceCatalog.loadEntry(forRepoURL: repo) == nil)

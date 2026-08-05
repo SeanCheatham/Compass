@@ -812,4 +812,3 @@ public struct CriticVerdict: Codable, Equatable {
     try container.encode(feedback, forKey: .feedback)
   }
 }
-

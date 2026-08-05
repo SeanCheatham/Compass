@@ -28,7 +28,8 @@ public struct AgentEditFileTextTool: AgentTool {
             "properties": [
               "old_string": [
                 "type": "string",
-                "description": "Exact text to replace. Must occur exactly once unless replace_all is true.",
+                "description":
+                  "Exact text to replace. Must occur exactly once unless replace_all is true.",
               ],
               "new_string": [
                 "type": "string",
@@ -67,7 +68,9 @@ public struct AgentEditFileTextTool: AgentTool {
     let edits: [Edit]
   }
 
-  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  public func invoke(arguments: Data, context: AgentToolContext) async throws
+    -> AgentToolInvocationResult
+  {
     let args: Arguments
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)

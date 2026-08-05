@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Compass
 @testable import CompassCore
 
@@ -15,7 +16,8 @@ actor FakeLocalModelRuntime: LocalModelGenerating {
     self.delayNanoseconds = delayNanoseconds
   }
 
-  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult
+  {
     requests.append(request)
     if delayNanoseconds > 0 {
       try await Task.sleep(nanoseconds: delayNanoseconds)
@@ -53,7 +55,8 @@ final class RejectFirstPlanSubmitValidator: @unchecked Sendable {
         message:
           "Plan selected generic `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
         reason: .weakVerifyCoverage,
-        rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+        rejectedVerify:
+          "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
       )
     }
     _ = try JSONDecoder().decode(PlanRunResult.self, from: data)
@@ -75,7 +78,8 @@ final class RejectFirstTwoPlanSubmitValidator: @unchecked Sendable {
         message:
           "Plan selected generic `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
         reason: .weakVerifyCoverage,
-        rejectedVerify: "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
+        rejectedVerify:
+          "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
       )
     }
     _ = try JSONDecoder().decode(PlanRunResult.self, from: data)
@@ -132,7 +136,8 @@ struct FakeBashTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     counter?.increment()
     return .ok(output)
   }
@@ -152,7 +157,8 @@ struct FakeReadFileTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     counter?.increment()
     return .ok("fake file contents")
   }
@@ -173,7 +179,8 @@ struct FakeSequencedBashTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     counter?.increment()
     return results.next()
   }

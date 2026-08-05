@@ -1,7 +1,8 @@
 import Foundation
 
-public extension AgentExecutor {
-  func run(_ configuration: AgentExecutionConfiguration) async throws -> AgentExecutionResult {
+extension AgentExecutor {
+  public func run(_ configuration: AgentExecutionConfiguration) async throws -> AgentExecutionResult
+  {
     try await beginCancellableRun {
       try await self.runBody(configuration)
     }
@@ -47,7 +48,8 @@ public extension AgentExecutor {
       phase: configuration.phase,
       sessionNumber: configuration.sessionNumber
     )
-    let toolsByName = Dictionary(uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
+    let toolsByName = Dictionary(
+      uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
     let availableToolNames = Set(toolsByName.keys)
 
     var iterations = 0
@@ -332,19 +334,21 @@ public extension AgentExecutor {
             configuration: configuration
           )
           ?? Self.rejectSubmitResultIfNeeded(
-          payload,
-          configuration: configuration
+            payload,
+            configuration: configuration
           )
         {
           sawContinuationRejection = true
           latestContinuationRejectionRepairMessage = rejection.userMessage
-          latestContinuationRejectionDescription = "`\(configuration.continuationPhase.submitKind)` payload"
+          latestContinuationRejectionDescription =
+            "`\(configuration.continuationPhase.submitKind)` payload"
           successfulToolCallCountsAfterContinuationRejection = [:]
           successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation = 0
           if configuration.phase == .plan {
             pendingSubmitRepair = PendingSubmitRepair(
               submitKind: configuration.continuationPhase.submitKind,
-              rejectionDescription: "rejected `\(configuration.continuationPhase.submitKind)` payload",
+              rejectionDescription:
+                "rejected `\(configuration.continuationPhase.submitKind)` payload",
               malformedJSON: false,
               repairMessage: rejection.userMessage
             )
@@ -483,10 +487,12 @@ public extension AgentExecutor {
           } catch let toolError as AgentToolError {
             result = .failure(toolError)
           } catch {
-            result = .failure("Tool \(toolName) threw: \(error.localizedDescription)", kind: .unknown)
+            result = .failure(
+              "Tool \(toolName) threw: \(error.localizedDescription)", kind: .unknown)
           }
         }
-        emitToolEnd(name: toolName, arguments: argumentText, result: result, correlationID: correlationID)
+        emitToolEnd(
+          name: toolName, arguments: argumentText, result: result, correlationID: correlationID)
 
         let observation = Self.toolObservationJSON(
           toolName: toolName,
@@ -651,7 +657,8 @@ public extension AgentExecutor {
             } else if !Self.isReadOnlyInspectionTool(toolName) {
               successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation = 0
             }
-            let repeatCount = (successfulToolCallCountsAfterContinuationRejection[signature] ?? 0) + 1
+            let repeatCount =
+              (successfulToolCallCountsAfterContinuationRejection[signature] ?? 0) + 1
             successfulToolCallCountsAfterContinuationRejection[signature] = repeatCount
             if repeatCount >= 2 {
               transcript.append(
@@ -675,7 +682,7 @@ public extension AgentExecutor {
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
   }
 
-  static func ensureUniqueToolNames(_ tools: [AgentTool]) throws {
+  public static func ensureUniqueToolNames(_ tools: [AgentTool]) throws {
     var names = Set<String>()
     for tool in tools {
       let name = tool.spec.name
@@ -685,7 +692,7 @@ public extension AgentExecutor {
     }
   }
 
-  static func canonicalToolName(_ raw: String, availableToolNames: Set<String>) -> String? {
+  public static func canonicalToolName(_ raw: String, availableToolNames: Set<String>) -> String? {
     let normalized =
       raw
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -699,7 +706,7 @@ public extension AgentExecutor {
     }
   }
 
-  static func makeDelegateRunner(
+  public static func makeDelegateRunner(
     configuration: AgentExecutionConfiguration,
     onEvent: @escaping @Sendable (LiveEvent) -> Void
   ) -> AgentDelegateRunner? {
@@ -724,11 +731,12 @@ public extension AgentExecutor {
     )
   }
 
-  static func stripThinkBlocks(_ text: String) -> (String, String) {
+  public static func stripThinkBlocks(_ text: String) -> (String, String) {
     var cleaned = text
     var extracted: [String] = []
     while let start = cleaned.range(of: "<think>", options: .caseInsensitive),
-      let end = cleaned.range(of: "</think>", options: .caseInsensitive, range: start.upperBound..<cleaned.endIndex)
+      let end = cleaned.range(
+        of: "</think>", options: .caseInsensitive, range: start.upperBound..<cleaned.endIndex)
     {
       let body = String(cleaned[start.upperBound..<end.lowerBound])
       extracted.append(body.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -789,11 +797,11 @@ public extension AgentExecutor {
     public var repairMessage: String
   }
 
-  static func isFileMutationTool(_ toolName: String) -> Bool {
+  public static func isFileMutationTool(_ toolName: String) -> Bool {
     toolName == AgentWriteFileTool.toolName || toolName == AgentEditFileTool.toolName
   }
 
-  static let readOnlyInspectionToolNames: Set<String> = [
+  public static let readOnlyInspectionToolNames: Set<String> = [
     AgentFindSymbolTool.toolName,
     AgentGlobTool.toolName,
     AgentGrepTool.toolName,
@@ -806,13 +814,13 @@ public extension AgentExecutor {
     AgentSummaryTool.toolName,
   ]
 
-  static func isReadOnlyInspectionTool(_ toolName: String) -> Bool {
+  public static func isReadOnlyInspectionTool(_ toolName: String) -> Bool {
     readOnlyInspectionToolNames.contains(toolName)
   }
 
   /// Native-loop tools safe to run concurrently in one model turn.
   /// Mutations, bash, delegate, and assumption ledger tools stay serial.
-  static func isParallelizableNativeTool(_ toolName: String) -> Bool {
+  public static func isParallelizableNativeTool(_ toolName: String) -> Bool {
     isReadOnlyInspectionTool(toolName)
   }
 
@@ -870,7 +878,7 @@ public extension AgentExecutor {
       || text.contains("repair")
   }
 
-  static func successfulVerifyCommand(
+  public static func successfulVerifyCommand(
     toolName: String,
     arguments: Data,
     result: AgentToolInvocationResult
@@ -883,7 +891,7 @@ public extension AgentExecutor {
     return verifyCommand(arguments: arguments)
   }
 
-  static func failedVerifyCommand(
+  public static func failedVerifyCommand(
     toolName: String,
     arguments: Data,
     result: AgentToolInvocationResult
@@ -896,17 +904,18 @@ public extension AgentExecutor {
     return verifyCommand(arguments: arguments)
   }
 
-  static func verifyCommand(arguments: Data) -> String? {
+  public static func verifyCommand(arguments: Data) -> String? {
     guard let object = try? JSONSerialization.jsonObject(with: arguments) as? [String: Any] else {
       return nil
     }
-    let command = [
-      "command",
-      "cmd",
-      "shellCommand",
-      "shell_command",
-      "script",
-    ].compactMap { object[$0] as? String }
+    let command =
+      [
+        "command",
+        "cmd",
+        "shellCommand",
+        "shell_command",
+        "script",
+      ].compactMap { object[$0] as? String }
       .first?
       .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     guard !command.isEmpty, AgentBashTool.isVerifyCommand(command) else { return nil }
@@ -932,7 +941,7 @@ public extension AgentExecutor {
       Use `\(configuration.continuationPhase.continueKind)` to request one Compass tool.
       A continue envelope may include optional `note`: a short unverified working note for how to use the upcoming real tool observation.
       Use `\(configuration.continuationPhase.submitKind)` with `payload` to finish this phase.
-      """
+      """,
     ]
 
     if let compactedHistory = sanitizedCompactedHistory(compactedHistory) {
@@ -1070,7 +1079,7 @@ public extension AgentExecutor {
       """
       ## Original Phase Packet
       \(fencedContinuationText(configuration.userPrompt, limit: 8_000))
-      """
+      """,
     ]
 
     if let compactedHistory = sanitizedCompactedHistory(compactedHistory) {
@@ -1209,31 +1218,31 @@ public extension AgentExecutor {
       phase == .plan
       ? """
 
-        For Plan, do not call more tools to repair JSON syntax. Return `\(phase.submitKind)`
-        with a smaller valid payload. Keep `state.immediate.verify` as `\(GeneratedProjectQuality.standardVerifyCommand)`.
-        If the plan text needs to mention an argv example, either escape quotes inside
-        the JSON string or write it in words, for example: split `--count`, `3`, `Ship`,
-        `it` argv.
-        """
+      For Plan, do not call more tools to repair JSON syntax. Return `\(phase.submitKind)`
+      with a smaller valid payload. Keep `state.immediate.verify` as `\(GeneratedProjectQuality.standardVerifyCommand)`.
+      If the plan text needs to mention an argv example, either escape quotes inside
+      the JSON string or write it in words, for example: split `--count`, `3`, `Ship`,
+      `it` argv.
+      """
       : ""
     return """
-    Compass rejected \(signature) \(repeatCount) times.
+      Compass rejected \(signature) \(repeatCount) times.
 
-    This is a JSON syntax problem, not missing repository context. Do not call
-    `read_file`, `list_files`, or other tools just to repair JSON formatting.
-    Common cause: quotes inside string fields must be escaped, or the sentence should
-    be rewritten without nested quoted code.
+      This is a JSON syntax problem, not missing repository context. Do not call
+      `read_file`, `list_files`, or other tools just to repair JSON formatting.
+      Common cause: quotes inside string fields must be escaped, or the sentence should
+      be rewritten without nested quoted code.
 
-    Error:
-    \(error)
-    \(planGuidance)
+      Error:
+      \(error)
+      \(planGuidance)
 
-    Return exactly one valid JSON object now:
-    {"kind":"\(phase.submitKind)","payload":{...}}
+      Return exactly one valid JSON object now:
+      {"kind":"\(phase.submitKind)","payload":{...}}
 
-    Latest invalid response:
-    \(fencedContinuationText(invalidOutput, limit: 3_000))
-    """
+      Latest invalid response:
+      \(fencedContinuationText(invalidOutput, limit: 3_000))
+      """
   }
 
   private static func repeatedToolFailureRepairMessage(
@@ -1300,33 +1309,35 @@ public extension AgentExecutor {
     }
 
     return """
-    You repeated `\(toolName)` failures in the same repair family for `\(path)`.
+      You repeated `\(toolName)` failures in the same repair family for `\(path)`.
 
-    Failure family: \(family)
-    Seen in this phase: \(repeatCount) time(s)
-    \(concreteRepair)
+      Failure family: \(family)
+      Seen in this phase: \(repeatCount) time(s)
+      \(concreteRepair)
 
-    Changing only `startLine`/`endLine` or rereading files is not repairing this failure.
-    \(guidance)
+      Changing only `startLine`/`endLine` or rereading files is not repairing this failure.
+      \(guidance)
 
-    Choose exactly one next action:
-    - Call `\(toolName)` with the concrete repair shape named in the latest Compass Observation.
-    - Call `read_file` only if the latest observation does not include the current line count or needed range.
-    - Return `\(phase.submitKind)` with status=failed or status=blocked if you cannot make a different concrete edit.
+      Choose exactly one next action:
+      - Call `\(toolName)` with the concrete repair shape named in the latest Compass Observation.
+      - Call `read_file` only if the latest observation does not include the current line count or needed range.
+      - Return `\(phase.submitKind)` with status=failed or status=blocked if you cannot make a different concrete edit.
 
-    Latest failure:
-    \(fencedContinuationText(latestFailure, limit: 2_000))
+      Latest failure:
+      \(fencedContinuationText(latestFailure, limit: 2_000))
 
-    Latest failed arguments:
-    \(fencedContinuationText(arguments, limit: 2_000))
-    """
+      Latest failed arguments:
+      \(fencedContinuationText(arguments, limit: 2_000))
+      """
   }
 
   private static func firstFencedJSONBlock(in text: String) -> String? {
-    guard let regex = try? NSRegularExpression(
-      pattern: #"```json\s*(.*?)\s*```"#,
-      options: [.dotMatchesLineSeparators]
-    ) else {
+    guard
+      let regex = try? NSRegularExpression(
+        pattern: #"```json\s*(.*?)\s*```"#,
+        options: [.dotMatchesLineSeparators]
+      )
+    else {
       return nil
     }
     let range = NSRange(text.startIndex..<text.endIndex, in: text)
@@ -1347,55 +1358,57 @@ public extension AgentExecutor {
     phase: AgentContinuationPhase,
     repeatCount: Int
   ) -> String {
-    let reason = pendingRepair.malformedJSON
+    let reason =
+      pendingRepair.malformedJSON
       ? "because the JSON was malformed"
       : "because Compass rejected its payload"
-    let repairTarget = pendingRepair.malformedJSON
+    let repairTarget =
+      pendingRepair.malformedJSON
       ? "malformed submit JSON"
       : "a rejected submit payload"
     let planPayloadRepair =
       phase == .plan
       ? """
 
-        For Plan, repair `state.immediate.plan` directly:
-        - Keep the same Outcome if it is still useful.
-        - Add the missing Acceptance checks line from the Compass Repair below.
-        - Include both the target test file path and the concrete invocation in that line.
-        - Return `\(phase.submitKind)` immediately; no repository file needs to be reread.
-        """
+      For Plan, repair `state.immediate.plan` directly:
+      - Keep the same Outcome if it is still useful.
+      - Add the missing Acceptance checks line from the Compass Repair below.
+      - Include both the target test file path and the concrete invocation in that line.
+      - Return `\(phase.submitKind)` immediately; no repository file needs to be reread.
+      """
       : ""
     let repeatedWarning =
       repeatCount >= 2
       ? """
 
-        You have now tried the same blocked `\(toolName)` call \(repeatCount) times after
-        Compass rejected `\(pendingRepair.submitKind)`. Compass will keep rejecting tools
-        until you repair the submit envelope.
+      You have now tried the same blocked `\(toolName)` call \(repeatCount) times after
+      Compass rejected `\(pendingRepair.submitKind)`. Compass will keep rejecting tools
+      until you repair the submit envelope.
 
-        The continuation-contract `read_file package.json` shape is only an example. It is
-        lower authority than this Compass Repair. Do not copy that example here.
+      The continuation-contract `read_file package.json` shape is only an example. It is
+      lower authority than this Compass Repair. Do not copy that example here.
 
-        Your next response must be `\(phase.submitKind)`, not `\(phase.continueKind)`.
-        """
+      Your next response must be `\(phase.submitKind)`, not `\(phase.continueKind)`.
+      """
       : ""
     return """
-    Your previous `\(pendingRepair.submitKind)` was rejected \(reason).
-    The next action must repair that submit envelope; it must not call tools.
+      Your previous `\(pendingRepair.submitKind)` was rejected \(reason).
+      The next action must repair that submit envelope; it must not call tools.
 
-    Compass did not run `\(toolName)`. Do not call `read_file`, `list_files`, `bash`,
-    or other tools just to repair \(repairTarget). Existing observations remain
-    available in the recent history.
+      Compass did not run `\(toolName)`. Do not call `read_file`, `list_files`, `bash`,
+      or other tools just to repair \(repairTarget). Existing observations remain
+      available in the recent history.
 
-    Return exactly one valid JSON object now:
-    {"kind":"\(phase.submitKind)","payload":{...}}
-    \(planPayloadRepair)\(repeatedWarning)
+      Return exactly one valid JSON object now:
+      {"kind":"\(phase.submitKind)","payload":{...}}
+      \(planPayloadRepair)\(repeatedWarning)
 
-    Apply this repair:
-    \(pendingRepair.repairMessage)
+      Apply this repair:
+      \(pendingRepair.repairMessage)
 
-    Rejected tool arguments:
-    \(fencedContinuationText(arguments, limit: 2_000))
-    """
+      Rejected tool arguments:
+      \(fencedContinuationText(arguments, limit: 2_000))
+      """
   }
 
   private static func repeatedToolAfterContinuationRejectionRepairMessage(
@@ -1410,40 +1423,42 @@ public extension AgentExecutor {
       phase == .plan
       ? """
 
-        For Plan, read-only tools cannot repair a rejected handoff. Return `\(phase.submitKind)` now.
-        Do not call `read_file`, `list_files`, `bash`, or reread `package.json` just to repair
-        Plan payload text.
-        """
+      For Plan, read-only tools cannot repair a rejected handoff. Return `\(phase.submitKind)` now.
+      Do not call `read_file`, `list_files`, `bash`, or reread `package.json` just to repair
+      Plan payload text.
+      """
       : ""
-    let repairHeading = rejectionDescription.contains("payload")
+    let repairHeading =
+      rejectionDescription.contains("payload")
       ? "Latest rejected-payload repair to apply now:"
       : "Latest continuation repair to apply now:"
-    let latestRepair = latestRepairMessage.map {
-      """
+    let latestRepair =
+      latestRepairMessage.map {
+        """
 
-      \(repairHeading)
-      \($0)
-      """
-    } ?? ""
+        \(repairHeading)
+        \($0)
+        """
+      } ?? ""
     return """
-    Compass already rejected a recent \(rejectionDescription), and you then called
-    `\(toolName)` with the same arguments \(repeatCount) times. The repeated observation
-    did not repair the rejected continuation.
+      Compass already rejected a recent \(rejectionDescription), and you then called
+      `\(toolName)` with the same arguments \(repeatCount) times. The repeated observation
+      did not repair the rejected continuation.
 
-    Do not call `\(toolName)` again with the same arguments. Repair the rejected
-    continuation now:
-    - Reuse useful fields from the rejected output, if any.
-    - Apply the latest Compass Repair instruction exactly.
-    - If the rejected payload said a verify command still needs to run, call `bash`
-      with that command now. Do not call `read_file`, `list_files`, or reread
-      `package.json` merely to rediscover scripts.
-    - Return `\(phase.submitKind)` with a corrected `payload`.
-    - Only call a different tool if the repair instruction explicitly requires new evidence.
-    \(planInstruction)\(latestRepair)
+      Do not call `\(toolName)` again with the same arguments. Repair the rejected
+      continuation now:
+      - Reuse useful fields from the rejected output, if any.
+      - Apply the latest Compass Repair instruction exactly.
+      - If the rejected payload said a verify command still needs to run, call `bash`
+        with that command now. Do not call `read_file`, `list_files`, or reread
+        `package.json` merely to rediscover scripts.
+      - Return `\(phase.submitKind)` with a corrected `payload`.
+      - Only call a different tool if the repair instruction explicitly requires new evidence.
+      \(planInstruction)\(latestRepair)
 
-    Repeated arguments:
-    \(fencedContinuationText(arguments, limit: 2_000))
-    """
+      Repeated arguments:
+      \(fencedContinuationText(arguments, limit: 2_000))
+      """
   }
 
   private static func readOnlyToolAfterMalformedDevelopContinuationRepairMessage(
@@ -1452,30 +1467,31 @@ public extension AgentExecutor {
     latestRepairMessage: String?,
     phase: AgentContinuationPhase
   ) -> String {
-    let latestRepair = latestRepairMessage.map {
-      """
+    let latestRepair =
+      latestRepairMessage.map {
+        """
 
-      Latest malformed-continuation repair to apply now:
-      \($0)
-      """
-    } ?? ""
+        Latest malformed-continuation repair to apply now:
+        \($0)
+        """
+      } ?? ""
     return """
-    You called read-only inspection tool `\(toolName)` after Compass rejected a malformed
-    Develop continuation. Compass ran the tool and the observation is now in history, but
-    reading more files does not repair malformed JSON or malformed tool arguments.
+      You called read-only inspection tool `\(toolName)` after Compass rejected a malformed
+      Develop continuation. Compass ran the tool and the observation is now in history, but
+      reading more files does not repair malformed JSON or malformed tool arguments.
 
-    Use the latest observations and repair the rejected continuation now:
-    - If the rejected response was an `edit_file` with multiline content, return
-      `\(phase.continueKind)` using `edit_file` and `replacementLines` as an array of strings.
-    - Do not reread `package.json`, list files, or inspect other files merely to repair JSON syntax.
-    - Call `bash` only after the needed file edits/tests have been accepted.
-    - Return `\(phase.submitKind)` with status=failed or status=blocked only if no concrete
-      edit or verify call remains.
-    \(latestRepair)
+      Use the latest observations and repair the rejected continuation now:
+      - If the rejected response was an `edit_file` with multiline content, return
+        `\(phase.continueKind)` using `edit_file` and `replacementLines` as an array of strings.
+      - Do not reread `package.json`, list files, or inspect other files merely to repair JSON syntax.
+      - Call `bash` only after the needed file edits/tests have been accepted.
+      - Return `\(phase.submitKind)` with status=failed or status=blocked only if no concrete
+        edit or verify call remains.
+      \(latestRepair)
 
-    Read-only detour arguments:
-    \(fencedContinuationText(arguments, limit: 2_000))
-    """
+      Read-only detour arguments:
+      \(fencedContinuationText(arguments, limit: 2_000))
+      """
   }
 
   private static func repeatedSubmitRejectionRepairMessage(
@@ -1489,15 +1505,15 @@ public extension AgentExecutor {
       phase == .plan
       ? """
 
-        Plan repair checklist:
-        - Do not call another tool. The rejected payload text is what must change.
-        - Do not resubmit the same `state.immediate.plan`.
-        - Keep `state.immediate.verify` as `\(GeneratedProjectQuality.standardVerifyCommand)` unless the latest repair says otherwise.
-        - If the rejection is about CLI proof, add an explicit Acceptance check in
-          `state.immediate.plan` naming the CLI test file and invocation, for example:
-          `crates/cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]`
-          and asserts the parsed JSON title is `Ship it`.
-        """
+      Plan repair checklist:
+      - Do not call another tool. The rejected payload text is what must change.
+      - Do not resubmit the same `state.immediate.plan`.
+      - Keep `state.immediate.verify` as `\(GeneratedProjectQuality.standardVerifyCommand)` unless the latest repair says otherwise.
+      - If the rejection is about CLI proof, add an explicit Acceptance check in
+        `state.immediate.plan` naming the CLI test file and invocation, for example:
+        `crates/cli/tests/cli.rs` runs the CLI with `["--format", "json", "Ship", "it"]`
+        and asserts the parsed JSON title is `Ship it`.
+      """
       : ""
     return """
       Compass rejected `\(phase.submitKind)` for the same reason \(repeatCount) times:
@@ -1629,7 +1645,7 @@ public extension AgentExecutor {
     """
   }
 
-  static func toolObservationJSON(
+  public static func toolObservationJSON(
     toolName: String,
     result: AgentToolInvocationResult,
     reason: String?,
@@ -1654,41 +1670,43 @@ public extension AgentExecutor {
         options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
       )
     else {
-      return #"{"tool":"\#(toolName)","isError":true,"content":"Compass could not serialize the observation."}"#
+      return
+        #"{"tool":"\#(toolName)","isError":true,"content":"Compass could not serialize the observation."}"#
     }
     return String(decoding: data, as: UTF8.self)
   }
 
-  static func boundedObservation(_ text: String, limit: Int = 6_000) -> String {
+  public static func boundedObservation(_ text: String, limit: Int = 6_000) -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.count > limit else { return trimmed }
     let headCount = max(0, (limit / 2) - 80)
     let tailCount = max(0, (limit / 2) - 80)
     return """
-    \(String(trimmed.prefix(headCount)))
+      \(String(trimmed.prefix(headCount)))
 
-    ... [Compass truncated \(trimmed.count - headCount - tailCount) characters from this observation] ...
+      ... [Compass truncated \(trimmed.count - headCount - tailCount) characters from this observation] ...
 
-    \(String(trimmed.suffix(tailCount)))
-    """
+      \(String(trimmed.suffix(tailCount)))
+      """
   }
 
-  static func fencedContinuationText(_ text: String, limit: Int) -> String {
+  public static func fencedContinuationText(_ text: String, limit: Int) -> String {
     let bounded: String
     if text.count <= limit {
       bounded = text
     } else {
-      bounded = String(text.prefix(max(0, limit - 80)))
+      bounded =
+        String(text.prefix(max(0, limit - 80)))
         + "\n... [Compass truncated \(text.count - limit) characters] ..."
     }
     return """
-    ```
-    \(bounded)
-    ```
-    """
+      ```
+      \(bounded)
+      ```
+      """
   }
 
-  static func rejectSubmitResultIfNeeded(
+  public static func rejectSubmitResultIfNeeded(
     _ submitResultJSON: Data,
     configuration: AgentExecutionConfiguration
   ) -> InvalidToolArgumentsNudge? {
@@ -1715,9 +1733,10 @@ public extension AgentExecutor {
       let proceduralFeedback = proceduralFailedDevelopFeedback(summary)
     else { return nil }
 
-    let repair = latestRepairMessage.map {
-      "\n\nLatest Compass repair message:\n\(fencedContinuationText($0, limit: 2_000))"
-    } ?? ""
+    let repair =
+      latestRepairMessage.map {
+        "\n\nLatest Compass repair message:\n\(fencedContinuationText($0, limit: 2_000))"
+      } ?? ""
 
     return InvalidToolArgumentsNudge(
       eventText: "develop_submit procedural failure rejected",
@@ -1743,7 +1762,7 @@ public extension AgentExecutor {
     )
   }
 
-  static func rejectFailedDevelopSubmitAfterInvalidatedVerify(
+  public static func rejectFailedDevelopSubmitAfterInvalidatedVerify(
     _ submitResultJSON: Data,
     invalidatedVerifyCommand: String?,
     configuration: AgentExecutionConfiguration
@@ -1817,7 +1836,7 @@ public extension AgentExecutor {
       .joined(separator: " ")
   }
 
-  static func rejectDevelopSubmitAfterSuccessfulVerify(
+  public static func rejectDevelopSubmitAfterSuccessfulVerify(
     _ submitResultJSON: Data,
     successfulVerifyCommand: String?,
     configuration: AgentExecutionConfiguration

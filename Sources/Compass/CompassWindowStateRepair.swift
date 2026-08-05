@@ -1,5 +1,5 @@
-import Foundation
 import CompassCore
+import Foundation
 
 enum CompassWindowStateRepair {
   private static let splitViewPrefix = "NSSplitView Subview Frames "

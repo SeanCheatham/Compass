@@ -1,7 +1,7 @@
 import Foundation
 
-public extension Prompts {
-  static func subAgentSystemPrompt(
+extension Prompts {
+  public static func subAgentSystemPrompt(
     parentPhase: AgentPhase,
     workingDirectoryPath: String,
     toolNames: [String],
@@ -30,27 +30,27 @@ public extension Prompts {
       Do not delegate further.
       """
     return """
-    You are a focused sub-agent inside Compass's local software factory. Investigate the
-    delegated task and return a self-contained `findings` string through `delegate_submit`.
+      You are a focused sub-agent inside Compass's local software factory. Investigate the
+      delegated task and return a self-contained `findings` string through `delegate_submit`.
 
-    \(compassOverviewSection())
+      \(compassOverviewSection())
 
-    Working directory: \(visibleWorkingDirectory)
-    All tool paths are resolved against this directory. Prefer relative paths.
-    Tools available: \(toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", "))
+      Working directory: \(visibleWorkingDirectory)
+      All tool paths are resolved against this directory. Prefer relative paths.
+      Tools available: \(toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", "))
 
-    \(executionEnvironmentSection(executionEnvironment))
+      \(executionEnvironmentSection(executionEnvironment))
 
-    \(protocolSection)
-    """
+      \(protocolSection)
+      """
   }
 
-  enum ExecutionEnvironmentDescriptor {
+  public enum ExecutionEnvironmentDescriptor {
     case host
     case macOSVM
   }
 
-  static func agentSystemPrompt(
+  public static func agentSystemPrompt(
     phase: AgentPhase,
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .macOSVM,
@@ -64,29 +64,29 @@ public extension Prompts {
     switch phase {
     case .plan:
       toolList = """
-      - Codemap: \(codemapTools)
-      - Files: \(fileTools)
-      - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
-      - History: plan_history
-      - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused codebase questions
-      - Assumptions: \(assumptionTools)
-      """
+        - Codemap: \(codemapTools)
+        - Files: \(fileTools)
+        - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
+        - History: plan_history
+        - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused codebase questions
+        - Assumptions: \(assumptionTools)
+        """
     case .develop:
       toolList = """
-      - Codemap: \(codemapTools)
-      - Files: \(fileTools)
-      - Mutation: write_file, edit_file, bash
-      - Sub-agent: \(delegateTool) — `explore` for investigation, `verify` for check commands, `repair` for a tight fix pass
-      - Assumptions: \(assumptionTools)
-      """
+        - Codemap: \(codemapTools)
+        - Files: \(fileTools)
+        - Mutation: write_file, edit_file, bash
+        - Sub-agent: \(delegateTool) — `explore` for investigation, `verify` for check commands, `repair` for a tight fix pass
+        - Assumptions: \(assumptionTools)
+        """
     case .critic:
       toolList = """
-      - Codemap: \(codemapTools)
-      - Files: \(fileTools)
-      - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
-      - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused review questions
-      - Assumptions: \(assumptionTools)
-      """
+        - Codemap: \(codemapTools)
+        - Files: \(fileTools)
+        - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
+        - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused review questions
+        - Assumptions: \(assumptionTools)
+        """
     }
 
     let visibleWorkingDirectory = Self.visibleWorkingDirectory(
@@ -111,36 +111,36 @@ public extension Prompts {
       """
 
     return """
-    You are operating inside Compass's local software factory.
+      You are operating inside Compass's local software factory.
 
-    \(compassOverviewSection())
+      \(compassOverviewSection())
 
-    \(workLoopSection(phase: phase))
+      \(workLoopSection(phase: phase))
 
-    Working directory: \(visibleWorkingDirectory)
-    All tool paths are resolved against this directory. Prefer relative paths
-    (or paths under \(visibleWorkingDirectory) when an absolute path is required).
+      Working directory: \(visibleWorkingDirectory)
+      All tool paths are resolved against this directory. Prefer relative paths
+      (or paths under \(visibleWorkingDirectory) when an absolute path is required).
 
-    Compass-owned `.compass/` files are injected into the user prompt. Do not read or edit
-    `.compass/*` directly. Return lesson updates through `lessonEdits`; manage assumptions
-    through assumption tools.
+      Compass-owned `.compass/` files are injected into the user prompt. Do not read or edit
+      `.compass/*` directly. Return lesson updates through `lessonEdits`; manage assumptions
+      through assumption tools.
 
-    \(lessonEditsGuidance())
+      \(lessonEditsGuidance())
 
-    \(assumptionGuidance())
+      \(assumptionGuidance())
 
-    \(executionEnvironmentSection(executionEnvironment))
+      \(executionEnvironmentSection(executionEnvironment))
 
-    Tools available:
-    \(toolList)
+      Tools available:
+      \(toolList)
 
-    \(protocolSection)
+      \(protocolSection)
 
-    Use codemap tools before broad file reads when possible.
-    """
+      Use codemap tools before broad file reads when possible.
+      """
   }
 
-  static func compassOverviewSection() -> String {
+  public static func compassOverviewSection() -> String {
     """
     Compass is a macOS host app that runs one Git repository as a local software factory.
     The loop is Brief -> decomposed queue -> immediate packet -> Develop -> Verify -> Critic.
@@ -155,7 +155,7 @@ public extension Prompts {
     """
   }
 
-  static func workLoopSection(phase: AgentPhase) -> String {
+  public static func workLoopSection(phase: AgentPhase) -> String {
     switch phase {
     case .plan:
       return "Current role: Plan. Decompose or revise the queue, then select one immediate packet."
@@ -166,15 +166,15 @@ public extension Prompts {
     }
   }
 
-  static func phaseContinuationKind(_ phase: AgentPhase) -> String {
+  public static func phaseContinuationKind(_ phase: AgentPhase) -> String {
     AgentContinuationPhase(agentPhase: phase).continueKind
   }
 
-  static func phaseSubmitKind(_ phase: AgentPhase) -> String {
+  public static func phaseSubmitKind(_ phase: AgentPhase) -> String {
     AgentContinuationPhase(agentPhase: phase).submitKind
   }
 
-  static func lessonEditsGuidance() -> String {
+  public static func lessonEditsGuidance() -> String {
     """
     Persistent lessons:
     Use `lessonEdits` for durable technical facts future agents should not rediscover.
@@ -183,7 +183,7 @@ public extension Prompts {
     """
   }
 
-  static func assumptionGuidance() -> String {
+  public static func assumptionGuidance() -> String {
     """
     Assumptions:
     Record consequential guesses about user intent, environment, or acceptance criteria with
@@ -191,29 +191,29 @@ public extension Prompts {
     """
   }
 
-  static func executionEnvironmentSection(
+  public static func executionEnvironmentSection(
     _ env: ExecutionEnvironmentDescriptor
   ) -> String {
     switch env {
     case .host:
       return """
-      Execution environment: native macOS host.
-      File tools and bash both operate on the host worktree. Probe tools before relying on them.
-      """
+        Execution environment: native macOS host.
+        File tools and bash both operate on the host worktree. Probe tools before relying on them.
+        """
     case .macOSVM:
       return """
-      Execution environment: embedded macOS VM (Apple Virtualization.framework).
-      File tools read and write the host worktree through the virtual root `/workspace`.
-      Bash commands run inside the macOS guest against a git-synced copy of that
-      worktree — `/workspace/...` paths in commands are rewritten to the guest
-      worktree automatically, so use relative paths or `/workspace/...` for every tool.
-      The guest has git, the Rust toolchain (cargo, rustc, rustfmt, clippy), and the
-      Swift toolchain (swift, swift-format) via Xcode Command Line Tools.
-      """
+        Execution environment: embedded macOS VM (Apple Virtualization.framework).
+        File tools read and write the host worktree through the virtual root `/workspace`.
+        Bash commands run inside the macOS guest against a git-synced copy of that
+        worktree — `/workspace/...` paths in commands are rewritten to the guest
+        worktree automatically, so use relative paths or `/workspace/...` for every tool.
+        The guest has git, the Rust toolchain (cargo, rustc, rustfmt, clippy), and the
+        Swift toolchain (swift, swift-format) via Xcode Command Line Tools.
+        """
     }
   }
 
-  static func visibleWorkingDirectory(
+  public static func visibleWorkingDirectory(
     _ workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor
   ) -> String {

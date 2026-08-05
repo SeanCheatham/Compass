@@ -360,7 +360,8 @@ public struct AgentEditFileTool: AgentTool {
     )
   }
 
-  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws
+    -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -1012,9 +1013,12 @@ public struct AgentEditFileTool: AgentTool {
     -> TestCodeMarker?
   {
     let trimmedLines = lines.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-    guard trimmedLines.contains(where: { line in
-      line.range(of: #"\b(argv|process\.argv|std::env::args|env::args)\b"#, options: .regularExpression) != nil
-    }),
+    guard
+      trimmedLines.contains(where: { line in
+        line.range(
+          of: #"\b(argv|process\.argv|std::env::args|env::args)\b"#, options: .regularExpression)
+          != nil
+      }),
       trimmedLines.contains(where: { line in
         line.range(of: #"^return\b"#, options: .regularExpression) != nil
       })
@@ -1023,7 +1027,9 @@ public struct AgentEditFileTool: AgentTool {
     }
 
     for (index, line) in trimmedLines.enumerated() where !line.isEmpty {
-      if line.range(of: #"\b(argv|process\.argv|std::env::args|env::args)\b"#, options: .regularExpression) != nil
+      if line.range(
+        of: #"\b(argv|process\.argv|std::env::args|env::args)\b"#, options: .regularExpression)
+        != nil
         || line.range(of: #"^return\b"#, options: .regularExpression) != nil
       {
         return TestCodeMarker(lineNumber: index + 1, preview: linePreview(line))

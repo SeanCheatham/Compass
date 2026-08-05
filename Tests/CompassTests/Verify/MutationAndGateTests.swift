@@ -59,7 +59,9 @@ struct MutationReportParserTests {
     #expect(snapshot.missed == 76)
     #expect(snapshot.missedMutants.count == 3)
     #expect(snapshot.missedMutants[0] == "crates/cli/src/main.rs:214:42: replace - with / in today")
-    #expect(snapshot.missedMutants[2] == "crates/core/src/lib.rs:44:20: replace match guard !p.is_empty() with true in load")
+    #expect(
+      snapshot.missedMutants[2]
+        == "crates/core/src/lib.rs:44:20: replace match guard !p.is_empty() with true in load")
   }
 
   @Test

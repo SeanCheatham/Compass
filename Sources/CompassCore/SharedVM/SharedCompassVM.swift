@@ -46,7 +46,7 @@ public final class SharedCompassVM: ObservableObject {
   /// Repeated assignments of the same state are a no-op so callers can
   /// idempotently nudge the state machine without producing churn on
   /// `@Published` subscribers.
-  public   func transition(to next: SharedCompassVMReadiness) {
+  public func transition(to next: SharedCompassVMReadiness) {
     let current = readiness
     guard Self.isLegalTransition(from: current, to: next) else {
       Logger(.guestProvision).fault(

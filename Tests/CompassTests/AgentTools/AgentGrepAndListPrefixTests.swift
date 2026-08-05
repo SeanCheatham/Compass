@@ -15,14 +15,14 @@ struct AgentGrepToolTests {
       withIntermediateDirectories: true
     )
     try """
-      fn main() {
-          println!("Compass grep fixture");
-      }
-      """.write(
-        to: tempURL.appending(path: "src/main.rs"),
-        atomically: true,
-        encoding: .utf8
-      )
+    fn main() {
+        println!("Compass grep fixture");
+    }
+    """.write(
+      to: tempURL.appending(path: "src/main.rs"),
+      atomically: true,
+      encoding: .utf8
+    )
 
     let result = try await AgentGrepTool().invoke(
       arguments: Data(#"{"pattern":"Compass grep fixture","path":"src"}"#.utf8),
@@ -112,7 +112,8 @@ struct PlainTextListPrefixTests {
   func stripsBulletsNumbersAndCheckboxes() {
     #expect(PlainTextListPrefix.strippedEntry(from: "- ship it") == "ship it")
     #expect(PlainTextListPrefix.strippedEntry(from: "* [x] done") == "done")
-    #expect(PlainTextListPrefix.strippedEntry(from: "• keep unicode bullets") == "keep unicode bullets")
+    #expect(
+      PlainTextListPrefix.strippedEntry(from: "• keep unicode bullets") == "keep unicode bullets")
     #expect(PlainTextListPrefix.strippedEntry(from: "12. numbered") == "numbered")
     #expect(PlainTextListPrefix.strippedEntry(from: "3) also numbered") == "also numbered")
     #expect(PlainTextListPrefix.strippedEntry(from: "[ ] bare checkbox") == "bare checkbox")

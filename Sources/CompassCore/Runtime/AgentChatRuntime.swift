@@ -137,10 +137,10 @@ public protocol AgentChatGenerating: Sendable {
   func generateChat(request: AgentChatRequest) async throws -> AgentChatResponse
 }
 
-public extension AgentToolSpec {
+extension AgentToolSpec {
   /// OpenAI-style `{"type":"function","function":{...}}` tool definition,
   /// suitable for both cloud chat-completions and MLX chat templates.
-  var nativeToolJSONObject: [String: Any]? {
+  public var nativeToolJSONObject: [String: Any]? {
     guard
       let parameters = try? JSONSerialization.jsonObject(with: parameters.json) as? [String: Any]
     else {

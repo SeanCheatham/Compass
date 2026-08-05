@@ -109,7 +109,8 @@ public struct AgentReadFileTool: AgentTool {
     )
   }
 
-  public func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  public func invoke(arguments: Data, context: AgentToolContext) async throws
+    -> AgentToolInvocationResult
   {
     let args: Arguments
     do {
@@ -228,12 +229,14 @@ public struct AgentReadFileTool: AgentTool {
   ) async -> [String] {
     let basename = URL(fileURLWithPath: requestedPath).lastPathComponent
     guard !basename.isEmpty else { return [] }
-    let matches = (try? await context.filesystem.glob(
-      pattern: "**/*",
-      under: context.workingDirectory,
-      walkCap: 20_000
-    )) ?? []
-    let usefulMatches = matches
+    let matches =
+      (try? await context.filesystem.glob(
+        pattern: "**/*",
+        under: context.workingDirectory,
+        walkCap: 20_000
+      )) ?? []
+    let usefulMatches =
+      matches
       .map(\.url)
       .filter { $0.lastPathComponent == basename }
       .map(context.relativize)
@@ -242,13 +245,15 @@ public struct AgentReadFileTool: AgentTool {
       .sorted()
 
     if let packageRoot = Self.packageRootPrefix(for: requestedPath) {
-      return usefulMatches
+      return
+        usefulMatches
         .filter { $0.hasPrefix(packageRoot + "/") }
         .prefix(limit)
         .map { $0 }
     }
 
-    return usefulMatches
+    return
+      usefulMatches
       .prefix(limit)
       .map { $0 }
   }

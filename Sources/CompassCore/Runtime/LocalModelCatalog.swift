@@ -76,7 +76,8 @@ public enum LocalModelCatalog {
   public static var applicationSupportDirectory: URL {
     let base =
       FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-      ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support")
+      ?? FileManager.default.homeDirectoryForCurrentUser.appending(
+        path: "Library/Application Support")
     return base.appending(path: "Compass", directoryHint: .isDirectory)
   }
 
@@ -90,7 +91,8 @@ public enum LocalModelCatalog {
         return testingModelDirectoryOverride
       }
     #endif
-    return modelsDirectory
+    return
+      modelsDirectory
       .appending(path: "mlx-community", directoryHint: .isDirectory)
       .appending(path: "Qwen2.5-Coder-1.5B-Instruct-4bit", directoryHint: .isDirectory)
   }
@@ -279,7 +281,8 @@ public final class LocalModelManager: ObservableObject {
   }
 
   private func updateDownloadProgress(_ progress: Progress) {
-    let fraction = progress.totalUnitCount > 0
+    let fraction =
+      progress.totalUnitCount > 0
       ? min(1, max(0, progress.fractionCompleted))
       : nil
     snapshot = LocalModelSnapshot(

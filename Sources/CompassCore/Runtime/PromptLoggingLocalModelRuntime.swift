@@ -10,7 +10,9 @@ public actor PromptLoggingLocalModelRuntime: LocalModelGenerating {
     self.promptLogDirectory = promptLogDirectory
   }
 
-  public func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+  public func generateText(request: LocalModelGenerationRequest) async throws
+    -> LocalModelGenerationResult
+  {
     turn += 1
     let currentTurn = turn
     let artifacts = try PromptLogWriter.writePromptLog(
@@ -129,7 +131,8 @@ public enum PromptLogWriter {
 
   private static func sanitizedLabel(_ raw: String?) -> String? {
     guard let raw else { return nil }
-    let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+    let allowed = CharacterSet(
+      charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
     let folded = raw.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars
       .map { allowed.contains($0) ? String($0).lowercased() : "-" }
       .joined()
@@ -192,13 +195,17 @@ extension PromptLoggingLocalModelRuntime: AgentChatGenerating {
     }
     turn += 1
     let currentTurn = turn
-    let systemText = request.messages.filter { $0.role == .system }.map(\.content).joined(separator: "\n\n")
+    let systemText = request.messages.filter { $0.role == .system }.map(\.content).joined(
+      separator: "\n\n")
     let conversationText = request.messages.filter { $0.role != .system }.map { message -> String in
-      let calls = message.toolCalls.map { "  tool_call: \($0.name) \($0.argumentsJSON)" }.joined(separator: "\n")
-      let reasoning = message.reasoningContent?
+      let calls = message.toolCalls.map { "  tool_call: \($0.name) \($0.argumentsJSON)" }.joined(
+        separator: "\n")
+      let reasoning =
+        message.reasoningContent?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
       let reasoningBlock = reasoning.isEmpty ? "" : "\n  reasoning:\n\(reasoning)"
-      return "### \(message.role.rawValue)\n\(message.content)\(reasoningBlock)\(calls.isEmpty ? "" : "\n\(calls)")"
+      return
+        "### \(message.role.rawValue)\n\(message.content)\(reasoningBlock)\(calls.isEmpty ? "" : "\n\(calls)")"
     }.joined(separator: "\n\n")
     let loggingRequest = LocalModelGenerationRequest(
       modelID: request.modelID,
@@ -221,7 +228,7 @@ extension PromptLoggingLocalModelRuntime: AgentChatGenerating {
         : "reasoning:\n\(response.reasoningText)\n\n"
       let outputText =
         ([reasoningPrefix + response.text]
-          + response.toolCalls.map { "tool_call: \($0.name) \($0.argumentsJSON)" })
+        + response.toolCalls.map { "tool_call: \($0.name) \($0.argumentsJSON)" })
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
         .joined(separator: "\n\n")

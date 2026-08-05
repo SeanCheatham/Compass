@@ -477,8 +477,12 @@ public final class StudioState: ObservableObject {
           scrollToLine: newBuffer.scrollToLine
         )
         // Keep scroll anchored near the typing caret line.
-        let caretLine = plan.startLine + max(0, String(plan.targetSpan.prefix(revealed))
-          .filter { $0 == "\n" }.count)
+        let caretLine =
+          plan.startLine
+          + max(
+            0,
+            String(plan.targetSpan.prefix(revealed))
+              .filter { $0 == "\n" }.count)
         presented.scrollToLine = caretLine
         self.setPresentationBuffer(presented, for: path)
       }

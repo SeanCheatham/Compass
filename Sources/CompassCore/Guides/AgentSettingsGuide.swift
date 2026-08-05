@@ -46,9 +46,9 @@ public struct AgentSettingsGuide: Equatable, Sendable {
   public var narrationIdentifier: String
 
   public init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
-    let cloudReady = settings.isCloudConfigured || (
-      settings.textProvider == .openAICompatible && settings.hasCloudCredentials
-    )
+    let cloudReady =
+      settings.isCloudConfigured
+      || (settings.textProvider == .openAICompatible && settings.hasCloudCredentials)
     let mlxReady = modelSnapshot.isRunnable
     let modelDownloading = modelSnapshot.status == .downloading
     let textReady = settings.isTextCapabilityRunnable(localModelReady: mlxReady)

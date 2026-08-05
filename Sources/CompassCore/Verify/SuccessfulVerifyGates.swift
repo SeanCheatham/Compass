@@ -52,7 +52,8 @@ public enum SuccessfulVerifyGates {
       return Finding(issue: issue, retryKind: "missing_required_tests")
     }
     if let issue = weakCLIFlagTestIssue(
-      immediate: immediate, brief: brief, command: command, changedPaths: changedPaths, repoURL: repoURL
+      immediate: immediate, brief: brief, command: command, changedPaths: changedPaths,
+      repoURL: repoURL
     ) {
       return Finding(issue: issue, retryKind: "weak_cli_flag_tests")
     }
@@ -84,13 +85,17 @@ public enum SuccessfulVerifyGates {
         row.path == changedPath ? row.path : "\(changedPath) (reported as \(row.path))"
       return CoverageGap(
         changedPath: changedPath,
-        coverageLine: "- \(coverageDisplayPath): statements \(percentLabel(row.statements)), functions \(percentLabel(row.functions)), lines \(percentLabel(row.lines))",
+        coverageLine:
+          "- \(coverageDisplayPath): statements \(percentLabel(row.statements)), functions \(percentLabel(row.functions)), lines \(percentLabel(row.lines))",
         testTargetLines: coverageRepairTestTargetLines(for: changedPath, repoURL: repoURL)
       )
     }
     guard !gaps.isEmpty else { return nil }
     let targetLines = gaps.flatMap(\.testTargetLines)
-    let testTargetSection = targetLines.isEmpty ? "" : """
+    let testTargetSection =
+      targetLines.isEmpty
+      ? ""
+      : """
 
       Suggested test targets:
       \(targetLines.joined(separator: "\n"))
@@ -137,7 +142,8 @@ public enum SuccessfulVerifyGates {
   }
 
   private static func weakCLIFlagTestIssue(
-    immediate: PlanNext, brief: PlanStrategicContext, command: String, changedPaths: [String], repoURL: URL
+    immediate: PlanNext, brief: PlanStrategicContext, command: String, changedPaths: [String],
+    repoURL: URL
   ) -> String? {
     let text = handoffText(immediate: immediate, brief: brief).lowercased()
     guard text.contains("--format json"), text.contains("cli") else { return nil }
@@ -148,10 +154,12 @@ public enum SuccessfulVerifyGates {
     let changedTestPaths = changedPaths.filter { $0.hasPrefix("crates/cli/") && isTestPath($0) }
     guard !changedTestPaths.isEmpty else { return nil }
     let changedTestFiles: [(path: String, contents: String)] = changedTestPaths.compactMap { path in
-      guard let contents = try? String(contentsOf: repoURL.appending(path: path), encoding: .utf8) else { return nil }
+      guard let contents = try? String(contentsOf: repoURL.appending(path: path), encoding: .utf8)
+      else { return nil }
       return (path, contents)
     }
-    guard !changedTestFiles.contains(where: { containsSplitFormatJSONAssertion($0.contents) }) else { return nil }
+    guard !changedTestFiles.contains(where: { containsSplitFormatJSONAssertion($0.contents) })
+    else { return nil }
     let weakTestPaths = changedTestFiles.map(\.path)
     guard !weakTestPaths.isEmpty else { return nil }
     return """
@@ -220,17 +228,22 @@ public enum SuccessfulVerifyGates {
   }
 
   private static func handoffText(immediate: PlanNext, brief: PlanStrategicContext) -> String {
-    [immediate.plan, immediate.selectedBecause ?? "", brief.summary,
-     brief.desiredOutcomes.joined(separator: "\n"), brief.constraints.joined(separator: "\n"),
-     brief.acceptanceSignals.joined(separator: "\n")].joined(separator: "\n")
+    [
+      immediate.plan, immediate.selectedBecause ?? "", brief.summary,
+      brief.desiredOutcomes.joined(separator: "\n"), brief.constraints.joined(separator: "\n"),
+      brief.acceptanceSignals.joined(separator: "\n"),
+    ].joined(separator: "\n")
   }
 
-  private static func coverageRepairTestTargetLines(for changedPath: String, repoURL: URL) -> [String] {
+  private static func coverageRepairTestTargetLines(for changedPath: String, repoURL: URL)
+    -> [String]
+  {
     var candidates = coverageRepairTestTargets(for: changedPath)
     for candidate in existingCoveragePackageTestTargets(for: changedPath, repoURL: repoURL)
     where !candidates.contains(candidate) { candidates.append(candidate) }
     return candidates.map { candidate in
-      let action = FileManager.default.fileExists(atPath: repoURL.appending(path: candidate).path)
+      let action =
+        FileManager.default.fileExists(atPath: repoURL.appending(path: candidate).path)
         ? "read_file then edit_file" : "write_file"
       return "- `\(candidate)` (\(action)) should import and execute `\(changedPath)`."
     }
@@ -243,7 +256,8 @@ public enum SuccessfulVerifyGates {
     if ext == "rs" {
       let basename = url.deletingPathExtension().lastPathComponent
       guard changedPath.contains("/src/") else { return [] }
-      let crateRoot = changedPath.split(separator: "/src/", maxSplits: 1).first.map(String.init) ?? ""
+      let crateRoot =
+        changedPath.split(separator: "/src/", maxSplits: 1).first.map(String.init) ?? ""
       return ["\(crateRoot)/tests/\(basename).rs", "\(crateRoot)/tests/cli.rs"]
     }
     let basename = url.deletingPathExtension().lastPathComponent
@@ -253,7 +267,8 @@ public enum SuccessfulVerifyGates {
   private static func containsSplitFormatJSONAssertion(_ contents: String) -> Bool {
     let normalized = contents.replacingOccurrences(of: "'", with: "\"").unicodeScalars
       .filter { !CharacterSet.whitespacesAndNewlines.contains($0) }.map(String.init).joined()
-    return normalized.contains("[\"--format\",\"json\"") || normalized.contains("([\"--format\",\"json\"")
+    return normalized.contains("[\"--format\",\"json\"")
+      || normalized.contains("([\"--format\",\"json\"")
       || normalized.contains("\"--formatjson\"")
   }
 
@@ -270,12 +285,17 @@ public enum SuccessfulVerifyGates {
     return paths.sorted()
   }
 
-  private static func existingCoveragePackageTestTargets(for changedPath: String, repoURL: URL) -> [String] {
+  private static func existingCoveragePackageTestTargets(for changedPath: String, repoURL: URL)
+    -> [String]
+  {
     let sourceDirectory = URL(fileURLWithPath: changedPath).deletingLastPathComponent()
     let directoryURL = repoURL.appending(path: sourceDirectory.relativePath)
-    guard let entries = try? FileManager.default.contentsOfDirectory(
-      at: directoryURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]
-    ) else { return [] }
+    guard
+      let entries = try? FileManager.default.contentsOfDirectory(
+        at: directoryURL, includingPropertiesForKeys: [.isRegularFileKey],
+        options: [.skipsHiddenFiles]
+      )
+    else { return [] }
     return entries.compactMap { entry in
       let filename = entry.lastPathComponent.lowercased()
       let relative = sourceDirectory.appending(path: entry.lastPathComponent).relativePath
@@ -284,37 +304,54 @@ public enum SuccessfulVerifyGates {
       } else {
         guard filename.contains(".test.") || filename.contains(".spec.") else { return nil }
       }
-      guard (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+      guard (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
+        return nil
+      }
       return relative
     }.sorted()
   }
 
   private static func missingPackageEntryPointIssues(repoURL: URL) -> [PackageEntryPointIssue] {
-    packageManifestURLs(in: repoURL).flatMap { missingPackageEntryPointIssues(manifestURL: $0, repoURL: repoURL) }
-      .sorted { [$0.manifestPath, $0.field, $0.targetPath].joined(separator: "\u{0}")
-        < [$1.manifestPath, $1.field, $1.targetPath].joined(separator: "\u{0}") }
+    packageManifestURLs(in: repoURL).flatMap {
+      missingPackageEntryPointIssues(manifestURL: $0, repoURL: repoURL)
+    }
+    .sorted {
+      [$0.manifestPath, $0.field, $0.targetPath].joined(separator: "\u{0}")
+        < [$1.manifestPath, $1.field, $1.targetPath].joined(separator: "\u{0}")
+    }
   }
 
   private static func packageManifestURLs(in repoURL: URL) -> [URL] {
-    guard let enumerator = FileManager.default.enumerator(
-      at: repoURL, includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey], options: [.skipsHiddenFiles]
-    ) else { return [] }
+    guard
+      let enumerator = FileManager.default.enumerator(
+        at: repoURL, includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
+        options: [.skipsHiddenFiles]
+      )
+    else { return [] }
     var manifests: [URL] = []
     for case let url as URL in enumerator {
-      if shouldSkipPackageManifestScanDescendants(url) { enumerator.skipDescendants(); continue }
+      if shouldSkipPackageManifestScanDescendants(url) {
+        enumerator.skipDescendants()
+        continue
+      }
       guard url.lastPathComponent == "Cargo.toml",
-        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+      else { continue }
       manifests.append(url)
     }
     return manifests
   }
 
   private static func shouldSkipPackageManifestScanDescendants(_ url: URL) -> Bool {
-    guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return false }
+    guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+      return false
+    }
     return [".compass", ".git", "dist", "node_modules", "target"].contains(url.lastPathComponent)
   }
 
-  private static func missingPackageEntryPointIssues(manifestURL: URL, repoURL: URL) -> [PackageEntryPointIssue] {
+  private static func missingPackageEntryPointIssues(manifestURL: URL, repoURL: URL)
+    -> [PackageEntryPointIssue]
+  {
     guard let contents = try? String(contentsOf: manifestURL, encoding: .utf8) else { return [] }
     let manifestPath = relativePath(manifestURL, repoURL: repoURL)
     let packageDirectory = manifestURL.deletingLastPathComponent()
@@ -334,8 +371,10 @@ public enum SuccessfulVerifyGates {
   private static func cleanedLocalPackageEntryPath(_ rawPath: String) -> String? {
     let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty, !trimmed.hasPrefix("#"), !trimmed.contains("://") else { return nil }
-    let withoutFragment = trimmed.split(separator: "#", maxSplits: 1).first.map(String.init) ?? trimmed
-    let withoutQuery = withoutFragment.split(separator: "?", maxSplits: 1).first.map(String.init) ?? withoutFragment
+    let withoutFragment =
+      trimmed.split(separator: "#", maxSplits: 1).first.map(String.init) ?? trimmed
+    let withoutQuery =
+      withoutFragment.split(separator: "?", maxSplits: 1).first.map(String.init) ?? withoutFragment
     let cleaned = withoutQuery.trimmingCharacters(in: .whitespacesAndNewlines)
     return cleaned.isEmpty ? nil : cleaned
   }
@@ -352,8 +391,10 @@ public enum SuccessfulVerifyGates {
   }
 
   private static func handoffRequiresSourceOrTestWork(_ text: String) -> Bool {
-    ["acceptance checks", "add core", "cli", "command", "component", "cover", "function",
-     "implement", "logic", "source", "test", "crate"].contains { text.lowercased().contains($0) }
+    [
+      "acceptance checks", "add core", "cli", "command", "component", "cover", "function",
+      "implement", "logic", "source", "test", "crate",
+    ].contains { text.lowercased().contains($0) }
   }
 
   private static func relativePath(_ url: URL, repoURL: URL) -> String {
@@ -372,8 +413,12 @@ public enum SuccessfulVerifyGates {
       guard columns.count >= 5 else { continue }
       let displayPath = columns[0].trimmingCharacters(in: .whitespacesAndNewlines)
       guard !displayPath.isEmpty, displayPath != "File", displayPath != "All files",
-        !displayPath.allSatisfy({ $0 == "-" }) else { continue }
-      if !hasSourceExtension(displayPath), displayPath.contains("/") { currentDirectory = displayPath; continue }
+        !displayPath.allSatisfy({ $0 == "-" })
+      else { continue }
+      if !hasSourceExtension(displayPath), displayPath.contains("/") {
+        currentDirectory = displayPath
+        continue
+      }
       guard hasSourceExtension(displayPath) else { continue }
       let coveragePath: String
       if displayPath.contains("/") {
@@ -383,21 +428,28 @@ public enum SuccessfulVerifyGates {
       } else {
         coveragePath = displayPath
       }
-      rows.append(CoverageTableRow(
-        path: coveragePath, statements: coveragePercent(columns[1]), functions: coveragePercent(columns[3]),
-        lines: coveragePercent(columns[4])
-      ))
+      rows.append(
+        CoverageTableRow(
+          path: coveragePath, statements: coveragePercent(columns[1]),
+          functions: coveragePercent(columns[3]),
+          lines: coveragePercent(columns[4])
+        ))
     }
     return rows
   }
 
-  private static func coveragePath(_ coveragePath: String, matchesChangedPath changedPath: String) -> Bool {
-    changedPath == coveragePath || changedPath.hasSuffix("/\(coveragePath)") || changedPath.hasSuffix(coveragePath)
+  private static func coveragePath(_ coveragePath: String, matchesChangedPath changedPath: String)
+    -> Bool
+  {
+    changedPath == coveragePath || changedPath.hasSuffix("/\(coveragePath)")
+      || changedPath.hasSuffix(coveragePath)
   }
 
   private static func isCoverageGatedSourcePath(_ path: String) -> Bool {
     let lowercased = path.lowercased()
-    guard hasSourceExtension(lowercased), !lowercased.contains("/target/"), !lowercased.contains("/tests/") else { return false }
+    guard hasSourceExtension(lowercased), !lowercased.contains("/target/"),
+      !lowercased.contains("/tests/")
+    else { return false }
     return lowercased.contains("/src/")
   }
 
@@ -414,7 +466,8 @@ public enum SuccessfulVerifyGates {
   }
 
   private static func coveragePercent(_ value: String) -> Double? {
-    Double(value.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespacesAndNewlines))
+    Double(
+      value.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespacesAndNewlines))
   }
 
   private static func percentLabel(_ value: Double?) -> String {

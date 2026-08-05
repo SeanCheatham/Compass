@@ -1,6 +1,6 @@
 import Foundation
 
-public extension AgentExecutor {
+extension AgentExecutor {
   /// Native tool-calling loop for capable backends (cloud models and modern
   /// MLX checkpoints). The provider owns tool-call parsing; Compass keeps the
   /// phase submit gauntlet, verify bookkeeping, and compaction.
@@ -8,7 +8,7 @@ public extension AgentExecutor {
   /// The phase submit envelope becomes a synthetic `<phase>_submit` tool whose
   /// parameters are the phase's output schema, so the same validators decode
   /// the payload unchanged.
-  func runNative(
+  public func runNative(
     _ configuration: AgentExecutionConfiguration,
     chatRuntime: any AgentChatGenerating,
     textRuntime: any LocalModelGenerating
@@ -33,7 +33,8 @@ public extension AgentExecutor {
       sessionNumber: configuration.sessionNumber,
       enforceReadBeforeWrite: false
     )
-    let toolsByName = Dictionary(uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
+    let toolsByName = Dictionary(
+      uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
 
     let submitKind = configuration.continuationPhase.submitKind
     let submitTool = AgentToolSpec(
@@ -370,7 +371,8 @@ public extension AgentExecutor {
         } catch let toolError as AgentToolError {
           result = .failure(toolError)
         } catch {
-          result = .failure("Tool \(call.name) threw: \(error.localizedDescription)", kind: .unknown)
+          result = .failure(
+            "Tool \(call.name) threw: \(error.localizedDescription)", kind: .unknown)
         }
         emitToolEnd(
           name: call.name,
@@ -540,14 +542,14 @@ public extension AgentExecutor {
   /// Tool observations in the native loop may be much larger than the old
   /// 6 KB cap: capable models use long reads productively, and the
   /// provider-reported prompt tokens drive compaction instead of blind caps.
-  static let nativeObservationCharacterLimit = 48_000
+  public static let nativeObservationCharacterLimit = 48_000
 
-  struct NativeToolCallSignature: Equatable, Hashable {
+  public struct NativeToolCallSignature: Equatable, Hashable {
     var toolName: String
     var arguments: String
   }
 
-  static func normalizedSubmitPayload(_ arguments: Data) throws -> Data {
+  public static func normalizedSubmitPayload(_ arguments: Data) throws -> Data {
     let raw = try JSONSerialization.jsonObject(with: arguments)
     guard let object = raw as? [String: Any], JSONSerialization.isValidJSONObject(object) else {
       throw AgentExecutionError.toolCallDecodeFailed(
@@ -561,14 +563,14 @@ public extension AgentExecutor {
     )
   }
 
-  static func nativeGenerationLogLabel(
+  public static func nativeGenerationLogLabel(
     configuration: AgentExecutionConfiguration,
     iteration: Int
   ) -> String {
     "\(configuration.promptLogLabelBase)-turn-\(iteration)"
   }
 
-  static func nativeMessagesNeedCompaction(
+  public static func nativeMessagesNeedCompaction(
     messages: [AgentChatMessage],
     lastPromptTokens: Int?,
     configuration: AgentExecutionConfiguration
@@ -600,7 +602,7 @@ public extension AgentExecutor {
   /// Replaces the middle of the conversation with a model-generated summary,
   /// keeping the system prompt, original packet, and the most recent
   /// tool-call exchange intact.
-  static func compactNativeMessages(
+  public static func compactNativeMessages(
     configuration: AgentExecutionConfiguration,
     runtime: any LocalModelGenerating,
     messages: [AgentChatMessage]
@@ -618,8 +620,10 @@ public extension AgentExecutor {
     let serializedOlder = older.map { message -> String in
       switch message.role {
       case .assistant:
-        let calls = message.toolCalls.map { "\($0.name)(\($0.argumentsJSON))" }.joined(separator: ", ")
-        let reasoning = message.reasoningContent?
+        let calls = message.toolCalls.map { "\($0.name)(\($0.argumentsJSON))" }.joined(
+          separator: ", ")
+        let reasoning =
+          message.reasoningContent?
           .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let reasoningBlock =
           reasoning.isEmpty ? "" : "\nReasoning:\n\(reasoning)"

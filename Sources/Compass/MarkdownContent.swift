@@ -1,6 +1,6 @@
+import CompassCore
 import Foundation
 import SwiftUI
-import CompassCore
 
 struct MarkdownContent: View {
   private var text: String

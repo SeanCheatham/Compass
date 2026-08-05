@@ -173,7 +173,9 @@ public struct AgentExecutionLaunchPlan: Equatable {
     }
   }
 
-  public func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
+  public func shellInvocation(command: String, hostWorkingDirectory: URL)
+    -> AgentExecutionInvocation
+  {
     AgentExecutionInvocation(
       executable: "/bin/zsh",
       arguments: ["-lc", command],

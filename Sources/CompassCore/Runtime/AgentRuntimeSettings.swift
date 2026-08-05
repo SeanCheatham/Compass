@@ -98,8 +98,8 @@ public struct AgentRuntimeSettings: Equatable, Sendable {
   }
 }
 
-public extension Dictionary where Key == String, Value == String {
-  func trimmedValue(_ key: String) -> String? {
+extension Dictionary where Key == String, Value == String {
+  public func trimmedValue(_ key: String) -> String? {
     let trimmed = self[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return trimmed.isEmpty ? nil : trimmed
   }

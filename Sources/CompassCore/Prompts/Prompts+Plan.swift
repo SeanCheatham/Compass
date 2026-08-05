@@ -1,7 +1,7 @@
 import Foundation
 
-public extension Prompts {
-  static func planPrompt(
+extension Prompts {
+  public static func planPrompt(
     state: PlanProposal,
     completedCount: Int,
     drafts: String,
@@ -146,7 +146,7 @@ public extension Prompts {
       """
   }
 
-  static func compactPromptBlock(
+  public static func compactPromptBlock(
     _ text: String,
     maxLines: Int,
     maxCharacters: Int

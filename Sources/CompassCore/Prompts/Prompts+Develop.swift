@@ -1,7 +1,7 @@
 import Foundation
 
-public extension Prompts {
-  static func developPrompt(
+extension Prompts {
+  public static func developPrompt(
     next: PlanNext,
     lessons: String,
     assumptions: String = "",
@@ -16,8 +16,8 @@ public extension Prompts {
       ? ""
       : "\n\n## Critic Feedback\n"
         + criticFeedback.enumerated()
-          .map { "Review \($0.offset + 1):\n\($0.element)" }
-          .joined(separator: "\n\n")
+        .map { "Review \($0.offset + 1):\n\($0.element)" }
+        .joined(separator: "\n\n")
 
     let submitSection =
       promptMode == .nativeTools
@@ -149,7 +149,9 @@ public extension Prompts {
         6. Return a concrete summary and feedback.
         """
     }
-    let issues = priorIssues.isEmpty ? "_(no captured prior issue text)_" : priorIssues.joined(separator: "\n\n")
+    let issues =
+      priorIssues.isEmpty
+      ? "_(no captured prior issue text)_" : priorIssues.joined(separator: "\n\n")
     return """
       This is Develop attempt \(attempt). First address the prior issue(s), then rerun verify.
       If the prior issue lists Suggested test targets, read and edit one of those exact

@@ -45,8 +45,9 @@ struct StudioANSIParserTests {
     let stillRedRange = (attributed.string as NSString).range(of: "still red")
     #expect(stillRedRange.location != NSNotFound)
     var effectiveRange = NSRange(location: 0, length: 0)
-    let color = attributed.attribute(
-      .foregroundColor, at: stillRedRange.location, effectiveRange: &effectiveRange) as? NSColor
+    let color =
+      attributed.attribute(
+        .foregroundColor, at: stillRedRange.location, effectiveRange: &effectiveRange) as? NSColor
     #expect(color != nil)
     // Should still be red-ish, not the default secondary label after a false reset.
     let red = color!.usingColorSpace(.genericRGB)!
@@ -61,8 +62,9 @@ struct StudioANSIParserTests {
     let attributed = StudioANSIParser.nsAttributedString(text)
     #expect(attributed.string == "red")
     var effectiveRange = NSRange(location: 0, length: 0)
-    let color = attributed.attribute(
-      .foregroundColor, at: 0, effectiveRange: &effectiveRange) as? NSColor
+    let color =
+      attributed.attribute(
+        .foregroundColor, at: 0, effectiveRange: &effectiveRange) as? NSColor
     #expect(color != nil)
     let red = color!.usingColorSpace(.genericRGB)!
     #expect(red.redComponent > 0.5)

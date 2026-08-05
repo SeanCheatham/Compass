@@ -33,7 +33,8 @@ public struct AgentFileSecretStorage: AgentSecretStorage, @unchecked Sendable {
   public let root: URL
   private let fileManager: FileManager
 
-  public init(root: URL = AgentFileSecretStorage.defaultRoot(), fileManager: FileManager = .default) {
+  public init(root: URL = AgentFileSecretStorage.defaultRoot(), fileManager: FileManager = .default)
+  {
     self.root = root.standardizedFileURL
     self.fileManager = fileManager
   }

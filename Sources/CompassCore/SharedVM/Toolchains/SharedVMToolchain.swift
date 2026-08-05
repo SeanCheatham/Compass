@@ -119,7 +119,8 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
   /// PATH-independent check that the rustup toolchain is usable. The
   /// guest agent runs bash non-interactively, so rustup's proxies are
   /// symlinked into /usr/local/bin at install time.
-  public static let rustVerificationCommand =    "test -x /usr/local/bin/cargo && /usr/local/bin/cargo --version && /usr/local/bin/rustc --version && /usr/local/bin/rustfmt --version && /usr/local/bin/cargo-clippy --version"
+  public static let rustVerificationCommand =
+    "test -x /usr/local/bin/cargo && /usr/local/bin/cargo --version && /usr/local/bin/rustc --version && /usr/local/bin/rustfmt --version && /usr/local/bin/cargo-clippy --version"
 
   static let rustProbeCommand = """
     test -x /usr/local/bin/cargo && test -x /usr/local/bin/rustc && echo PRESENT || echo MISSING
@@ -429,7 +430,8 @@ public enum SharedVMToolchainCatalog {
     ),
   ]
 
-  public static let defaultProvisionedIDs: [String] = all.filter(\.defaultProvisioned).map(\.stringID)
+  public static let defaultProvisionedIDs: [String] = all.filter(\.defaultProvisioned).map(
+    \.stringID)
 
   public static func definition(for id: SharedVMToolchainID) -> SharedVMToolchainDefinition {
     guard let entry = all.first(where: { $0.id == id }) else {

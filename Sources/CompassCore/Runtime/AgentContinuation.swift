@@ -54,7 +54,8 @@ public enum AgentContinuationParseError: LocalizedError, Equatable {
     case .missingKind:
       return "Continuation is missing string field `kind`."
     case .wrongPhaseKind(let expected, let actual):
-      return "Continuation kind `\(actual)` is invalid for this phase. Expected \(expected.joined(separator: " or "))."
+      return
+        "Continuation kind `\(actual)` is invalid for this phase. Expected \(expected.joined(separator: " or "))."
     case .missingTool:
       return "Continue envelope is missing string field `tool`."
     case .unknownTool(let tool):
@@ -111,10 +112,12 @@ public enum AgentContinuationParser {
       else {
         throw AgentContinuationParseError.missingTool
       }
-      guard let toolName = AgentExecutor.canonicalToolName(
-        rawTool,
-        availableToolNames: availableToolNames
-      ) else {
+      guard
+        let toolName = AgentExecutor.canonicalToolName(
+          rawTool,
+          availableToolNames: availableToolNames
+        )
+      else {
         throw AgentContinuationParseError.unknownTool(rawTool)
       }
       guard let arguments = object["arguments"] as? [String: Any] else {
