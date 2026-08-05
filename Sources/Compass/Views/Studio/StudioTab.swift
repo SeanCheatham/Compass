@@ -68,12 +68,15 @@ struct StudioTab: View {
         Text("Studio")
           .font(.headline)
         Text(
-          "Run the factory and watch the agent work here — files it reads open in the editor, edits land inline, thinking streams into a transcript, and bash commands appear in the terminal."
+          "When the agent runs, files it touches open here, edits type in place, thinking streams beside the editor, and bash lands in the terminal."
         )
         .font(.callout)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
         .frame(maxWidth: 420)
+        Text("Start a run from Activity to populate this view.")
+          .font(.caption)
+          .foregroundStyle(.tertiary)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

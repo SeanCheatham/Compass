@@ -25,17 +25,31 @@ struct StudioFileNode: Identifiable, Hashable {
     guard let head = components.first else { return }
     let path = prefix.isEmpty ? head : "\(prefix)/\(head)"
     if components.count == 1 {
-      if !nodes.contains(where: { $0.path == path }) {
-        nodes.append(StudioFileNode(path: path, name: head, children: nil))
-        nodes.sort { sortOrder($0, $1) }
-      }
+      // Prefer an existing directory at this path over a duplicate file leaf —
+      // nested paths win when the agent has also touched a same-named file.
+      if nodes.contains(where: { $0.path == path }) { return }
+      nodes.append(StudioFileNode(path: path, name: head, children: nil))
+      nodes.sort { sortOrder($0, $1) }
       return
     }
-    if let index = nodes.firstIndex(where: { $0.path == path && $0.isDirectory }) {
-      insert(components: Array(components.dropFirst()), into: &nodes[index].children!, prefix: path)
+    if let index = nodes.firstIndex(where: { $0.path == path }) {
+      if nodes[index].children == nil {
+        // Promote a prior file leaf into a directory so nested paths can attach
+        // without creating a duplicate Identifiable id.
+        nodes[index].children = []
+      }
+      insert(
+        components: Array(components.dropFirst()),
+        into: &nodes[index].children!,
+        prefix: path
+      )
     } else {
       var directory = StudioFileNode(path: path, name: head, children: [])
-      insert(components: Array(components.dropFirst()), into: &directory.children!, prefix: path)
+      insert(
+        components: Array(components.dropFirst()),
+        into: &directory.children!,
+        prefix: path
+      )
       nodes.append(directory)
     }
     nodes.sort { sortOrder($0, $1) }
