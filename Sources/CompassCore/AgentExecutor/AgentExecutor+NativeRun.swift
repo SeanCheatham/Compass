@@ -153,19 +153,20 @@ public extension AgentExecutor {
         tokenUsage.durationMs = (tokenUsage.durationMs ?? 0) + durationMs
       }
 
-      if !response.reasoningText.isEmpty {
+      let trimmedReasoning = response.reasoningText.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmedReasoning.isEmpty {
         reasoningTranscript +=
           reasoningTranscript.isEmpty
-          ? response.reasoningText
-          : "\n\n\(response.reasoningText)"
+          ? trimmedReasoning
+          : "\n\n\(trimmedReasoning)"
         let displayThinking = Self.capHead(
-          response.reasoningText,
+          trimmedReasoning,
           bytes: Self.payloadMaxTerminalBytes
         )
         emit(
           level: .raw,
           text: "Thinking",
-          detail: previewString(response.reasoningText),
+          detail: previewString(trimmedReasoning),
           kind: .agentMessage,
           status: .completed,
           payload: .thinking(text: displayThinking)
@@ -183,8 +184,7 @@ public extension AgentExecutor {
         )
       }
 
-      let reasoningForWriteback =
-        response.reasoningText.isEmpty ? nil : response.reasoningText
+      let reasoningForWriteback = trimmedReasoning.isEmpty ? nil : trimmedReasoning
 
       if response.toolCalls.isEmpty {
         consecutiveNoToolCallTurns += 1
@@ -587,8 +587,12 @@ public extension AgentExecutor {
       let projected = lastPromptTokens + maxCompletionTokensPerTurn / 2
       return projected > threshold
     }
-    let characters = messages.reduce(0) { $0 + $1.content.count }
-      + messages.reduce(0) { $0 + $1.toolCalls.reduce(0) { $0 + $1.argumentsJSON.count } }
+    let characters = messages.reduce(0) { partial, message in
+      partial
+        + message.content.count
+        + (message.reasoningContent?.count ?? 0)
+        + message.toolCalls.reduce(0) { $0 + $1.argumentsJSON.count }
+    }
     return AgentRunTokenUsage.estimateTokens(
       characters: characters,
       charsPerToken: estimatedCharsPerToken
@@ -617,7 +621,14 @@ public extension AgentExecutor {
       switch message.role {
       case .assistant:
         let calls = message.toolCalls.map { "\($0.name)(\($0.argumentsJSON))" }.joined(separator: ", ")
-        return "### Assistant\(calls.isEmpty ? "" : " [called \(calls)]")\n\(message.content)"
+        let reasoning = message.reasoningContent?
+          .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let reasoningBlock =
+          reasoning.isEmpty ? "" : "\nReasoning:\n\(reasoning)"
+        return """
+          ### Assistant\(calls.isEmpty ? "" : " [called \(calls)]")
+          \(message.content)\(reasoningBlock)
+          """
       case .tool:
         return "### Tool result\n\(message.content)"
       case .user:

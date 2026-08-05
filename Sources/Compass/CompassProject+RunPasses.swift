@@ -724,7 +724,8 @@ extension CompassProject {
         command: verifyCommand,
         hostWorkingDirectory: workingDirectory,
         timeoutSeconds: TimeInterval(timeoutMs) / 1000,
-        launchPlan: launchPlan
+        launchPlan: launchPlan,
+        mirrorToStudio: true
       )
       recordVerifyAuditOutput(
         command: verifyCommand,

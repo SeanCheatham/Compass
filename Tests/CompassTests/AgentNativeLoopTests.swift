@@ -227,6 +227,73 @@ struct AgentNativeLoopTests {
   }
 
   @Test
+  func stripThinkBlocksExtractsReasoningAndLeavesCleanJSON() {
+    let (cleaned, reasoning) = AgentExecutor.stripThinkBlocks(
+      """
+      <think>
+      I should emit develop_submit next.
+      "kind":"develop_submit"
+      </think>
+      {"kind":"continue_tool","tool":"read_file","arguments":{"path":"a.txt"}}
+      """
+    )
+    #expect(cleaned.contains("continue_tool"))
+    #expect(!cleaned.contains("<think>"))
+    #expect(reasoning.contains("develop_submit"))
+  }
+
+  @Test
+  func stripThinkBlocksOnlyThinkContentYieldsEmptyParseBody() {
+    let (cleaned, reasoning) = AgentExecutor.stripThinkBlocks(
+      """
+      <think>
+      pondering "kind":"develop_submit" without emitting JSON
+      </think>
+      """
+    )
+    #expect(cleaned.isEmpty)
+    #expect(reasoning.contains("develop_submit"))
+  }
+
+  @Test
+  func nativeCompactionHeuristicCountsReasoningContent() {
+    var config = configuration(tools: [])
+    config.settings.contextWindowTokens = 200
+    let longReasoning = String(repeating: "r", count: 2_000)
+    let withReasoning: [AgentChatMessage] = [
+      .system("sys"),
+      .user("packet"),
+      .assistant("short", reasoningContent: longReasoning),
+      .user("note"),
+      .assistant("short2", reasoningContent: longReasoning),
+      .user("note2"),
+      .assistant("short3"),
+      .user("note3"),
+      .assistant("short4"),
+    ]
+    let withoutReasoning = withReasoning.map { message -> AgentChatMessage in
+      var copy = message
+      copy.reasoningContent = nil
+      return copy
+    }
+    #expect(withReasoning.count > 8)
+    #expect(
+      !AgentExecutor.nativeMessagesNeedCompaction(
+        messages: withoutReasoning,
+        lastPromptTokens: nil,
+        configuration: config
+      )
+    )
+    #expect(
+      AgentExecutor.nativeMessagesNeedCompaction(
+        messages: withReasoning,
+        lastPromptTokens: nil,
+        configuration: config
+      )
+    )
+  }
+
+  @Test
   func promptModeResolvesNativeForChatCapableBackends() {
     let chat = ScriptedChatRuntime(responses: [])
     #expect(

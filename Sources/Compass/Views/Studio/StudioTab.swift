@@ -92,23 +92,49 @@ struct StudioTab: View {
   ) -> (editor: CGFloat, thinking: CGFloat, terminal: CGFloat) {
     let minEditor: CGFloat = 80
     let minTerminal: CGFloat = 64
-    let minThinking: CGFloat = showsThinking ? 72 : 0
-    let thinkingBudget: CGFloat = showsThinking ? min(max(total * 0.22, minThinking), 180) : 0
+    let minThinking: CGFloat = 72
+    let maxThinking: CGFloat = 180
+    // Divider between editor and thinking sits outside the thinking frame.
+    let divider: CGFloat = 1
 
-    guard total > minEditor + minTerminal + thinkingBudget else {
-      if showsThinking, total > minEditor + minTerminal {
-        let thinking = min(thinkingBudget, total - minEditor - minTerminal)
-        let remaining = total - thinking
-        let half = max(remaining / 2, 0)
-        return (half, thinking, max(remaining - half, 0))
+    let twoPane: (editor: CGFloat, thinking: CGFloat, terminal: CGFloat) = {
+      guard total > minEditor + minTerminal else {
+        let half = max(total / 2, 0)
+        return (half, 0, max(total - half, 0))
       }
-      let half = max(total / 2, 0)
-      return (half, 0, max(total - half, 0))
+      let idealEditor = total * editorHeightFraction(for: focus)
+      let editor = min(max(idealEditor, minEditor), total - minTerminal)
+      return (editor, 0, total - editor)
+    }()
+
+    guard showsThinking else { return twoPane }
+
+    // Hide thinking rather than render a sub-minimum strip that clips content.
+    let minTotalForThinking = minEditor + minTerminal + minThinking + divider
+    guard total >= minTotalForThinking else { return twoPane }
+
+    var thinking = min(max(total * 0.22, minThinking), maxThinking)
+    // When the terminal is focused, keep enough split budget that the terminal
+    // can stay the majority even after minEditor floors the editor pane.
+    if focus == .terminal {
+      let usableNeededForTerminalMajority = (minEditor * 2) + 1
+      let maxThinkingForFocus = total - divider - usableNeededForTerminalMajority
+      if maxThinkingForFocus < minThinking {
+        return twoPane
+      }
+      thinking = min(thinking, maxThinkingForFocus)
     }
 
-    let usable = total - thinkingBudget
-    let idealEditor = usable * editorHeightFraction(for: focus)
-    let editor = min(max(idealEditor, minEditor), usable - minTerminal)
-    return (editor, thinkingBudget, usable - editor)
+    let usable = total - thinking - divider
+    switch focus {
+    case .terminal:
+      let idealTerminal = usable * (1 - editorHeightFraction(for: focus))
+      let terminal = min(max(idealTerminal, minTerminal), usable - minEditor)
+      return (usable - terminal, thinking, terminal)
+    case .editor, .balanced:
+      let idealEditor = usable * editorHeightFraction(for: focus)
+      let editor = min(max(idealEditor, minEditor), usable - minTerminal)
+      return (editor, thinking, usable - editor)
+    }
   }
 }

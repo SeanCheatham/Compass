@@ -360,4 +360,16 @@ struct StudioStatePresentationTests {
         payload: .thinking(text: "  ")))
     #expect(state.thinkingEntries.count == 1)
   }
+
+  @Test
+  func whitespaceOnlyThinkingDoesNotActivateStudio() {
+    let state = StudioState()
+    #expect(!state.hasActivity)
+    state.apply(
+      line(
+        status: .completed,
+        payload: .thinking(text: "   \n\t")))
+    #expect(!state.hasActivity)
+    #expect(state.thinkingEntries.isEmpty)
+  }
 }

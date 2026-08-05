@@ -294,40 +294,48 @@ extension CompassProject {
     log("macOS VM is ready.", level: .success)
   }
 
-  /// Runs the Verify shell command inside the embedded macOS VM against
-  /// the synced guest worktree. Emits bash-style Studio payloads so the
-  /// Verifying stage shows in the terminal pane like agent `bash` calls.
+  /// Runs a shell command inside the embedded macOS VM against the synced
+  /// guest worktree. When `mirrorToStudio` is true, emits bash-style Studio
+  /// payloads so the command appears in the terminal pane like agent `bash`.
   func runVerifyCommand(
     command: String,
     hostWorkingDirectory: URL,
     timeoutSeconds: TimeInterval,
-    launchPlan: AgentExecutionLaunchPlan
+    launchPlan: AgentExecutionLaunchPlan,
+    mirrorToStudio: Bool = false
   ) async throws -> ProcessResult {
     _ = launchPlan
     let correlationID = UUID().uuidString
     let timeoutMs = Int(timeoutSeconds * 1000)
     let studioCWD = "/workspace"
-    log(
-      LiveEvent(
-        level: .raw,
-        text: "verify",
-        detail: "\(command) (macOS VM, timeout \(timeoutMs)ms)",
-        kind: .command,
-        status: .running,
-        correlationID: correlationID,
-        metadata: [
-          "tool": "verify",
-          "command": command,
-          "timeoutMs": "\(timeoutMs)",
-        ],
-        payload: .bash(
-          command: command,
-          cwd: studioCWD,
-          output: nil,
-          isError: nil
+    if mirrorToStudio {
+      log(
+        LiveEvent(
+          level: .raw,
+          text: "verify",
+          detail: "\(command) (macOS VM, timeout \(timeoutMs)ms)",
+          kind: .command,
+          status: .running,
+          correlationID: correlationID,
+          metadata: [
+            "tool": "verify",
+            "command": command,
+            "timeoutMs": "\(timeoutMs)",
+          ],
+          payload: .bash(
+            command: command,
+            cwd: studioCWD,
+            output: nil,
+            isError: nil
+          )
         )
       )
-    )
+    } else {
+      log(
+        "Verify helper: running inside the macOS VM (timeout \(timeoutMs)ms).",
+        level: .info
+      )
+    }
 
     do {
       let result = try await AgentMacOSVMBashRunner(
@@ -338,6 +346,8 @@ extension CompassProject {
         workingDirectory: hostWorkingDirectory,
         timeout: timeoutSeconds
       )
+      guard mirrorToStudio else { return result }
+
       let failed = result.exitCode != 0
       let combined = Self.combinedProcessOutput(result)
       let capped = AgentExecutor.capTail(
@@ -372,27 +382,29 @@ extension CompassProject {
       )
       return result
     } catch {
-      log(
-        LiveEvent(
-          level: .error,
-          text: "verify",
-          detail: error.localizedDescription,
-          kind: .command,
-          status: .failed,
-          correlationID: correlationID,
-          metadata: [
-            "tool": "verify",
-            "command": command,
-            "isError": "true",
-          ],
-          payload: .bash(
-            command: command,
-            cwd: studioCWD,
-            output: error.localizedDescription,
-            isError: true
+      if mirrorToStudio {
+        log(
+          LiveEvent(
+            level: .error,
+            text: "verify",
+            detail: error.localizedDescription,
+            kind: .command,
+            status: .failed,
+            correlationID: correlationID,
+            metadata: [
+              "tool": "verify",
+              "command": command,
+              "isError": "true",
+            ],
+            payload: .bash(
+              command: command,
+              cwd: studioCWD,
+              output: error.localizedDescription,
+              isError: true
+            )
           )
         )
-      )
+      }
       throw error
     }
   }

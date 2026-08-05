@@ -20,8 +20,12 @@ public actor PromptLoggingLocalModelRuntime: LocalModelGenerating {
     )
     do {
       let result = try await base.generateText(request: request)
+      let reasoningPrefix =
+        result.reasoningText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ? ""
+        : "reasoning:\n\(result.reasoningText)\n\n"
       try PromptLogWriter.writeOutputLog(
-        result.text,
+        reasoningPrefix + result.text,
         request: request,
         artifacts: artifacts,
         status: "completed",
@@ -191,7 +195,10 @@ extension PromptLoggingLocalModelRuntime: AgentChatGenerating {
     let systemText = request.messages.filter { $0.role == .system }.map(\.content).joined(separator: "\n\n")
     let conversationText = request.messages.filter { $0.role != .system }.map { message -> String in
       let calls = message.toolCalls.map { "  tool_call: \($0.name) \($0.argumentsJSON)" }.joined(separator: "\n")
-      return "### \(message.role.rawValue)\n\(message.content)\(calls.isEmpty ? "" : "\n\(calls)")"
+      let reasoning = message.reasoningContent?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      let reasoningBlock = reasoning.isEmpty ? "" : "\n  reasoning:\n\(reasoning)"
+      return "### \(message.role.rawValue)\n\(message.content)\(reasoningBlock)\(calls.isEmpty ? "" : "\n\(calls)")"
     }.joined(separator: "\n\n")
     let loggingRequest = LocalModelGenerationRequest(
       modelID: request.modelID,

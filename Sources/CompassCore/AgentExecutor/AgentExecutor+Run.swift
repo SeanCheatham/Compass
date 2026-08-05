@@ -201,8 +201,9 @@ public extension AgentExecutor {
         tokenUsage.durationMs = (tokenUsage.durationMs ?? 0) + durationMs
       }
 
-      let output = generation.text.trimmingCharacters(in: .whitespacesAndNewlines)
-      let (cleanedOutput, embeddedReasoning) = Self.stripThinkBlocks(output)
+      let (cleanedOutput, embeddedReasoning) = Self.stripThinkBlocks(
+        generation.text.trimmingCharacters(in: .whitespacesAndNewlines)
+      )
       let turnReasoning = [
         generation.reasoningText.trimmingCharacters(in: .whitespacesAndNewlines),
         embeddedReasoning,
@@ -225,7 +226,10 @@ public extension AgentExecutor {
           payload: .thinking(text: displayThinking)
         )
       }
-      let parseInput = cleanedOutput.isEmpty ? output : cleanedOutput
+      // Always parse the stripped body. Falling back to `output` when cleaned
+      // is empty reintroduced `<think>` tags and could false-trigger submit-repair
+      // lockouts if reasoning text mentioned `"kind":"…_submit"`.
+      let parseInput = cleanedOutput
       if !parseInput.isEmpty {
         assistantTranscript +=
           assistantTranscript.isEmpty ? parseInput : "\n\n\(parseInput)"
@@ -364,7 +368,7 @@ public extension AgentExecutor {
             .repair(
               Self.submitResultRepairMessage(
                 error: rejection.userMessage,
-                invalidOutput: output,
+                invalidOutput: parseInput,
                 phase: configuration.continuationPhase
               )
             )
@@ -437,7 +441,7 @@ public extension AgentExecutor {
             .repair(
               Self.continuationRepairMessage(
                 error: "Unknown tool `\(toolName)` after validation.",
-                invalidOutput: output,
+                invalidOutput: parseInput,
                 phase: configuration.continuationPhase
               )
             )

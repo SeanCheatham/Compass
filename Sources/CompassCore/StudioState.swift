@@ -209,7 +209,6 @@ public final class StudioState: ObservableObject {
 
   public func apply(_ line: LiveLine) {
     guard let payload = line.payload else { return }
-    hasActivity = true
     // Focus after content mutations so a bash-first Studio open paints entries
     // before the terminal pane zooms.
     defer {
@@ -217,6 +216,7 @@ public final class StudioState: ObservableObject {
     }
     switch payload {
     case .readFile(let path, let offset, let limit, let content):
+      hasActivity = true
       let display = normalizePath(path)
       guard !display.isEmpty else { return }
       agentFocus(display)
@@ -235,6 +235,7 @@ public final class StudioState: ObservableObject {
       setScrollTour(for: display, startLine: range.start, endLine: range.end)
 
     case .writeFile(let path, let content):
+      hasActivity = true
       let display = normalizePath(path)
       guard !display.isEmpty, line.status == .completed else { return }
       agentFocus(display)
@@ -255,6 +256,7 @@ public final class StudioState: ObservableObject {
       )
 
     case .editFileLineRange(let path, let edits):
+      hasActivity = true
       let display = normalizePath(path)
       guard !display.isEmpty else { return }
       // Snapshot pre-edit bytes on tool-start — invoke has already written the
@@ -285,6 +287,7 @@ public final class StudioState: ObservableObject {
       )
 
     case .editFileStringReplace(let path, let edits):
+      hasActivity = true
       let display = normalizePath(path)
       guard !display.isEmpty else { return }
       if line.status == .running {
@@ -312,6 +315,7 @@ public final class StudioState: ObservableObject {
       )
 
     case .bash(let command, let cwd, let output, let isError):
+      hasActivity = true
       switch line.status {
       case .running:
         var entries = terminalEntries
@@ -353,6 +357,7 @@ public final class StudioState: ObservableObject {
     case .thinking(let text):
       let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else { return }
+      hasActivity = true
       var entries = thinkingEntries
       entries.append(ThinkingEntry(text: trimmed))
       if entries.count > Self.maxTerminalEntries {
