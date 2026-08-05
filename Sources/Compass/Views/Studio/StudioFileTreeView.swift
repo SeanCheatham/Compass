@@ -47,58 +47,23 @@ struct StudioFileNode: Identifiable, Hashable {
   }
 }
 
-@MainActor
-final class StudioFileTreeModel: ObservableObject {
-  @Published private(set) var roots: [StudioFileNode] = []
-
-  private var reloadTask: Task<Void, Never>?
-  private var pendingReloadURL: URL?
-
-  /// Reload the tracked/untracked file list. Coalesces rapid bursts (one
-  /// in-flight reload at a time; latest repoURL wins for the next pass).
-  func reload(repoURL: URL) {
-    if reloadTask != nil {
-      pendingReloadURL = repoURL
-      return
-    }
-    reloadTask = Task {
-      let paths = await Self.listFiles(repoURL: repoURL)
-      if !Task.isCancelled {
-        roots = StudioFileNode.build(from: paths)
-      }
-      reloadTask = nil
-      if let pending = pendingReloadURL {
-        pendingReloadURL = nil
-        reload(repoURL: pending)
-      }
-    }
-  }
-
-  private static func listFiles(repoURL: URL) async -> [String] {
-    guard
-      let result = try? await ProcessRunner.runEnv(
-        "git",
-        ["ls-files", "-co", "--exclude-standard"],
-        workingDirectory: repoURL
-      ), result.exitCode == 0
-    else { return [] }
-    return
-      result.stdout
-      .components(separatedBy: "\n")
-      .map { $0.trimmingCharacters(in: .whitespaces) }
-      .filter { !$0.isEmpty && !$0.hasPrefix(".compass/") && $0 != ".compass" }
-  }
-}
-
 struct StudioFileTreeView: View {
   @ObservedObject var project: CompassProject
   @ObservedObject private var state: StudioState
-  @StateObject private var model = StudioFileTreeModel()
   @State private var expandedPaths: Set<String> = []
+  @State private var revealedKnownPaths: Set<String> = []
 
   init(project: CompassProject) {
     self.project = project
     self.state = project.studioState
+  }
+
+  private var knownPaths: [String] {
+    state.knownFiles.keys.sorted()
+  }
+
+  private var heatByPath: [String: Double] {
+    StudioState.heatByPath(state.knownFiles)
   }
 
   var body: some View {
@@ -108,38 +73,52 @@ struct StudioFileTreeView: View {
           .font(.callout.weight(.semibold))
           .lineLimit(1)
         Spacer(minLength: 0)
+        Text("\(state.knownFiles.count)")
+          .font(.caption.monospacedDigit())
+          .foregroundStyle(.tertiary)
+          .help("Files the agent has seen this session")
       }
       .padding(.horizontal, 10)
       .padding(.vertical, 8)
       Divider()
-      ScrollView {
-        LazyVStack(alignment: .leading, spacing: 0) {
-          ForEach(model.roots) { node in
-            StudioFileTreeNodeView(
-              node: node,
-              depth: 0,
-              expandedPaths: $expandedPaths,
-              openPath: state.openFile,
-              touchedPath: state.lastTouchedPath,
-              onOpenFile: { path in
-                state.peek(path)
-              }
-            )
+      if state.knownFiles.isEmpty {
+        Text("Files the agent reads, edits, or lists will appear here.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .padding(16)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(StudioFileNode.build(from: knownPaths)) { node in
+              StudioFileTreeNodeView(
+                node: node,
+                depth: 0,
+                expandedPaths: $expandedPaths,
+                openPath: state.openFile,
+                touchedPath: state.lastTouchedPath,
+                heatByPath: heatByPath,
+                onOpenFile: { path in
+                  state.peek(path)
+                }
+              )
+            }
           }
+          .padding(.vertical, 6)
         }
-        .padding(.vertical, 6)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-    .task {
-      model.reload(repoURL: project.repoURL)
-    }
-    .onChange(of: state.treeRefreshToken) {
-      model.reload(repoURL: project.repoURL)
-    }
     .onChange(of: state.lastTouchedPath) {
       reveal(state.lastTouchedPath)
+    }
+    .onChange(of: knownPaths) { _, newPaths in
+      for path in newPaths where !revealedKnownPaths.contains(path) {
+        reveal(path)
+        revealedKnownPaths.insert(path)
+      }
     }
   }
 
@@ -162,9 +141,12 @@ private struct StudioFileTreeNodeView: View {
   @Binding var expandedPaths: Set<String>
   let openPath: String?
   let touchedPath: String?
+  /// Recency heat per path (0–1), most recently seen file = 1.
+  let heatByPath: [String: Double]
   let onOpenFile: (String) -> Void
 
   private var isExpanded: Bool { expandedPaths.contains(node.path) }
+  private var heat: Double { heatByPath[node.path] ?? 0 }
 
   var body: some View {
     if node.isDirectory {
@@ -190,6 +172,7 @@ private struct StudioFileTreeNodeView: View {
             expandedPaths: $expandedPaths,
             openPath: openPath,
             touchedPath: touchedPath,
+            heatByPath: heatByPath,
             onOpenFile: onOpenFile
           )
         }
@@ -227,6 +210,9 @@ private struct StudioFileTreeNodeView: View {
     }
     if node.path == touchedPath {
       return Color.accentColor.opacity(0.10)
+    }
+    if heat > 0 {
+      return Color.orange.opacity(0.16 * heat)
     }
     return .clear
   }

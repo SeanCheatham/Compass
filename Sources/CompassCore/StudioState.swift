@@ -18,6 +18,9 @@ public final class StudioState: ObservableObject {
   public static let typewriterCharsPerTick = 3
   /// Delay between typewriter ticks.
   public static let typewriterTickNanoseconds: UInt64 = 40_000_000
+  /// Output lines / tokens scanned per bash event when mining seen paths.
+  public static let maxBashPathScanLines = 120
+  public static let maxBashPathCandidates = 400
 
   /// Two-phase editor camera move used when the agent `read_file`s a span:
   /// jump quickly to `startLine`, then ease to `endLine`.
@@ -98,6 +101,21 @@ public final class StudioState: ObservableObject {
     }
   }
 
+  /// A file the agent is aware of this session: read, written, edited, or
+  /// seen in bash output (e.g. `ls`, compiler diagnostics, `git status`).
+  public struct KnownFile: Equatable {
+    public var lastSeenAt: Date
+    public var touchCount: Int
+    /// True once the agent has written or edited the file.
+    public var wasEdited: Bool
+
+    public init(lastSeenAt: Date = Date(), touchCount: Int = 0, wasEdited: Bool = false) {
+      self.lastSeenAt = lastSeenAt
+      self.touchCount = touchCount
+      self.wasEdited = wasEdited
+    }
+  }
+
   @Published public private(set) var openFile: String?
   @Published public private(set) var buffers: [String: FileBuffer] = [:]
   /// Display buffers — may animate toward `buffers` during typewriter playback.
@@ -112,6 +130,10 @@ public final class StudioState: ObservableObject {
   @Published public private(set) var followAgent = true
   /// Recently touched / opened paths for the buffer strip (most recent last).
   @Published public private(set) var recentPaths: [String] = []
+  /// Files the agent is aware of this session, keyed by repo-relative path.
+  /// The Studio file tree renders only this set — the agent's context, not
+  /// the whole repo.
+  @Published public private(set) var knownFiles: [String: KnownFile] = [:]
   @Published public private(set) var isTypewriting = false
   /// Which pane should dominate the vertical split (screensaver camera).
   @Published public private(set) var paneFocus: StudioPaneFocus = .balanced
@@ -139,6 +161,9 @@ public final class StudioState: ObservableObject {
   private var typewriterGeneration = 0
   private var runningBashIDs: Set<String> = []
   private var runningEditorIDs: Set<String> = []
+  /// Disk-validation caches for bash path extraction (repo-relative paths).
+  private var validatedKnownPaths: Set<String> = []
+  private var rejectedKnownPaths: Set<String> = []
 
   public init(repoURL: URL? = nil, workspacePrefix: String = "/workspace") {
     self.repoURL = repoURL
@@ -157,6 +182,9 @@ public final class StudioState: ObservableObject {
     hasActivity = false
     followAgent = true
     recentPaths = []
+    knownFiles = [:]
+    validatedKnownPaths = []
+    rejectedKnownPaths = []
     isTypewriting = false
     paneFocus = .balanced
     runningBashIDs = []
@@ -220,6 +248,7 @@ public final class StudioState: ObservableObject {
       let display = normalizePath(path)
       guard !display.isEmpty else { return }
       agentFocus(display)
+      markKnown(display, edited: false)
       _ = seedBufferIfMissing(for: display, content: content)
       snapPresentation(for: display)
       // Prefer completed reads (have content); still skim on running if the
@@ -239,6 +268,7 @@ public final class StudioState: ObservableObject {
       let display = normalizePath(path)
       guard !display.isEmpty, line.status == .completed else { return }
       agentFocus(display)
+      markKnown(display, edited: true)
       let previous = presentationBuffers[display]?.lines ?? buffers[display]?.lines ?? []
       let lines = content.components(separatedBy: "\n")
       let buffer = FileBuffer(
@@ -268,6 +298,7 @@ public final class StudioState: ObservableObject {
       }
       guard line.status == .completed else { return }
       agentFocus(display)
+      markKnown(display, edited: true)
       cancelTypewriter(snapOpenFileToTruth: true)
       var buffer = bufferOrDiskSeed(for: display)
       let previous = buffer.lines
@@ -296,6 +327,7 @@ public final class StudioState: ObservableObject {
       }
       guard line.status == .completed else { return }
       agentFocus(display)
+      markKnown(display, edited: true)
       cancelTypewriter(snapOpenFileToTruth: true)
       var buffer = bufferOrDiskSeed(for: display)
       let previous = buffer.lines
@@ -350,6 +382,7 @@ public final class StudioState: ObservableObject {
             ))
         }
         terminalEntries = entries
+        noteBashSeenPaths(command: command, cwd: cwd, output: output)
       case .none:
         break
       }
@@ -611,6 +644,87 @@ public final class StudioState: ObservableObject {
     }
   }
 
+  // MARK: - Known files (agent context)
+
+  private func markKnown(_ path: String, edited: Bool) {
+    var entry = knownFiles[path] ?? KnownFile()
+    entry.lastSeenAt = Date()
+    entry.touchCount += 1
+    entry.wasEdited = entry.wasEdited || edited
+    var next = knownFiles
+    next[path] = entry
+    knownFiles = next
+  }
+
+  /// Mine a completed bash command (and its output) for repo-relative file
+  /// paths so the tree reflects what the agent has seen — `ls` listings,
+  /// compiler diagnostics, `git status`, `find` results, and direct path
+  /// arguments like `cat src/main.rs`.
+  private func noteBashSeenPaths(command: String, cwd: String?, output: String?) {
+    guard repoURL != nil else { return }
+    let baseDir = normalizePath(cwd ?? "")
+    var bases: [String] = [baseDir]
+    for dir in Self.lsTargetDirectories(command: command) {
+      let resolved: String
+      if dir == "." || dir == "./" {
+        resolved = baseDir
+      } else if dir.hasPrefix("/") {
+        resolved = normalizePath(dir)
+      } else {
+        let normalized = normalizePath(dir)
+        resolved = baseDir.isEmpty ? normalized : "\(baseDir)/\(normalized)"
+      }
+      if !bases.contains(resolved) { bases.append(resolved) }
+    }
+    if !bases.contains("") { bases.append("") }
+
+    var tokens = Self.bashPathTokens(in: command)
+    if let output {
+      for outputLine in output.components(separatedBy: "\n").prefix(Self.maxBashPathScanLines) {
+        tokens.append(contentsOf: Self.bashPathTokens(in: outputLine))
+      }
+    }
+
+    var scanned = 0
+    for token in tokens {
+      guard scanned < Self.maxBashPathCandidates else { return }
+      scanned += 1
+      if token.hasPrefix("/") {
+        let normalized = normalizePath(token)
+        if isRepoFile(normalized) { markKnown(normalized, edited: false) }
+        continue
+      }
+      for base in bases {
+        let normalized = normalizePath(token)
+        guard !normalized.isEmpty else { break }
+        let candidate = base.isEmpty ? normalized : "\(base)/\(normalized)"
+        if isRepoFile(candidate) {
+          markKnown(candidate, edited: false)
+          break
+        }
+      }
+    }
+  }
+
+  /// Whether `path` (repo-relative) is an existing regular file, cached so
+  /// noisy bash output cannot repeat disk stats.
+  private func isRepoFile(_ path: String) -> Bool {
+    guard !path.isEmpty, !path.hasPrefix(".compass"), !path.contains("..") else { return false }
+    if validatedKnownPaths.contains(path) { return true }
+    if rejectedKnownPaths.contains(path) { return false }
+    guard let repoURL else { return false }
+    var isDirectory: ObjCBool = false
+    let exists = FileManager.default.fileExists(
+      atPath: repoURL.appending(path: path).path, isDirectory: &isDirectory)
+    let isFile = exists && !isDirectory.boolValue
+    if isFile {
+      validatedKnownPaths.insert(path)
+    } else {
+      rejectedKnownPaths.insert(path)
+    }
+    return isFile
+  }
+
   private func seedBufferIfMissing(for path: String, content: String?) -> Bool {
     guard buffers[path] == nil else { return false }
     if let content {
@@ -708,6 +822,56 @@ public final class StudioState: ObservableObject {
   }
 
   // MARK: - Pure transforms (testable)
+
+  /// Recency-ranked heat per path: most recently seen file is 1.0, fading to
+  /// 0 over `fadingRanks` ranks. Drives the file-tree heat tint.
+  public static func heatByPath(
+    _ knownFiles: [String: KnownFile],
+    fadingRanks: Int = 5
+  ) -> [String: Double] {
+    let ranked = knownFiles.sorted { $0.value.lastSeenAt > $1.value.lastSeenAt }
+    var heat: [String: Double] = [:]
+    for (index, element) in ranked.enumerated() {
+      heat[element.key] = max(0, 1 - Double(index) / Double(max(fadingRanks, 1)))
+    }
+    return heat
+  }
+
+  /// Candidate path tokens from a bash command or output chunk: whitespace
+  /// separated, quote/paren stripped, diagnostic line:col suffixes removed.
+  /// Flags, assignments, globs, URLs, and hidden files are excluded.
+  public static func bashPathTokens(in text: String) -> [String] {
+    text.components(separatedBy: .whitespacesAndNewlines).compactMap { raw in
+      var token = raw.trimmingCharacters(in: CharacterSet(charactersIn: "\"'`()[]{}<>"))
+      token = token.replacingOccurrences(
+        of: #"(:\d+)+[:,]?"#, with: "", options: .regularExpression)
+      while let last = token.last, ",;:".contains(last) { token.removeLast() }
+      guard !token.isEmpty,
+        !token.hasPrefix("-"),
+        !token.hasPrefix("."),
+        !token.contains("="),
+        !token.contains("*"), !token.contains("?"),
+        !token.contains("://"),
+        !token.contains("$"), !token.contains("~"),
+        Int(token) == nil
+      else { return nil }
+      return token
+    }
+  }
+
+  /// Directories an `ls` invocation listed (handles `cd x && ls y` segments).
+  public static func lsTargetDirectories(command: String) -> [String] {
+    var dirs: [String] = []
+    for segment in command.components(separatedBy: CharacterSet(charactersIn: ";|&")) {
+      let tokens = segment.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+      guard let first = tokens.first, first == "ls" || first.hasSuffix("/ls") else { continue }
+      dirs.append(
+        contentsOf: tokens.dropFirst().filter { !$0.hasPrefix("-") }.map {
+          $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        })
+    }
+    return dirs
+  }
 
   /// Parse `read_file` tool output (`%6d\tline` rows plus header/footer)
   /// back into raw source lines.

@@ -23,6 +23,7 @@ struct ActivityTab: View {
       filter: sessionHistoryFilter,
       runCues: reliabilityFeedback.recentRunCues
     )
+    let totalTokens = sessionHistory.reduce(0) { $0 + $1.tokenSummary.totalTokens }
 
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
@@ -31,12 +32,10 @@ struct ActivityTab: View {
           layout: .embedded(feedHeight: liveFeedHeight)
         )
 
-        ActivityReliabilitySummary(feedback: reliabilityFeedback)
-
-        ActivityTokenCostSummary(items: sessionHistory)
-
         ActivityRunHistorySection(
           display: sessionHistoryDisplay,
+          tokenTotalLabel: totalTokens > 0
+            ? "\(SessionPhaseTokenUsage.formatTokens(totalTokens)) tokens total" : nil,
           showAllRuns: $showAllSessionHistory,
           selectedFilter: $sessionHistoryFilter,
           runCues: reliabilityFeedback.recentRunCues,
@@ -75,112 +74,9 @@ struct ActivityTab: View {
   }
 }
 
-private struct ActivityTokenCostSummary: View {
-  var items: [PlanSessionHistoryItem]
-
-  private var tokenItems: [PlanSessionHistoryItem] {
-    items.filter { !$0.tokenSummary.isEmpty }
-  }
-
-  private var latest: PlanSessionHistoryItem? {
-    tokenItems.sorted { $0.startedAt > $1.startedAt }.first
-  }
-
-  private var totalTokens: Int {
-    tokenItems.reduce(0) { $0 + $1.tokenSummary.totalTokens }
-  }
-
-  private var compactionCount: Int {
-    tokenItems.reduce(0) { $0 + $1.tokenSummary.compactionCount }
-  }
-
-  private var retryCount: Int {
-    tokenItems.reduce(0) { $0 + $1.tokenSummary.retryCount }
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      SectionHeader("Token Cost", systemImage: "gauge.with.dots.needle.67percent")
-
-      if let latest {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-          Text(latest.tokenSummary.compactLabel ?? "0 tokens")
-            .font(.callout.monospacedDigit().weight(.semibold))
-          Text("latest run #\(latest.sessionNumber)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Spacer()
-          Text("\(SessionPhaseTokenUsage.formatTokens(totalTokens)) total")
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.secondary)
-        }
-
-        HStack(spacing: 8) {
-          if let proofAction = latest.tokenSummary.latestProofActionKind {
-            ActivityPill(text: proofAction)
-          }
-          ActivityPill(text: "\(compactionCount) compaction(s)")
-          ActivityPill(text: "\(retryCount) retry(s)")
-        }
-      } else {
-        Text("No token usage recorded yet.")
-          .font(.callout)
-          .foregroundStyle(.secondary)
-      }
-    }
-  }
-}
-
-private struct ActivityReliabilitySummary: View {
-  var feedback: PlanReliabilityFeedback
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      SectionHeader("Run Attention", systemImage: "exclamationmark.triangle")
-
-      if feedback.notices.isEmpty {
-        Text("No recent run attention items.")
-          .font(.callout)
-          .foregroundStyle(.secondary)
-      } else {
-        ForEach(feedback.notices) { notice in
-          HStack(alignment: .top, spacing: 10) {
-            Image(systemName: notice.systemImage)
-              .foregroundStyle(reliabilityColor(for: notice.severity))
-              .frame(width: 18, height: 18)
-              .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: 3) {
-              HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(notice.title)
-                  .font(.callout.weight(.semibold))
-                Text("#\(notice.sessionNumber)")
-                  .font(.caption.monospacedDigit())
-                  .foregroundStyle(.secondary)
-              }
-              Text(notice.detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-              Text(notice.actionLabel)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(reliabilityColor(for: notice.severity))
-            }
-          }
-          .padding(10)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(
-            reliabilityColor(for: notice.severity).opacity(0.08),
-            in: RoundedRectangle(cornerRadius: 8)
-          )
-        }
-      }
-    }
-  }
-}
-
 private struct ActivityRunHistorySection: View {
   var display: PlanSessionHistoryDisplay
+  var tokenTotalLabel: String?
   @Binding var showAllRuns: Bool
   @Binding var selectedFilter: PlanSessionHistoryFilter
   var runCues: [Int: PlanReliabilityFeedback.RunCue]
@@ -209,9 +105,16 @@ private struct ActivityRunHistorySection: View {
           .disabled(!display.shouldOfferModeToggle && !showAllRuns)
       }
 
-      Text(display.countSummary)
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      HStack(spacing: 6) {
+        Text(display.countSummary)
+        if let tokenTotalLabel {
+          Text("·")
+          Text(tokenTotalLabel)
+            .monospacedDigit()
+        }
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
 
       if display.visibleItems.isEmpty {
         Text("No \(selectedFilter.emptyStateName).")
@@ -275,31 +178,29 @@ private struct ActivityRunHistoryRow: View {
           .lineLimit(2)
       }
 
-      HStack(spacing: 8) {
-        if let verifyCommand = item.verifyCommand, !verifyCommand.isEmpty {
-          ActivityPill(text: "verify")
-            .help(verifyCommand)
-        }
-        if let runtimeRouteSummary = item.runtimeRouteSummary, !runtimeRouteSummary.isEmpty {
-          ActivityPill(text: runtimeRouteSummary)
-        }
-        if !item.commits.isEmpty {
-          ActivityPill(text: "\(item.commits.count) commit(s)")
-        }
-        if !item.auditArtifacts.isEmpty {
-          ActivityPill(text: "\(item.auditArtifacts.count) artifact(s)")
-        }
-        if let tokenLabel = item.tokenSummary.compactLabel {
-          ActivityPill(text: tokenLabel)
-        }
-        if item.tokenSummary.compactionCount > 0 {
-          ActivityPill(text: "\(item.tokenSummary.compactionCount) compact")
+      if hasPills {
+        HStack(spacing: 8) {
+          if let verifyCommand = item.verifyCommand, !verifyCommand.isEmpty {
+            ActivityPill(text: "verify")
+              .help(verifyCommand)
+          }
+          if !item.commits.isEmpty {
+            ActivityPill(text: "\(item.commits.count) commit(s)")
+          }
+          if let tokenLabel = item.tokenSummary.compactLabel {
+            ActivityPill(text: tokenLabel)
+          }
         }
       }
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var hasPills: Bool {
+    if let verifyCommand = item.verifyCommand, !verifyCommand.isEmpty { return true }
+    return !item.commits.isEmpty || item.tokenSummary.compactLabel != nil
   }
 
   private var statusColor: Color {
