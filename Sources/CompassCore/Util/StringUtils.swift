@@ -1,8 +1,9 @@
 import Foundation
 
 public struct StringUtils {
-  /// Collapses whitespace and newlines, then truncates at `limit`, trimming
-  /// any trailing whitespace from the result.
+  /// Collapses whitespace and newlines, then truncates at `limit`, preferring a
+  /// word boundary when one exists inside the budget. Does not append an
+  /// ellipsis so callers that embed the result in identifiers stay stable.
   public static func boundedText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     let normalized =
@@ -12,6 +13,16 @@ public struct StringUtils {
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard normalized.count > limit else { return normalized }
-    return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+
+    let end = normalized.index(normalized.startIndex, offsetBy: limit)
+    let prefix = normalized[..<end]
+    // Only retreat to a prior word boundary when the cut lands mid-word.
+    if end < normalized.endIndex, normalized[end] != " ",
+      let lastSpace = prefix.lastIndex(where: { $0 == " " }), lastSpace > prefix.startIndex
+    {
+      let cut = String(prefix[..<lastSpace]).trimmingCharacters(in: .whitespacesAndNewlines)
+      if !cut.isEmpty { return cut }
+    }
+    return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }

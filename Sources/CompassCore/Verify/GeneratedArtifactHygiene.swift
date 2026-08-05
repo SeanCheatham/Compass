@@ -11,21 +11,35 @@ public enum GeneratedArtifactHygiene {
     ".dart_tool",
     ".next",
     ".svelte-kit",
+    ".turbo",
+    ".venv",
     "DerivedData",
     "build",
     "coverage",
     "dist",
     "node_modules",
     "target",
+    "venv",
   ]
 
+  /// Directory names that flag a generated path anywhere in the tree (not only
+  /// as the repository root). Kept stricter than root directories so source
+  /// folders named `build/` are not over-matched mid-tree.
   private static let generatedPathComponents: Set<String> = [
     ".build",
+    ".dart_tool",
     ".next",
     ".svelte-kit",
+    ".turbo",
+    ".venv",
     "DerivedData",
+    "__pycache__",
+    "coverage",
+    "dist",
     "node_modules",
     "target",
+    "venv",
+    "xcuserdata",
   ]
 
   private static let generatedFileNames: Set<String> = [
@@ -47,6 +61,8 @@ public enum GeneratedArtifactHygiene {
     "rmeta",
     "so",
     "swiftmodule",
+    "swiftdoc",
+    "swiftsourceinfo",
   ]
 
   public static func issues(fromGitNameStatus output: String) -> [GeneratedArtifactHygieneIssue] {
@@ -101,6 +117,9 @@ public enum GeneratedArtifactHygiene {
       return "inside generated directory `\(first)/`"
     }
     if let component = components.first(where: { generatedPathComponents.contains($0) }) {
+      return "inside generated directory component `\(component)/`"
+    }
+    if let component = components.first(where: { $0.hasSuffix(".egg-info") }) {
       return "inside generated directory component `\(component)/`"
     }
     if let fileName = components.last, generatedFileNames.contains(fileName) {
