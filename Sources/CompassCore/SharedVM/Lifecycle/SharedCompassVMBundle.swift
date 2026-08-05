@@ -5,7 +5,7 @@ import Foundation
 /// All files live under `~/Library/Application Support/Compass/SharedVM/bundle.vmbundle/`.
 /// The bundle directory is created lazily by `ensureExists()`; callers should not assume
 /// the parent tree exists at init time.
-public struct SharedCompassVMBundle: Equatable {
+public struct SharedCompassVMBundle: Equatable, Sendable {
   /// Root of the bundle directory (the `.vmbundle` itself).
   public let rootURL: URL
 

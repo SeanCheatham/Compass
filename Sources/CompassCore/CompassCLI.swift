@@ -164,7 +164,7 @@ public enum CompassCLI {
   }
 }
 
-public enum CompassCLIOutputFormat: String, Equatable {
+public enum CompassCLIOutputFormat: String, Equatable, Sendable {
   case json
   case text
 }
