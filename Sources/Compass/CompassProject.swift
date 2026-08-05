@@ -22,6 +22,13 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var nativeFeedbackMode: NativeFeedbackMode
   @Published var liveLog: [LiveLine] = []
   let studioState: StudioState
+  /// Speaks Studio thinking entries aloud when enabled.
+  let studioThinkingSpeech: StudioThinkingSpeechService
+  @Published var studioThinkingNarrationEnabled: Bool {
+    didSet {
+      studioThinkingSpeech.isEnabled = studioThinkingNarrationEnabled
+    }
+  }
   @Published var phase: LoopPhase = .idle
   @Published var isRunning = false
   @Published var isAutoPlaying = false
@@ -96,6 +103,7 @@ final class CompassProject: ObservableObject, Identifiable {
     addedAt: Date = Date(),
     lastOpenedAt: Date = Date(),
     nativeFeedbackMode: NativeFeedbackMode = .notifications,
+    studioThinkingNarrationEnabled: Bool = false,
     storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots =
       KnownProjectStore.productionApplicationSupportRoots(),
     storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
@@ -116,6 +124,10 @@ final class CompassProject: ObservableObject, Identifiable {
       repoURL: repoURL.standardizedFileURL,
       workspacePrefix: "/workspace"
     )
+    studioThinkingSpeech = StudioThinkingSpeechService()
+    self.studioThinkingNarrationEnabled = studioThinkingNarrationEnabled
+    studioThinkingSpeech.isEnabled = studioThinkingNarrationEnabled
+    studioThinkingSpeech.attach(to: studioState)
   }
 }
 

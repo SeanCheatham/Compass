@@ -4,6 +4,9 @@ import SwiftUI
 
 struct StudioThinkingView: View {
   @ObservedObject var state: StudioState
+  @ObservedObject var speech: StudioThinkingSpeechService
+  @EnvironmentObject private var model: AppModel
+  @ObservedObject var project: CompassProject
 
   private var scrollEpoch: String {
     guard let last = state.thinkingEntries.last else { return "empty" }
@@ -22,6 +25,24 @@ struct StudioThinkingView: View {
         Text("\(state.thinkingEntries.count)")
           .font(.caption2.monospacedDigit())
           .foregroundStyle(.tertiary)
+        Button {
+          project.studioThinkingNarrationEnabled.toggle()
+          model.saveProjects()
+        } label: {
+          Image(
+            systemName: speech.isEnabled ? "speaker.wave.2.fill" : "speaker.slash"
+          )
+          .font(.system(size: 11))
+          .foregroundStyle(speech.isEnabled ? Color.accentColor : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .help(
+          speech.isEnabled
+            ? "Mute spoken narration of agent thinking"
+            : "Narrate agent thinking aloud"
+        )
+        .accessibilityLabel("Thinking narration")
+        .accessibilityValue(speech.isEnabled ? "On" : "Off")
       }
       .padding(.horizontal, 12)
       .padding(.vertical, 7)

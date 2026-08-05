@@ -55,6 +55,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
   var addedAt: Double
   var lastOpenedAt: Double
   var nativeFeedbackMode: NativeFeedbackMode
+  var studioThinkingNarrationEnabled: Bool
 
   enum CodingKeys: String, CodingKey {
     case id
@@ -63,6 +64,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     case addedAt
     case lastOpenedAt
     case nativeFeedbackMode
+    case studioThinkingNarrationEnabled
   }
 
   init(
@@ -71,7 +73,8 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     activeStorage: KnownProjectActiveStorage = .repoLocal,
     addedAt: Double,
     lastOpenedAt: Double,
-    nativeFeedbackMode: NativeFeedbackMode = .notifications
+    nativeFeedbackMode: NativeFeedbackMode = .notifications,
+    studioThinkingNarrationEnabled: Bool = false
   ) {
     self.id = id
     self.path = path
@@ -79,6 +82,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     self.addedAt = addedAt
     self.lastOpenedAt = lastOpenedAt
     self.nativeFeedbackMode = nativeFeedbackMode
+    self.studioThinkingNarrationEnabled = studioThinkingNarrationEnabled
   }
 
   init(from decoder: Decoder) throws {
@@ -97,6 +101,11 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         NativeFeedbackMode.self,
         forKey: .nativeFeedbackMode
       ) ?? .notifications
+    studioThinkingNarrationEnabled =
+      try container.decodeIfPresent(
+        Bool.self,
+        forKey: .studioThinkingNarrationEnabled
+      ) ?? false
   }
 
   func encode(to encoder: Encoder) throws {
@@ -107,6 +116,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     try container.encode(addedAt, forKey: .addedAt)
     try container.encode(lastOpenedAt, forKey: .lastOpenedAt)
     try container.encode(nativeFeedbackMode, forKey: .nativeFeedbackMode)
+    try container.encode(studioThinkingNarrationEnabled, forKey: .studioThinkingNarrationEnabled)
   }
 }
 
@@ -118,7 +128,8 @@ extension CompassProject {
       activeStorage: record.activeStorage,
       addedAt: Date(timeIntervalSince1970: record.addedAt),
       lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
-      nativeFeedbackMode: record.nativeFeedbackMode
+      nativeFeedbackMode: record.nativeFeedbackMode,
+      studioThinkingNarrationEnabled: record.studioThinkingNarrationEnabled
     )
   }
 
@@ -129,7 +140,8 @@ extension CompassProject {
       activeStorage: activeStorage,
       addedAt: addedAt.timeIntervalSince1970,
       lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
-      nativeFeedbackMode: nativeFeedbackMode
+      nativeFeedbackMode: nativeFeedbackMode,
+      studioThinkingNarrationEnabled: studioThinkingNarrationEnabled
     )
   }
 

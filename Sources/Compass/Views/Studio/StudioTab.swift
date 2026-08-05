@@ -32,9 +32,13 @@ struct StudioTab: View {
               .clipped()
             if heights.thinking > 0 {
               Divider()
-              StudioThinkingView(state: state)
-                .frame(width: geo.size.width, height: heights.thinking)
-                .clipped()
+              StudioThinkingView(
+                state: state,
+                speech: project.studioThinkingSpeech,
+                project: project
+              )
+              .frame(width: geo.size.width, height: heights.thinking)
+              .clipped()
             }
             StudioTerminalView(state: state)
               .frame(width: geo.size.width, height: heights.terminal)
