@@ -57,7 +57,7 @@ enum SharedCompassVMHostFingerprint {
     pairs.reserveCapacity(existing.count)
     for relative in existing {
       let fileURL = worktreeURL.appendingPathComponent(relative)
-      let contentHash = try hashFile(at: fileURL, relativePath: relative)
+      let contentHash = try hashContent(at: fileURL, relativePath: relative)
       pairs.append((relative, contentHash))
     }
     pairs.sort { $0.path < $1.path }
@@ -74,6 +74,36 @@ enum SharedCompassVMHostFingerprint {
     return (fingerprint, fileSet)
   }
 
+  /// Content classification used by fingerprinting and CAS sync.
+  enum ContentKind: Equatable {
+    case file
+    case symlink(target: String)
+    case nonRegular(mode: mode_t)
+  }
+
+  /// Classifies a worktree path the same way `hashContent` does.
+  static func contentKind(at url: URL, relativePath: String) throws -> ContentKind {
+    var info = stat()
+    if lstat(url.path, &info) != 0 {
+      throw FingerprintError.readFailed(
+        path: relativePath, detail: String(cString: strerror(errno)))
+    }
+    let kind = info.st_mode & S_IFMT
+    if kind == S_IFLNK {
+      let target: String
+      do {
+        target = try FileManager.default.destinationOfSymbolicLink(atPath: url.path)
+      } catch {
+        throw FingerprintError.readFailed(path: relativePath, detail: "symlink read: \(error)")
+      }
+      return .symlink(target: target)
+    }
+    if kind != S_IFREG {
+      return .nonRegular(mode: kind)
+    }
+    return .file
+  }
+
   /// Streaming SHA-256 of a single file. Streamed (rather than
   /// `Data(contentsOf:)`) so a multi-GB binary in the worktree doesn't
   /// peak memory; the hasher only carries 256 bits of state.
@@ -85,7 +115,7 @@ enum SharedCompassVMHostFingerprint {
   /// follows it and fails with EISDIR. Hashing the link target string
   /// also matches what tar puts on the wire (the link entry, not the
   /// resolved contents), so push and fingerprint cover the same shape.
-  private static func hashFile(at url: URL, relativePath: String) throws -> String {
+  static func hashContent(at url: URL, relativePath: String) throws -> String {
     var info = stat()
     if lstat(url.path, &info) != 0 {
       throw FingerprintError.readFailed(

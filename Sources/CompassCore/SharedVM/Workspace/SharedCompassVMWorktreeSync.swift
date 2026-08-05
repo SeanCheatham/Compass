@@ -345,7 +345,7 @@ enum SharedCompassVMWorktreeSync {
   /// allow-listed guest workspaces roots. Defence in depth: prevents
   /// a malformed path from causing the sync script's `rm -rf` to wipe
   /// the wrong directory in the guest.
-  private static func validateGuestPath(_ path: String) throws {
+  static func validateGuestPath(_ path: String) throws {
     let standardized = (path as NSString).standardizingPath
     guard !standardized.contains("..") else {
       throw SyncError.invalidGuestPath(path)

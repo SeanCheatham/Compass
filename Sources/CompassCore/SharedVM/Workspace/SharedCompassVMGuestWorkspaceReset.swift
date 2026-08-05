@@ -181,13 +181,13 @@ public enum SharedCompassVMGuestWorkspaceReset {
     let ready = try await AgentMacOSVMBashRunner.ensureReady()
     let guestPath: String
     do {
-      guestPath = try await SharedCompassVMGitSSHSync.syncToGuest(
+      guestPath = try await SharedCompassVMCASSync.syncToGuest(
         hostRepoURL: repoURL,
         client: ready.client,
-        sshDestination: ready.sshDestination,
-        sshOptions: ready.sshOptions
+        forceRefresh: true
       )
     } catch {
+      SharedCompassVMWorkspaceSyncLog.logCASFallback(reason: error.localizedDescription)
       let sync = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
         hostRepoURL: repoURL,
         client: ready.client,

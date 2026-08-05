@@ -1,21 +1,34 @@
 import Foundation
+import os
 
 /// Runs bash commands inside the embedded macOS VM (Apple
 /// Virtualization.framework) via the in-guest Compass agent over vsock.
 ///
 /// Before the first command, the host repo is synced into the guest's
-/// per-repo workspace — git-over-SSH (`SharedCompassVMGitSSHSync`) when the
-/// guest's git toolchain is healthy, the tar push
-/// (`SharedCompassVMRepoWorkspaceSync`) as fallback. Commands then execute
-/// against the guest worktree, which is where generated-app builds
-/// (`swift build`, `swift test`, `cargo …`) run on a real macOS toolchain
-/// without touching the host's.
+/// per-repo workspace via content-addressed vsock sync
+/// (`SharedCompassVMCASSync`). Wipe-style tar (`SharedCompassVMRepoWorkspaceSync`)
+/// remains as a logged fallback when CAS fails or `forceRefresh` is set.
+/// Commands then execute against the guest worktree.
+///
+/// When `pullAfterRun` is set, guest→host pull uses the **same** transport
+/// as the inbound sync (CAS pull vs tar `pullAndRecord`).
 public struct AgentMacOSVMBashRunner: AgentBashRunner {
   public enum VMRunnerError: LocalizedError {
     case vmNotReady(detail: String)
     case provisioningDisabled
     case readinessTimeout(seconds: Int)
     case workingDirectoryOutsideRepo(URL)
+    /// Guest bash finished, but syncing guest edits back to the host failed.
+    /// Carries enough of the command result that agents can see whether the
+    /// command itself succeeded instead of retrying blindly.
+    case syncBackFailed(
+      transport: SyncTransport,
+      fallbackReason: String?,
+      commandExitCode: Int32,
+      commandStdout: String,
+      commandStderr: String,
+      underlying: String
+    )
 
     public var errorDescription: String? {
       switch self {
@@ -29,23 +42,54 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
           "macOS VM made no readiness progress for \(seconds)s. Open Compass Settings → macOS VM to inspect provisioning, or set COMPASS_MACOS_VM_READY_TIMEOUT."
       case .workingDirectoryOutsideRepo(let url):
         return "Working directory \(url.path) is outside the repo root synced into the macOS VM."
+      case .syncBackFailed(
+        let transport, let fallbackReason, let exitCode, let stdout, let stderr, let underlying
+      ):
+        var parts: [String] = [
+          "command completed (exit \(exitCode)); sync-back failed (\(transport.logLabel)): \(underlying)"
+        ]
+        if let fallbackReason, !fallbackReason.isEmpty {
+          parts.append("inbound sync used tar fallback because: \(fallbackReason)")
+        }
+        let out = StringUtils.boundedText(stdout, limit: Self.syncBackOutputLimit)
+        let err = StringUtils.boundedText(stderr, limit: Self.syncBackOutputLimit)
+        if !out.isEmpty { parts.append("stdout: \(out)") }
+        if !err.isEmpty { parts.append("stderr: \(err)") }
+        return parts.joined(separator: "\n")
       }
     }
+
+    private static let syncBackOutputLimit = 2_000
   }
 
   /// How the host repo reached the guest on the last `run` — useful for
   /// diagnostics and tests.
   public enum SyncTransport: Sendable, Equatable {
-    case gitSSH
+    case cas
     case tar
+
+    public var logLabel: String {
+      switch self {
+      case .cas: return "cas"
+      case .tar: return "tar"
+      }
+    }
+  }
+
+  /// Which guest→host pull implementation to invoke for a given inbound
+  /// transport. Exposed for unit tests so the push/pull pairing cannot
+  /// silently diverge again.
+  public enum SyncBackKind: Sendable, Equatable {
+    case cas
+    case tarWorktree
   }
 
   public var repoRoot: URL
   public var label: String
   public var forceRefresh: Bool
-  /// When true, guest-side worktree changes are committed and merged back
-  /// into the host repo after each command. Off by default: the verify
-  /// gate is read-only, and pulling build noise back is wasted work.
+  /// When true, guest-side worktree changes are pulled back into the host
+  /// repo after each command. Off by default: the verify gate is read-only,
+  /// and pulling build noise back is wasted work.
   public var pullAfterRun: Bool
   /// The agent-visible workspace root ("/workspace"). Command strings
   /// referencing it are rewritten to the guest worktree path so agents
@@ -72,11 +116,7 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
     timeout: TimeInterval
   ) async throws -> ProcessResult {
     let ready = try await Self.ensureReady()
-    let sync = try await syncToGuest(
-      client: ready.client,
-      sshDestination: ready.sshDestination,
-      sshOptions: ready.sshOptions
-    )
+    let sync = try await syncToGuest(client: ready.client)
     let guestWorkingDirectory = try guestWorkingDirectory(
       for: workingDirectory,
       guestWorktreePath: sync.guestPath
@@ -91,43 +131,79 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
       timeout: timeout
     )
     if pullAfterRun {
-      try await SharedCompassVMGitSSHSync.pullFromGuest(
-        hostRepoURL: repoRoot,
-        client: ready.client,
-        sshDestination: ready.sshDestination,
-        sshOptions: ready.sshOptions
-      )
+      do {
+        try await pullFromGuest(transport: sync.transport, client: ready.client)
+      } catch {
+        throw VMRunnerError.syncBackFailed(
+          transport: sync.transport,
+          fallbackReason: sync.fallbackReason,
+          commandExitCode: result.exitCode,
+          commandStdout: result.stdout,
+          commandStderr: result.stderr,
+          underlying: error.localizedDescription
+        )
+      }
     }
     return result
   }
 
-  /// Git-over-SSH first; the tar push remains as the fallback for guests
-  /// whose git install is broken mid-provisioning.
+  /// Maps inbound sync transport to the sync-back implementation.
+  public static func syncBackKind(for transport: SyncTransport) -> SyncBackKind {
+    switch transport {
+    case .cas: return .cas
+    case .tar: return .tarWorktree
+    }
+  }
+
+  /// CAS first; wipe-style tar remains as the fallback for CAS failures
+  /// and explicit `forceRefresh`. Failures are logged — never swallowed
+  /// silently.
   func syncToGuest(
-    client: AgentVsockClient,
-    sshDestination: String,
-    sshOptions: SharedCompassVMGuestBridge.ConnectionOptions
-  ) async throws -> (guestPath: String, transport: SyncTransport) {
+    client: AgentVsockClient
+  ) async throws -> (guestPath: String, transport: SyncTransport, fallbackReason: String?) {
     if !forceRefresh {
       do {
-        let guestPath = try await SharedCompassVMGitSSHSync.syncToGuest(
+        let guestPath = try await SharedCompassVMCASSync.syncToGuest(
           hostRepoURL: repoRoot,
           client: client,
-          sshDestination: sshDestination,
-          sshOptions: sshOptions
+          forceRefresh: false
         )
-        return (guestPath, .gitSSH)
+        return (guestPath, .cas, nil)
       } catch {
-        // Fall through to the tar transport — a broken guest git must not
-        // block the build/verify gate.
+        let reason = error.localizedDescription
+        SharedCompassVMWorkspaceSyncLog.logCASFallback(reason: reason)
+        let sync = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
+          hostRepoURL: repoRoot,
+          client: client,
+          forceRefresh: false
+        )
+        return (sync.guestPath, .tar, reason)
       }
     }
     let sync = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
       hostRepoURL: repoRoot,
       client: client,
-      forceRefresh: forceRefresh
+      forceRefresh: true
     )
-    return (sync.guestPath, .tar)
+    return (sync.guestPath, .tar, "forceRefresh=true")
+  }
+
+  func pullFromGuest(
+    transport: SyncTransport,
+    client: AgentVsockClient
+  ) async throws {
+    switch Self.syncBackKind(for: transport) {
+    case .cas:
+      try await SharedCompassVMCASSync.pullFromGuest(
+        hostRepoURL: repoRoot,
+        client: client
+      )
+    case .tarWorktree:
+      try await SharedCompassVMRepoWorkspaceSync.pullAndRecord(
+        hostRepoURL: repoRoot,
+        client: client
+      )
+    }
   }
 
   public struct ReadyVM {
@@ -286,5 +362,23 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
       index = range.upperBound
     }
     return result
+  }
+}
+
+/// SharedVM workspace-sync logging. Filter in Console.app with:
+/// `log stream --predicate 'subsystem == "com.seancheatham.Compass" AND category == "WorkspaceSync"'`
+enum SharedCompassVMWorkspaceSyncLog {
+  static let logger = Logger(subsystem: "com.seancheatham.Compass", category: "WorkspaceSync")
+
+  static func logCASFallback(reason: String) {
+    logger.error(
+      "CAS workspace sync failed; falling back to tar: \(reason, privacy: .public)"
+    )
+  }
+
+  static func logGitFallback(reason: String) {
+    logger.error(
+      "git-over-SSH sync failed; falling back to tar: \(reason, privacy: .public)"
+    )
   }
 }

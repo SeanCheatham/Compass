@@ -72,6 +72,34 @@ struct MacOSVMGitSyncTests {
     #expect(script.contains("git diff --quiet"))
     #expect(script.contains("ls-files --others --exclude-standard"))
     #expect(script.contains("git push exchange HEAD:refs/compass/sync-back"))
+    // Sync-back assumes a git worktree; tar fallback must not use this path.
+    #expect(script.contains("cd /Users/compass/Compass/Repos/abc-123/worktree"))
+  }
+
+  // MARK: - Push/pull transport pairing
+
+  @Test
+  func syncBackKindMatchesInboundTransport() {
+    #expect(AgentMacOSVMBashRunner.syncBackKind(for: .cas) == .cas)
+    #expect(AgentMacOSVMBashRunner.syncBackKind(for: .tar) == .tarWorktree)
+  }
+
+  @Test
+  func syncBackFailedErrorSurfacesCommandResultAndFallbackReason() {
+    let error = AgentMacOSVMBashRunner.VMRunnerError.syncBackFailed(
+      transport: .tar,
+      fallbackReason: "CAS guest materialize failed: boom",
+      commandExitCode: 0,
+      commandStdout: "test result: ok. 3 passed",
+      commandStderr: "",
+      underlying: "guest workspace sync failed"
+    )
+    let description = error.errorDescription ?? ""
+    #expect(description.contains("command completed (exit 0)"))
+    #expect(description.contains("sync-back failed (tar)"))
+    #expect(description.contains("inbound sync used tar fallback because: CAS guest materialize failed: boom"))
+    #expect(description.contains("test result: ok. 3 passed"))
+    #expect(description.contains("guest workspace sync failed"))
   }
 
   // MARK: - Host-side sync commit (real git repos in /tmp)
