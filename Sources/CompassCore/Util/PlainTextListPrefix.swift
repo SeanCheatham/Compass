@@ -5,7 +5,7 @@ public enum PlainTextListPrefix {
     let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !line.isEmpty else { return nil }
 
-    if let range = line.range(of: #"^[-*]\s+"#, options: .regularExpression) {
+    if let range = line.range(of: #"^[-*•◦▪▫–—]\s+"#, options: .regularExpression) {
       return cleanedTaskPrefix(
         String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
       )

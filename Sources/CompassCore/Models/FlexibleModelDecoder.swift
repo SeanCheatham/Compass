@@ -62,7 +62,12 @@ public enum FlexibleModelDecoder {
     if let firstTypeError {
       throw firstTypeError
     }
-    return ""
+    throw DecodingError.dataCorrupted(
+      .init(
+        codingPath: container.codingPath,
+        debugDescription: "Missing usable \(fieldName) field."
+      )
+    )
   }
 
   public static func decodeStringIfPresent<Key: CodingKey>(
