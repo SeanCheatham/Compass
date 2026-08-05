@@ -85,7 +85,7 @@ public struct AgentGlobTool: AgentTool {
       do {
         root = try context.resolvePath(raw)
       } catch let error as AgentToolError {
-        return .failure(error.errorDescription ?? "path resolution failed")
+        return .failure(error)
       } catch {
         return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
       }
@@ -103,8 +103,7 @@ public struct AgentGlobTool: AgentTool {
     } catch let error as AgentFilesystemError {
       switch error {
       case .notDirectory:
-        return .failure(
-          AgentToolError.notDirectory(args.path ?? ".").errorDescription ?? "not a directory")
+        return .failure(.notDirectory(args.path ?? "."))
       default:
         return .failure(.ioFailure(error.errorDescription ?? "glob failed"))
       }
