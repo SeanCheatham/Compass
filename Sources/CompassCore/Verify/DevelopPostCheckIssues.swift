@@ -75,6 +75,41 @@ public enum DevelopPostCheckIssues {
       """
   }
 
+  /// Interprets host `git status --porcelain` after Develop.
+  ///
+  /// Factory Develop edits the host worktree via file tools and cannot commit
+  /// from guest bash (no `.git`). Dirty tracked/untracked files are therefore
+  /// expected; the harness lands them with `landDevelopChanges` after Critic
+  /// approves. This helper only fails when Git itself is broken or when
+  /// Develop claimed success with no Git-visible changes at all.
+  public static func hostWorkingTreeIssues(
+    porcelain: String,
+    changedPaths: [String],
+    develop: DevelopSummary
+  ) -> HostWorkingTreeAssessment {
+    let trimmed = porcelain.trimmingCharacters(in: .whitespacesAndNewlines)
+    if changedPaths.isEmpty {
+      return HostWorkingTreeAssessment(
+        issues: [noDevelopChangesIssue(develop)],
+        dirtyPendingHarnessCommit: !trimmed.isEmpty
+      )
+    }
+    return HostWorkingTreeAssessment(
+      issues: [],
+      dirtyPendingHarnessCommit: !trimmed.isEmpty
+    )
+  }
+
+  public struct HostWorkingTreeAssessment: Equatable, Sendable {
+    public var issues: [String]
+    public var dirtyPendingHarnessCommit: Bool
+
+    public init(issues: [String], dirtyPendingHarnessCommit: Bool) {
+      self.issues = issues
+      self.dirtyPendingHarnessCommit = dirtyPendingHarnessCommit
+    }
+  }
+
   private static func outputTail(_ text: String, max: Int) -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.count > max else { return trimmed }

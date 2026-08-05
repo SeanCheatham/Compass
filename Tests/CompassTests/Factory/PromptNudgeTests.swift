@@ -281,6 +281,7 @@ struct PromptNudgeTests {
     #expect(prompt.contains("CAS/tar-synced"))
     #expect(prompt.contains("no `.git` in the guest"))
     #expect(prompt.contains("Project Git") && prompt.contains("host-only"))
+    #expect(prompt.contains("harness lands a commit"))
     #expect(prompt.contains("swift test") || prompt.contains("XCTest"))
     #expect(!prompt.contains("swift-format"))
     #expect(!prompt.contains("git-synced"))

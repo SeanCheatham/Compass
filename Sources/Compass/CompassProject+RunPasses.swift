@@ -823,28 +823,36 @@ extension CompassProject {
       gitStatusIssues.append(issue)
       log("Working-tree status check failed.", level: .error)
     } else {
-      let status = gitStatus.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-      if status.isEmpty {
-        log("Working tree clean.", level: .success)
+      // Develop cannot commit from guest bash; dirty host files are expected
+      // until `landDevelopChanges` runs after Critic approves.
+      let changedPaths = try await gitChangedPathsForPostChecks(
+        beforeSha: beforeSha,
+        workingDirectory: workingDirectory,
+        launchPlan: launchPlan
+      )
+      let assessment = DevelopPostCheckIssues.hostWorkingTreeIssues(
+        porcelain: gitStatus.stdout,
+        changedPaths: changedPaths,
+        develop: summary
+      )
+      gitStatusIssues.append(contentsOf: assessment.issues)
+      if !assessment.issues.isEmpty {
+        log("Develop reported success without Git-visible host changes.", level: .error)
+      } else if assessment.dirtyPendingHarnessCommit {
+        log(
+          "Host worktree has uncommitted Develop changes; harness will land them after Critic approves.",
+          level: .info
+        )
       } else {
-        let issue = """
-          Uncommitted or untracked changes remain after Develop ran. Commit them or add them to .gitignore.
-          `git status --porcelain` output:
-          ```
-          \(status)
-          ```
-          """
-        gitStatusIssues.append(issue)
-        log("Working tree is not clean after Develop.", level: .error)
+        log("Working tree clean with Develop changes recorded.", level: .success)
+      }
+
+      let artifactIssues = GeneratedArtifactHygiene.issues(forChangedPaths: changedPaths)
+      if let message = GeneratedArtifactHygiene.formattedIssue(from: artifactIssues) {
+        log("Artifact hygiene check found generated build outputs in the change set.", level: .error)
+        gitStatusIssues.append(message)
       }
     }
-
-    let artifactIssues = try await runArtifactHygieneCheck(
-      beforeSha: beforeSha,
-      workingDirectory: workingDirectory,
-      launchPlan: launchPlan
-    )
-    gitStatusIssues.append(contentsOf: artifactIssues)
 
     return PostCheckResult(
       ok: verifyIssues.isEmpty && gitStatusIssues.isEmpty,
@@ -923,40 +931,13 @@ extension CompassProject {
     )
   }
 
-  func runArtifactHygieneCheck(
-    beforeSha: String?,
-    workingDirectory: URL,
-    launchPlan: AgentExecutionLaunchPlan
-  ) async throws -> [String] {
-    let command: String
-    if let beforeSha, !beforeSha.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      command = "git -c core.quotepath=false diff --name-status --no-renames \(beforeSha)..HEAD"
-    } else {
-      command = "git -c core.quotepath=false diff-tree --root --no-commit-id --name-status -r HEAD"
-    }
-    let result = try await runVerifyCommand(
-      command: command,
-      hostWorkingDirectory: workingDirectory,
-      timeoutSeconds: 30,
-      launchPlan: launchPlan
-    )
-    guard result.exitCode == 0 else {
-      log("Artifact hygiene check skipped: could not inspect changed files.", level: .warning)
-      return []
-    }
-    let issues = GeneratedArtifactHygiene.issues(fromGitNameStatus: result.stdout)
-    guard let message = GeneratedArtifactHygiene.formattedIssue(from: issues) else {
-      return []
-    }
-    log("Artifact hygiene check found generated build outputs in the change set.", level: .error)
-    return [message]
-  }
-
   func gitChangedPathsForPostChecks(
     beforeSha: String?,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan
   ) async throws -> [String] {
+    // Host Git only — the guest worktree has no `.git`.
+    _ = launchPlan
     let command: String
     if let beforeSha, !beforeSha.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       command = """
@@ -973,11 +954,11 @@ extension CompassProject {
         git -c core.quotepath=false ls-files --others --exclude-standard
         """
     }
-    let result = try await runVerifyCommand(
-      command: command,
-      hostWorkingDirectory: workingDirectory,
-      timeoutSeconds: 30,
-      launchPlan: launchPlan
+    let result = try await ProcessRunner.runShell(
+      command,
+      workingDirectory: workingDirectory,
+      timeout: 30,
+      launchPlan: .host()
     )
     guard result.exitCode == 0 else { return [] }
     return Array(Set(result.stdout.split(whereSeparator: \.isNewline).map(String.init))).sorted()

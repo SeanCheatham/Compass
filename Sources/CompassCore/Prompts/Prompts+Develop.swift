@@ -67,7 +67,9 @@ extension Prompts {
         you add a new dependency, update the owning `Cargo.toml` and tests in the same
         change before submitting.
       - Do not run `git` in factory bash. Project Git is host-only (preflight commit,
-        Compass `--commit`, host post-checks); the guest worktree has no `.git`.
+        Compass `--commit`, and the host harness landing a commit after Critic
+        approves); the guest worktree has no `.git`. Leaving modified tracked files
+        uncommitted is expected until that host land step.
       - Run the verify command before finishing unless the command itself is wrong or out
         of scope.
       - Implement with file tools on the host worktree. Do not write generated outputs or

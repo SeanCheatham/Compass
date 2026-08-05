@@ -210,8 +210,9 @@ extension Prompts {
         that tree (no `.git` in the guest). `/workspace/...` paths in bash are rewritten to
         the guest worktree automatically — use relative paths or `/workspace/...` for every
         tool. Project Git (status, commit, push) is host-only; do not use `git` in factory
-        bash. The guest has the Rust toolchain (cargo, rustc, rustfmt, clippy) and Swift via
-        Xcode Command Line Tools (`swift`, `swift test` / XCTest, clang).
+        bash. Dirty host files after Develop are expected — the harness lands a commit after
+        Critic approves. The guest has the Rust toolchain (cargo, rustc, rustfmt, clippy) and
+        Swift via Xcode Command Line Tools (`swift`, `swift test` / XCTest, clang).
         """
     }
   }
