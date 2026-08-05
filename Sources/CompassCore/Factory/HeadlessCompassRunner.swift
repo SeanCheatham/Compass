@@ -625,7 +625,7 @@ public struct HeadlessCompassRunner: Sendable {
             onEvent: onEvent
           )
         } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
-          let issue = developBudgetExhaustionIssue(attempt: attempt, error: error)
+          let issue = DevelopPostCheckIssues.developBudgetExhaustionIssue(attempt: attempt, error: error)
           session.notes.append(issue)
           if attempt < options.maxDevelopAttempts {
             priorIssues = [issue]
@@ -660,8 +660,8 @@ public struct HeadlessCompassRunner: Sendable {
         session.feedback = develop.feedback
 
         guard develop.status == .succeeded, develop.bypassVerify != true else {
-          let issue = developFailureIssue(develop)
-          if let infrastructureIssue = packageManagerBootstrapFailureIssue(from: issue) {
+          let issue = DevelopPostCheckIssues.developFailureIssue(develop)
+          if let infrastructureIssue = DevelopPostCheckIssues.packageManagerBootstrapFailureIssue(from: issue) {
             session.notes.append(infrastructureIssue)
             session.status = .failed
             session.endedAt = Date().timeIntervalSince1970 * 1000
@@ -713,7 +713,7 @@ public struct HeadlessCompassRunner: Sendable {
         }
 
         if let changed = await gitHasChangesSince(session.beforeSha, repoURL: repoURL), !changed {
-          let issue = noDevelopChangesIssue(develop)
+          let issue = DevelopPostCheckIssues.noDevelopChangesIssue(develop)
           session.notes.append(issue)
           if attempt < options.maxDevelopAttempts {
             priorIssues = [issue]
@@ -765,79 +765,35 @@ public struct HeadlessCompassRunner: Sendable {
         )
         try persist(session: session, workspace: workspace)
 
+        let changedPaths =
+          verify.exitCode == 0
+          ? await gitChangedPathsSince(session.beforeSha, repoURL: repoURL)
+          : nil
         if verify.exitCode == 0,
-          let issue = await successfulVerifyCoverageIssue(
-            command: immediate.verify,
-            output: verify.stdout + verify.stderr,
-            beforeSha: session.beforeSha,
-            repoURL: repoURL
-          )
-        {
-          session.notes.append("Verify attempt \(attempt) passed with coverage gaps.")
-          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
-          let canUseVerifyRepairAttempt =
-            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
-          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
-            if canUseVerifyRepairAttempt {
-              verifyRepairAttemptsUsed += 1
-            }
-            priorIssues = [issue]
-            try persist(session: session, workspace: workspace)
-            emitDevelopRetry(
-              attempt: attempt,
-              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
-              issue: issue,
-              retryKind: "coverage_gap",
-              onEvent: onEvent
-            )
-            attempt += 1
-            continue
-          }
-          break
-        }
-
-        if verify.exitCode == 0,
-          let issue = await successfulVerifyMissingRequiredTestIssue(
+          let finding = SuccessfulVerifyGates.firstFinding(
             immediate: immediate,
             brief: plannedState.brief,
             command: immediate.verify,
-            beforeSha: session.beforeSha,
+            verifyOutput: verify.stdout + verify.stderr,
+            changedPaths: changedPaths,
             repoURL: repoURL
           )
         {
-          session.notes.append("Verify attempt \(attempt) passed without required test changes.")
-          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
-          let canUseVerifyRepairAttempt =
-            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
-          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
-            if canUseVerifyRepairAttempt {
-              verifyRepairAttemptsUsed += 1
-            }
-            priorIssues = [issue]
-            try persist(session: session, workspace: workspace)
-            emitDevelopRetry(
-              attempt: attempt,
-              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
-              issue: issue,
-              retryKind: "missing_required_tests",
-              onEvent: onEvent
-            )
-            attempt += 1
-            continue
+          let issue = finding.issue
+          switch finding.retryKind {
+          case "coverage_gap":
+            session.notes.append("Verify attempt \(attempt) passed with coverage gaps.")
+          case "missing_required_tests":
+            session.notes.append("Verify attempt \(attempt) passed without required test changes.")
+          case "weak_cli_flag_tests":
+            session.notes.append("Verify attempt \(attempt) passed with weak CLI flag tests.")
+          case "missing_package_entry":
+            session.notes.append("Verify attempt \(attempt) passed with broken package entry points.")
+          case "metadata_only_implementation":
+            session.notes.append("Verify attempt \(attempt) passed after metadata-only changes.")
+          default:
+            break
           }
-          break
-        }
-
-        if verify.exitCode == 0,
-          let issue = await successfulVerifyWeakCLIFlagTestIssue(
-            immediate: immediate,
-            brief: plannedState.brief,
-            command: immediate.verify,
-            beforeSha: session.beforeSha,
-            repoURL: repoURL
-          )
-        {
-          session.notes.append("Verify attempt \(attempt) passed with weak CLI flag tests.")
           let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
           let canUseVerifyRepairAttempt =
             !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
@@ -851,69 +807,7 @@ public struct HeadlessCompassRunner: Sendable {
               attempt: attempt,
               maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
               issue: issue,
-              retryKind: "weak_cli_flag_tests",
-              onEvent: onEvent
-            )
-            attempt += 1
-            continue
-          }
-          break
-        }
-
-        if verify.exitCode == 0,
-          let issue = await successfulVerifyMissingPackageEntryIssue(
-            command: immediate.verify,
-            beforeSha: session.beforeSha,
-            repoURL: repoURL
-          )
-        {
-          session.notes.append("Verify attempt \(attempt) passed with broken package entry points.")
-          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
-          let canUseVerifyRepairAttempt =
-            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
-          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
-            if canUseVerifyRepairAttempt {
-              verifyRepairAttemptsUsed += 1
-            }
-            priorIssues = [issue]
-            try persist(session: session, workspace: workspace)
-            emitDevelopRetry(
-              attempt: attempt,
-              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
-              issue: issue,
-              retryKind: "missing_package_entry",
-              onEvent: onEvent
-            )
-            attempt += 1
-            continue
-          }
-          break
-        }
-
-        if verify.exitCode == 0,
-          let issue = await successfulVerifyManifestOnlyImplementationIssue(
-            immediate: immediate,
-            brief: plannedState.brief,
-            command: immediate.verify,
-            beforeSha: session.beforeSha,
-            repoURL: repoURL
-          )
-        {
-          session.notes.append("Verify attempt \(attempt) passed after metadata-only changes.")
-          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
-          let canUseVerifyRepairAttempt =
-            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
-          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
-            if canUseVerifyRepairAttempt {
-              verifyRepairAttemptsUsed += 1
-            }
-            priorIssues = [issue]
-            try persist(session: session, workspace: workspace)
-            emitDevelopRetry(
-              attempt: attempt,
-              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
-              issue: issue,
-              retryKind: "metadata_only_implementation",
+              retryKind: finding.retryKind,
               onEvent: onEvent
             )
             attempt += 1
@@ -930,7 +824,7 @@ public struct HeadlessCompassRunner: Sendable {
             repoURL: repoURL,
             onEvent: onEvent
           )
-          if let issue = acceptanceGateIssue(state: plannedState, workspace: workspace) {
+          if let issue = AcceptanceGateEvaluator.issue(state: plannedState, workspace: workspace) {
             session.notes.append("Verify attempt \(attempt) passed but acceptance gates failed.")
             let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
             let canUseVerifyRepairAttempt =
@@ -957,7 +851,7 @@ public struct HeadlessCompassRunner: Sendable {
             let macosOutcome = await MacOSVerifyGate.run(
               workingDirectory: repoURL,
               repoRoot: repoURL,
-              timeout: Self.qualityCollectionTimeoutSeconds()
+              timeout: QualityCollectionTimeout.seconds()
             )
             let macosResult = macosOutcome.result
             let macosFallbackNote = macosOutcome.fallbackReason.map { " (VM unavailable: \($0))" }
@@ -1017,8 +911,8 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
-        let issue = verifyFailureIssue(command: immediate.verify, result: verify)
-        if let infrastructureIssue = packageManagerBootstrapFailureIssue(
+        let issue = DevelopPostCheckIssues.verifyFailureIssue(command: immediate.verify, result: verify)
+        if let infrastructureIssue = DevelopPostCheckIssues.packageManagerBootstrapFailureIssue(
           from: verify.stdout + verify.stderr
         ) {
           session.notes.append("Verify attempt \(attempt) hit a package-manager bootstrap failure.")
@@ -1577,178 +1471,47 @@ public struct HeadlessCompassRunner: Sendable {
     repoURL: URL,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) async {
-    let collectionTimeout = Self.qualityCollectionTimeoutSeconds()
-    do {
-      let result = try await bashRunnerFactory(repoURL, "coverage").run(
-        command: GeneratedProjectQuality.coverageCollectCommand,
-        workingDirectory: repoURL,
-        timeout: collectionTimeout
-      )
+    let changedFiles = await gitChangedPathsSince(beforeSha, repoURL: repoURL) ?? []
+    let outcome = await QualitySnapshotCollector.collect(
+      context: QualitySnapshotCollector.Context(
+        workspace: workspace,
+        sessionNumber: sessionNumber,
+        changedFiles: changedFiles,
+        repoURL: repoURL
+      ),
+      bash: bashRunnerFactory(repoURL, "quality")
+    )
+    if let coverageLog = outcome.coverageLog {
       _ = try? workspace.writeSessionAuditArtifact(
         session: sessionNumber,
         name: "coverage.log",
         kind: "log",
-        contents: "$ \(GeneratedProjectQuality.coverageCollectCommand)\n\n" + result.stdout + "\n"
-          + result.stderr,
+        contents: coverageLog,
         note: "Coverage collection output."
       )
-      var snapshot = GeneratedProjectQuality.parseCoverageReport(
-        output: result.stdout + "\n" + result.stderr
-      )
-      guard snapshot.overallLineCoveragePercent != nil || !snapshot.files.isEmpty else {
-        onEvent(
-          HeadlessCompassEvent(
-            kind: "coverage_snapshot",
-            level: "warning",
-            status: "failed",
-            phase: "verify",
-            message: "Coverage collection produced no data (exit \(result.exitCode)); no snapshot saved.",
-            detail: tail(result.stdout + result.stderr, max: 2000)
-          )
-        )
-        return
-      }
-      snapshot.sessionNumber = sessionNumber
-      try CoverageSnapshotStore.writeCoverageSnapshot(snapshot, workspace: workspace)
-      onEvent(
-        HeadlessCompassEvent(
-          kind: "coverage_snapshot",
-          status: "completed",
-          phase: "verify",
-          message: "Coverage snapshot saved.",
-          metadata: [
-            "overallLineCoveragePercent": snapshot.overallLineCoveragePercent.map { String($0) }
-              ?? "unknown"
-          ]
-        )
-      )
-    } catch {
-      onEvent(
-        HeadlessCompassEvent(
-          kind: "coverage_snapshot",
-          level: "warning",
-          status: "failed",
-          phase: "verify",
-          message: "Coverage collection failed (verify still passed): \(error.localizedDescription)"
-        )
-      )
     }
-
-    do {
-      let changedFiles = await gitChangedPathsSince(beforeSha, repoURL: repoURL) ?? []
-      let command = GeneratedProjectQuality.mutationTestCommand(forChangedFiles: changedFiles)
-      let result = try await bashRunnerFactory(repoURL, "mutation").run(
-        command: command,
-        workingDirectory: repoURL,
-        timeout: collectionTimeout
-      )
-      var snapshot = MutationReportParser.parse(
-        output: result.stdout + "\n" + result.stderr,
-        exitCode: Int(result.exitCode),
-        command: command
-      )
+    if let mutationLog = outcome.mutationLog {
       _ = try? workspace.writeSessionAuditArtifact(
         session: sessionNumber,
         name: "mutation.log",
         kind: "log",
-        contents: "$ \(command)\n\n" + result.stdout + "\n" + result.stderr,
+        contents: mutationLog,
         note: "Mutation testing output."
       )
-      if snapshot.tested > 0 || result.exitCode == 0 {
-        snapshot.sessionNumber = sessionNumber
-        try MutationSnapshotStore.writeMutationSnapshot(snapshot, workspace: workspace)
-        onEvent(
-          HeadlessCompassEvent(
-            kind: "mutation_snapshot",
-            level: snapshot.missed > 0 ? "warning" : "info",
-            status: "completed",
-            phase: "verify",
-            message:
-              "Mutation snapshot saved (\(snapshot.caught) caught, \(snapshot.missed) missed).",
-            metadata: [
-              "command": command,
-              "exitCode": "\(snapshot.exitCode)",
-              "mutationScorePercent": snapshot.mutationScorePercent.map { String($0) } ?? "unknown",
-            ]
-          )
-        )
-      } else {
-        onEvent(
-          HeadlessCompassEvent(
-            kind: "mutation_snapshot",
-            level: "warning",
-            status: "failed",
-            phase: "verify",
-            message:
-              "Mutation collection did not run (exit \(result.exitCode)); no snapshot saved.",
-            detail: tail(result.stdout + result.stderr, max: 2000)
-          )
-        )
-      }
-    } catch {
+    }
+    for event in outcome.events {
       onEvent(
         HeadlessCompassEvent(
-          kind: "mutation_snapshot",
-          level: "warning",
-          status: "failed",
+          kind: event.kind.rawValue,
+          level: event.level,
+          status: event.status,
           phase: "verify",
-          message: "Mutation collection failed (verify still passed): \(error.localizedDescription)"
+          message: event.message,
+          detail: event.detail,
+          metadata: event.metadata
         )
       )
     }
-
-    do {
-      let outcome = try await SharedCompassVMGuestWorkspaceReset.reset(
-        repoURL: repoURL,
-        mode: .dirt
-      )
-      onEvent(
-        HeadlessCompassEvent(
-          kind: "vm_reset_workspace",
-          status: "completed",
-          phase: "verify",
-          message: "Guest workspace dirt cleaned after mutation.",
-          detail: outcome.detail,
-          metadata: ["mode": outcome.mode.rawValue]
-        )
-      )
-    } catch {
-      onEvent(
-        HeadlessCompassEvent(
-          kind: "vm_reset_workspace",
-          level: "warning",
-          status: "failed",
-          phase: "verify",
-          message: "Guest workspace dirt cleanup failed: \(error.localizedDescription)"
-        )
-      )
-    }
-  }
-
-  /// Evaluates persisted evidence against the active acceptance gates and
-  /// returns a retry issue when any gate fails. Returns nil when no gates are
-  /// configured or all gates pass.
-  private func acceptanceGateIssue(state: PlanState, workspace: CompassWorkspace) -> String? {
-    guard let gates = AcceptanceGates.active(from: state) else { return nil }
-    let violations = gates.violations(
-      coverage: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
-      mutation: MutationSnapshotStore.readMutationSnapshot(from: workspace)
-    )
-    guard !violations.isEmpty else { return nil }
-    return """
-      Verify passed, but the acceptance gates rejected this iteration:
-      \(violations.map { "- \($0)" }.joined(separator: "\n"))
-
-      Gates are deterministic quality thresholds (see `acceptanceGates` in .compass/state.json). \
-      Strengthen tests until the collected coverage/mutation evidence satisfies them; do not \
-      weaken or delete the gates to make the iteration pass.
-      """
-  }
-
-  private static func qualityCollectionTimeoutSeconds() -> TimeInterval {
-    let raw = ProcessInfo.processInfo.environment["COMPASS_QUALITY_COLLECTION_TIMEOUT_MS"]
-    guard let raw, let ms = Int(raw), ms > 0 else { return 600 }
-    return TimeInterval(ms) / 1000
   }
 
   private func emitDevelopRetry(
@@ -1774,664 +1537,6 @@ public struct HeadlessCompassRunner: Sendable {
         ]
       )
     )
-  }
-
-  private func developFailureIssue(_ develop: DevelopSummary) -> String {
-    let summary = develop.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-    let feedback = develop.feedback.trimmingCharacters(in: .whitespacesAndNewlines)
-    let detail = [summary, feedback].filter { !$0.isEmpty }.joined(separator: "\n\n")
-    return """
-      Develop did not produce a verifiable success.
-
-      Status: \(develop.status.rawValue)
-      bypassVerify: \(develop.bypassVerify == true ? "true" : "false")
-
-      \(detail.isEmpty ? "_(no summary or feedback)_" : detail)
-      """
-  }
-
-  private func developBudgetExhaustionIssue(
-    attempt: Int,
-    error: AgentExecutionError
-  ) -> String {
-    """
-    Develop attempt \(attempt) ended without a phase submit envelope: \(error.localizedDescription).
-
-    The next attempt should make a smaller, more direct change. Reuse already discovered file paths and tool results, avoid repeating failed path guesses, and submit status=failed with concise feedback if the requested plan is not achievable within the iteration budget.
-    """
-  }
-
-  private func noDevelopChangesIssue(_ develop: DevelopSummary) -> String {
-    let summary = develop.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-    let feedback = develop.feedback.trimmingCharacters(in: .whitespacesAndNewlines)
-    return """
-      Develop submitted status=succeeded, but Compass did not detect any Git-visible file changes or commits.
-
-      A successful Develop pass must modify, create, delete, or commit files that implement the handoff before verification can prove anything. Do not submit success after only failed tool calls.
-
-      Reported summary:
-      \(summary.isEmpty ? "_(empty)_" : summary)
-
-      Reported feedback:
-      \(feedback.isEmpty ? "_(empty)_" : feedback)
-      """
-  }
-
-  private func verifyFailureIssue(command: String, result: ProcessResult) -> String {
-    let combined = tail(result.stdout + result.stderr, max: 4000)
-    let insight = VerifyFailureInsight(
-      detail: combined,
-      metadata: "command=\(command) exitCode=\(result.exitCode)"
-    )
-    return """
-      Verify failed for `\(command)` with exit code \(result.exitCode).
-
-      \(insight.inspectDetail)
-
-      Repair guidance: \(insight.repairDetail)
-
-      Verify output:
-      \(combined.isEmpty ? "_(no output)_" : combined)
-      """
-  }
-
-  private func packageManagerBootstrapFailureIssue(from detail: String) -> String? {
-    let insight = VerifyFailureInsight(detail: detail, metadata: nil)
-    guard insight.kind == .packageManagerBootstrap else { return nil }
-    return """
-      Rust toolchain bootstrap failed before project verification could run.
-
-      \(insight.inspectDetail)
-
-      Repair guidance: \(insight.repairDetail)
-
-      Compass will not retry Develop for this failure because application code changes cannot
-      repair Cargo, rustup, or network availability in the execution environment.
-      """
-  }
-
-  private struct CoverageTableRow {
-    public let path: String
-    public let statements: Double?
-    public let functions: Double?
-    public let lines: Double?
-  }
-
-  private struct CoverageGap {
-    public let changedPath: String
-    public let coverageLine: String
-    public let testTargetLines: [String]
-  }
-
-  private struct PackageEntryPointIssue {
-    public let manifestPath: String
-    public let field: String
-    public let declaredPath: String
-    public let targetPath: String
-  }
-
-  private func successfulVerifyCoverageIssue(
-    command: String,
-    output: String,
-    beforeSha: String?,
-    repoURL: URL
-  ) async -> String? {
-    let rows = Self.vitestCoverageRows(in: output)
-    guard !rows.isEmpty,
-      let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL)
-    else {
-      return nil
-    }
-
-    let changedSourcePaths = changedPaths.filter(Self.isCoverageGatedSourcePath)
-    guard !changedSourcePaths.isEmpty else { return nil }
-
-    let gaps = changedSourcePaths.compactMap { changedPath -> CoverageGap? in
-      guard
-        let row = rows.first(where: {
-          Self.coveragePath($0.path, matchesChangedPath: changedPath)
-        }),
-        row.statements == 0 || row.functions == 0 || row.lines == 0
-      else {
-        return nil
-      }
-
-      let coveragePath = row.path == changedPath ? row.path : "\(changedPath) (reported as \(row.path))"
-      let coverageLine =
-        "- \(coveragePath): statements \(Self.percentLabel(row.statements)), functions \(Self.percentLabel(row.functions)), lines \(Self.percentLabel(row.lines))"
-      return CoverageGap(
-        changedPath: changedPath,
-        coverageLine: coverageLine,
-        testTargetLines: Self.coverageRepairTestTargetLines(for: changedPath, repoURL: repoURL)
-      )
-    }
-
-    guard !gaps.isEmpty else { return nil }
-    let targetLines = gaps.flatMap(\.testTargetLines)
-    let testTargetSection =
-      targetLines.isEmpty
-      ? ""
-      : """
-
-        Suggested test targets:
-        \(targetLines.joined(separator: "\n"))
-        """
-    let sourceList = gaps.map { "`\($0.changedPath)`" }.joined(separator: ", ")
-    return """
-      Verify passed for `\(command)`, but coverage shows changed source files were not exercised:
-      \(gaps.map(\.coverageLine).joined(separator: "\n"))
-
-      Coverage repair instructions:
-      - Your next Develop action should be test-focused, not another source-only inspection.
-      - Add or update a test that imports and executes \(sourceList).
-      - Do not edit those source files merely to say no changes were needed; the problem is
-        missing execution evidence, not a source formatting issue.
-      - If an existing sibling or package test file is listed below, read it and edit it.
-        Otherwise create a `tests/*.rs` integration test or a `#[cfg(test)]` module.
-      \(testTargetSection)
-
-      A green verify is not enough when new or changed source has 0% coverage. Add or update tests that import and execute these changed files, wire the new code into the planned behavior when needed, then rerun `\(command)`.
-      """
-  }
-
-  private static func coverageRepairTestTargetLines(for changedPath: String, repoURL: URL)
-    -> [String]
-  {
-    var candidates = coverageRepairTestTargets(for: changedPath)
-    let existingPackageTests = existingCoveragePackageTestTargets(for: changedPath, repoURL: repoURL)
-    for candidate in existingPackageTests where !candidates.contains(candidate) {
-      candidates.append(candidate)
-    }
-
-    let fm = FileManager.default
-    return candidates.map { candidate in
-      let exists = fm.fileExists(atPath: repoURL.appending(path: candidate).path)
-      let action = exists ? "read_file then edit_file" : "write_file"
-      return "- `\(candidate)` (\(action)) should import and execute `\(changedPath)`."
-    }
-  }
-
-  private static func coverageRepairTestTargets(for changedPath: String) -> [String] {
-    let url = URL(fileURLWithPath: changedPath)
-    let ext = url.pathExtension.lowercased()
-    guard !ext.isEmpty else { return [] }
-    if ext == "rs" {
-      let basename = url.deletingPathExtension().lastPathComponent
-      if changedPath.contains("/src/") {
-        let crateRoot = changedPath.split(separator: "/src/", maxSplits: 1).first.map(String.init) ?? ""
-        return [
-          "\(crateRoot)/tests/\(basename).rs",
-          "\(crateRoot)/tests/cli.rs",
-        ]
-      }
-      return []
-    }
-    let basename = url.deletingPathExtension().lastPathComponent
-    let sibling = url
-      .deletingLastPathComponent()
-      .appending(path: "\(basename).test.\(ext)")
-      .relativePath
-    return [sibling]
-  }
-
-  private func successfulVerifyMissingRequiredTestIssue(
-    immediate: PlanNext,
-    brief: PlanStrategicContext,
-    command: String,
-    beforeSha: String?,
-    repoURL: URL
-  ) async -> String? {
-    guard let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL) else {
-      return nil
-    }
-
-    let changedSourcePaths = changedPaths.filter(Self.isCoverageGatedSourcePath)
-    guard !changedSourcePaths.isEmpty else { return nil }
-    guard !changedPaths.contains(where: Self.isTestPath) else { return nil }
-
-    let requestedTestPaths = Self.mentionedTestPaths(
-      in: [
-        immediate.plan,
-        immediate.selectedBecause ?? "",
-        brief.summary,
-        brief.desiredOutcomes.joined(separator: "\n"),
-        brief.constraints.joined(separator: "\n"),
-        brief.acceptanceSignals.joined(separator: "\n"),
-      ].joined(separator: "\n")
-    )
-    guard !requestedTestPaths.isEmpty else { return nil }
-
-    return """
-      Verify passed for `\(command)`, but the accepted plan or brief explicitly requires test changes and no test/spec file changed.
-
-      Requested test file(s):
-      \(requestedTestPaths.map { "- `\($0)`" }.joined(separator: "\n"))
-
-      Changed source file(s) without a matching test edit:
-      \(changedSourcePaths.map { "- `\($0)`" }.joined(separator: "\n"))
-
-      Missing required test instructions:
-      - Your next Develop action should update one of the requested test files before submitting success.
-      - Add assertions for the new behavior named in the plan or brief, then rerun `\(command)`.
-      - Do not rely on a green verify from the old tests when the acceptance checks explicitly call for new or updated tests.
-      """
-  }
-
-  private func successfulVerifyWeakCLIFlagTestIssue(
-    immediate: PlanNext,
-    brief: PlanStrategicContext,
-    command: String,
-    beforeSha: String?,
-    repoURL: URL
-  ) async -> String? {
-    let handoffText = [
-      immediate.plan,
-      immediate.selectedBecause ?? "",
-      brief.summary,
-      brief.desiredOutcomes.joined(separator: "\n"),
-      brief.constraints.joined(separator: "\n"),
-      brief.acceptanceSignals.joined(separator: "\n"),
-    ].joined(separator: "\n").lowercased()
-    guard handoffText.contains("--format json"), handoffText.contains("cli") else {
-      return nil
-    }
-    guard let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL) else {
-      return nil
-    }
-    let changedCLIPaths = changedPaths.filter { path in
-      path.hasPrefix("crates/cli/src/")
-        && Self.isCoverageGatedSourcePath(path)
-    }
-    guard !changedCLIPaths.isEmpty else { return nil }
-    let changedTestPaths = changedPaths.filter { path in
-      path.hasPrefix("crates/cli/")
-        && Self.isTestPath(path)
-    }
-    guard !changedTestPaths.isEmpty else { return nil }
-
-    let changedTestFiles: [(path: String, contents: String)] = changedTestPaths.compactMap { path in
-      let url = repoURL.appending(path: path)
-      guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-      return (path, contents)
-    }
-    guard !changedTestFiles.contains(where: { Self.containsSplitFormatJSONAssertion($0.contents) }) else {
-      return nil
-    }
-    let weakTestPaths = changedTestFiles.map(\.path)
-    guard !weakTestPaths.isEmpty else { return nil }
-
-    return """
-      Verify passed for `\(command)`, but the CLI `--format json` tests do not exercise real argv splitting.
-
-      In `process.argv`, `--format json` arrives as separate `--format` and `json` arguments. A test like `["--format json", "Ship", "it"]` can pass while the real CLI command fails.
-
-      Weak or missing split-argv test file(s):
-      \(weakTestPaths.map { "- `\($0)`" }.joined(separator: "\n"))
-
-      Changed CLI source file(s):
-      \(changedCLIPaths.map { "- `\($0)`" }.joined(separator: "\n"))
-
-      Required repair:
-      - Update the CLI test to call the exported CLI function with split arguments, for example `main(["--format", "json", "Ship", "it"])`.
-      - Assert the JSON title is `Ship it`, with `open` and `total` fields present.
-      - Rerun `\(command)` after the test and implementation agree on real argv behavior.
-      """
-  }
-
-  private func successfulVerifyMissingPackageEntryIssue(
-    command: String,
-    beforeSha: String?,
-    repoURL: URL
-  ) async -> String? {
-    guard let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL),
-      !changedPaths.isEmpty
-    else {
-      return nil
-    }
-
-    let reviewPaths = changedPaths.filter { !Self.isHeadlessFixtureArtifactPath($0) }
-    let issues = Self.missingPackageEntryPointIssues(repoURL: repoURL).filter { issue in
-      reviewPaths.contains(issue.manifestPath) || reviewPaths.contains(issue.targetPath)
-    }
-    guard !issues.isEmpty else { return nil }
-
-    return """
-      Verify passed for `\(command)`, but package entry points now reference files that do not exist:
-      \(issues.map { "- `\($0.manifestPath)` \($0.field) = `\($0.declaredPath)` -> missing `\($0.targetPath)`" }.joined(separator: "\n"))
-
-      Package-entry repair instructions:
-      - If this is a real replacement entry point, create the missing target file with the implementation and add or update tests that execute it.
-      - If the replacement was accidental, restore the manifest entry to the existing source file and edit that existing file instead.
-      - Rerun `\(command)` after the manifest and files agree.
-
-      A green Cargo build can miss a binary target when only library crates are checked. Do not submit success while a manifest entry points at a missing file.
-      """
-  }
-
-  private func successfulVerifyManifestOnlyImplementationIssue(
-    immediate: PlanNext,
-    brief: PlanStrategicContext,
-    command: String,
-    beforeSha: String?,
-    repoURL: URL
-  ) async -> String? {
-    guard let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL),
-      !changedPaths.isEmpty
-    else {
-      return nil
-    }
-    let reviewPaths = changedPaths.filter { !Self.isHeadlessFixtureArtifactPath($0) }
-    guard !reviewPaths.isEmpty,
-      !reviewPaths.contains(where: Self.isCoverageGatedSourcePath),
-      !reviewPaths.contains(where: Self.isTestPath),
-      reviewPaths.allSatisfy(Self.isPackageMetadataPath)
-    else {
-      return nil
-    }
-
-    let handoffText = [
-      immediate.plan,
-      immediate.selectedBecause ?? "",
-      brief.summary,
-      brief.desiredOutcomes.joined(separator: "\n"),
-      brief.constraints.joined(separator: "\n"),
-      brief.acceptanceSignals.joined(separator: "\n"),
-    ].joined(separator: "\n")
-    guard Self.handoffRequiresSourceOrTestWork(handoffText) else { return nil }
-
-    return """
-      Verify passed for `\(command)`, but this Develop attempt changed only package metadata or lockfiles:
-      \(reviewPaths.map { "- `\($0)`" }.joined(separator: "\n"))
-
-      The accepted handoff asks for source behavior or tests, so metadata-only changes are not enough.
-
-      Required repair:
-      - Edit or create the source file that implements the requested behavior.
-      - Add or update a test/spec file that executes that behavior.
-      - Keep package metadata changes only if they are still needed after the source and test edits.
-      - Rerun `\(command)` after source and test files changed.
-      """
-  }
-
-  private static func containsSplitFormatJSONAssertion(_ contents: String) -> Bool {
-    let normalized = contents
-      .replacingOccurrences(of: "'", with: "\"")
-      .unicodeScalars
-      .filter { !CharacterSet.whitespacesAndNewlines.contains($0) }
-      .map(String.init)
-      .joined()
-    return normalized.contains("[\"--format\",\"json\"")
-      || normalized.contains("([\"--format\",\"json\"")
-      || normalized.contains("\"--formatjson\"")
-  }
-
-  private static func mentionedTestPaths(in text: String) -> [String] {
-    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._/-"))
-    let normalized = String(
-      text.unicodeScalars.map { allowed.contains($0) ? Character($0) : " " }
-    )
-    var seen: Set<String> = []
-    var paths: [String] = []
-    for rawToken in normalized.split(whereSeparator: \.isWhitespace) {
-      let token = rawToken.trimmingCharacters(in: CharacterSet(charactersIn: "./"))
-      guard !token.isEmpty, isTestPath(token), seen.insert(token).inserted else { continue }
-      paths.append(token)
-    }
-    return paths.sorted()
-  }
-
-  private static func existingCoveragePackageTestTargets(for changedPath: String, repoURL: URL)
-    -> [String]
-  {
-    let sourceURL = URL(fileURLWithPath: changedPath)
-    let sourceDirectory = sourceURL.deletingLastPathComponent()
-    let fm = FileManager.default
-    let directoryURL = repoURL.appending(path: sourceDirectory.relativePath)
-    guard
-      let entries = try? fm.contentsOfDirectory(
-        at: directoryURL,
-        includingPropertiesForKeys: [.isRegularFileKey],
-        options: [.skipsHiddenFiles]
-      )
-    else {
-      return []
-    }
-
-    return entries.compactMap { entry -> String? in
-      let filename = entry.lastPathComponent.lowercased()
-      let relative = sourceDirectory.appending(path: entry.lastPathComponent).relativePath
-      if filename.hasSuffix(".rs") {
-        guard relative.contains("/tests/") else { return nil }
-      } else {
-        guard filename.contains(".test.") || filename.contains(".spec.") else { return nil }
-      }
-      guard (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
-        return nil
-      }
-      return relative
-    }.sorted()
-  }
-
-  private static func missingPackageEntryPointIssues(repoURL: URL) -> [PackageEntryPointIssue] {
-    packageManifestURLs(in: repoURL).flatMap { manifestURL in
-      missingPackageEntryPointIssues(manifestURL: manifestURL, repoURL: repoURL)
-    }
-    .sorted {
-      [$0.manifestPath, $0.field, $0.targetPath].joined(separator: "\u{0}")
-        < [$1.manifestPath, $1.field, $1.targetPath].joined(separator: "\u{0}")
-    }
-  }
-
-  private static func packageManifestURLs(in repoURL: URL) -> [URL] {
-    let fm = FileManager.default
-    guard
-      let enumerator = fm.enumerator(
-        at: repoURL,
-        includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
-        options: [.skipsHiddenFiles]
-      )
-    else {
-      return []
-    }
-
-    var manifests: [URL] = []
-    for case let url as URL in enumerator {
-      if Self.shouldSkipPackageManifestScanDescendants(url) {
-        enumerator.skipDescendants()
-        continue
-      }
-      guard url.lastPathComponent == "Cargo.toml",
-        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-      else {
-        continue
-      }
-      manifests.append(url)
-    }
-    return manifests
-  }
-
-  private static func shouldSkipPackageManifestScanDescendants(_ url: URL) -> Bool {
-    guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
-      return false
-    }
-    return [".compass", ".git", "dist", "node_modules", "target"].contains(url.lastPathComponent)
-  }
-
-  private static func missingPackageEntryPointIssues(
-    manifestURL: URL,
-    repoURL: URL
-  ) -> [PackageEntryPointIssue] {
-    guard let contents = try? String(contentsOf: manifestURL, encoding: .utf8) else {
-      return []
-    }
-    let manifestPath = relativePath(manifestURL, repoURL: repoURL)
-    let packageDirectory = manifestURL.deletingLastPathComponent()
-    let pattern = #/\bpath\s*=\s*["']([^"']+)["']/#
-    var issues: [PackageEntryPointIssue] = []
-    for match in contents.matches(of: pattern) {
-      let declared = String(match.1)
-      guard let cleanedPath = cleanedLocalPackageEntryPath(declared) else { continue }
-      let targetURL = packageDirectory.appending(path: cleanedPath).standardizedFileURL
-      guard !FileManager.default.fileExists(atPath: targetURL.path) else { continue }
-      issues.append(
-        PackageEntryPointIssue(
-          manifestPath: manifestPath,
-          field: "path",
-          declaredPath: declared,
-          targetPath: relativePath(targetURL, repoURL: repoURL)
-        )
-      )
-    }
-    return issues
-  }
-
-  private static func cleanedLocalPackageEntryPath(_ rawPath: String) -> String? {
-    let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty,
-      !trimmed.hasPrefix("#"),
-      !trimmed.contains("://")
-    else {
-      return nil
-    }
-
-    let withoutFragment = trimmed.split(separator: "#", maxSplits: 1).first.map(String.init) ?? trimmed
-    let withoutQuery =
-      withoutFragment.split(separator: "?", maxSplits: 1).first.map(String.init) ?? withoutFragment
-    let cleaned = withoutQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !cleaned.isEmpty else { return nil }
-    return cleaned
-  }
-
-  private static func isPackageMetadataPath(_ path: String) -> Bool {
-    let filename = URL(fileURLWithPath: path).lastPathComponent.lowercased()
-    return filename == "cargo.toml"
-      || filename == "cargo.lock"
-      || filename == "rust-toolchain.toml"
-      || filename == "rust-toolchain"
-  }
-
-  private static func isHeadlessFixtureArtifactPath(_ path: String) -> Bool {
-    let filename = URL(fileURLWithPath: path).lastPathComponent.lowercased()
-    return filename == "fixture.jsonl" || filename.hasSuffix("-fixture.jsonl")
-  }
-
-  private static func handoffRequiresSourceOrTestWork(_ text: String) -> Bool {
-    let normalized = text.lowercased()
-    let sourceSignals = [
-      "acceptance checks",
-      "add core",
-      "cli",
-      "command",
-      "component",
-      "cover",
-      "function",
-      "implement",
-      "logic",
-      "source",
-      "test",
-      "crate",
-    ]
-    return sourceSignals.contains { normalized.contains($0) }
-  }
-
-  private static func relativePath(_ url: URL, repoURL: URL) -> String {
-    let repoPath = repoURL.standardizedFileURL.path
-    let path = url.standardizedFileURL.path
-    guard path == repoPath || path.hasPrefix(repoPath + "/") else {
-      return url.path
-    }
-    if path == repoPath { return "." }
-    return String(path.dropFirst(repoPath.count + 1))
-  }
-
-  private static func vitestCoverageRows(in output: String) -> [CoverageTableRow] {
-    var rows: [CoverageTableRow] = []
-    var currentDirectory: String?
-
-    for line in output.components(separatedBy: "\n") {
-      guard line.contains("|") else { continue }
-      let columns = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-      guard columns.count >= 5 else { continue }
-
-      let displayPath = columns[0].trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !displayPath.isEmpty,
-        displayPath != "File",
-        displayPath != "All files",
-        !displayPath.allSatisfy({ $0 == "-" })
-      else {
-        continue
-      }
-
-      if !Self.hasSourceExtension(displayPath), displayPath.contains("/") {
-        currentDirectory = displayPath
-        continue
-      }
-      guard Self.hasSourceExtension(displayPath) else { continue }
-
-      let coveragePath: String
-      if displayPath.contains("/") || currentDirectory == nil {
-        coveragePath = displayPath
-      } else {
-        coveragePath = [currentDirectory!, displayPath].joined(separator: "/")
-      }
-
-      rows.append(
-        CoverageTableRow(
-          path: coveragePath,
-          statements: Self.coveragePercent(columns[1]),
-          functions: Self.coveragePercent(columns[3]),
-          lines: Self.coveragePercent(columns[4])
-        ))
-    }
-
-    return rows
-  }
-
-  private static func coveragePath(_ coveragePath: String, matchesChangedPath changedPath: String)
-    -> Bool
-  {
-    changedPath == coveragePath || changedPath.hasSuffix("/\(coveragePath)")
-      || changedPath.hasSuffix(coveragePath)
-  }
-
-  private static func isCoverageGatedSourcePath(_ path: String) -> Bool {
-    let lowercased = path.lowercased()
-    guard hasSourceExtension(lowercased),
-      !lowercased.contains("/target/"),
-      !lowercased.contains("/tests/")
-    else {
-      return false
-    }
-    return lowercased.contains("/src/")
-  }
-
-  private static func isTestPath(_ path: String) -> Bool {
-    let lowercased = path.lowercased()
-    guard hasSourceExtension(lowercased) else { return false }
-    if lowercased.hasSuffix(".rs") {
-      return lowercased.contains("/tests/")
-    }
-    let filename = URL(fileURLWithPath: lowercased).lastPathComponent
-    return filename.contains(".test.") || filename.contains(".spec.")
-  }
-
-  private static func hasSourceExtension(_ path: String) -> Bool {
-    ["rs"].contains(URL(fileURLWithPath: path).pathExtension.lowercased())
-  }
-
-  private static func coveragePercent(_ value: String) -> Double? {
-    let cleaned = value
-      .replacingOccurrences(of: "%", with: "")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    return Double(cleaned)
-  }
-
-  private static func percentLabel(_ value: Double?) -> String {
-    guard let value else { return "unknown" }
-    if value.rounded() == value {
-      return "\(Int(value))%"
-    }
-    return String(format: "%.2f%%", value)
   }
 
   private func makeRuntime(

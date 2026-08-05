@@ -10,8 +10,6 @@ It is not required as the host↔guest transport.
 
 **Implemented** as the agent bash / workspace-reset primary path. Wipe-style
 tar remains a logged fallback when CAS fails or `forceRefresh` is set.
-Git-over-SSH (`SharedCompassVMGitSSHSync`) is retained in-tree but is off the
-hot path.
 
 ## Motivation
 
@@ -19,7 +17,6 @@ hot path.
 |---|---|---|
 | CAS (current primary) | Deltas; in-place apply preserves `target/` / `.build/`; no guest git/SSH | Newer; blob size still bound by vsock frame budget |
 | Tar over vsock | Works without guest git | Full-tree wipe every push; destroys build caches |
-| Git-over-SSH (legacy) | Deltas via pack protocol | Needs guest git + SSH; exchange refs |
 
 ## Goals
 
