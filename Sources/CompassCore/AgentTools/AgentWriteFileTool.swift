@@ -146,7 +146,7 @@ public struct AgentWriteFileTool: AgentTool {
         ))
     }
     if existing == nil,
-      Self.isSourceFile(url),
+      AgentEditSafety.isSourceFile(url),
       let inappropriateTest = Self.inappropriateRustTestCode(in: args.content, url: url)
     {
       let relative = context.relativize(url)
@@ -156,7 +156,7 @@ public struct AgentWriteFileTool: AgentTool {
         ))
     }
     if existing == nil,
-      Self.isSourceFile(url),
+      AgentEditSafety.isSourceFile(url),
       let missingReference = await Self.missingRelativeModuleReference(
         in: args.content,
         sourceURL: url,
@@ -170,7 +170,7 @@ public struct AgentWriteFileTool: AgentTool {
         ))
     }
     if existing == nil,
-      Self.isSourceFile(url),
+      AgentEditSafety.isSourceFile(url),
       let skeleton = Self.emptyOrCommentOnlySourceContent(
         in: args.content,
         pathExtension: url.pathExtension
@@ -183,8 +183,11 @@ public struct AgentWriteFileTool: AgentTool {
         ))
     }
     if existing == nil,
-      Self.isSourceFile(url),
-      let placeholder = Self.placeholderImplementationMarker(in: args.content)
+      AgentEditSafety.isSourceFile(url),
+      let placeholder = AgentEditSafety.newPlaceholderImplementationMarker(
+        originalText: "",
+        editedText: args.content
+      )
     {
       let relative = context.relativize(url)
       return .failure(
@@ -467,17 +470,12 @@ public struct AgentWriteFileTool: AgentTool {
     return candidates
   }
 
-  private struct PlaceholderImplementationMarker {
-    public let lineNumber: Int
-    public let preview: String
-  }
-
   private struct EmptyOrCommentOnlySourceContent {
     public let preview: String
   }
 
   private static func inappropriateRustTestCode(in text: String, url: URL) -> String? {
-    guard url.pathExtension.lowercased() == "rs", !isTestFile(url) else { return nil }
+    guard url.pathExtension.lowercased() == "rs", !AgentEditSafety.isTestFile(url) else { return nil }
     let path = url.path.lowercased()
     guard path.contains("/src/") else { return nil }
     for line in text.components(separatedBy: "\n") {
@@ -491,16 +489,6 @@ public struct AgentWriteFileTool: AgentTool {
       }
     }
     return nil
-  }
-
-  private static func isTestFile(_ url: URL) -> Bool {
-    let path = url.path.lowercased()
-    let filename = url.lastPathComponent.lowercased()
-    return path.contains("/tests/")
-      || filename.hasSuffix("_test.rs")
-      || filename.contains(".test.")
-      || filename.contains(".spec.")
-      || path.contains("/__tests__/")
   }
 
   private static func emptyOrCommentOnlySourceContent(
@@ -576,53 +564,6 @@ public struct AgentWriteFileTool: AgentTool {
     }
     let range = NSRange(text.startIndex..<text.endIndex, in: text)
     return regex.stringByReplacingMatches(in: text, range: range, withTemplate: "")
-  }
-
-  private static func placeholderImplementationMarker(in text: String)
-    -> PlaceholderImplementationMarker?
-  {
-    text.components(separatedBy: "\n").enumerated().compactMap { offset, line in
-      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard looksLikePlaceholderImplementation(trimmed.lowercased()) else { return nil }
-      return PlaceholderImplementationMarker(
-        lineNumber: offset + 1,
-        preview: "`\(String(trimmed.prefix(120)))`"
-      )
-    }.first
-  }
-
-  private static func looksLikePlaceholderImplementation(_ lowercasedLine: String) -> Bool {
-    (lowercasedLine.contains("todo")
-      && (lowercasedLine.contains("implement") || lowercasedLine.contains("placeholder")))
-      || lowercasedLine.contains("not implemented")
-      || lowercasedLine.contains("unimplemented")
-      || lowercasedLine.contains("placeholder implementation")
-      || (lowercasedLine.contains("replace this with")
-        && lowercasedLine.contains("implementation"))
-      || lowercasedLine.contains("implement the logic")
-      || lowercasedLine.contains("implement logic")
-  }
-
-  private static func isSourceFile(_ url: URL) -> Bool {
-    [
-      "c",
-      "cc",
-      "cpp",
-      "css",
-      "go",
-      "h",
-      "hpp",
-      "html",
-      "js",
-      "jsx",
-      "mjs",
-      "mts",
-      "py",
-      "rs",
-      "swift",
-      "ts",
-      "tsx",
-    ].contains(url.pathExtension.lowercased())
   }
 
   private func newFileHint(for url: URL, context: AgentToolContext) async -> String? {

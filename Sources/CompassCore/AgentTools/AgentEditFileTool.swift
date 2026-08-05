@@ -502,8 +502,8 @@ public struct AgentEditFileTool: AgentTool {
           editIndex: idx,
           relativePath: relative,
           replacementLines: edit.replacementLines,
-          isSourceFile: Self.isSourceFile(url),
-          isTestFile: Self.isTestFile(url)
+          isSourceFile: AgentEditSafety.isSourceFile(url),
+          isTestFile: AgentEditSafety.isTestFile(url)
         ) {
           return .failure(.invalidArguments(testCode))
         }
@@ -511,8 +511,8 @@ public struct AgentEditFileTool: AgentTool {
           editIndex: idx,
           relativePath: relative,
           replacementLines: edit.replacementLines,
-          isSourceFile: Self.isSourceFile(url),
-          isTestFile: Self.isTestFile(url)
+          isSourceFile: AgentEditSafety.isSourceFile(url),
+          isTestFile: AgentEditSafety.isTestFile(url)
         ) {
           return .failure(.invalidArguments(implementationCode))
         }
@@ -521,7 +521,7 @@ public struct AgentEditFileTool: AgentTool {
           edit: edit,
           relativePath: relative,
           lines: lines,
-          isSourceFile: Self.isSourceFile(url)
+          isSourceFile: AgentEditSafety.isSourceFile(url)
         ) {
           return .failure(.invalidArguments(duplicateInsertion))
         }
@@ -530,7 +530,7 @@ public struct AgentEditFileTool: AgentTool {
           edit: edit,
           relativePath: relative,
           lineCount: lineCount,
-          isSourceFile: Self.isSourceFile(url)
+          isSourceFile: AgentEditSafety.isSourceFile(url)
         ) {
           return .failure(.invalidArguments(suspiciousInsertion))
         }
@@ -539,7 +539,7 @@ public struct AgentEditFileTool: AgentTool {
           edit: edit,
           relativePath: relative,
           lines: lines,
-          isSourceFile: Self.isSourceFile(url)
+          isSourceFile: AgentEditSafety.isSourceFile(url)
         ) {
           return .failure(.invalidArguments(misplacedImport))
         }
@@ -568,8 +568,8 @@ public struct AgentEditFileTool: AgentTool {
         editIndex: idx,
         relativePath: relative,
         replacementLines: edit.replacementLines,
-        isSourceFile: Self.isSourceFile(url),
-        isTestFile: Self.isTestFile(url)
+        isSourceFile: AgentEditSafety.isSourceFile(url),
+        isTestFile: AgentEditSafety.isTestFile(url)
       ) {
         return .failure(.invalidArguments(testCode))
       }
@@ -577,12 +577,12 @@ public struct AgentEditFileTool: AgentTool {
         editIndex: idx,
         relativePath: relative,
         replacementLines: edit.replacementLines,
-        isSourceFile: Self.isSourceFile(url),
-        isTestFile: Self.isTestFile(url)
+        isSourceFile: AgentEditSafety.isSourceFile(url),
+        isTestFile: AgentEditSafety.isTestFile(url)
       ) {
         return .failure(.invalidArguments(implementationCode))
       }
-      if Self.isSourceFile(url),
+      if AgentEditSafety.isSourceFile(url),
         let commentOnlyReplacement = Self.commentOnlySourceReplacementMessage(
           editIndex: idx,
           relativePath: relative,
@@ -599,7 +599,7 @@ public struct AgentEditFileTool: AgentTool {
         relativePath: relative,
         existingLines: existing,
         remainingLines: Array(lines.dropFirst(endIndex + 1)),
-        isSourceFile: Self.isSourceFile(url),
+        isSourceFile: AgentEditSafety.isSourceFile(url),
         lineCount: lineCount
       ) {
         return .failure(.invalidArguments(suspiciousExpansion))
@@ -631,7 +631,7 @@ public struct AgentEditFileTool: AgentTool {
         relativePath: relative,
         lines: lines,
         replacedRange: startIndex..<(endIndex + 1),
-        isSourceFile: Self.isSourceFile(url)
+        isSourceFile: AgentEditSafety.isSourceFile(url)
       ) {
         return .failure(.invalidArguments(duplicateReplacement))
       }
@@ -640,7 +640,7 @@ public struct AgentEditFileTool: AgentTool {
         edit: edit,
         relativePath: relative,
         lines: lines,
-        isSourceFile: Self.isSourceFile(url)
+        isSourceFile: AgentEditSafety.isSourceFile(url)
       ) {
         return .failure(.invalidArguments(misplacedImport))
       }
@@ -1717,38 +1717,6 @@ public struct AgentEditFileTool: AgentTool {
 
   private static func joinLines(_ lines: [String]) -> String {
     lines.joined(separator: "\n")
-  }
-
-  private static func isSourceFile(_ url: URL) -> Bool {
-    [
-      "c",
-      "cc",
-      "cpp",
-      "css",
-      "go",
-      "h",
-      "hpp",
-      "html",
-      "js",
-      "jsx",
-      "mjs",
-      "mts",
-      "py",
-      "rs",
-      "swift",
-      "ts",
-      "tsx",
-    ].contains(url.pathExtension.lowercased())
-  }
-
-  private static func isTestFile(_ url: URL) -> Bool {
-    let path = url.path.lowercased()
-    let filename = url.lastPathComponent.lowercased()
-    return path.contains("/tests/")
-      || filename.hasSuffix("_test.rs")
-      || filename.contains(".test.")
-      || filename.contains(".spec.")
-      || path.contains("/__tests__/")
   }
 
   private static func argumentRepairMessage(_ detail: String) -> String {
