@@ -1895,10 +1895,3 @@ private func tail(_ text: String, max: Int) -> String {
   guard trimmed.count > max else { return trimmed }
   return String(trimmed.suffix(max))
 }
-
-extension String {
-  fileprivate var nilIfBlank: String? {
-    let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? nil : trimmed
-  }
-}

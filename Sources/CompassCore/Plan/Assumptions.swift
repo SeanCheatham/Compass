@@ -29,19 +29,6 @@ public struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
       case .superseded: return "Superseded"
       }
     }
-
-    public var promptLabel: String {
-      switch self {
-      case .implicit:
-        return "Implicit assumption, treated as true with lower confidence"
-      case .affirmed:
-        return "User-affirmed assumption, strong guidance"
-      case .denied:
-        return "User-denied assumption, correction"
-      case .superseded:
-        return "Superseded assumption"
-      }
-    }
   }
 
   public enum Scope: String, Codable, CaseIterable, Sendable {
@@ -132,14 +119,6 @@ public struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
 
   public var normalizedTextKey: String {
     Self.normalizedKey(text)
-  }
-
-  public var createdAtDate: Date {
-    Date(timeIntervalSince1970: createdAt)
-  }
-
-  public var updatedAtDate: Date {
-    Date(timeIntervalSince1970: updatedAt)
   }
 
   public mutating func mergeNewObservation(from draft: AssumptionDraft, phase: AgentPhase, now: Date) {
@@ -241,22 +220,6 @@ public struct AssumptionLedger: Codable, Equatable, Sendable {
 
   public var activeAssumptions: [AssumptionRecord] {
     assumptions.filter { $0.status != .superseded }
-  }
-
-  public var archivedCount: Int {
-    assumptions.filter { $0.status == .superseded }.count
-  }
-
-  public var implicitCount: Int {
-    activeAssumptions.filter { $0.status == .implicit }.count
-  }
-
-  public var affirmedCount: Int {
-    activeAssumptions.filter { $0.status == .affirmed }.count
-  }
-
-  public var deniedCount: Int {
-    activeAssumptions.filter { $0.status == .denied }.count
   }
 
   public mutating func record(

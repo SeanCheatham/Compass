@@ -18,6 +18,7 @@ Compass keeps a small persisted factory state in `.compass/state.json`:
 - `immediate`: the selected implementation packet for the next Develop pass.
 - `completed`: completed iteration notes.
 - `openQuestions`: unresolved questions that affect scope.
+- `products`: enabled generated-project products (`cli` and/or `macos`).
 
 The v1 loop is:
 
@@ -57,7 +58,7 @@ Coverage is collected after verify with:
 cargo llvm-cov --workspace --summary-only
 ```
 
-Mutation testing runs post-verify scoped to the Rust files changed in the iteration (`cargo mutants`), persisted to `.compass/mutation-snapshot.json` and fed into the next Plan pass. After mutation, Compass dirt-cleans the guest worktree (`target/`, `mutants.out*`, etc.) so build junk does not accumulate.
+Mutation testing runs post-verify scoped to the Rust files changed in the iteration (`cargo mutants --no-shuffle -j 1`), persisted to `.compass/mutation-snapshot.json` and fed into the next Plan pass. After mutation, Compass dirt-cleans the guest worktree (`target/`, `mutants.out*`, etc.) so build junk does not accumulate.
 
 Acceptance gates (optional) live under `acceptanceGates` in `.compass/state.json` or via environment (`COMPASS_GATE_MIN_COVERAGE`, `COMPASS_GATE_MIN_MUTATION_SCORE`, `COMPASS_GATE_MAX_MISSED_MUTANTS`). When set, a green verify is not enough — the iteration is retried until the collected coverage/mutation evidence satisfies the gates.
 
@@ -84,7 +85,7 @@ MLX can run `mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit` after user-approved
 Factory bash/verify run inside an embedded macOS VM (Apple Virtualization.framework):
 
 - Guest toolchain: Xcode CLT (swift, git), Rust via rustup (cargo, rustc, rustfmt, clippy), cargo-llvm-cov, cargo-mutants, ripgrep
-- Repo sync: host worktree → guest worktree over git-over-SSH (tar fallback); `/workspace` paths in commands map to the guest worktree
+- Repo sync: host worktree → guest worktree over a CAS (content-addressed store) channel on vsock (tar fallback); `/workspace` paths in commands map to the guest worktree
 - Workspace reset: `compass-cli vm reset-workspace --repo <path> [--dirt|--full]` discards per-repo guest dirt without reprovisioning
 
 File/search tools still operate on the host worktree, addressed through the same `/workspace` path space.

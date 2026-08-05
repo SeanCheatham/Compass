@@ -195,7 +195,12 @@ public struct AgentReadFileTool: AgentTool {
     context: AgentToolContext
   ) async -> String {
     var message = "File not found: \(requestedPath)"
-    guard let nearest = await nearestExistingDirectory(from: resolvedURL, context: context) else {
+    guard
+      let nearest = await context.nearestExistingDirectory(
+        from: resolvedURL,
+        isUsefulEntry: Self.isUsefulDirectoryEntry
+      )
+    else {
       return message
         + "\nUse list_files or glob to discover the current repo paths before creating a new file."
     }
@@ -204,10 +209,7 @@ public struct AgentReadFileTool: AgentTool {
     message += "\nNearest existing directory: \(relativeDirectory)"
     if !nearest.entries.isEmpty {
       message += "\nExisting entries there:"
-      message += nearest.entries.prefix(12).map { "\n- \($0)" }.joined()
-      if nearest.entries.count > 12 {
-        message += "\n- ... \(nearest.entries.count - 12) more"
-      }
+      message += AgentToolMessageFormat.directoryEntriesPreview(nearest.entries)
     }
     let sameFilenameMatches = await sameFilenameMatches(for: requestedPath, context: context)
     if !sameFilenameMatches.isEmpty {
@@ -274,36 +276,5 @@ public struct AgentReadFileTool: AgentTool {
       "node_modules",
     ]
     return !path.split(separator: "/").contains { skippedComponents.contains(String($0)) }
-  }
-
-  private func nearestExistingDirectory(
-    from url: URL,
-    context: AgentToolContext
-  ) async -> (url: URL, entries: [String])? {
-    let workingDirectory = context.workingDirectory.standardizedFileURL
-    let workingPath = workingDirectory.path
-    var candidate = url.deletingLastPathComponent().standardizedFileURL
-
-    while candidate.path.hasPrefix(workingPath) {
-      do {
-        let entries = try await context.filesystem.listDirectory(at: candidate)
-          .map { entry in entry.isDirectory ? "\(entry.name)/" : entry.name }
-          .filter { !$0.hasPrefix(".") }
-          .filter(Self.isUsefulDirectoryEntry)
-          .sorted()
-        if !entries.isEmpty || candidate.path == workingPath {
-          return (candidate, entries)
-        }
-      } catch {
-        let parent = candidate.deletingLastPathComponent().standardizedFileURL
-        if parent.path == candidate.path { break }
-        candidate = parent
-        continue
-      }
-      let parent = candidate.deletingLastPathComponent().standardizedFileURL
-      if parent.path == candidate.path { break }
-      candidate = parent
-    }
-    return nil
   }
 }

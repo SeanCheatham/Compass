@@ -3,7 +3,7 @@ import Foundation
 /// End-to-end smoke test for the embedded macOS VM route, exposed as
 /// `compass-cli vm smoke`. Exercises the full path a real build takes:
 /// VM readiness (provisioning if allowed), repo sync into the guest
-/// (git-over-SSH with tar fallback), then a bash command inside the
+/// (CAS over vsock with tar fallback), then a bash command inside the
 /// guest worktree. First invocation against an unprovisioned bundle
 /// downloads the IPSW and requires one admin auth prompt for the
 /// headless first-boot plant.

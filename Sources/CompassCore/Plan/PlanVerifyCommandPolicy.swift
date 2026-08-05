@@ -1,8 +1,6 @@
 import Foundation
 
 public enum PlanVerifyCommandPolicy {
-  public static let placeholderExamples =
-    "`true`, `exit 0`, `echo no tests`, `none`, `n/a`, or `not-running-tests`"
   public static let failureMaskingExamples =
     "`swift test || true`, `swift test; true`, or `swift test || echo no tests`"
 

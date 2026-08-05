@@ -11,7 +11,7 @@ Compass is a native macOS host around a local software factory loop.
 | `CompassCLI` | Thin CLI entry that calls Core |
 | `CompassAgentRPC` / `CompassGuestAgent` | Host↔guest vsock JSON RPC |
 
-`CompassCore` domains live in folders: `AgentTools/`, `AgentExecutor/`, `SharedVM/`, `Plan/`, `Live/`, `Verify/`, `Guides/`, `Runtime/`, `Factory/`, `Studio/`, `Prompts/`, `RepoMap/`, `Sandbox/`, `Scaffold/`, `Session/`, `Models/`, `Util/`. Wire models are split under `Models/` (`PlanModels`, `SessionModels`, `LiveModels`, `FlexibleModelDecoder`). Post-verify quality gates and snapshot collection are shared (`SuccessfulVerifyGates`, `QualitySnapshotCollector`, `AcceptanceGateEvaluator`) so the headless and UI loops stay aligned; Plan/Critic orchestration remains host-specific.
+`CompassCore` domains live in folders: `AgentTools/`, `AgentExecutor/`, `SharedVM/`, `Plan/`, `Live/`, `Verify/`, `Guides/`, `Runtime/`, `Factory/`, `Studio/`, `Prompts/`, `RepoMap/`, `Sandbox/`, `Scaffold/`, `Session/`, `Models/`, `Util/`, plus `Resources/` (prompt schemas, tree-sitter queries) and the root-level `Workspace.swift` (`.compass` storage). Wire models are split under `Models/` (`PlanModels`, `SessionModels`, `LiveModels`, `FlexibleModelDecoder`). Post-verify quality gates and snapshot collection are shared (`SuccessfulVerifyGates`, `QualitySnapshotCollector`, `AcceptanceGateEvaluator`) so the headless and UI loops stay aligned; Plan/Critic orchestration remains host-specific.
 
 ## Host
 
@@ -39,6 +39,7 @@ There is no Cursor model provider in this build. Cursor’s SDK is an agent harn
 - `immediate`
 - `completed`
 - `openQuestions`
+- `products` (enabled generated-project products: `cli` and/or `macos`)
 - `acceptanceGates` (optional deterministic quality thresholds)
 
 Legacy state files from older projects are ignored in-place.
@@ -56,7 +57,7 @@ Quality conventions live in `GeneratedProjectQuality`:
 - `standardVerifyCommand` — fmt + clippy + test (Rust / macOS VM)
 - `macosVerifyCommand` — `bash scripts/verify-macos.sh` (embedded macOS VM only)
 - `coverageCollectCommand` — `cargo llvm-cov --workspace --summary-only`
-- `mutationTestCommand` — `cargo mutants`, run post-verify scoped to the iteration's changed Rust files
+- `mutationTestCommand` — `cargo mutants --no-shuffle -j 1`, run post-verify scoped to the iteration's changed Rust files
 
 Coverage snapshots are persisted via `CoverageSnapshotStore` after verify; mutation results via `MutationSnapshotStore` (`MutationReportParser` extracts kill-rate and surviving mutants from `cargo mutants` output). Both snapshots feed the next Plan prompt. Plan handoff validation uses `GeneratedVerifyValidator` for coverage-ready verify commands.
 

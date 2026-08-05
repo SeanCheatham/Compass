@@ -49,38 +49,6 @@ public final class LanguageRegistry: @unchecked Sendable {
     return entries[language]
   }
 
-  public struct RuntimeNodeKinds: Sendable, Equatable {
-    public var branchTypes: Set<String>
-    public var loopTypes: Set<String>
-    public var switchTypes: Set<String>
-    public var errorTypes: Set<String>
-    public var callTypes: Set<String>
-  }
-
-  /// Tree-sitter node names used by static control-flow analysis. Kept beside
-  /// the grammar registry so adding a language has one obvious place to define
-  /// both symbol indexing and flow scanning.
-  public static func runtimeNodeKinds(for language: CodemapLanguage) -> RuntimeNodeKinds {
-    switch language {
-    case .swift:
-      return RuntimeNodeKinds(
-        branchTypes: ["if_statement"],
-        loopTypes: ["for_statement", "while_statement", "repeat_while_statement"],
-        switchTypes: ["switch_statement"],
-        errorTypes: ["do_statement", "try_expression"],
-        callTypes: ["call_expression"]
-      )
-    case .rust:
-      return RuntimeNodeKinds(
-        branchTypes: ["if_expression", "if_let_expression"],
-        loopTypes: ["for_expression", "while_expression", "while_let_expression", "loop_expression"],
-        switchTypes: ["match_expression"],
-        errorTypes: ["try_expression", "call_expression"],
-        callTypes: ["call_expression", "macro_invocation"]
-      )
-    }
-  }
-
   private static func makeLanguage(for codemapLanguage: CodemapLanguage) -> Language {
     switch codemapLanguage {
     case .swift: return Language(language: tree_sitter_swift())

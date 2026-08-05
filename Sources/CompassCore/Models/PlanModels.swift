@@ -587,18 +587,6 @@ public struct PlanStrategicContext: Codable, Equatable {
     try container.encode(acceptanceSignals, forKey: .acceptanceSignals)
   }
 
-  public var digestLines: [String] {
-    var lines: [String] = []
-    if !summary.isEmpty {
-      lines.append("Summary: \(summary)")
-    }
-    lines += targetUsers.prefix(5).map { "Target user: \($0)" }
-    lines += desiredOutcomes.prefix(5).map { "Outcome: \($0)" }
-    lines += constraints.prefix(5).map { "Constraint: \($0)" }
-    lines += acceptanceSignals.prefix(5).map { "Acceptance signal: \($0)" }
-    return lines
-  }
-
   public var markdownSummary: String {
     var sections: [String] = []
     if !summary.isEmpty {

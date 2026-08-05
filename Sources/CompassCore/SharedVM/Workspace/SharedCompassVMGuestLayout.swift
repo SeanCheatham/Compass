@@ -16,12 +16,6 @@ public struct SharedCompassVMGuestLayout: Equatable, Sendable {
     homeDirectory: "/Users/compass"
   )
 
-  public static let futureLinux = SharedCompassVMGuestLayout(
-    id: "linux-future",
-    guestUserName: "compass",
-    homeDirectory: "/home/compass"
-  )
-
   public static let current = currentMacOS
 
   public var reposRoot: String {

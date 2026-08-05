@@ -200,29 +200,6 @@ public enum FlexibleModelDecoder {
     )
   }
 
-  public static func decodeValueIfPresent<Value: Decodable, Key: CodingKey>(
-    from container: KeyedDecodingContainer<Key>,
-    preferredKey: Key,
-    aliases: [Key]
-  ) throws -> Value? {
-    var firstTypeError: Error?
-
-    for key in [preferredKey] + aliases where container.contains(key) {
-      do {
-        if let value = try container.decodeIfPresent(Value.self, forKey: key) {
-          return value
-        }
-      } catch {
-        firstTypeError = firstTypeError ?? error
-      }
-    }
-
-    if let firstTypeError {
-      throw firstTypeError
-    }
-    return nil
-  }
-
   public static func decodeIntIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,

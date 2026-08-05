@@ -108,6 +108,13 @@ public struct AgentExecutionConfiguration {
   /// Effective context window from the runtime settings. `0` means
   /// auto-compaction is disabled.
   public var contextWindowTokens: Int { settings.contextWindowTokens }
+
+  /// Base for prompt-log artifact labels: the explicit prefix when set,
+  /// otherwise the phase name.
+  var promptLogLabelBase: String {
+    guard let prefix = promptLogLabelPrefix?.nilIfBlank else { return phase.rawValue }
+    return prefix
+  }
 }
 
 public enum AgentExecutionError: LocalizedError, Equatable {

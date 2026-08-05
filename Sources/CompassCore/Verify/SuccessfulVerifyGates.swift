@@ -375,8 +375,14 @@ public enum SuccessfulVerifyGates {
         !displayPath.allSatisfy({ $0 == "-" }) else { continue }
       if !hasSourceExtension(displayPath), displayPath.contains("/") { currentDirectory = displayPath; continue }
       guard hasSourceExtension(displayPath) else { continue }
-      let coveragePath = displayPath.contains("/") || currentDirectory == nil
-        ? displayPath : [currentDirectory!, displayPath].joined(separator: "/")
+      let coveragePath: String
+      if displayPath.contains("/") {
+        coveragePath = displayPath
+      } else if let currentDirectory {
+        coveragePath = [currentDirectory, displayPath].joined(separator: "/")
+      } else {
+        coveragePath = displayPath
+      }
       rows.append(CoverageTableRow(
         path: coveragePath, statements: coveragePercent(columns[1]), functions: coveragePercent(columns[3]),
         lines: coveragePercent(columns[4])

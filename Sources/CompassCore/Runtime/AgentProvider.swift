@@ -29,8 +29,6 @@ public enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
     defaultBaseURLString.flatMap(URL.init(string:))
   }
 
-  public var supportedCapabilities: [AgentCapability] { [.text] }
-
   public func supports(_ capability: AgentCapability) -> Bool {
     capability == .text
   }
@@ -42,14 +40,6 @@ public enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
       return "k3"
     case .mlx:
       return LocalModelCatalog.blessedModelID
-    }
-  }
-
-  public func usesModelField(for capability: AgentCapability) -> Bool {
-    guard supports(capability) else { return false }
-    switch self {
-    case .openAICompatible: return true
-    case .mlx: return false
     }
   }
 
@@ -79,5 +69,4 @@ public enum AgentCapability: String, Sendable, CaseIterable, Codable {
   public var displayName: String { "Text" }
   public var systemImageName: String { "text.bubble" }
   public var isRequired: Bool { true }
-  public var availableProviders: [AgentProviderKind] { [.openAICompatible, .mlx] }
 }

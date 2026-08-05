@@ -4,7 +4,6 @@ public struct DraftReadinessGuide: Equatable, Sendable {
   public static let detailLimit = 160
   public static let draftPreviewLimit = 220
   public static let identifierLimit = 1_000
-  public static let entryPlaceholder = "Describe the change, why it matters, and how success should look"
 
   public var status: Status
   public var title: String
@@ -36,7 +35,7 @@ public struct DraftReadinessGuide: Equatable, Sendable {
   }
 
   public init(draft rawDraft: String) {
-    let draft = DraftRefinementService.normalizeDraft(rawDraft)
+    let draft = Self.normalizedPlainText(rawDraft)
     draftPreview = StringUtils.boundedText(draft, limit: Self.draftPreviewLimit)
     let outcome = Self.hasOutcomeSignal(in: draft)
     let why = Self.hasWhySignal(in: draft)
@@ -269,6 +268,14 @@ public struct DraftReadinessGuide: Equatable, Sendable {
     guard detailLimit > 3 else { return String(text.prefix(detailLimit)) }
     return String(text.prefix(detailLimit - 3))
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+
+  private static func normalizedPlainText(_ text: String) -> String {
+    text
+      .replacingOccurrences(of: "\r", with: " ")
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private static func narrationIdentifier(
@@ -569,10 +576,6 @@ public struct DraftIntakeGuide: Equatable, Sendable {
 
     public var waitingCount: Int {
       waitingEntries.count
-    }
-
-    public var hasReadyEntries: Bool {
-      readyCount > 0
     }
 
     fileprivate init(entries: [Entry], visibleEntryNumbers: Set<Int>) {

@@ -1,29 +1,5 @@
 import Foundation
 
-/// Describes why an Explore explanation could not be generated.
-public enum ExplainUnavailableReason: Sendable, CaseIterable {
-  case foundationModelsUnavailable
-  case noDiff
-  case emptyDiff
-  case emptyResponse
-  case unavailable
-
-  public var message: String {
-    switch self {
-    case .foundationModelsUnavailable:
-      return "Generated explanation is unavailable until a text model is configured."
-    case .noDiff:
-      return "No commit diff available for this file."
-    case .emptyDiff:
-      return "No content changes found in this file."
-    case .emptyResponse:
-      return "The model did not produce an explanation. Please try again."
-    case .unavailable:
-      return "Explanation unavailable."
-    }
-  }
-}
-
 /// Lightweight assist text path for narrators and Explore helpers.
 ///
 /// Prefer MLX when downloaded; otherwise fall back to the configured

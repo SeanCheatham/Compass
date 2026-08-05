@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build Compass CLI, prepare the candidate repo, and run one headless MLX factory pass.
+# Build Compass CLI, prepare the candidate repo, and run one headless factory pass
+# (mode `auto`: cloud when configured, otherwise MLX).
 
 set -euo pipefail
 

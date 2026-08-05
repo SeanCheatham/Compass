@@ -4,6 +4,9 @@
 # Compass is showing the "SSH probe failed" error — does NOT require
 # the VM to be shut down (unlike dump-firstboot-log.sh).
 #
+# Note: SSH is only used for provisioning/readiness probes today;
+# workspace sync runs over vsock CAS (tar fallback), not SSH.
+#
 # Tells us:
 #   1. Whether Compass populated known_hosts during its latest attempt
 #      (i.e. is the host-side ssh-keyscan code path being exercised?).

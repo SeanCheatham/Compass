@@ -581,10 +581,7 @@ public struct AgentWriteFileTool: AgentTool {
 
     var message =
       "Created a new file in existing directory \(context.relativize(parent)). Existing entries there before this write:"
-    message += visibleEntries.prefix(12).map { "\n- \($0)" }.joined()
-    if visibleEntries.count > 12 {
-      message += "\n- ... \(visibleEntries.count - 12) more"
-    }
+    message += AgentToolMessageFormat.directoryEntriesPreview(visibleEntries)
     message +=
       "\nIf the plan was to update one of those files, stop using \(context.relativize(url)) and use read_file/edit_file on the existing path instead."
     return message

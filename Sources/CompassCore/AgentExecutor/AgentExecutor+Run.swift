@@ -996,9 +996,7 @@ public extension AgentExecutor {
     configuration: AgentExecutionConfiguration,
     suffix: String
   ) -> String {
-    let prefix = configuration.promptLogLabelPrefix?.trimmingCharacters(in: .whitespacesAndNewlines)
-    let base = prefix?.isEmpty == false ? prefix! : configuration.phase.rawValue
-    return "\(base)-\(suffix)"
+    "\(configuration.promptLogLabelBase)-\(suffix)"
   }
 
   private static func compactContinuationHistory(

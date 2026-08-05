@@ -4,7 +4,7 @@ import Foundation
 
 // Compass guest-side helper. Runs as a LaunchDaemon with UserName=compass.
 // Repo contents live in /Users/compass/Compass/Repos/<catalog-id>/worktree,
-// synced from the host over git-over-SSH (exchange repo) or vsock tar.
+// synced from the host over vsock CAS (tar fallback).
 // Commands that need the desktop session enter
 // the auto-logged-in user's GUI bootstrap explicitly via launchctl asuser.
 //

@@ -530,10 +530,3 @@ public extension CompassCLI {
       compass-cli vm reset-workspace --repo <path> [--dirt|--full] [--format json|text]
     """
 }
-
-public extension String {
-  fileprivate var nilIfBlank: String? {
-    let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? nil : trimmed
-  }
-}

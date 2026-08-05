@@ -33,9 +33,4 @@ public enum SharedCompassVMReadiness: Equatable, Sendable {
     if case .ready = self { return true }
     return false
   }
-
-  public var isUnavailable: Bool {
-    if case .unavailable = self { return true }
-    return false
-  }
 }

@@ -565,9 +565,7 @@ public extension AgentExecutor {
     configuration: AgentExecutionConfiguration,
     iteration: Int
   ) -> String {
-    let prefix = configuration.promptLogLabelPrefix?.trimmingCharacters(in: .whitespacesAndNewlines)
-    let base = prefix?.isEmpty == false ? prefix! : configuration.phase.rawValue
-    return "\(base)-turn-\(iteration)"
+    "\(configuration.promptLogLabelBase)-turn-\(iteration)"
   }
 
   static func nativeMessagesNeedCompaction(

@@ -13,7 +13,7 @@ public struct SharedCompassVMBundle: Equatable, Sendable {
     self.rootURL = rootURL.standardizedFileURL
   }
 
-  // MARK: Default location
+  // MARK: - Default location
 
   /// Returns the bundle at the canonical user-domain location:
   /// `~/Library/Application Support/Compass/SharedVM/bundle.vmbundle/`.
@@ -32,7 +32,7 @@ public struct SharedCompassVMBundle: Equatable, Sendable {
     return SharedCompassVMBundle(rootURL: url)
   }
 
-  // MARK: File paths
+  // MARK: - File paths
 
   /// Sparse APFS disk image backing the guest's primary virtio block device.
   var diskImageURL: URL { rootURL.appendingPathComponent("Disk.img", isDirectory: false) }
@@ -70,7 +70,7 @@ public struct SharedCompassVMBundle: Equatable, Sendable {
     cacheDirectoryURL.appendingPathComponent("RestoreImage-\(version).ipsw", isDirectory: false)
   }
 
-  // MARK: SSH keypair
+  // MARK: - SSH keypair
 
   /// Errors produced by `ensureSSHKeypair`.
   enum SSHKeypairError: Error, CustomStringConvertible {
@@ -137,7 +137,7 @@ public struct SharedCompassVMBundle: Equatable, Sendable {
     return true
   }
 
-  // MARK: Layout materialization
+  // MARK: - Layout materialization
 
   /// Creates the bundle root and its known subdirectories if absent.
   /// Idempotent.
@@ -182,7 +182,7 @@ public struct SharedCompassVMBundle: Equatable, Sendable {
     try saveState(resetState, fileManager: fileManager)
   }
 
-  // MARK: State document
+  // MARK: - State document
 
   /// Compass-owned bookkeeping persisted alongside the VZ artefacts.
   ///

@@ -342,8 +342,6 @@ public enum LiveActivitySummaryCachePlanner {
 
 public enum LiveActivitySummaryService {
   public static let summaryMaxCharacters = 400
-  public static let modelPromptMaxEvents = 32
-  public static let modelPromptEventMaxCharacters = 180
 
   public static func makeSummary(for cluster: LiveActivityCluster) async -> LiveActivitySummary {
     return deterministicSummary(for: cluster)
@@ -407,34 +405,6 @@ public enum LiveActivitySummaryService {
     )
   }
 
-  public static func parseGeneratedSummary(
-    _ raw: String,
-    cluster: LiveActivityCluster
-  ) -> LiveActivitySummary? {
-    let collapsed =
-      raw
-      .replacingOccurrences(of: "\r", with: "\n")
-      .split(whereSeparator: \.isNewline)
-      .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-      .filter { !$0.isEmpty }
-      .joined(separator: " ")
-
-    let stripped: String
-    if collapsed.lowercased().hasPrefix("summary:") {
-      stripped = stripLabel(from: collapsed)
-    } else {
-      stripped = collapsed
-    }
-
-    let clean = normalizeGeneratedText(stripped)
-    guard validateGeneratedSummary(clean) else { return nil }
-    return LiveActivitySummary(
-      clusterKey: cluster.key,
-      text: clean,
-      source: .generated
-    )
-  }
-
   public static func fittedSummary(_ text: String) -> String {
     fittedPlainText(normalizedPlainText(text), maxCharacters: summaryMaxCharacters)
   }
@@ -445,90 +415,6 @@ public enum LiveActivitySummaryService {
       .replacingOccurrences(of: "\n", with: " ")
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
-  public static func modelPromptLines(for cluster: LiveActivityCluster) -> [String] {
-    boundedModelLines(cluster.lines).enumerated().map { index, line in
-      let promptText = fittedPlainText(
-        promptText(for: line),
-        maxCharacters: modelPromptEventMaxCharacters
-      )
-      return "\(index + 1). \(promptText)"
-    }
-  }
-
-  private static func promptText(for line: LiveLine) -> String {
-    var parts = [statusName(line.status), kindName(line.kind), line.text]
-      .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-      .filter { !$0.isEmpty }
-    if let insight = LiveFailureInsight(line: line) {
-      parts.append("failure insight: \(insight.title) - \(insight.nextStep)")
-    }
-    if let detail = firstLine(line.detail)?.trimmingCharacters(in: .whitespacesAndNewlines),
-      !detail.isEmpty
-    {
-      parts.append(detail)
-    }
-    return parts.joined(separator: " | ")
-  }
-
-  private static func kindName(_ kind: LiveLine.Kind) -> String {
-    switch kind {
-    case .message: return "message"
-    case .lifecycle: return "lifecycle"
-    case .command: return "command"
-    case .agentMessage: return "agent"
-    case .fileChange: return "file change"
-    }
-  }
-
-  private static func statusName(_ status: LiveLine.Status) -> String {
-    switch status {
-    case .none: return "noted"
-    case .running: return "running"
-    case .completed: return "completed"
-    case .failed: return "failed"
-    }
-  }
-
-  private static func validateGeneratedSummary(_ text: String) -> Bool {
-    guard (8...summaryMaxCharacters).contains(text.count),
-      isPlainGeneratedProse(text)
-    else {
-      return false
-    }
-    return true
-  }
-
-  private static func isPlainGeneratedProse(_ text: String) -> Bool {
-    let lowercased = text.lowercased()
-    guard !lowercased.contains("http://"),
-      !lowercased.contains("https://"),
-      !lowercased.contains("www."),
-      !text.contains("```"),
-      !text.contains("`"),
-      !text.contains("{"),
-      !text.contains("}"),
-      !text.hasPrefix("#"),
-      !text.hasPrefix("- "),
-      !text.hasPrefix("* "),
-      !text.hasPrefix(">")
-    else {
-      return false
-    }
-    return true
-  }
-
-  private static func normalizeGeneratedText(_ text: String) -> String {
-    normalizedPlainText(text)
-      .trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
-  }
-
-  private static func boundedModelLines(_ lines: [LiveLine]) -> [LiveLine] {
-    guard lines.count > modelPromptMaxEvents else { return lines }
-    let headCount = modelPromptMaxEvents / 2
-    let tailCount = modelPromptMaxEvents - headCount
-    return Array(lines.prefix(headCount)) + Array(lines.suffix(tailCount))
   }
 
   private static func primaryFailureInsight(in lines: [LiveLine]) -> LiveFailureInsight? {
@@ -549,11 +435,6 @@ public enum LiveActivitySummaryService {
       return String(prefix[..<lastSpace]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
     return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
-  private static func stripLabel(from line: String) -> String {
-    guard let colon = line.firstIndex(of: ":") else { return line }
-    return String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
   }
 
   private static func pluralize(_ word: String, _ count: Int) -> String {

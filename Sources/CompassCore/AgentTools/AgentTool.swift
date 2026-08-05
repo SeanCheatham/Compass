@@ -380,3 +380,52 @@ public extension AgentToolContext {
     return trimmed
   }
 }
+
+extension AgentToolContext {
+  /// Nearest ancestor of `url` inside the working directory that exists,
+  /// along with its visible entries. Missing-path error messages use this to
+  /// point the model at real alternatives.
+  func nearestExistingDirectory(
+    from url: URL,
+    isUsefulEntry: (String) -> Bool = { _ in true }
+  ) async -> (url: URL, entries: [String])? {
+    let workingPath = workingDirectory.standardizedFileURL.path
+    var candidate = url.deletingLastPathComponent().standardizedFileURL
+
+    while candidate.path.hasPrefix(workingPath) {
+      do {
+        let entries = try await filesystem.listDirectory(at: candidate)
+          .map { entry in entry.isDirectory ? "\(entry.name)/" : entry.name }
+          .filter { !$0.hasPrefix(".") }
+          .filter(isUsefulEntry)
+          .sorted()
+        if !entries.isEmpty || candidate.path == workingPath {
+          return (candidate, entries)
+        }
+      } catch {
+        let parent = candidate.deletingLastPathComponent().standardizedFileURL
+        if parent.path == candidate.path { break }
+        candidate = parent
+        continue
+      }
+      let parent = candidate.deletingLastPathComponent().standardizedFileURL
+      if parent.path == candidate.path { break }
+      candidate = parent
+    }
+    return nil
+  }
+}
+
+enum AgentToolMessageFormat {
+  static let directoryEntryPreviewLimit = 12
+
+  /// "\n- entry" lines for a directory listing, capped with an "... N more"
+  /// tail so missing-path hints stay bounded.
+  static func directoryEntriesPreview(_ entries: [String]) -> String {
+    var text = entries.prefix(directoryEntryPreviewLimit).map { "\n- \($0)" }.joined()
+    if entries.count > directoryEntryPreviewLimit {
+      text += "\n- ... \(entries.count - directoryEntryPreviewLimit) more"
+    }
+    return text
+  }
+}

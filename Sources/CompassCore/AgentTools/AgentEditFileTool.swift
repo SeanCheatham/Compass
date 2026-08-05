@@ -747,7 +747,7 @@ public struct AgentEditFileTool: AgentTool {
       edits: edits
     )
     var message = "edit_file cannot edit \(relativePath) because the file does not exist."
-    guard let nearest = await nearestExistingDirectory(from: resolvedURL, context: context) else {
+    guard let nearest = await context.nearestExistingDirectory(from: resolvedURL) else {
       return message
         + " Use list_files or glob to discover current repo paths before creating a new file. Use write_file only when the plan explicitly requires creating \(relativePath).\(creationHint)"
     }
@@ -755,10 +755,7 @@ public struct AgentEditFileTool: AgentTool {
     message += "\nNearest existing directory: \(context.relativize(nearest.url))"
     if !nearest.entries.isEmpty {
       message += "\nExisting entries there:"
-      message += nearest.entries.prefix(12).map { "\n- \($0)" }.joined()
-      if nearest.entries.count > 12 {
-        message += "\n- ... \(nearest.entries.count - 12) more"
-      }
+      message += AgentToolMessageFormat.directoryEntriesPreview(nearest.entries)
     }
     message +=
       "\nIf you meant to change an existing file, call read_file on one of these paths and edit that file. Use write_file for \(relativePath) only when the plan explicitly requires creating that exact new file."
@@ -850,36 +847,6 @@ public struct AgentEditFileTool: AgentTool {
       \(json)
       ```
       """
-  }
-
-  private func nearestExistingDirectory(
-    from url: URL,
-    context: AgentToolContext
-  ) async -> (url: URL, entries: [String])? {
-    let workingDirectory = context.workingDirectory.standardizedFileURL
-    let workingPath = workingDirectory.path
-    var candidate = url.deletingLastPathComponent().standardizedFileURL
-
-    while candidate.path.hasPrefix(workingPath) {
-      do {
-        let entries = try await context.filesystem.listDirectory(at: candidate)
-          .map { entry in entry.isDirectory ? "\(entry.name)/" : entry.name }
-          .filter { !$0.hasPrefix(".") }
-          .sorted()
-        if !entries.isEmpty || candidate.path == workingPath {
-          return (candidate, entries)
-        }
-      } catch {
-        let parent = candidate.deletingLastPathComponent().standardizedFileURL
-        if parent.path == candidate.path { break }
-        candidate = parent
-        continue
-      }
-      let parent = candidate.deletingLastPathComponent().standardizedFileURL
-      if parent.path == candidate.path { break }
-      candidate = parent
-    }
-    return nil
   }
 
   private static func nearbyLineHints(around lineNumber: Int, in lines: [String]) -> [String] {

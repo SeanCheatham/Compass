@@ -20,10 +20,6 @@ public struct ProjectRunControlGuide: Equatable {
     options.first { $0.kind == primaryKind } ?? options[0]
   }
 
-  public var alternativeOptions: [Option] {
-    options.filter { $0.kind != primaryOption.kind }
-  }
-
   public init(
     state: PlanState,
     reliabilityStatus: ProjectReliabilityStatus,

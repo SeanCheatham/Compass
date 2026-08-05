@@ -238,11 +238,11 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
     while true {
       switch vm.readiness {
       case .ready(let sshDestination):
-        guard vm.virtualMachine != nil else {
+        guard let virtualMachine = vm.virtualMachine else {
           throw VMRunnerError.vmNotReady(detail: "readiness reported ready but no VM is running")
         }
         return ReadyVM(
-          client: SharedCompassVM.makeVsockClient(on: vm.virtualMachine!),
+          client: SharedCompassVM.makeVsockClient(on: virtualMachine),
           sshDestination: sshDestination,
           sshOptions: sshOptions()
         )
@@ -275,13 +275,6 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
         try? await Task.sleep(nanoseconds: 2_000_000_000)
       }
     }
-  }
-
-  /// Kept for source compatibility with earlier call sites; prefer
-  /// `ensureReady()` when SSH coordinates are also needed.
-  @MainActor
-  public static func ensureReadyClient() async throws -> AgentVsockClient {
-    try await ensureReady().client
   }
 
   @MainActor
@@ -373,12 +366,6 @@ enum SharedCompassVMWorkspaceSyncLog {
   static func logCASFallback(reason: String) {
     logger.error(
       "CAS workspace sync failed; falling back to tar: \(reason, privacy: .public)"
-    )
-  }
-
-  static func logGitFallback(reason: String) {
-    logger.error(
-      "git-over-SSH sync failed; falling back to tar: \(reason, privacy: .public)"
     )
   }
 }

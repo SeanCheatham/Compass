@@ -16,16 +16,6 @@ public enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashab
     case .unknown: return "Unknown"
     }
   }
-
-  public var sourceNoun: String {
-    switch self {
-    case .rust: return "Rust files"
-    case .swift: return "Swift files"
-    case .markdown: return "Markdown files"
-    case .other: return "other files"
-    case .unknown: return "files"
-    }
-  }
 }
 
 public struct RepositoryLanguageCounts: Codable, Equatable {
@@ -108,42 +98,6 @@ public struct RepositoryLanguageProfile: Codable, Equatable {
     scannedDirectoryCount: 0,
     wasTruncated: false
   )
-
-  public var hudSummary: String? {
-    guard primaryLanguage != .unknown else { return nil }
-
-    let count = counts[primaryLanguage]
-    let manifestNames =
-      manifestHints
-      .filter { $0.language == primaryLanguage }
-      .map(\.rawValue)
-
-    let sourceSummary: String
-    if count > 0 {
-      sourceSummary = "\(count) \(primaryLanguage.sourceNoun)"
-    } else if !manifestNames.isEmpty {
-      sourceSummary = manifestNames.joined(separator: ", ")
-    } else {
-      sourceSummary = "\(scannedFileCount) scanned files"
-    }
-
-    let prefix: String
-    switch primaryLanguage {
-    case .swift:
-      prefix = "Imported Swift profile"
-    case .rust:
-      prefix = "Rust profile"
-    case .markdown:
-      prefix = "Markdown-heavy profile"
-    case .other:
-      prefix = "Repository profile"
-    case .unknown:
-      prefix = "Repository profile"
-    }
-
-    let suffix = wasTruncated ? " (bounded scan)" : ""
-    return "\(prefix): \(sourceSummary)\(suffix)."
-  }
 }
 
 /// Shared rules for walking a repository tree without descending into

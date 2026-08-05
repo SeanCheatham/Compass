@@ -165,7 +165,15 @@ enum KnownProjectStore {
     guard let data = try? Data(contentsOf: sourceURL), !data.isEmpty else {
       return []
     }
-    return (try? JSONDecoder().decode([KnownProjectRecord].self, from: data)) ?? []
+    do {
+      return try JSONDecoder().decode([KnownProjectRecord].self, from: data)
+    } catch {
+      // Move the unreadable file aside so a later save doesn't silently
+      // overwrite the user's project list.
+      let backupURL = sourceURL.appendingPathExtension("corrupt")
+      try? FileManager.default.moveItem(at: sourceURL, to: backupURL)
+      return []
+    }
   }
 
   static func save(_ records: [KnownProjectRecord]) throws {

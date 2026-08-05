@@ -26,3 +26,11 @@ public struct StringUtils {
     return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
+
+extension String {
+  /// Trimmed contents, or nil when the string is only whitespace.
+  var nilIfBlank: String? {
+    let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+}

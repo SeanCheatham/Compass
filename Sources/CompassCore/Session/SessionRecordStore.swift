@@ -23,10 +23,6 @@ public struct SessionRecordStore: Equatable {
     compassURL.appending(path: Self.archiveDirectoryName, directoryHint: .isDirectory)
   }
 
-  public func hasSessionsRecord() -> Bool {
-    fileExists(activeRecordURL)
-  }
-
   public func hasArchivedSessions() -> Bool {
     !archiveSegmentURLs().isEmpty
   }

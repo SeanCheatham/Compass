@@ -218,8 +218,6 @@ public enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiab
 }
 
 public struct RepositoryActivitySourceSnapshot: Equatable {
-  public static let maxSessionsFileBytes = SessionRecordStore.maxSegmentBytes
-
   public enum SourceAvailability: String, Equatable {
     case available
     case noRepository = "no-repository"

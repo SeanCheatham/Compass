@@ -116,18 +116,6 @@ extension CompassProject {
     )
   }
 
-  func acceptDraftRefinement(_ refinement: DraftRefinement) async {
-    await queueDraft(
-      refinement.refinedText,
-      clearsDraftEntry: true,
-      feedback: "Refined draft queued."
-    )
-  }
-
-  func modifyDraft(with refinement: DraftRefinement) {
-    draftEntry = refinement.refinedText
-  }
-
   func queueDraft(
     _ text: String,
     clearsDraftEntry: Bool,

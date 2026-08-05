@@ -49,11 +49,6 @@ public struct CompassWorkspace {
     }
   }
 
-  public static func normalizedURL(from path: String) -> URL {
-    URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
-      .standardizedFileURL
-  }
-
   public func initialize() throws {
     let fm = FileManager.default
     try fm.createDirectory(at: compassURL, withIntermediateDirectories: true)

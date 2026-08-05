@@ -14,8 +14,6 @@ public struct RepoSummarizer: Sendable {
   /// Files past this size get truncated before being sent. The model
   /// rarely produces a meaningfully different summary past ~60 kB.
   public static let defaultMaxCharsPerCall = 60_000
-  /// Cap on the model's reply token budget. Three sentences fit easily.
-  public static let maxSummaryTokens = 256
   /// Skip files smaller than this when picking targets — almost always
   /// trivial re-exports / stubs whose symbol list says enough.
   public static let defaultMinSourceChars = 80
@@ -263,7 +261,6 @@ private actor SummaryCounters {
   public func recordGenerated() { generated += 1 }
   public func recordSkipped() { skipped += 1 }
   public func recordFailed() { failed += 1 }
-  public func recordUnchanged() { unchanged += 1 }
 
   public func totalSeen() -> Int { generated + skipped + failed + unchanged }
   public func snapshot() -> Snapshot {

@@ -29,9 +29,6 @@ public struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifia
   public static let phaseLimit = 24
   public static let fieldLimit = 120
   public static let summaryLimit = 280
-  /// Stable identifier retained for older snapshot schema compatibility,
-  /// so consumers don't grow another magic string.
-  public static let vmBuildActionIdentifier = "shared-vm.build"
 
   public var phase: String
   public var phaseIdentifier: String
@@ -379,10 +376,6 @@ public struct SessionTokenSummary: Codable, Equatable, Sendable {
 
   public var latestProofActionKind: String? {
     phases.reversed().compactMap(\.proofActionKind).first
-  }
-
-  public var latestPhase: SessionPhaseTokenUsage? {
-    phases.max { $0.createdAt < $1.createdAt }
   }
 
   public var compactLabel: String? {

@@ -52,7 +52,7 @@ public enum GeneratedProjectQuality {
     if GeneratedProducts.contains(normalized, .macos) {
       lines += """
         - macOS product: `crates/ffi` (UniFFI over core) + `apps/macos` (SwiftUI only).
-        - macOS verify (host today / VM later): `\(macosVerifyCommand)`.
+        - macOS verify (inside the embedded macOS VM): `\(macosVerifyCommand)`.
         """
     }
     lines += """
@@ -179,11 +179,6 @@ public enum CoverageSnapshotParser {
       files: files,
       rawSummary: String(output.prefix(4000))
     )
-  }
-
-  public static func readJSONFile(_ url: URL) -> String? {
-    guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
-    return String(decoding: data, as: UTF8.self)
   }
 
   private static func trailingPercent(in line: String) -> Double? {
