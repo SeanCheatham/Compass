@@ -157,6 +157,14 @@ struct CompassApp: App {
         .help(ClipboardHelpText.projectVision)
         .disabled(selectedProjectVisionPayload == nil)
 
+        Button("Copy Latest Run History") {
+          if let payload = selectedLatestRunHistoryPayload {
+            copyTextToPasteboard(payload.text)
+          }
+        }
+        .help(ClipboardHelpText.runHistory)
+        .disabled(selectedLatestRunHistoryPayload == nil)
+
         Button(PauseMode.afterIteration.label) {
           model.selectedProject?.requestPause(.afterIteration)
         }
@@ -197,11 +205,6 @@ struct CompassApp: App {
       CompassSettingsView()
         .environmentObject(model)
     }
-  }
-
-  private var selectedRunGuide: ProjectRunControlGuide? {
-    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
-    return ProjectSnapshotBuilder.runGuide(for: project)
   }
 
   private var selectedProjectSnapshotPayload: ProjectSnapshotClipboardPayload? {
@@ -245,6 +248,11 @@ struct CompassApp: App {
     let guide = ProjectVisionGuide(vision: project.vision)
     let payload = ProjectVisionClipboardPayload(guide: guide)
     return payload.isEmpty ? nil : payload
+  }
+
+  private var selectedLatestRunHistoryPayload: PlanSessionHistoryClipboardPayload? {
+    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
+    return ProjectSnapshotBuilder.latestRunHistoryClipboardPayload(for: project)
   }
 
   private var canPauseSelectedProject: Bool {

@@ -62,6 +62,27 @@ enum ProjectSnapshotBuilder {
     return PlanSessionHistoryGuide(display: display, runCues: feedback.recentRunCues)
   }
 
+  @MainActor
+  static func latestRunHistoryClipboardPayload(
+    for project: CompassProject
+  ) -> PlanSessionHistoryClipboardPayload? {
+    let historyItems = PlanSessionHistory.displayItems(
+      for: project.sessions,
+      auditManifests: auditManifests(for: project.sessions, workspace: project.workspace)
+    )
+    guard let latest = historyItems.first else { return nil }
+    let feedback = PlanReliabilityFeedback(
+      state: project.state,
+      sessions: project.sessions,
+      historyItems: historyItems
+    )
+    let payload = PlanSessionHistoryClipboardPayload(
+      item: latest,
+      reliabilityCue: feedback.recentRunCues[latest.sessionNumber]
+    )
+    return payload.isEmpty ? nil : payload
+  }
+
   private static func auditManifests(
     for sessions: [SessionRecord],
     workspace: CompassWorkspace?
