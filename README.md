@@ -85,7 +85,7 @@ MLX can run `mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit` after user-approved
 
 Factory bash/verify run inside an embedded macOS VM (Apple Virtualization.framework):
 
-- Guest toolchain: Xcode CLT (swift, git), Rust via rustup (cargo, rustc, rustfmt, clippy), cargo-llvm-cov, cargo-mutants, ripgrep
+- Guest toolchain: Xcode CLT (swift, clang, XCTest via `swift test`), Rust via rustup (cargo, rustc, rustfmt, clippy), cargo-llvm-cov, cargo-mutants, ripgrep. Project Git stays on the host; the guest worktree has no `.git`.
 - Repo sync: host worktree → guest worktree over a CAS (content-addressed store) channel on vsock (tar fallback); `/workspace` paths in commands map to the guest worktree
 - Workspace reset: `compass-cli vm reset-workspace --repo <path> [--dirt|--full]` discards per-repo guest dirt without reprovisioning
 

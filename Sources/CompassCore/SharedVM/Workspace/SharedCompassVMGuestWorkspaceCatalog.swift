@@ -10,13 +10,13 @@ import Foundation
 ///     working directory — no phase ever falls back to host execution
 ///     just because it lives outside a `Worktrees/dev-<UUID>/worktree`
 ///     subtree.
-///   * Git-backed workspaces can be fetched/rebased in place instead of
-///     repopulated from scratch. The host branch still re-anchors each
-///     run, but local guest commits survive until Compass promotes them
-///     through the exchange repo.
+///   * CAS/tar sync can refresh the guest in place, preserving
+///     gitignored build caches (`target/`, `.build/`) between runs while
+///     the host Git worktree remains the source of truth for VCS.
 ///   * The guest never sees the host's actual repo path
 ///     (`/Users/<user>/git/<repo>`). Its working directory is always a
-///     Shared VM guest-local `Compass/Repos/<UUID>/worktree` path it owns.
+///     Shared VM guest-local `Compass/Repos/<UUID>/worktree` path it owns
+///     (file tree only — no `.git`).
 ///
 /// The ID lives in `<repo>/.compass/guest-workspace.json`. `.compass/`
 /// is already gitignored (see `CompassWorkspace.ensureCompassIsIgnored`),

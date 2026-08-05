@@ -66,14 +66,14 @@ extension Prompts {
       - Prefer existing crate dependencies and simple Rust over new crates. If
         you add a new dependency, update the owning `Cargo.toml` and tests in the same
         change before submitting.
-      - Do not push or use destructive git operations.
+      - Do not run `git` in factory bash. Project Git is host-only (preflight commit,
+        Compass `--commit`, host post-checks); the guest worktree has no `.git`.
       - Run the verify command before finishing unless the command itself is wrong or out
         of scope.
-      - Leave the working tree clean, or explain why you are blocked.
-      - Do not commit generated outputs or caches: `target/`, `coverage/`, `.build/`,
-        `apps/macos/dist/`, the UniFFI-generated `apps/macos/Sources/AppFFI/app_ffi.swift`
-        and `apps/macos/Sources/app_ffiFFI/include/app_ffiFFI.h`, `build/`, or editor
-        artifacts.
+      - Implement with file tools on the host worktree. Do not write generated outputs or
+        caches into the tree: `target/`, `coverage/`, `.build/`, `apps/macos/dist/`, the
+        UniFFI-generated `apps/macos/Sources/AppFFI/app_ffi.swift` and
+        `apps/macos/Sources/app_ffiFFI/include/app_ffiFFI.h`, `build/`, or editor artifacts.
       - Generated layout uses `crates/core/src`, optional `crates/cli/src`, optional
         `crates/ui`, optional `crates/ffi`, and optional `apps/macos`. Do not invent
         top-level `src/...` paths unless `list_files` or `glob` proves they exist.

@@ -302,9 +302,8 @@ struct SharedCompassVMConfiguration {
   // including LaunchAgents inside the GUI session and even root via
   // LaunchDaemon. The in-guest Compass agent therefore can't read the
   // share regardless of which TCC profile we put it in. Repo contents
-  // move through vsock instead, normally as Git protocol streams to a
-  // Compass-owned exchange repo with tar sync retained as a fallback. The
-  // `SharedCompassVMFileShare` helpers stay in the tree to validate
+  // move through vsock instead (CAS primary, wipe-style tar fallback).
+  // The `SharedCompassVMFileShare` helpers stay in the tree to validate
   // share tags should we ever reattach a share for an unrelated
   // purpose, but no VirtioFS device is configured on the running VM.
 }

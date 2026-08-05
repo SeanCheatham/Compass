@@ -83,7 +83,7 @@ public struct AgentBashTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Execute a shell command in the agent's configured execution environment. Factory phases use the embedded macOS VM shell with the repo at `/workspace`; preflight commit uses the native macOS host shell. Plan and Critic bash is read-only (no writes, redirects, git mutations, or unchecked formatters). Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
+        "Execute a shell command in the agent's configured execution environment. Factory phases use the embedded macOS VM shell against a CAS/tar-synced guest copy at `/workspace` (no `.git`; project Git is host-only). Preflight commit uses the native macOS host shell. Plan and Critic bash is read-only (no writes, redirects, git mutations, or unchecked formatters). Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
       parameters: schema
     )
   }

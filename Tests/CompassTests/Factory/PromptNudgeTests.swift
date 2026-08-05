@@ -278,7 +278,12 @@ struct PromptNudgeTests {
     #expect(!prompt.contains("/Users/example/repo"))
     #expect(prompt.contains("/workspace"))
     #expect(prompt.contains("Rust toolchain"))
-    #expect(prompt.contains("Swift toolchain"))
+    #expect(prompt.contains("CAS/tar-synced"))
+    #expect(prompt.contains("no `.git` in the guest"))
+    #expect(prompt.contains("Project Git") && prompt.contains("host-only"))
+    #expect(prompt.contains("swift test") || prompt.contains("XCTest"))
+    #expect(!prompt.contains("swift-format"))
+    #expect(!prompt.contains("git-synced"))
     #expect(!toolNames.contains("list_toolchains"))
     #expect(!toolNames.contains("install_toolchain"))
   }

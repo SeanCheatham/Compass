@@ -355,7 +355,7 @@ public enum SharedVMToolchainCatalog {
       id: .commandLineTools,
       displayName: "Xcode Command Line Tools",
       description:
-        "clang, git, make, Swift, and the macOS SDK. Required for baseline guest development tooling.",
+        "clang, make, Swift (`swift` / `swift test`), and the macOS SDK. Required for baseline guest development tooling. Project Git remains on the host.",
       defaultProvisioned: true,
       dependencies: [],
       probeCommand: "xcode-select -p >/dev/null 2>&1 && echo PRESENT || echo MISSING",

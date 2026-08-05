@@ -34,7 +34,7 @@ public enum AgentBashMutationPolicy {
     for pattern in mutatingShellPatterns {
       if lowered.range(of: pattern, options: .regularExpression) != nil {
         return
-          "Command appears to mutate the filesystem (`\(pattern)`). Plan/Critic bash is read-only; probe with read-only tools or git status/diff/log instead."
+          "Command appears to mutate the filesystem (`\(pattern)`). Plan/Critic bash is read-only; probe with read-only file tools (read_file, ls, grep, glob) or read-only bash instead."
       }
     }
     for pattern in mutatingInterpreterPatterns {

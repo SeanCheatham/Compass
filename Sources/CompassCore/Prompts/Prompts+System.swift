@@ -205,12 +205,13 @@ extension Prompts {
     case .macOSVM:
       return """
         Execution environment: embedded macOS VM (Apple Virtualization.framework).
-        File tools read and write the host worktree through the virtual root `/workspace`.
-        Bash commands run inside the macOS guest against a git-synced copy of that
-        worktree — `/workspace/...` paths in commands are rewritten to the guest
-        worktree automatically, so use relative paths or `/workspace/...` for every tool.
-        The guest has git, the Rust toolchain (cargo, rustc, rustfmt, clippy), and the
-        Swift toolchain (swift, swift-format) via Xcode Command Line Tools.
+        File tools read and write the host Git worktree through the virtual root `/workspace`.
+        Bash and verify run inside the macOS guest against a CAS/tar-synced file copy of
+        that tree (no `.git` in the guest). `/workspace/...` paths in bash are rewritten to
+        the guest worktree automatically — use relative paths or `/workspace/...` for every
+        tool. Project Git (status, commit, push) is host-only; do not use `git` in factory
+        bash. The guest has the Rust toolchain (cargo, rustc, rustfmt, clippy) and Swift via
+        Xcode Command Line Tools (`swift`, `swift test` / XCTest, clang).
         """
     }
   }

@@ -784,9 +784,9 @@ enum SharedCompassVMHeadlessFirstBoot {
       # macOS guests TCC-block AppleVirtIOFS reads from every process —
       # including LaunchAgents inside the GUI session and even root via
       # LaunchDaemon — so Compass abandoned the VirtioFS share and now
-      # keeps repo worktrees under the compass user's home. Git-backed
-      # workspaces live under Repos; Worktrees is kept for legacy tar-sync
-      # fallback state.
+      # keeps CAS/tar-synced repo worktrees under the compass user's home.
+      # Repos holds the per-repo guest trees; Worktrees is kept for legacy
+      # tar-sync fallback state.
       REPOS_ROOT="$GUEST_HOME/Compass/Repos"
       WORKTREES_ROOT="$GUEST_HOME/Compass/Worktrees"
       mkdir -p "$REPOS_ROOT"
@@ -794,8 +794,6 @@ enum SharedCompassVMHeadlessFirstBoot {
       chown -R "$GUEST_USER":staff "$GUEST_HOME/Compass"
       /bin/mkdir -p /usr/local/bin
       /bin/rm -f /usr/local/bin/git-remote-compass
-      /usr/bin/printf '%s\\n' '#!/bin/sh' 'exec "\(inputs.profile.guestAgentBinaryGuestPath)" --git-remote-helper "$@"' > /usr/local/bin/git-remote-compass
-      /bin/chmod 0755 /usr/local/bin/git-remote-compass
       /bin/chmod 0755 "\(inputs.profile.guestAgentBinaryGuestPath)"
 
       # macOS sshd runs commands via the user's login shell in
