@@ -6,7 +6,7 @@ import Foundation
 enum PreferredSpeechVoice {
   /// Soft preference among high-quality English voices when quality ties.
   private static let preferredNameStems: [String] = [
-    "zoe", "ava", "nora", "nicky", "samantha", "susan", "allison",
+    "lee", "zoe", "ava", "nora", "nicky", "samantha", "susan", "allison",
     "matilda", "karen", "moira", "aaron", "evan", "tom", "daniel", "oliver",
   ]
 
