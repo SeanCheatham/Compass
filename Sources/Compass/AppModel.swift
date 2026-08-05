@@ -143,7 +143,8 @@ final class AppModel: ObservableObject {
     panel.canSelectHiddenExtension = false
     panel.isExtensionHidden = true
     panel.nameFieldStringValue = "CompassRustApp"
-    panel.message = "Create a Compass project (Rust core + CLI/macOS products)"
+    panel.message = "Create a Compass project (Rust core + CLI/macOS; UI state in crates/ui)"
+
     panel.prompt = "Create"
 
     guard panel.runModal() == .OK, let url = panel.url else { return }

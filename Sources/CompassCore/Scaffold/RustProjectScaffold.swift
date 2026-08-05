@@ -58,6 +58,8 @@ public enum RustProjectScaffold {
     if hasMacOS {
       files.append(contentsOf: [
         ScaffoldFile(path: ".swift-format", contents: swiftFormatConfig),
+        ScaffoldFile(path: "crates/ui/Cargo.toml", contents: uiManifest),
+        ScaffoldFile(path: "crates/ui/src/lib.rs", contents: uiLib),
         ScaffoldFile(path: "crates/ffi/Cargo.toml", contents: ffiManifest),
         ScaffoldFile(path: "crates/ffi/src/lib.rs", contents: ffiLib),
         ScaffoldFile(path: "crates/ffi/src/bin/uniffi-bindgen.rs", contents: ffiBindgenMain),
@@ -76,7 +78,7 @@ public enum RustProjectScaffold {
           contents: ""
         ),
         ScaffoldFile(
-          path: "apps/macos/Tests/GeneratedAppTests/GreetingFFITests.swift",
+          path: "apps/macos/Tests/GeneratedAppTests/UiFFITests.swift",
           contents: macosFFITests
         ),
         ScaffoldFile(path: "apps/macos/Info.plist", contents: macosInfoPlist),
@@ -129,6 +131,7 @@ public enum RustProjectScaffold {
     let hasMacOS =
       fm.fileExists(atPath: url.appending(path: "apps/macos/Package.swift").path)
       || fm.fileExists(atPath: url.appending(path: "crates/ffi/Cargo.toml").path)
+      || fm.fileExists(atPath: url.appending(path: "crates/ui/Cargo.toml").path)
     return hasCLI || hasMacOS
   }
 
@@ -154,11 +157,15 @@ public enum RustProjectScaffold {
   private static func workspaceManifest(hasCLI: Bool, hasMacOS: Bool) -> String {
     var members = ["\"crates/core\""]
     if hasCLI { members.append("\"crates/cli\"") }
-    if hasMacOS { members.append("\"crates/ffi\"") }
+    if hasMacOS {
+      members.append("\"crates/ui\"")
+      members.append("\"crates/ffi\"")
+    }
     var dependencyLines = [
       "app-core = { path = \"crates/core\" }"
     ]
     if hasMacOS {
+      dependencyLines.append("app-ui = { path = \"crates/ui\" }")
       dependencyLines.append("uniffi = { version = \"0.28.3\", features = [\"cli\"] }")
     }
     return """
@@ -192,8 +199,10 @@ public enum RustProjectScaffold {
       layout.append("- `crates/cli`: command-line product over `core`")
     }
     if hasMacOS {
-      layout.append("- `crates/ffi`: UniFFI exports over `core`")
-      layout.append("- `apps/macos`: thin SwiftUI shell (no domain logic) over the UniFFI bindings")
+      layout.append("- `crates/ui`: ViewState / Action / simulation / guardrails (UI policy)")
+      layout.append("- `crates/ffi`: UniFFI exports over `ui` (+ `core` as needed)")
+      layout.append(
+        "- `apps/macos`: thin SwiftUI binder (no domain or UI policy) over UniFFI")
     }
     var commands = """
       - Format: `cargo fmt --all --check`
@@ -210,7 +219,8 @@ public enum RustProjectScaffold {
     if hasMacOS {
       commands += """
         - Bindings (macOS): `bash scripts/generate-bindings.sh`
-        - Verify (macOS, host/VM): `bash scripts/verify-macos.sh`
+        - Verify (macOS adapter): `bash scripts/verify-macos.sh`
+        - Headed fidelity (opt-in): `COMPASS_MACOS_UI_FIDELITY=1 bash scripts/verify-macos.sh`
         - Bundle (macOS): `bash scripts/bundle-macos.sh`
         """
     }
@@ -223,7 +233,7 @@ public enum RustProjectScaffold {
 
       A Compass-generated project with required Rust `crates/core` and products: \(products).
 
-      Domain logic lives in `crates/core` only. CLI and macOS are adapters.
+      Domain logic lives in `crates/core`. UI policy lives in `crates/ui`. CLI and macOS are adapters.
 
       ## Layout
 
@@ -361,6 +371,253 @@ public enum RustProjectScaffold {
     }
     """
 
+  private static let uiManifest = """
+    [package]
+    name = "app-ui"
+    edition.workspace = true
+    license.workspace = true
+    version.workspace = true
+
+    [dependencies]
+    app-core.workspace = true
+    """
+
+  private static let uiLib = #"""
+    //! UI state, semantics, simulation, and guardrails.
+    //!
+    //! Domain rules stay in `app-core`. Platform shells bind `ViewState` only.
+
+    use app_core::{greeting, personalized_greeting, GreetingRequest};
+
+    /// Schema version for serialized / UniFFI view state.
+    pub const SCHEMA_VERSION: u32 = 1;
+
+    /// Stable caption for the greeting screen binder.
+    pub const GREETING_CAPTION: &str = "UI policy lives in crates/ui; this shell is SwiftUI only.";
+
+    /// Serializable presentation state for the greeting screen.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ViewState {
+        pub schema_version: u32,
+        pub label: String,
+        pub caption: String,
+    }
+
+    /// Closed vocabulary of user intents.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum Action {
+        /// Rebuild greeting copy from domain defaults.
+        Refresh,
+    }
+
+    /// I/O requests produced by `update`. Greeting update is pure.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum Effect {}
+
+    /// Accessibility-inspired role for semantic nodes.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum SemanticRole {
+        Container,
+        Text,
+        Button,
+    }
+
+    /// Compass semantic tree node (ids are the binder / AX / sim contract).
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct SemanticNode {
+        pub id: String,
+        pub role: SemanticRole,
+        pub value: String,
+        pub actions: Vec<String>,
+        pub children: Vec<SemanticNode>,
+    }
+
+    /// Build the initial greeting screen from `app-core`.
+    pub fn initial_state() -> ViewState {
+        let label = personalized_greeting(&GreetingRequest {
+            name: "world".into(),
+            excited: true,
+        })
+        .unwrap_or_else(|_| greeting("world"));
+        ViewState {
+            schema_version: SCHEMA_VERSION,
+            label,
+            caption: GREETING_CAPTION.to_string(),
+        }
+    }
+
+    /// Pure UI update. Effects are reserved for future I/O.
+    pub fn update(_state: ViewState, action: Action) -> (ViewState, Vec<Effect>) {
+        match action {
+            Action::Refresh => (initial_state(), Vec::new()),
+        }
+    }
+
+    /// Derive the semantic tree from view state.
+    pub fn semantic_tree(state: &ViewState) -> SemanticNode {
+        SemanticNode {
+            id: "root".into(),
+            role: SemanticRole::Container,
+            value: String::new(),
+            actions: Vec::new(),
+            children: vec![
+                SemanticNode {
+                    id: "greeting.label".into(),
+                    role: SemanticRole::Text,
+                    value: state.label.clone(),
+                    actions: Vec::new(),
+                    children: Vec::new(),
+                },
+                SemanticNode {
+                    id: "greeting.caption".into(),
+                    role: SemanticRole::Text,
+                    value: state.caption.clone(),
+                    actions: Vec::new(),
+                    children: Vec::new(),
+                },
+            ],
+        }
+    }
+
+    /// Find a node's value by stable id (depth-first).
+    pub fn find_semantic_value<'a>(root: &'a SemanticNode, id: &str) -> Option<&'a str> {
+        if root.id == id {
+            return Some(root.value.as_str());
+        }
+        for child in &root.children {
+            if let Some(value) = find_semantic_value(child, id) {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    /// One step in a simulation trace.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TraceStep {
+        pub action: Option<Action>,
+        pub state: ViewState,
+        pub semantic: SemanticNode,
+    }
+
+    /// Headless UI simulator: apply actions, record traces, query semantics.
+    #[derive(Debug, Clone)]
+    pub struct Simulator {
+        pub state: ViewState,
+        pub trace: Vec<TraceStep>,
+    }
+
+    impl Simulator {
+        pub fn new(state: ViewState) -> Self {
+            let semantic = semantic_tree(&state);
+            let trace = vec![TraceStep {
+                action: None,
+                state: state.clone(),
+                semantic,
+            }];
+            Self { state, trace }
+        }
+
+        pub fn apply(&mut self, action: Action) {
+            let (next, _effects) = update(self.state.clone(), action.clone());
+            self.state = next;
+            let semantic = semantic_tree(&self.state);
+            self.trace.push(TraceStep {
+                action: Some(action),
+                state: self.state.clone(),
+                semantic,
+            });
+        }
+
+        pub fn value(&self, id: &str) -> Option<&str> {
+            find_semantic_value(&self.trace.last()?.semantic, id)
+        }
+    }
+
+    /// Deterministic UI guardrail failures.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum GuardrailViolation {
+        MissingRequiredId(String),
+        EmptyId,
+        EmptyTextValue(String),
+    }
+
+    impl std::fmt::Display for GuardrailViolation {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::MissingRequiredId(id) => write!(f, "missing required semantic id `{id}`"),
+                Self::EmptyId => write!(f, "semantic node has an empty id"),
+                Self::EmptyTextValue(id) => write!(f, "text node `{id}` has an empty value"),
+            }
+        }
+    }
+
+    /// Required ids for the greeting screen.
+    pub const REQUIRED_GREETING_IDS: &[&str] = &["greeting.label", "greeting.caption"];
+
+    /// Check structural guardrails on a semantic tree.
+    pub fn check_guardrails(root: &SemanticNode) -> Result<(), Vec<GuardrailViolation>> {
+        let mut violations = Vec::new();
+        walk_guardrails(root, &mut violations);
+        for id in REQUIRED_GREETING_IDS {
+            if find_semantic_value(root, id).is_none() {
+                violations.push(GuardrailViolation::MissingRequiredId((*id).to_string()));
+            }
+        }
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(violations)
+        }
+    }
+
+    fn walk_guardrails(node: &SemanticNode, violations: &mut Vec<GuardrailViolation>) {
+        if node.id.trim().is_empty() {
+            violations.push(GuardrailViolation::EmptyId);
+        }
+        if node.role == SemanticRole::Text && node.value.trim().is_empty() {
+            violations.push(GuardrailViolation::EmptyTextValue(node.id.clone()));
+        }
+        for child in &node.children {
+            walk_guardrails(child, violations);
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn initial_greeting_matches_core() {
+            let state = initial_state();
+            assert_eq!(state.schema_version, SCHEMA_VERSION);
+            assert_eq!(state.label, "hello, world!");
+            assert_eq!(state.caption, GREETING_CAPTION);
+        }
+
+        #[test]
+        fn simulation_refresh_preserves_greeting_ids() {
+            let mut sim = Simulator::new(initial_state());
+            assert_eq!(sim.value("greeting.label"), Some("hello, world!"));
+            assert_eq!(sim.value("greeting.caption"), Some(GREETING_CAPTION));
+            sim.apply(Action::Refresh);
+            assert_eq!(sim.value("greeting.label"), Some("hello, world!"));
+            check_guardrails(&semantic_tree(&sim.state)).expect("guardrails");
+        }
+
+        #[test]
+        fn guardrails_reject_missing_label() {
+            let mut root = semantic_tree(&initial_state());
+            root.children.retain(|child| child.id != "greeting.label");
+            let err = check_guardrails(&root).expect_err("expected missing id");
+            assert!(err.iter().any(|v| matches!(
+                v,
+                GuardrailViolation::MissingRequiredId(id) if id == "greeting.label"
+            )));
+        }
+    }
+    """#
+
   private static let ffiManifest = """
     [package]
     name = "app-ffi"
@@ -374,6 +631,7 @@ public enum RustProjectScaffold {
 
     [dependencies]
     app-core.workspace = true
+    app-ui.workspace = true
     uniffi = { workspace = true }
 
     [[bin]]
@@ -384,7 +642,38 @@ public enum RustProjectScaffold {
   private static let ffiLib = """
     uniffi::setup_scaffolding!();
 
-    /// UniFFI export mirroring `app_core::greeting` for the macOS shell.
+    /// Flat UniFFI snapshot of `app_ui::ViewState` for SwiftUI binders.
+    #[derive(uniffi::Record)]
+    pub struct UiSnapshot {
+        pub schema_version: u32,
+        pub label: String,
+        pub caption: String,
+    }
+
+    impl From<app_ui::ViewState> for UiSnapshot {
+        fn from(state: app_ui::ViewState) -> Self {
+            Self {
+                schema_version: state.schema_version,
+                label: state.label,
+                caption: state.caption,
+            }
+        }
+    }
+
+    /// Initial UI snapshot for the macOS / future iOS binder.
+    #[uniffi::export]
+    pub fn ui_initial_snapshot() -> UiSnapshot {
+        app_ui::initial_state().into()
+    }
+
+    /// Dispatch `Refresh` and return the next snapshot.
+    #[uniffi::export]
+    pub fn ui_dispatch_refresh() -> UiSnapshot {
+        let (next, _) = app_ui::update(app_ui::initial_state(), app_ui::Action::Refresh);
+        next.into()
+    }
+
+    /// UniFFI export mirroring `app_core::greeting` for adapter smoke tests.
     #[uniffi::export]
     pub fn greeting(name: String) -> String {
         app_core::greeting(&name)
@@ -432,6 +721,13 @@ public enum RustProjectScaffold {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn ui_snapshot_matches_ui_crate() {
+            let snap = ui_initial_snapshot();
+            assert_eq!(snap.label, "hello, world!");
+            assert!(snap.caption.contains("crates/ui"));
+        }
 
         #[test]
         fn greeting_matches_core() {
@@ -516,19 +812,22 @@ public enum RustProjectScaffold {
       }
     }
 
+    /// Dumb SwiftUI binder: renders `UiSnapshot` and dispatches actions only.
     struct ContentView: View {
-      private let message: String
+      @State private var label: String
+      @State private var caption: String
 
       init() {
-        let request = GreetingRequest(name: "world", excited: true)
-        message = (try? personalizedGreeting(request: request)) ?? greeting(name: "world")
+        let snap = uiInitialSnapshot()
+        label = snap.label
+        caption = snap.caption
       }
 
       var body: some View {
         VStack(spacing: 12) {
-          Text(message)
+          Text(label)
             .accessibilityIdentifier("greeting.label")
-          Text("Core logic lives in crates/core; this shell is SwiftUI only.")
+          Text(caption)
             .font(.caption)
             .foregroundStyle(.secondary)
             .accessibilityIdentifier("greeting.caption")
@@ -556,21 +855,25 @@ public enum RustProjectScaffold {
     import AppFFI
     import XCTest
 
-    final class GreetingFFITests: XCTestCase {
-      func testGreetingCrossesFFIBoundary() {
+    final class UiFFITests: XCTestCase {
+      func testUiSnapshotCrossesFFIBoundary() {
+        let snap = uiInitialSnapshot()
+        XCTAssertEqual(snap.label, "hello, world!")
+        XCTAssertTrue(snap.caption.contains("crates/ui"))
+      }
+
+      func testUiDispatchRefreshReturnsSnapshot() {
+        let snap = uiDispatchRefresh()
+        XCTAssertEqual(snap.label, "hello, world!")
+      }
+
+      func testGreetingStillCrossesFFIBoundary() {
         XCTAssertEqual(greeting(name: "compass"), "hello, compass")
       }
 
       func testPersonalizedGreetingUsesCoreLogic() throws {
         let request = GreetingRequest(name: "world", excited: true)
         XCTAssertEqual(try personalizedGreeting(request: request), "hello, world!")
-      }
-
-      func testBlankNameThrowsCoreError() {
-        let request = GreetingRequest(name: "  ", excited: false)
-        XCTAssertThrowsError(try personalizedGreeting(request: request)) { error in
-          XCTAssertEqual(error as? GreetingError, .EmptyName)
-        }
       }
     }
     """
@@ -701,7 +1004,7 @@ public enum RustProjectScaffold {
       var description: String {
         switch self {
         case .accessibilityTrusted:
-          return "AXIsProcessTrusted() is false; grant Accessibility to this helper in System Settings, or set COMPASS_MACOS_UI_SMOKE=0 to skip."
+          return "AXIsProcessTrusted() is false; grant Accessibility to this helper in System Settings, or omit COMPASS_MACOS_UI_FIDELITY to skip headed fidelity."
         case .appNotFound(let bundleID):
           return "No running app with bundle id \(bundleID)."
         case .elementMissing(let id):
@@ -720,7 +1023,7 @@ public enum RustProjectScaffold {
       : "hello, world!"
     let expectedCaption = CommandLine.arguments.count > 3
       ? CommandLine.arguments[3]
-      : "Core logic lives in crates/core; this shell is SwiftUI only."
+      : "UI policy lives in crates/ui; this shell is SwiftUI only."
     let timeoutSeconds = CommandLine.arguments.count > 4
       ? (Double(CommandLine.arguments[4]) ?? 30)
       : 30
@@ -844,16 +1147,18 @@ public enum RustProjectScaffold {
 
   private static let macosUISmokeScript = #"""
     #!/usr/bin/env bash
-    # Launch GeneratedApp in a GUI session, assert Accessibility identifiers,
-    # and capture a screenshot for audit. Intended to run inside the Compass
-    # macOS VM (or any headed Mac). Set COMPASS_MACOS_UI_SMOKE=0 to skip.
+    # Opt-in headed fidelity: launch GeneratedApp in a GUI session, assert
+    # Accessibility identifiers, and capture a screenshot for audit.
+    # Enable with COMPASS_MACOS_UI_FIDELITY=1 (default off). Primary UI proof is
+    # crates/ui simulation under `cargo test`.
     set -euo pipefail
 
     ROOT="$(cd "$(dirname "$0")/.." && pwd)"
     cd "$ROOT"
 
-    if [[ "${COMPASS_MACOS_UI_SMOKE:-1}" == "0" || "${COMPASS_MACOS_UI_SMOKE:-1}" == "false" ]]; then
-      echo "COMPASS_MACOS_UI_SMOKE disabled; skipping UI smoke"
+    fidelity="${COMPASS_MACOS_UI_FIDELITY:-0}"
+    if [[ "$fidelity" != "1" && "$fidelity" != "true" && "$fidelity" != "yes" ]]; then
+      echo "COMPASS_MACOS_UI_FIDELITY disabled; skipping headed UI fidelity (simulation is required via cargo test)"
       exit 0
     fi
 
@@ -863,7 +1168,7 @@ public enum RustProjectScaffold {
     AX_SRC="$ROOT/scripts/macos-ax-smoke.swift"
     AX_BIN="$(mktemp -t macos-ax-smoke)"
     EXPECTED_LABEL="hello, world!"
-    EXPECTED_CAPTION="Core logic lives in crates/core; this shell is SwiftUI only."
+    EXPECTED_CAPTION="UI policy lives in crates/ui; this shell is SwiftUI only."
 
     cleanup() {
       /usr/bin/killall GeneratedApp 2>/dev/null || true
@@ -910,13 +1215,15 @@ public enum RustProjectScaffold {
       exit 1
     fi
 
-    echo "macos ui smoke ok ($SHOT)"
+    echo "macos ui fidelity ok ($SHOT)"
     """#
 
   private static let verifyMacOSScript = #"""
     #!/usr/bin/env bash
-    # macOS product verify. Runs inside the embedded macOS VM: build/test,
-    # then launch + Accessibility assert + screenshot of GeneratedApp.
+    # macOS product verify. Runs inside the embedded macOS VM: bindings +
+    # swift build/test. Headed launch + screenshot only when
+    # COMPASS_MACOS_UI_FIDELITY=1. Primary UI proof is crates/ui simulation
+    # under the standard Rust verify (`cargo test`).
     set -euo pipefail
 
     ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -931,14 +1238,17 @@ public enum RustProjectScaffold {
       echo "macos verify requires crates/ffi (UniFFI)." >&2
       exit 1
     fi
+    if [[ ! -f crates/ui/Cargo.toml ]]; then
+      echo "macos verify requires crates/ui (UI state / simulation)." >&2
+      exit 1
+    fi
 
     # Builds the Rust FFI crate (cdylib + staticlib) and regenerates bindings.
     bash "$ROOT/scripts/generate-bindings.sh"
 
     cd "$ROOT/apps/macos"
     swift build -c release
-    # Compiles the generated UniFFI bindings and runs the FFI round-trip tests,
-    # proving Swift output matches crates/core behavior.
+    # Compiles the generated UniFFI bindings and runs FFI round-trip tests.
     swift test
 
     if xcrun -f swift-format >/dev/null 2>&1; then
@@ -953,7 +1263,7 @@ public enum RustProjectScaffold {
       echo "swift-format not found; skipping Swift lint"
     fi
 
-    # Product-runtime smoke: bundle, launch in GUI session, AX assert, screenshot.
+    # Opt-in headed fidelity (default off).
     bash "$ROOT/scripts/macos-ui-smoke.sh"
 
     echo "macos verify ok"

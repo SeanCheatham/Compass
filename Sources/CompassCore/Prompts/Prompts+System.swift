@@ -148,10 +148,12 @@ extension Prompts {
     optional local MLX assist for cheap work, and keeps the harness responsible for state,
     verification, files, history, assumptions, and retries.
     Generated output requires Rust `crates/core` plus at least one product (`cli`
-    and/or `macos`). Domain logic stays in `crates/core`; CLI and macOS are adapters.
-    Rust verification uses `cargo fmt`, Clippy, and `cargo test`; coverage uses
-    `cargo llvm-cov`. When `macos` is enabled, also run `bash scripts/verify-macos.sh`;
-    it executes inside the embedded macOS VM (or the Mac host as fallback).
+    and/or `macos`). Domain logic stays in `crates/core`; UI policy in `crates/ui`
+    when macOS is enabled; CLI and macOS shells are adapters.
+    Rust verification uses `cargo fmt`, Clippy, and `cargo test` (UI simulation included);
+    coverage uses `cargo llvm-cov`. When `macos` is enabled, also run
+    `bash scripts/verify-macos.sh` inside the embedded macOS VM. Headed launch/screenshot
+    is opt-in via `COMPASS_MACOS_UI_FIDELITY=1` (see `docs/ui-runtime.md`).
     """
   }
 

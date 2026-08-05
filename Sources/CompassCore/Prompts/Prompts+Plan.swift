@@ -68,9 +68,11 @@ extension Prompts {
 
       Factory rules:
       - Generated Compass projects require Rust `crates/core` plus products `cli` and/or `macos`.
-      - Layout: `crates/core` (domain), optional `crates/cli`, optional `crates/ffi` + `apps/macos`.
-        Prefer `\(GeneratedProjectQuality.standardVerifyCommand)` as the Rust verify command.
+      - Layout: `crates/core` (domain), optional `crates/cli`, optional `crates/ui` + `crates/ffi` + `apps/macos`.
+        Prefer `\(GeneratedProjectQuality.standardVerifyCommand)` as the Rust verify command
+        (includes `crates/ui` simulation tests when macOS is enabled).
         When `macos` is enabled, host/VM also runs `\(GeneratedProjectQuality.macosVerifyCommand)`.
+        Headed launch/screenshot is opt-in via `\(GeneratedProjectQuality.macosUIFidelityEnvironmentKey)=1`.
         For focused test slices use `cargo test --workspace` or
         `\(GeneratedProjectQuality.coverageCollectCommand)`; for compile-only slices
         use `cargo check --workspace` or `cargo clippy --workspace`.
@@ -90,8 +92,9 @@ extension Prompts {
         `blocked`, `deferred`, `done`, `stale`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
       - Name likely target files in the handoff. Use `crates/core/src` for domain logic,
-        `crates/cli/src` for CLI behavior, `crates/ffi` for UniFFI exports, and
-        `apps/macos` only for thin SwiftUI shell work (no domain logic in Swift).
+        `crates/cli/src` for CLI behavior, `crates/ui` for ViewState/Actions/simulation,
+        `crates/ffi` for UniFFI exports, and `apps/macos` only for thin SwiftUI binder work
+        (no domain or UI policy in Swift).
         Put Rust integration tests in `crates/*/tests/`; unit tests belong in `#[cfg(test)]`
         modules inside the crate sources.
       - Do not name a file path as an existing target unless a read-only tool proved it

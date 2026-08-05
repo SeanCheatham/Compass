@@ -13,7 +13,7 @@ Agents and quality gates reach the guest through the Compass-owned vsock RPC (`C
 
 ## Product-runtime verify
 
-When a project includes the `macos` product, `scripts/verify-macos.sh` still runs bindings + `swift build` + `swift test`, then calls `scripts/macos-ui-smoke.sh`: bundle `GeneratedApp.app`, launch it in the guest Aqua session via `launchctl asuser`, Accessibility-assert `greeting.label` / `greeting.caption`, and write `apps/macos/dist/ui-smoke.png`. Compass best-effort repairs auto-login before the gate and copies the PNG into the session audit manifest. Set `COMPASS_MACOS_UI_SMOKE=0` to skip the UI smoke (build/test still run).
+When a project includes the `macos` product, `scripts/verify-macos.sh` runs bindings + `swift build` + `swift test`. Primary UI proof is `crates/ui` simulation under `cargo test`. Headed fidelity is opt-in: set `COMPASS_MACOS_UI_FIDELITY=1` so `scripts/macos-ui-smoke.sh` bundles `GeneratedApp.app`, launches it in the guest Aqua session via `launchctl asuser`, Accessibility-asserts `greeting.label` / `greeting.caption`, and writes `apps/macos/dist/ui-smoke.png`. Compass best-effort repairs auto-login only when fidelity is enabled, and copies the PNG into the session audit manifest when present.
 
 ## Workspace blast radius
 

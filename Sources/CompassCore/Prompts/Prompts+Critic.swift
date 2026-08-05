@@ -73,7 +73,7 @@ extension Prompts {
       fixable issue the next Develop pass can address in one small step.
 
       Review rules:
-      - Keep domain logic in Rust `crates/core`; CLI/macOS remain thin adapters.
+      - Keep domain logic in Rust `crates/core`; UI policy in `crates/ui`; CLI/macOS remain thin adapters.
       - Check whether the diff implements the plan without overshooting it.
       - Look for bugs verify may not catch, missing tests, Clippy or compile issues, accidental
         generated artifacts, and ignored lessons or denied assumptions.

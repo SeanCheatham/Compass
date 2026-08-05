@@ -7,7 +7,7 @@ The current direction:
 - Factory turns (Plan / Develop / Critic) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
 - Optional **MLX** local assist handles cheap/small work (narration, compaction, Explore helpers) when the blessed local model is downloaded.
 - Compass does deterministic work through local tools and the embedded macOS VM.
-- Generated projects require Rust `crates/core` plus at least one product: `cli` and/or `macos` (default both). Domain logic stays in Rust; macOS uses UniFFI + a thin SwiftUI shell.
+- Generated projects require Rust `crates/core` plus at least one product: `cli` and/or `macos` (default both). Domain logic stays in Rust; UI policy in `crates/ui`; macOS uses UniFFI + a dumb SwiftUI binder.
 
 ## Factory Loop
 
@@ -36,20 +36,21 @@ Activity/Live is the primary project surface.
 Compass-generated output requires a Rust `crates/core` library plus at least one product:
 
 - `cli` — `crates/cli` Cargo binary and integration tests
-- `macos` — `crates/ffi` (UniFFI) + `apps/macos` (thin SwiftUI shell)
+- `macos` — `crates/ui` (ViewState / simulation / guardrails) + `crates/ffi` (UniFFI) + `apps/macos` (dumb SwiftUI binder)
 
-New projects default to **cli + macos**. Domain logic belongs only in `crates/core`.
+New projects default to **cli + macos**. Domain logic belongs only in `crates/core`. UI policy belongs in `crates/ui`. See [`docs/ui-runtime.md`](docs/ui-runtime.md).
 
-Standard Rust verification:
+Standard Rust verification (includes UI simulation tests when macOS is enabled):
 
 ```bash
 cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace
 ```
 
-When the `macos` product is enabled, Compass also runs the macOS product gate inside the embedded macOS VM (Apple Virtualization.framework) — build/test plus launch + Accessibility assert + screenshot of `GeneratedApp` (`COMPASS_MACOS_UI_SMOKE=0` skips the UI smoke):
+When the `macos` product is enabled, Compass also runs the macOS product gate inside the embedded macOS VM (Apple Virtualization.framework) — UniFFI bindings + `swift build` / `swift test`. Headed launch + Accessibility assert + screenshot is **opt-in** via `COMPASS_MACOS_UI_FIDELITY=1` (default off; primary UI proof is `crates/ui` simulation):
 
 ```bash
 bash scripts/verify-macos.sh
+COMPASS_MACOS_UI_FIDELITY=1 bash scripts/verify-macos.sh
 ```
 
 Coverage is collected after verify with:

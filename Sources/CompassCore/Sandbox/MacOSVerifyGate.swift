@@ -3,9 +3,11 @@ import Foundation
 /// The generated-product macOS gate
 /// (`GeneratedProjectQuality.macosVerifyCommand`) always runs inside the
 /// embedded macOS VM. There is no host-shell fallback: Compass requires
-/// the VM for factory verify. Before the command runs, Compass best-effort
-/// repairs graphical auto-login so `macos-ui-smoke.sh` can AX-assert and
-/// screenshot inside an Aqua session.
+/// the VM for factory verify.
+///
+/// Primary UI proof is `crates/ui` simulation under Rust `cargo test`.
+/// When `COMPASS_MACOS_UI_FIDELITY=1`, Compass repairs graphical auto-login
+/// and the guest script runs headed launch + AX + screenshot.
 public enum MacOSVerifyGate {
   public struct Outcome: Sendable {
     public var result: ProcessResult
@@ -32,13 +34,19 @@ public enum MacOSVerifyGate {
     timeout: TimeInterval,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) async -> Outcome {
-    _ = environment
+    let fidelity = MacOSUISmokeSupport.isFidelityEnabled(environment: environment)
+    let guestCommand = MacOSUISmokeSupport.verifyCommand(
+      base: command,
+      environment: environment
+    )
     do {
       _ = try await AgentMacOSVMBashRunner.ensureReady()
-      await MacOSUISmokeSupport.ensureDesktopSessionForVerify()
+      if fidelity {
+        await MacOSUISmokeSupport.ensureDesktopSessionForVerify()
+      }
       let runner = AgentMacOSVMBashRunner(repoRoot: repoRoot, label: "macos-verify")
       let result = try await runner.run(
-        command: command,
+        command: guestCommand,
         workingDirectory: workingDirectory,
         timeout: timeout
       )
