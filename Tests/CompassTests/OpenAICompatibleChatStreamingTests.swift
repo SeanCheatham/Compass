@@ -8,12 +8,14 @@ struct OpenAICompatibleChatStreamingTests {
   final class SSEProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var responseBody: String = ""
     nonisolated(unsafe) static var lastRequestBody: Data?
+    nonisolated(unsafe) static var lastUserAgent: String?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+      Self.lastUserAgent = request.value(forHTTPHeaderField: "User-Agent")
       if let body = request.httpBody {
         Self.lastRequestBody = body
       } else if let stream = request.httpBodyStream {
@@ -149,7 +151,56 @@ struct OpenAICompatibleChatStreamingTests {
       request: AgentChatRequest(modelID: "k3", messages: [.user("hi")])
     )
     #expect(response.text.isEmpty)
+    #expect(response.reasoningText == "thinking...")
     #expect(response.toolCalls.isEmpty)
+    #expect(SSEProtocol.lastUserAgent == OpenAICompatibleModelRuntime.userAgent)
+  }
+
+  @Test
+  func streamsReasoningAndContentTogether() async throws {
+    SSEProtocol.responseBody = """
+      data: {"choices":[{"delta":{"reasoning_content":"plan A"}}]}
+
+      data: {"choices":[{"delta":{"reasoning_content":" then B"}}]}
+
+      data: {"choices":[{"delta":{"content":"done"}}]}
+
+      data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+
+      data: [DONE]
+
+      """
+    let response = try await runtime().generateChat(
+      request: AgentChatRequest(modelID: "k3", messages: [.user("hi")])
+    )
+    #expect(response.reasoningText == "plan A then B")
+    #expect(response.text == "done")
+  }
+
+  @Test
+  func encodesAssistantReasoningContentForPreservedThinking() async throws {
+    SSEProtocol.responseBody = "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n"
+    _ = try await runtime().generateChat(
+      request: AgentChatRequest(
+        modelID: "k3",
+        messages: [
+          .system("sys"),
+          .user("work"),
+          .assistant(
+            "",
+            toolCalls: [AgentChatToolCall(id: "c1", name: "read_file", argumentsJSON: #"{"path":"a"}"#)],
+            reasoningContent: "I should read the file first."
+          ),
+          .toolResult("contents", toolCallID: "c1"),
+        ]
+      )
+    )
+    let body = try #require(SSEProtocol.lastRequestBody)
+    let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+    let messages = try #require(json["messages"] as? [[String: Any]])
+    let assistant = messages[2]
+    #expect(assistant["reasoning_content"] as? String == "I should read the file first.")
+    #expect(SSEProtocol.lastUserAgent == OpenAICompatibleModelRuntime.userAgent)
   }
 
   @Test

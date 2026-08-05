@@ -324,13 +324,13 @@ extension AgentExecutor {
     }
   }
 
-  private static func capHead(_ s: String, bytes: Int) -> String {
+  public static func capHead(_ s: String, bytes: Int) -> String {
     guard s.utf8.count > bytes else { return s }
     return String(decoding: Data(s.utf8.prefix(bytes)), as: UTF8.self)
       + "\n... [truncated for display]"
   }
 
-  private static func capTail(_ s: String, bytes: Int) -> String {
+  public static func capTail(_ s: String, bytes: Int) -> String {
     guard s.utf8.count > bytes else { return s }
     return "... [truncated for display]\n"
       + String(decoding: Data(s.utf8.suffix(bytes)), as: UTF8.self)

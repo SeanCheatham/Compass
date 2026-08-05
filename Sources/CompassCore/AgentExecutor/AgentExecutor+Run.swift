@@ -52,6 +52,7 @@ public extension AgentExecutor {
 
     var iterations = 0
     var assistantTranscript = ""
+    var reasoningTranscript = ""
     var transcript: [ContinuationTranscriptEntry] = []
     var compactedHistory: String?
     var tokenUsage = AgentRunTokenUsage()
@@ -201,22 +202,47 @@ public extension AgentExecutor {
       }
 
       let output = generation.text.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !output.isEmpty {
-        assistantTranscript += assistantTranscript.isEmpty ? output : "\n\n\(output)"
+      let (cleanedOutput, embeddedReasoning) = Self.stripThinkBlocks(output)
+      let turnReasoning = [
+        generation.reasoningText.trimmingCharacters(in: .whitespacesAndNewlines),
+        embeddedReasoning,
+      ]
+      .filter { !$0.isEmpty }
+      .joined(separator: "\n\n")
+      if !turnReasoning.isEmpty {
+        reasoningTranscript +=
+          reasoningTranscript.isEmpty ? turnReasoning : "\n\n\(turnReasoning)"
+        let displayThinking = Self.capHead(
+          turnReasoning,
+          bytes: Self.payloadMaxTerminalBytes
+        )
+        emit(
+          level: .raw,
+          text: "Thinking",
+          detail: previewString(turnReasoning),
+          kind: .agentMessage,
+          status: .completed,
+          payload: .thinking(text: displayThinking)
+        )
+      }
+      let parseInput = cleanedOutput.isEmpty ? output : cleanedOutput
+      if !parseInput.isEmpty {
+        assistantTranscript +=
+          assistantTranscript.isEmpty ? parseInput : "\n\n\(parseInput)"
         emit(
           level: .raw,
           text: "Assistant JSON",
-          detail: previewString(output),
+          detail: previewString(parseInput),
           kind: .agentMessage,
           status: .completed
         )
-        transcript.append(.assistant(output))
+        transcript.append(.assistant(parseInput))
       }
 
       let continuation: AgentContinuation
       do {
         continuation = try AgentContinuationParser.parse(
-          output,
+          parseInput,
           phase: configuration.continuationPhase,
           availableToolNames: availableToolNames
         )
@@ -224,7 +250,7 @@ public extension AgentExecutor {
         let detail = error.localizedDescription
         let repairMessage = Self.continuationRepairMessage(
           error: detail,
-          invalidOutput: output,
+          invalidOutput: parseInput,
           phase: configuration.continuationPhase
         )
         sawContinuationRejection = true
@@ -235,7 +261,7 @@ public extension AgentExecutor {
         successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation = 0
         let malformedSignature = Self.malformedContinuationSignature(
           error: detail,
-          output: output,
+          output: parseInput,
           phase: configuration.continuationPhase
         )
         if malformedSignature == "malformed `\(configuration.continuationPhase.submitKind)` JSON" {
@@ -269,7 +295,7 @@ public extension AgentExecutor {
               Self.repeatedMalformedContinuationRepairMessage(
                 signature: malformedSignature,
                 error: detail,
-                invalidOutput: output,
+                invalidOutput: parseInput,
                 repeatCount: repeatedMalformedContinuationCount,
                 phase: configuration.continuationPhase
               )
@@ -372,7 +398,7 @@ public extension AgentExecutor {
           submitResultArguments: payload,
           iterations: iterations,
           assistantText: assistantTranscript,
-          reasoningText: "",
+          reasoningText: reasoningTranscript,
           tokenUsage: tokenUsage
         )
 

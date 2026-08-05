@@ -208,7 +208,14 @@ extension PromptLoggingLocalModelRuntime: AgentChatGenerating {
     )
     do {
       let response = try await chatBase.generateChat(request: request)
-      let outputText = ([response.text] + response.toolCalls.map { "tool_call: \($0.name) \($0.argumentsJSON)" })
+      let reasoningPrefix =
+        response.reasoningText.isEmpty
+        ? ""
+        : "reasoning:\n\(response.reasoningText)\n\n"
+      let outputText =
+        ([reasoningPrefix + response.text]
+          + response.toolCalls.map { "tool_call: \($0.name) \($0.argumentsJSON)" })
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
         .joined(separator: "\n\n")
       try PromptLogWriter.writeOutputLog(

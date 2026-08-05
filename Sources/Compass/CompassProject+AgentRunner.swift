@@ -295,7 +295,8 @@ extension CompassProject {
   }
 
   /// Runs the Verify shell command inside the embedded macOS VM against
-  /// the synced guest worktree.
+  /// the synced guest worktree. Emits bash-style Studio payloads so the
+  /// Verifying stage shows in the terminal pane like agent `bash` calls.
   func runVerifyCommand(
     command: String,
     hostWorkingDirectory: URL,
@@ -303,17 +304,113 @@ extension CompassProject {
     launchPlan: AgentExecutionLaunchPlan
   ) async throws -> ProcessResult {
     _ = launchPlan
+    let correlationID = UUID().uuidString
+    let timeoutMs = Int(timeoutSeconds * 1000)
+    let studioCWD = "/workspace"
     log(
-      "Verify: running inside the macOS VM (timeout \(Int(timeoutSeconds * 1000))ms).",
-      level: .info
+      LiveEvent(
+        level: .raw,
+        text: "verify",
+        detail: "\(command) (macOS VM, timeout \(timeoutMs)ms)",
+        kind: .command,
+        status: .running,
+        correlationID: correlationID,
+        metadata: [
+          "tool": "verify",
+          "command": command,
+          "timeoutMs": "\(timeoutMs)",
+        ],
+        payload: .bash(
+          command: command,
+          cwd: studioCWD,
+          output: nil,
+          isError: nil
+        )
+      )
     )
-    return try await AgentMacOSVMBashRunner(
-      repoRoot: hostWorkingDirectory,
-      label: "verify"
-    ).run(
-      command: command,
-      workingDirectory: hostWorkingDirectory,
-      timeout: timeoutSeconds
-    )
+
+    do {
+      let result = try await AgentMacOSVMBashRunner(
+        repoRoot: hostWorkingDirectory,
+        label: "verify"
+      ).run(
+        command: command,
+        workingDirectory: hostWorkingDirectory,
+        timeout: timeoutSeconds
+      )
+      let failed = result.exitCode != 0
+      let combined = Self.combinedProcessOutput(result)
+      let capped = AgentExecutor.capTail(
+        combined,
+        bytes: AgentExecutor.payloadMaxTerminalBytes
+      )
+      log(
+        LiveEvent(
+          level: failed ? .error : .success,
+          text: "verify",
+          detail: Self.previewLiveDetail(
+            failed
+              ? "exit \(result.exitCode)\n\(combined)"
+              : (combined.isEmpty ? "exit 0" : combined)
+          ),
+          kind: .command,
+          status: failed ? .failed : .completed,
+          correlationID: correlationID,
+          metadata: [
+            "tool": "verify",
+            "command": command,
+            "exitCode": "\(result.exitCode)",
+            "isError": failed ? "true" : "false",
+          ],
+          payload: .bash(
+            command: command,
+            cwd: studioCWD,
+            output: capped.isEmpty ? "exit \(result.exitCode)" : capped,
+            isError: failed
+          )
+        )
+      )
+      return result
+    } catch {
+      log(
+        LiveEvent(
+          level: .error,
+          text: "verify",
+          detail: error.localizedDescription,
+          kind: .command,
+          status: .failed,
+          correlationID: correlationID,
+          metadata: [
+            "tool": "verify",
+            "command": command,
+            "isError": "true",
+          ],
+          payload: .bash(
+            command: command,
+            cwd: studioCWD,
+            output: error.localizedDescription,
+            isError: true
+          )
+        )
+      )
+      throw error
+    }
+  }
+
+  private static func combinedProcessOutput(_ result: ProcessResult) -> String {
+    let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+    switch (stdout.isEmpty, stderr.isEmpty) {
+    case (false, false): return stdout + "\n" + stderr
+    case (false, true): return stdout
+    case (true, false): return stderr
+    case (true, true): return ""
+    }
+  }
+
+  private static func previewLiveDetail(_ text: String, limit: Int = 280) -> String {
+    let stripped = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    if stripped.count <= limit { return stripped }
+    return String(stripped.prefix(limit)) + " ..."
   }
 }

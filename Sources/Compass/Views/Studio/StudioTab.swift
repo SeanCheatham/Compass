@@ -2,7 +2,8 @@ import CompassCore
 import SwiftUI
 
 /// Agent-perspective screensaver: file tree on the left, read-only highlighted
-/// editor in the center (with typewriter playback of edits), bash log at the bottom.
+/// editor in the center (with typewriter playback of edits), optional thinking
+/// transcript, and bash log at the bottom.
 struct StudioTab: View {
   @ObservedObject var project: CompassProject
   /// Observed directly — `CompassProject.studioState` is not `@Published`, so
@@ -20,11 +21,21 @@ struct StudioTab: View {
         StudioFileTreeView(project: project)
           .frame(minWidth: 180, idealWidth: 230, maxWidth: 320)
         GeometryReader { geo in
-          let heights = paneHeights(for: state.paneFocus, in: geo.size.height)
+          let heights = paneHeights(
+            for: state.paneFocus,
+            showsThinking: !state.thinkingEntries.isEmpty,
+            in: geo.size.height
+          )
           VStack(spacing: 0) {
             StudioEditorView(state: state)
               .frame(width: geo.size.width, height: heights.editor)
               .clipped()
+            if heights.thinking > 0 {
+              Divider()
+              StudioThinkingView(state: state)
+                .frame(width: geo.size.width, height: heights.thinking)
+                .clipped()
+            }
             StudioTerminalView(state: state)
               .frame(width: geo.size.width, height: heights.terminal)
               .clipped()
@@ -35,6 +46,10 @@ struct StudioTab: View {
           .animation(
             geo.size.height > 1 ? .easeInOut(duration: 0.35) : nil,
             value: state.paneFocus
+          )
+          .animation(
+            geo.size.height > 1 ? .easeInOut(duration: 0.25) : nil,
+            value: state.thinkingEntries.isEmpty
           )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -49,7 +64,7 @@ struct StudioTab: View {
         Text("Studio")
           .font(.headline)
         Text(
-          "Run the factory and watch the agent work here — files it reads open in the editor, edits land inline, and bash commands stream into the terminal."
+          "Run the factory and watch the agent work here — files it reads open in the editor, edits land inline, thinking streams into a transcript, and bash commands appear in the terminal."
         )
         .font(.callout)
         .foregroundStyle(.secondary)
@@ -72,16 +87,28 @@ struct StudioTab: View {
   /// overflow the pane (and steal the majority from the focused side).
   private func paneHeights(
     for focus: StudioState.StudioPaneFocus,
+    showsThinking: Bool,
     in total: CGFloat
-  ) -> (editor: CGFloat, terminal: CGFloat) {
+  ) -> (editor: CGFloat, thinking: CGFloat, terminal: CGFloat) {
     let minEditor: CGFloat = 80
     let minTerminal: CGFloat = 64
-    guard total > minEditor + minTerminal else {
+    let minThinking: CGFloat = showsThinking ? 72 : 0
+    let thinkingBudget: CGFloat = showsThinking ? min(max(total * 0.22, minThinking), 180) : 0
+
+    guard total > minEditor + minTerminal + thinkingBudget else {
+      if showsThinking, total > minEditor + minTerminal {
+        let thinking = min(thinkingBudget, total - minEditor - minTerminal)
+        let remaining = total - thinking
+        let half = max(remaining / 2, 0)
+        return (half, thinking, max(remaining - half, 0))
+      }
       let half = max(total / 2, 0)
-      return (half, max(total - half, 0))
+      return (half, 0, max(total - half, 0))
     }
-    let idealEditor = total * editorHeightFraction(for: focus)
-    let editor = min(max(idealEditor, minEditor), total - minTerminal)
-    return (editor, total - editor)
+
+    let usable = total - thinkingBudget
+    let idealEditor = usable * editorHeightFraction(for: focus)
+    let editor = min(max(idealEditor, minEditor), usable - minTerminal)
+    return (editor, thinkingBudget, usable - editor)
   }
 }

@@ -40,17 +40,22 @@ public struct AgentChatMessage: Equatable, Sendable {
   public var toolCalls: [AgentChatToolCall]
   /// For `.tool` messages, the `id` of the tool call being answered.
   public var toolCallID: String?
+  /// Provider chain-of-thought for assistant turns (`reasoning_content`).
+  /// Required on writeback for Kimi preserved-thinking / multi-turn tool loops.
+  public var reasoningContent: String?
 
   public init(
     role: AgentChatRole,
     content: String,
     toolCalls: [AgentChatToolCall] = [],
-    toolCallID: String? = nil
+    toolCallID: String? = nil,
+    reasoningContent: String? = nil
   ) {
     self.role = role
     self.content = content
     self.toolCalls = toolCalls
     self.toolCallID = toolCallID
+    self.reasoningContent = reasoningContent
   }
 
   public static func system(_ content: String) -> Self {
@@ -61,8 +66,17 @@ public struct AgentChatMessage: Equatable, Sendable {
     Self(role: .user, content: content)
   }
 
-  public static func assistant(_ content: String, toolCalls: [AgentChatToolCall] = []) -> Self {
-    Self(role: .assistant, content: content, toolCalls: toolCalls)
+  public static func assistant(
+    _ content: String,
+    toolCalls: [AgentChatToolCall] = [],
+    reasoningContent: String? = nil
+  ) -> Self {
+    Self(
+      role: .assistant,
+      content: content,
+      toolCalls: toolCalls,
+      reasoningContent: reasoningContent
+    )
   }
 
   public static func toolResult(_ content: String, toolCallID: String) -> Self {
@@ -97,11 +111,19 @@ public struct AgentChatRequest: Sendable {
 
 public struct AgentChatResponse: Sendable, Equatable {
   public var text: String
+  /// Chain-of-thought from providers that emit `reasoning_content` (e.g. Kimi).
+  public var reasoningText: String
   public var toolCalls: [AgentChatToolCall]
   public var tokenUsage: AgentRunTokenUsage
 
-  public init(text: String, toolCalls: [AgentChatToolCall], tokenUsage: AgentRunTokenUsage) {
+  public init(
+    text: String,
+    toolCalls: [AgentChatToolCall],
+    tokenUsage: AgentRunTokenUsage,
+    reasoningText: String = ""
+  ) {
     self.text = text
+    self.reasoningText = reasoningText
     self.toolCalls = toolCalls
     self.tokenUsage = tokenUsage
   }

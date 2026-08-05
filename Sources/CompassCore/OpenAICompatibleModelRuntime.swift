@@ -214,6 +214,9 @@ public struct OpenAICompatiblePingResult: Sendable, Equatable {
 
 /// Thin non-streaming OpenAI chat-completions client used as a `LocalModelGenerating` backend.
 public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
+  /// Product User-Agent for cloud chat-completions requests.
+  public static let userAgent = "Compass/0.1.0"
+
   private let endpoint: OpenAICompatibleEndpoint
   private let session: URLSession
   private let retryPolicy: OpenAICompatibleRetryPolicy
@@ -249,6 +252,12 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
     )
   }
 
+  private static func applyCommonHeaders(to request: inout URLRequest, apiKey: String) {
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+  }
+
   /// Minimal 1-token chat completion used by `doctor --check-cloud` to prove the
   /// configured base URL, API key, and model actually work before a factory run.
   public static func ping(
@@ -272,8 +281,7 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
       let url = try endpoint.chatCompletionsURL()
       var urlRequest = URLRequest(url: url)
       urlRequest.httpMethod = "POST"
-      urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-      urlRequest.setValue("Bearer \(endpoint.trimmedAPIKey)", forHTTPHeaderField: "Authorization")
+      Self.applyCommonHeaders(to: &urlRequest, apiKey: endpoint.trimmedAPIKey)
       urlRequest.timeoutInterval = timeout
       urlRequest.httpBody = try JSONEncoder().encode(
         OpenAIChatCompletionsRequest(
@@ -318,8 +326,7 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
     let url = try endpoint.chatCompletionsURL()
     var urlRequest = URLRequest(url: url)
     urlRequest.httpMethod = "POST"
-    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    urlRequest.setValue("Bearer \(endpoint.trimmedAPIKey)", forHTTPHeaderField: "Authorization")
+    Self.applyCommonHeaders(to: &urlRequest, apiKey: endpoint.trimmedAPIKey)
     urlRequest.timeoutInterval = 900
 
     let body = OpenAIChatCompletionsRequest(
@@ -362,13 +369,14 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .first { !$0.isEmpty }
         ?? ""
+      let reasoning =
+        decoded.choices
+        .compactMap { $0.message?.reasoningContent }
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty }
+        ?? ""
       if text.isEmpty {
-        let reasoning =
-          decoded.choices
-          .compactMap { $0.message?.reasoningContent }
-          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-          .first { !$0.isEmpty }
-        if let reasoning {
+        if !reasoning.isEmpty {
           throw OpenAICompatibleRuntimeError.reasoningOnlyResponse(
             finishReason: choice?.finishReason,
             reasoningCharacters: reasoning.count
@@ -389,7 +397,11 @@ public actor OpenAICompatibleModelRuntime: LocalModelGenerating {
         streamedUsageAvailable: decoded.usage != nil
       )
       tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
-      return LocalModelGenerationResult(text: text, tokenUsage: tokenUsage)
+      return LocalModelGenerationResult(
+        text: text,
+        tokenUsage: tokenUsage,
+        reasoningText: reasoning
+      )
     }
   }
 
@@ -438,8 +450,7 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
     let url = try endpoint.chatCompletionsURL()
     var urlRequest = URLRequest(url: url)
     urlRequest.httpMethod = "POST"
-    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    urlRequest.setValue("Bearer \(endpoint.trimmedAPIKey)", forHTTPHeaderField: "Authorization")
+    Self.applyCommonHeaders(to: &urlRequest, apiKey: endpoint.trimmedAPIKey)
     urlRequest.setValue("text/event-stream", forHTTPHeaderField: "Accept")
     urlRequest.timeoutInterval = 900
 
@@ -562,7 +573,12 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
         streamedUsageAvailable: usage != nil
       )
       tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
-      return AgentChatResponse(text: trimmed, toolCalls: resolvedToolCalls, tokenUsage: tokenUsage)
+      return AgentChatResponse(
+        text: trimmed,
+        toolCalls: resolvedToolCalls,
+        tokenUsage: tokenUsage,
+        reasoningText: trimmedReasoning
+      )
     }
   }
 
@@ -571,6 +587,12 @@ extension OpenAICompatibleModelRuntime: AgentChatGenerating {
     switch message.role {
     case .assistant:
       object["content"] = message.content.isEmpty ? NSNull() : message.content
+      if let reasoning = message.reasoningContent?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+        !reasoning.isEmpty
+      {
+        object["reasoning_content"] = reasoning
+      }
       if !message.toolCalls.isEmpty {
         object["tool_calls"] = message.toolCalls.map { call in
           [

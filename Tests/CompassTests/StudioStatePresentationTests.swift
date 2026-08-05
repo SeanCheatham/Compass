@@ -334,4 +334,30 @@ struct StudioStatePresentationTests {
           path: "a.rs", offset: 1, limit: nil, content: "     1\tx\n")))
     #expect(state.paneFocus == .balanced)
   }
+
+  @Test
+  func thinkingPayloadAppendsEntriesWithoutStealingPaneFocus() {
+    let state = StudioState()
+    state.apply(
+      line(
+        status: .running,
+        correlationID: "r1",
+        payload: .readFile(path: "a.rs", offset: 1, limit: nil, content: nil)))
+    #expect(state.paneFocus == .editor)
+
+    state.apply(
+      line(
+        status: .completed,
+        payload: .thinking(text: "Consider reading a.rs first.")))
+    #expect(state.hasActivity)
+    #expect(state.thinkingEntries.count == 1)
+    #expect(state.thinkingEntries.first?.text == "Consider reading a.rs first.")
+    #expect(state.paneFocus == .editor)
+
+    state.apply(
+      line(
+        status: .completed,
+        payload: .thinking(text: "  ")))
+    #expect(state.thinkingEntries.count == 1)
+  }
 }

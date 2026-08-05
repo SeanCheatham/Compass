@@ -2343,6 +2343,8 @@ public enum LiveToolPayload: Equatable {
   case editFileLineRange(path: String, edits: [LiveLineRangeEdit])
   case editFileStringReplace(path: String, edits: [LiveStringReplaceEdit])
   case bash(command: String, cwd: String?, output: String?, isError: Bool?)
+  /// Model chain-of-thought (`reasoning_content` / `<think>` blocks).
+  case thinking(text: String)
 
   public var path: String? {
     switch self {
@@ -2351,7 +2353,7 @@ public enum LiveToolPayload: Equatable {
       .editFileLineRange(let path, _),
       .editFileStringReplace(let path, _):
       return path
-    case .bash:
+    case .bash, .thinking:
       return nil
     }
   }

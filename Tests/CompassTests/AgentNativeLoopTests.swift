@@ -133,7 +133,8 @@ struct AgentNativeLoopTests {
         toolCalls: [
           AgentChatToolCall(id: "c1", name: "read_file", argumentsJSON: #"{"path":"note.txt"}"#)
         ],
-        tokenUsage: usage()
+        tokenUsage: usage(),
+        reasoningText: "I need to inspect note.txt before editing."
       ),
       AgentChatResponse(
         text: "",
@@ -143,10 +144,19 @@ struct AgentNativeLoopTests {
         tokenUsage: usage()
       ),
     ])
+    final class EventSink: @unchecked Sendable {
+      var events: [LiveEvent] = []
+    }
+    let sink = EventSink()
     var config = configuration(tools: [AgentReadFileTool()])
     config.workingDirectory = workspace
-    let executor = AgentExecutor()
-    _ = try await executor.runNative(config, chatRuntime: runtime, textRuntime: runtime)
+    let executor = AgentExecutor { event in
+      sink.events.append(event)
+    }
+    let result = try await executor.runNative(config, chatRuntime: runtime, textRuntime: runtime)
+
+    #expect(result.reasoningText == "I need to inspect note.txt before editing.")
+    #expect(sink.events.contains { $0.payload == .thinking(text: "I need to inspect note.txt before editing.") })
 
     let secondRequest = try #require(runtime.requests.dropFirst().first)
     let observation = secondRequest.messages.last { $0.role == .tool }
@@ -154,6 +164,7 @@ struct AgentNativeLoopTests {
     #expect(observation?.content.contains("isError") == true)
     let assistant = secondRequest.messages.last { $0.role == .assistant }
     #expect(assistant?.toolCalls.first?.name == "read_file")
+    #expect(assistant?.reasoningContent == "I need to inspect note.txt before editing.")
   }
 
   @Test

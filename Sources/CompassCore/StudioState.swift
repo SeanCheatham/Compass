@@ -86,11 +86,24 @@ public final class StudioState: ObservableObject {
     }
   }
 
+  public struct ThinkingEntry: Identifiable, Equatable {
+    public let id: UUID
+    public var text: String
+    public var startedAt: Date
+
+    public init(id: UUID = UUID(), text: String, startedAt: Date = Date()) {
+      self.id = id
+      self.text = text
+      self.startedAt = startedAt
+    }
+  }
+
   @Published public private(set) var openFile: String?
   @Published public private(set) var buffers: [String: FileBuffer] = [:]
   /// Display buffers — may animate toward `buffers` during typewriter playback.
   @Published public private(set) var presentationBuffers: [String: FileBuffer] = [:]
   @Published public private(set) var terminalEntries: [TerminalEntry] = []
+  @Published public private(set) var thinkingEntries: [ThinkingEntry] = []
   @Published public private(set) var lastTouchedPath: String?
   @Published public private(set) var treeRefreshToken = 0
   @Published public private(set) var hasActivity = false
@@ -138,6 +151,7 @@ public final class StudioState: ObservableObject {
     buffers = [:]
     presentationBuffers = [:]
     terminalEntries = []
+    thinkingEntries = []
     lastTouchedPath = nil
     treeRefreshToken = 0
     hasActivity = false
@@ -335,6 +349,16 @@ public final class StudioState: ObservableObject {
       case .none:
         break
       }
+
+    case .thinking(let text):
+      let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { return }
+      var entries = thinkingEntries
+      entries.append(ThinkingEntry(text: trimmed))
+      if entries.count > Self.maxTerminalEntries {
+        entries.removeFirst(entries.count - Self.maxTerminalEntries)
+      }
+      thinkingEntries = entries
     }
   }
 
@@ -473,6 +497,8 @@ public final class StudioState: ObservableObject {
       case .completed, .failed: runningEditorIDs.remove(id)
       case .none: break
       }
+    case .thinking:
+      break
     }
     recomputePaneFocus()
   }
@@ -484,6 +510,7 @@ public final class StudioState: ObservableObject {
     case .writeFile(let path, _): return "write:\(path)"
     case .editFileLineRange(let path, _): return "edit:\(path)"
     case .editFileStringReplace(let path, _): return "edit:\(path)"
+    case .thinking: return "thinking"
     }
   }
 

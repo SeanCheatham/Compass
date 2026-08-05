@@ -51,6 +51,7 @@ public extension AgentExecutor {
 
     var iterations = 0
     var assistantTranscript = ""
+    var reasoningTranscript = ""
     var tokenUsage = AgentRunTokenUsage()
     var lastPromptTokens: Int?
     var consecutiveNoToolCallTurns = 0
@@ -152,6 +153,25 @@ public extension AgentExecutor {
         tokenUsage.durationMs = (tokenUsage.durationMs ?? 0) + durationMs
       }
 
+      if !response.reasoningText.isEmpty {
+        reasoningTranscript +=
+          reasoningTranscript.isEmpty
+          ? response.reasoningText
+          : "\n\n\(response.reasoningText)"
+        let displayThinking = Self.capHead(
+          response.reasoningText,
+          bytes: Self.payloadMaxTerminalBytes
+        )
+        emit(
+          level: .raw,
+          text: "Thinking",
+          detail: previewString(response.reasoningText),
+          kind: .agentMessage,
+          status: .completed,
+          payload: .thinking(text: displayThinking)
+        )
+      }
+
       if !response.text.isEmpty {
         assistantTranscript += assistantTranscript.isEmpty ? response.text : "\n\n\(response.text)"
         emit(
@@ -163,10 +183,15 @@ public extension AgentExecutor {
         )
       }
 
+      let reasoningForWriteback =
+        response.reasoningText.isEmpty ? nil : response.reasoningText
+
       if response.toolCalls.isEmpty {
         consecutiveNoToolCallTurns += 1
-        if !response.text.isEmpty {
-          messages.append(.assistant(response.text))
+        if !response.text.isEmpty || reasoningForWriteback != nil {
+          messages.append(
+            .assistant(response.text, reasoningContent: reasoningForWriteback)
+          )
         }
         if consecutiveNoToolCallTurns >= 5 {
           throw AgentExecutionError.modelStoppedWithoutSubmitResult
@@ -183,7 +208,13 @@ public extension AgentExecutor {
       }
       consecutiveNoToolCallTurns = 0
 
-      messages.append(.assistant(response.text, toolCalls: response.toolCalls))
+      messages.append(
+        .assistant(
+          response.text,
+          toolCalls: response.toolCalls,
+          reasoningContent: reasoningForWriteback
+        )
+      )
 
       var callIndex = 0
       while callIndex < response.toolCalls.count {
@@ -250,7 +281,7 @@ public extension AgentExecutor {
             submitResultArguments: payload,
             iterations: iterations,
             assistantText: assistantTranscript,
-            reasoningText: "",
+            reasoningText: reasoningTranscript,
             tokenUsage: tokenUsage
           )
         }

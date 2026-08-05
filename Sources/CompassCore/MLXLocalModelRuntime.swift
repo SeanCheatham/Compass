@@ -41,6 +41,14 @@ public struct LocalModelGenerationRequest: Sendable, Equatable {
 public struct LocalModelGenerationResult: Sendable, Equatable {
   public var text: String
   public var tokenUsage: AgentRunTokenUsage
+  /// Chain-of-thought when the backend splits reasoning from final text.
+  public var reasoningText: String
+
+  public init(text: String, tokenUsage: AgentRunTokenUsage, reasoningText: String = "") {
+    self.text = text
+    self.tokenUsage = tokenUsage
+    self.reasoningText = reasoningText
+  }
 }
 
 public protocol LocalModelGenerating: Sendable {
