@@ -65,7 +65,9 @@ public struct AgentSummaryTool: AgentTool {
     let store = context.codemapStore()
     guard let entry = store.loadEntry(forRelativePath: normalized) else {
       return .failure(
-        "No codemap entry for '\(normalized)'. Use `list_files` to see what's been indexed."
+        .invalidArguments(
+          "No codemap entry for '\(normalized)'. Use `list_files` to see what's been indexed."
+        )
       )
     }
     guard let summary = entry.summary, !summary.isEmpty else {

@@ -280,7 +280,16 @@ public struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["runtime transport", "container transport", "transport", "runtime internal error"]) {
+    if containsAny(
+      normalized,
+      [
+        "runtime transport",
+        "container transport",
+        "runtime internal error",
+        "guest agent did not become reachable",
+        "vsock",
+      ]
+    ) {
       return (
         .runtimeBridge,
         "Container Runtime Connection Had Trouble",
