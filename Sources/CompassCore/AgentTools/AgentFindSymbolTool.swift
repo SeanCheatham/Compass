@@ -87,7 +87,9 @@ public struct AgentFindSymbolTool: AgentTool {
     {
       guard let resolved = CodemapSymbolKind(rawValue: kindRaw) else {
         return .failure(
-          "Unknown kind '\(kindRaw)'. Allowed: \(CodemapSymbolKind.allRawValues.joined(separator: ", "))."
+          .invalidArguments(
+            "Unknown kind '\(kindRaw)'. Allowed: \(CodemapSymbolKind.allRawValues.joined(separator: ", "))."
+          )
         )
       }
       kindFilter = resolved
@@ -128,13 +130,9 @@ public struct AgentFindSymbolTool: AgentTool {
 
 public extension CodemapSymbolKind {
   /// JSON-Schema-friendly list of allowed `kind` values for tool input
-  /// validation. Stable order so the schema diff stays minimal across
-  /// builds.
+  /// validation. Follows `CaseIterable` declaration order so schema diffs
+  /// stay minimal when kinds are appended at the end of the enum.
   static var allRawValues: [String] {
-    [
-      "function", "method", "class", "interface", "struct", "enum",
-      "trait", "module", "type", "property", "macro", "impl",
-      "extension", "constant",
-    ]
+    allCases.map(\.rawValue)
   }
 }

@@ -102,6 +102,7 @@ struct ClipboardHelpTextTests {
     #expect(wired.contains(ClipboardHelpText.projectSnapshot))
     #expect(wired.contains(ClipboardHelpText.liveFailure))
     #expect(wired.contains(ClipboardHelpText.runtimeSettings))
+    #expect(wired.contains(ClipboardHelpText.runHistory))
     #expect(!wired.contains("Copy a concise setup note."))
   }
 }

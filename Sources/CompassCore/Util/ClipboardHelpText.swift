@@ -9,6 +9,8 @@ public enum ClipboardHelpText {
   public static let liveTimeline = "Copy a concise Live timeline note."
   public static let liveFailure = "Copy a concise failure note."
   public static let runControl = "Copy a concise run control note."
+  public static let runHistory =
+    "Copy a bounded run-history handoff for this session (status, verify, notes, commits)."
 
   /// Help strings currently wired to UI copy affordances.
   public static let allUserFacing: [String] = [
@@ -21,5 +23,6 @@ public enum ClipboardHelpText {
     liveTimeline,
     liveFailure,
     runControl,
+    runHistory,
   ]
 }

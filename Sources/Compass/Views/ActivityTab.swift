@@ -151,6 +151,10 @@ private struct ActivityRunHistoryRow: View {
   var item: PlanSessionHistoryItem
   var cue: PlanReliabilityFeedback.RunCue?
 
+  private var clipboardPayload: PlanSessionHistoryClipboardPayload {
+    PlanSessionHistoryClipboardPayload(item: item, reliabilityCue: cue)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -163,6 +167,7 @@ private struct ActivityRunHistoryRow: View {
         Text(item.startedAt, style: .relative)
           .font(.caption)
           .foregroundStyle(.secondary)
+        CopyRunHistoryButton(payload: clipboardPayload)
       }
 
       if let cue {
@@ -228,5 +233,30 @@ private struct ActivityPill: View {
       .padding(.vertical, 2)
       .background(.quaternary, in: Capsule())
       .foregroundStyle(.secondary)
+  }
+}
+
+private struct CopyRunHistoryButton: View {
+  var payload: PlanSessionHistoryClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help(ClipboardHelpText.runHistory)
   }
 }
