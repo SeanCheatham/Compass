@@ -10,7 +10,7 @@ struct VerifyFailureInsightTests {
       error[E0425]: cannot find value `missing` in this scope
        --> crates/core/src/lib.rs:16:1
       """
-  let verify = GeneratedProjectQuality.standardVerifyCommand
+    let verify = GeneratedProjectQuality.standardVerifyCommand
     let insight = VerifyFailureInsight(detail: detail, metadata: "command=\(verify) exitCode=2")
 
     #expect(insight.kind == .buildFailure)
@@ -32,5 +32,55 @@ struct VerifyFailureInsightTests {
     #expect(insight.kind == .packageManagerBootstrap)
     #expect(insight.inspectDetail.contains("before project tests could run"))
     #expect(insight.repairDetail.contains("Do not ask Develop to rewrite app code"))
+  }
+
+  @Test
+  func rustExpectedTokenErrorsAreBuildFailuresNotTests() {
+    // Previously matched bare "expected" as a test failure.
+    let detail = """
+      error: expected type, found `}`
+       --> crates/core/src/lib.rs:12:1
+      """
+    let insight = VerifyFailureInsight(detail: detail, metadata: "exitCode=1")
+    #expect(insight.kind == .buildFailure)
+  }
+
+  @Test
+  func assertionFailuresAreTestFailures() {
+    let detail = """
+      thread 'cli_tests::prints_help' panicked at crates/cli/tests/cli.rs:20:5:
+      assertion failed: `(left == right)`
+      """
+    let insight = VerifyFailureInsight(detail: detail, metadata: "exitCode=101")
+    #expect(insight.kind == .testFailure)
+  }
+
+  @Test
+  func coverageArtifactFailuresClassifyAsCoverage() {
+    let detail = "failed to load profdata for llvm-cov report"
+    let insight = VerifyFailureInsight(detail: detail, metadata: "exitCode=1")
+    #expect(insight.kind == .coverage)
+  }
+
+  @Test
+  func timeoutsClassifyAsTimeout() {
+    let insight = VerifyFailureInsight(
+      detail: "verify command timed out after 120s",
+      metadata: nil
+    )
+    #expect(insight.kind == .timeout)
+  }
+}
+
+@Suite("ClipboardHelpText")
+struct ClipboardHelpTextTests {
+  @Test
+  func allUserFacingMatchesWiredConstants() {
+    let wired = Set(ClipboardHelpText.allUserFacing)
+    #expect(wired.count == ClipboardHelpText.allUserFacing.count)
+    #expect(wired.contains(ClipboardHelpText.projectSnapshot))
+    #expect(wired.contains(ClipboardHelpText.liveFailure))
+    #expect(wired.contains(ClipboardHelpText.runtimeSettings))
+    #expect(!wired.contains("Copy a concise setup note."))
   }
 }

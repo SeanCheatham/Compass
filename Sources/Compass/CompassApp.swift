@@ -91,6 +91,7 @@ struct CompassApp: App {
         Button("Copy Project Intake") {
           copyTextToPasteboard(projectIntakePayload.text)
         }
+        .help(ClipboardHelpText.projectIntake)
         .keyboardShortcut("i", modifiers: [.command, .option])
         .disabled(!isOnboardingComplete)
 
@@ -137,6 +138,7 @@ struct CompassApp: App {
             copyTextToPasteboard(payload.text)
           }
         }
+        .help(ClipboardHelpText.projectSnapshot)
         .disabled(selectedProjectSnapshotPayload == nil)
 
         Button("Copy Project Recovery") {
@@ -144,6 +146,7 @@ struct CompassApp: App {
             copyTextToPasteboard(payload.text)
           }
         }
+        .help(ClipboardHelpText.recovery)
         .disabled(selectedProjectRecoveryPayload == nil)
 
         Button("Copy Project Vision") {
@@ -151,6 +154,7 @@ struct CompassApp: App {
             copyTextToPasteboard(payload.text)
           }
         }
+        .help(ClipboardHelpText.projectVision)
         .disabled(selectedProjectVisionPayload == nil)
 
         Button(PauseMode.afterIteration.label) {
@@ -169,6 +173,7 @@ struct CompassApp: App {
         Button("Copy Runtime Settings") {
           copyTextToPasteboard(runtimeSettingsPayload.text)
         }
+        .help(ClipboardHelpText.runtimeSettings)
         .disabled(runtimeSettingsPayload.isEmpty)
 
         Divider()

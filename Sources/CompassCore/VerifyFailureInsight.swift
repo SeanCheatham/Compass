@@ -106,8 +106,9 @@ public struct VerifyFailureInsight: Equatable {
     if containsAny(
       text,
       [
-        "xctassert", "assertion failed", "expected", "test case", "tests failed",
-        "failing test", "failed test", "panicked at",
+        "xctassert", "assertion failed", "test case", "tests failed",
+        "failing test", "failed test", "panicked at", "test result: failed",
+        "failures:", "failed 1 test", "failed 2 test",
       ]
     ) {
       return .testFailure
@@ -116,7 +117,7 @@ public struct VerifyFailureInsight: Equatable {
       text,
       [
         "build failed", "compile error", "compiler error", "error:", "cannot find",
-        "no such module", "missing package", "syntax error", "clippy",
+        "no such module", "missing package", "syntax error", "clippy", "expected ",
       ]
     ) {
       return .buildFailure
