@@ -88,7 +88,14 @@ public struct DevelopFailureInsight: Equatable {
     }
     if containsAny(
       text,
-      ["local model generation failed", "mlx", "model missing", "model provider failed", "provider"]
+      [
+        "chat completions stream failed",
+        "local model generation failed",
+        "model missing",
+        "model provider failed",
+        "mlx",
+        "could not load",
+      ]
     ) {
       return .providerFailure
     }

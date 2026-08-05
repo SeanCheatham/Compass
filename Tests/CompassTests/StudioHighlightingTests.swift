@@ -33,6 +33,46 @@ struct StudioANSIParserTests {
     let text = "\u{001B}[1;32mbold green\u{001B}[22m normal\u{001B}[0m done"
     #expect(StudioANSIParser.strip(text) == "bold green normal done")
   }
+
+  @Test
+  func nonSGRCSIDoesNotResetColor() {
+    // Cursor/erase CSI used to be parsed as empty SGR and incorrectly reset style.
+    let text = "\u{001B}[31mred\u{001B}[2Jstill red\u{001B}[0m plain"
+    #expect(StudioANSIParser.strip(text) == "redstill red plain")
+    let attributed = StudioANSIParser.nsAttributedString(text)
+    #expect(attributed.string == "redstill red plain")
+
+    let stillRedRange = (attributed.string as NSString).range(of: "still red")
+    #expect(stillRedRange.location != NSNotFound)
+    var effectiveRange = NSRange(location: 0, length: 0)
+    let color = attributed.attribute(
+      .foregroundColor, at: stillRedRange.location, effectiveRange: &effectiveRange) as? NSColor
+    #expect(color != nil)
+    // Should still be red-ish, not the default secondary label after a false reset.
+    let red = color!.usingColorSpace(.genericRGB)!
+    #expect(red.redComponent > 0.5)
+    #expect(red.greenComponent < 0.5)
+  }
+
+  @Test
+  func truncatedCSIDoesNotResetColor() {
+    let text = "\u{001B}[31mred\u{001B}[2"
+    #expect(StudioANSIParser.strip(text) == "red")
+    let attributed = StudioANSIParser.nsAttributedString(text)
+    #expect(attributed.string == "red")
+    var effectiveRange = NSRange(location: 0, length: 0)
+    let color = attributed.attribute(
+      .foregroundColor, at: 0, effectiveRange: &effectiveRange) as? NSColor
+    #expect(color != nil)
+    let red = color!.usingColorSpace(.genericRGB)!
+    #expect(red.redComponent > 0.5)
+  }
+
+  @Test
+  func emptySGRStillResets() {
+    let text = "\u{001B}[31mred\u{001B}[m plain"
+    #expect(StudioANSIParser.strip(text) == "red plain")
+  }
 }
 
 @Suite("StudioSyntaxHighlighter")

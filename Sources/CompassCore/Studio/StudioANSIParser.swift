@@ -52,9 +52,12 @@ public enum StudioANSIParser {
           continue
         }
         if text[next] == "[" {
-          let (params, after) = parseCSI(text, from: text.index(after: next))
-          applySGR(params, foreground: &foreground, bold: &bold, dim: &dim, options: options)
-          index = after
+          let parsed = parseCSI(text, from: text.index(after: next))
+          if parsed.isSGR {
+            applySGR(
+              parsed.params, foreground: &foreground, bold: &bold, dim: &dim, options: options)
+          }
+          index = parsed.after
           continue
         }
         // Other escapes (cursor, etc.) — skip ESC + one char when possible
@@ -82,7 +85,32 @@ public enum StudioANSIParser {
 
   /// Strip ANSI sequences, returning plain text.
   public static func strip(_ text: String) -> String {
-    nsAttributedString(text).string
+    var result = ""
+    result.reserveCapacity(text.count)
+    var index = text.startIndex
+
+    while index < text.endIndex {
+      if text[index] == "\u{001B}" {
+        let next = text.index(after: index)
+        guard next < text.endIndex else { break }
+        if text[next] == "]" {
+          index = skipOSC(text, from: next)
+          continue
+        }
+        if text[next] == "[" {
+          index = parseCSI(text, from: text.index(after: next)).after
+          continue
+        }
+        index = text.index(after: next)
+        continue
+      }
+
+      let end = text[index...].firstIndex(of: "\u{001B}") ?? text.endIndex
+      result.append(contentsOf: text[index..<end])
+      index = end
+    }
+
+    return result
   }
 
   // MARK: - Parsing helpers
@@ -104,7 +132,7 @@ public enum StudioANSIParser {
   private static func parseCSI(
     _ text: String,
     from start: String.Index
-  ) -> (params: [Int], after: String.Index) {
+  ) -> (params: [Int], after: String.Index, isSGR: Bool) {
     var i = start
     var raw = ""
     while i < text.endIndex {
@@ -113,15 +141,16 @@ public enum StudioANSIParser {
         let final = ch
         i = text.index(after: i)
         if final == "m" {
-          return (parseParams(raw), i)
+          return (parseParams(raw), i, true)
         }
-        // Non-SGR CSI — ignore params
-        return ([], i)
+        // Non-SGR CSI — skip without changing style
+        return ([], i, false)
       }
       raw.append(ch)
       i = text.index(after: i)
     }
-    return ([], text.endIndex)
+    // Truncated CSI — skip without treating empty params as a reset
+    return ([], text.endIndex, false)
   }
 
   private static func parseParams(_ raw: String) -> [Int] {
