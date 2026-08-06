@@ -499,12 +499,16 @@ public struct AgentEditFileTool: AgentTool {
             .invalidArguments(
               "edits[\(idx)] inserts nothing; provide replacementLines or use a replace range"))
         }
+        var proposedInsert = lines
+        proposedInsert.insert(contentsOf: edit.replacementLines, at: edit.startLine - 1)
         if let testCode = Self.testCodeInNonTestSourceMessage(
           editIndex: idx,
           relativePath: relative,
+          proposedLines: proposedInsert,
           replacementLines: edit.replacementLines,
           isSourceFile: AgentEditSafety.isSourceFile(url),
-          isTestFile: AgentEditSafety.isTestFile(url)
+          isTestFile: AgentEditSafety.isTestFile(url),
+          pathExtension: url.pathExtension
         ) {
           return .failure(.invalidArguments(testCode))
         }
@@ -565,12 +569,17 @@ public struct AgentEditFileTool: AgentTool {
       let startIndex = edit.startLine - 1
       let endIndex = edit.endLine - 1
       let existing = Array(lines[startIndex...endIndex])
+      var proposedReplace = lines
+      proposedReplace.replaceSubrange(
+        startIndex...endIndex, with: edit.replacementLines)
       if let testCode = Self.testCodeInNonTestSourceMessage(
         editIndex: idx,
         relativePath: relative,
+        proposedLines: proposedReplace,
         replacementLines: edit.replacementLines,
         isSourceFile: AgentEditSafety.isSourceFile(url),
-        isTestFile: AgentEditSafety.isTestFile(url)
+        isTestFile: AgentEditSafety.isTestFile(url),
+        pathExtension: url.pathExtension
       ) {
         return .failure(.invalidArguments(testCode))
       }
@@ -944,16 +953,28 @@ public struct AgentEditFileTool: AgentTool {
   private static func testCodeInNonTestSourceMessage(
     editIndex: Int,
     relativePath: String,
+    proposedLines: [String],
     replacementLines: [String],
     isSourceFile: Bool,
-    isTestFile: Bool
+    isTestFile: Bool,
+    pathExtension: String
   ) -> String? {
-    guard isSourceFile, !isTestFile,
-      let marker = firstTestCodeMarker(in: replacementLines)
-    else {
-      return nil
+    guard isSourceFile, !isTestFile else { return nil }
+
+    if pathExtension.lowercased() == "rs" {
+      guard
+        let marker = AgentEditSafety.inappropriateBareRustTestCode(
+          in: proposedLines.joined(separator: "\n"))
+      else {
+        return nil
+      }
+      return
+        "edits[\(editIndex)] would introduce bare test code into non-test source file \(relativePath): \(marker). Do not paste bare `#[test]` functions or `mod tests` blocks into production crate sources. Put assertions in `crates/*/tests/` integration files or wrap unit tests in `#[cfg(test)] mod tests { ... }`."
     }
 
+    guard let marker = firstTestCodeMarker(in: replacementLines) else {
+      return nil
+    }
     return
       "edits[\(editIndex)] would introduce test code into non-test source file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not paste `#[test]` functions or bare `mod tests` blocks into production crate sources. Put assertions in `crates/*/tests/` integration files or inside a `#[cfg(test)]` module, and edit \(relativePath) with implementation code only."
   }

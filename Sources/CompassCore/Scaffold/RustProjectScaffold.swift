@@ -23,6 +23,47 @@ public enum RustProjectScaffold {
     }
   }
 
+  /// Stable identifiers derived from the display project name for SPM / bundle / process names.
+  public struct MacOSNaming: Equatable, Sendable {
+    public var displayName: String
+    public var moduleName: String
+    public var bundleIdentifier: String
+
+    public init(projectName: String) {
+      let display = Options(projectName: projectName).projectName
+      self.displayName = display
+      self.moduleName = Self.swiftTypeName(from: display)
+      self.bundleIdentifier = "com.compass.generated.\(moduleName.lowercased())"
+    }
+
+    /// PascalCase Swift type / executable target name (`My Factory App` → `MyFactoryApp`).
+    /// Already-valid identifiers like `CompassRustApp5` are preserved.
+    public static func swiftTypeName(from raw: String) -> String {
+      let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.range(of: #"^[A-Za-z][A-Za-z0-9]*$"#, options: .regularExpression) != nil {
+        if let first = trimmed.first, first.isLowercase {
+          return String(first).uppercased() + trimmed.dropFirst()
+        }
+        return String(trimmed)
+      }
+      let parts =
+        trimmed
+        .split { !$0.isLetter && !$0.isNumber }
+        .map { part -> String in
+          let lower = part.lowercased()
+          guard let first = lower.first else { return "" }
+          return String(first).uppercased() + lower.dropFirst()
+        }
+        .filter { !$0.isEmpty }
+      var name = parts.joined()
+      if name.isEmpty { name = "CompassApp" }
+      if let first = name.first, first.isNumber {
+        name = "App" + name
+      }
+      return name
+    }
+  }
+
   public struct ScaffoldFile: Equatable, Sendable {
     public var path: String
     public var contents: String
@@ -56,6 +97,7 @@ public enum RustProjectScaffold {
     }
 
     if hasMacOS {
+      let naming = MacOSNaming(projectName: name)
       files.append(contentsOf: [
         ScaffoldFile(path: ".swift-format", contents: swiftFormatConfig),
         ScaffoldFile(path: "crates/ui/Cargo.toml", contents: uiManifest),
@@ -63,10 +105,11 @@ public enum RustProjectScaffold {
         ScaffoldFile(path: "crates/ffi/Cargo.toml", contents: ffiManifest),
         ScaffoldFile(path: "crates/ffi/src/lib.rs", contents: ffiLib),
         ScaffoldFile(path: "crates/ffi/src/bin/uniffi-bindgen.rs", contents: ffiBindgenMain),
-        ScaffoldFile(path: "apps/macos/Package.swift", contents: macosPackageSwift),
         ScaffoldFile(
-          path: "apps/macos/Sources/GeneratedApp/GeneratedApp.swift",
-          contents: macosAppSwift(projectName: name)
+          path: "apps/macos/Package.swift", contents: macosPackageSwift(naming: naming)),
+        ScaffoldFile(
+          path: "apps/macos/Sources/\(naming.moduleName)/\(naming.moduleName).swift",
+          contents: macosAppSwift(naming: naming)
         ),
         ScaffoldFile(
           path: "apps/macos/Sources/AppFFI/Placeholder.swift",
@@ -78,15 +121,19 @@ public enum RustProjectScaffold {
           contents: ""
         ),
         ScaffoldFile(
-          path: "apps/macos/Tests/GeneratedAppTests/UiFFITests.swift",
-          contents: macosFFITests
+          path: "apps/macos/Sources/FFIChecks/main.swift",
+          contents: macosFFIChecks
         ),
-        ScaffoldFile(path: "apps/macos/Info.plist", contents: macosInfoPlist),
+        ScaffoldFile(path: "apps/macos/Info.plist", contents: macosInfoPlist(naming: naming)),
         ScaffoldFile(path: "scripts/generate-bindings.sh", contents: generateBindingsScript),
-        ScaffoldFile(path: "scripts/bundle-macos.sh", contents: bundleMacOSScript),
-        ScaffoldFile(path: "scripts/macos-ax-smoke.swift", contents: macosAXSmokeSwift),
-        ScaffoldFile(path: "scripts/macos-ui-smoke.sh", contents: macosUISmokeScript),
-        ScaffoldFile(path: "scripts/verify-macos.sh", contents: verifyMacOSScript),
+        ScaffoldFile(
+          path: "scripts/bundle-macos.sh", contents: bundleMacOSScript(naming: naming)),
+        ScaffoldFile(
+          path: "scripts/macos-ax-smoke.swift", contents: macosAXSmokeSwift(naming: naming)),
+        ScaffoldFile(
+          path: "scripts/macos-ui-smoke.sh", contents: macosUISmokeScript(naming: naming)),
+        ScaffoldFile(
+          path: "scripts/verify-macos.sh", contents: verifyMacOSScript(naming: naming)),
       ])
     }
 
@@ -234,6 +281,11 @@ public enum RustProjectScaffold {
       A Compass-generated project with required Rust `crates/core` and products: \(products).
 
       Domain logic lives in `crates/core`. UI policy lives in `crates/ui`. CLI and macOS are adapters.
+
+      ## Current status
+
+      - Scaffold greeting smoke path is wired through core / CLI\(hasMacOS ? " / macOS" : "").
+      - Replace the greeting with real product behavior in thin end-to-end slices.
 
       ## Layout
 
@@ -763,12 +815,18 @@ public enum RustProjectScaffold {
     }
     """
 
-  private static let macosPackageSwift = """
+  private static func macosPackageSwift(naming: MacOSNaming) -> String {
+    """
     // swift-tools-version: 5.9
     import PackageDescription
 
+    // Absolute path via Context.packageDirectory so SPM resolves the UniFFI
+    // staticlib regardless of the caller's cwd. Bindings scripts build release.
+    let ffiStaticLib =
+      "\\(Context.packageDirectory)/../../target/release/libapp_ffi.a"
+
     let package = Package(
-        name: "GeneratedApp",
+        name: "\(naming.moduleName)",
         platforms: [.macOS(.v14)],
         targets: [
             .target(
@@ -781,32 +839,35 @@ public enum RustProjectScaffold {
                 dependencies: ["app_ffiFFI"],
                 path: "Sources/AppFFI",
                 linkerSettings: [
-                    .unsafeFlags(["../../target/release/libapp_ffi.a"])
+                    .unsafeFlags([ffiStaticLib])
                 ]
             ),
             .executableTarget(
-                name: "GeneratedApp",
+                name: "\(naming.moduleName)",
                 dependencies: ["AppFFI"],
-                path: "Sources/GeneratedApp"
+                path: "Sources/\(naming.moduleName)"
             ),
-            .testTarget(
-                name: "GeneratedAppTests",
+            // Plain executable smoke harness: Xcode Command Line Tools ship
+            // neither XCTest nor swift-testing, so `swift test` cannot run in the VM.
+            .executableTarget(
+                name: "FFIChecks",
                 dependencies: ["AppFFI"],
-                path: "Tests/GeneratedAppTests"
+                path: "Sources/FFIChecks"
             ),
         ]
     )
     """
+  }
 
-  private static func macosAppSwift(projectName: String) -> String {
+  private static func macosAppSwift(naming: MacOSNaming) -> String {
     """
     import AppFFI
     import SwiftUI
 
     @main
-    struct GeneratedApp: App {
+    struct \(naming.moduleName): App {
       var body: some Scene {
-        WindowGroup("\(projectName)") {
+        WindowGroup("\(naming.displayName)") {
           ContentView()
         }
       }
@@ -851,34 +912,53 @@ public enum RustProjectScaffold {
      * `include/app_ffiFFI.h`, emitted by scripts/generate-bindings.sh. */
     """
 
-  private static let macosFFITests = """
+  private static let macosFFIChecks = """
     import AppFFI
-    import XCTest
+    import Foundation
 
-    final class UiFFITests: XCTestCase {
-      func testUiSnapshotCrossesFFIBoundary() {
-        let snap = uiInitialSnapshot()
-        XCTAssertEqual(snap.label, "hello, world!")
-        XCTAssertTrue(snap.caption.contains("crates/ui"))
-      }
+    // FFI round-trip checks run as a plain executable because the VM toolchain
+    // (Xcode Command Line Tools only) ships neither XCTest nor swift-testing.
+    // Exits non-zero when a check breaks.
 
-      func testUiDispatchRefreshReturnsSnapshot() {
-        let snap = uiDispatchRefresh()
-        XCTAssertEqual(snap.label, "hello, world!")
-      }
-
-      func testGreetingStillCrossesFFIBoundary() {
-        XCTAssertEqual(greeting(name: "compass"), "hello, compass")
-      }
-
-      func testPersonalizedGreetingUsesCoreLogic() throws {
-        let request = GreetingRequest(name: "world", excited: true)
-        XCTAssertEqual(try personalizedGreeting(request: request), "hello, world!")
+    func check(_ condition: Bool, _ message: String) {
+      if !condition {
+        fputs("FFIChecks FAILED: \\(message)\\n", stderr)
+        exit(1)
       }
     }
+
+    let snapshot = uiInitialSnapshot()
+    check(
+      snapshot.label == "hello, world!",
+      "uiInitialSnapshot label mismatch: \\(snapshot.label)")
+    check(
+      snapshot.caption.contains("crates/ui"),
+      "uiInitialSnapshot caption mismatch: \\(snapshot.caption)")
+
+    let refreshed = uiDispatchRefresh()
+    check(
+      refreshed.label == "hello, world!",
+      "uiDispatchRefresh label mismatch: \\(refreshed.label)")
+
+    let greetingText = greeting(name: "compass")
+    check(greetingText == "hello, compass", "greeting mismatch: \\(greetingText)")
+
+    let request = GreetingRequest(name: "world", excited: true)
+    do {
+      let personalized = try personalizedGreeting(request: request)
+      check(
+        personalized == "hello, world!",
+        "personalizedGreeting mismatch: \\(personalized)")
+    } catch {
+      fputs("FFIChecks FAILED: personalizedGreeting threw \\(error)\\n", stderr)
+      exit(1)
+    }
+
+    print("FFIChecks ok: 4 checks passed")
     """
 
-  private static let macosInfoPlist = """
+  private static func macosInfoPlist(naming: MacOSNaming) -> String {
+    """
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
@@ -886,15 +966,15 @@ public enum RustProjectScaffold {
         <key>CFBundleDevelopmentRegion</key>
         <string>en</string>
         <key>CFBundleDisplayName</key>
-        <string>GeneratedApp</string>
+        <string>\(naming.displayName)</string>
         <key>CFBundleExecutable</key>
-        <string>GeneratedApp</string>
+        <string>\(naming.moduleName)</string>
         <key>CFBundleIdentifier</key>
-        <string>com.compass.generated.GeneratedApp</string>
+        <string>\(naming.bundleIdentifier)</string>
         <key>CFBundleInfoDictionaryVersion</key>
         <string>6.0</string>
         <key>CFBundleName</key>
-        <string>GeneratedApp</string>
+        <string>\(naming.moduleName)</string>
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleShortVersionString</key>
@@ -908,6 +988,7 @@ public enum RustProjectScaffold {
     </dict>
     </plist>
     """
+  }
 
   private static let swiftFormatConfig = """
     {
@@ -920,6 +1001,7 @@ public enum RustProjectScaffold {
   private static let generateBindingsScript = #"""
     #!/usr/bin/env bash
     # Regenerates the UniFFI Swift bindings and C header for apps/macos.
+    # Builds the release staticlib that Package.swift links via Context.packageDirectory.
     set -euo pipefail
 
     ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -961,9 +1043,10 @@ public enum RustProjectScaffold {
     echo "bindings regenerated"
     """#
 
-  private static let bundleMacOSScript = #"""
+  private static func bundleMacOSScript(naming: MacOSNaming) -> String {
+    #"""
     #!/usr/bin/env bash
-    # Builds an ad-hoc signed GeneratedApp.app under apps/macos/dist/.
+    # Builds an ad-hoc signed \#(naming.moduleName).app under apps/macos/dist/.
     set -euo pipefail
 
     ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -974,11 +1057,12 @@ public enum RustProjectScaffold {
     cd "$ROOT/apps/macos"
     swift build -c release
 
-    APP="$ROOT/apps/macos/dist/GeneratedApp.app"
+    APP="$ROOT/apps/macos/dist/\#(naming.moduleName).app"
     rm -rf "$APP"
     mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
     cp "$ROOT/apps/macos/Info.plist" "$APP/Contents/Info.plist"
-    cp "$ROOT/apps/macos/.build/release/GeneratedApp" "$APP/Contents/MacOS/GeneratedApp"
+    cp "$ROOT/apps/macos/.build/release/\#(naming.moduleName)" \
+      "$APP/Contents/MacOS/\#(naming.moduleName)"
 
     if command -v codesign >/dev/null 2>&1; then
       codesign --force --sign - "$APP"
@@ -986,13 +1070,15 @@ public enum RustProjectScaffold {
 
     echo "bundled $APP"
     """#
+  }
 
-  private static let macosAXSmokeSwift = #"""
+  private static func macosAXSmokeSwift(naming: MacOSNaming) -> String {
+    #"""
     import AppKit
     import ApplicationServices
     import Foundation
 
-    /// One-shot Accessibility smoke for GeneratedApp. Finds the running app by
+    /// One-shot Accessibility smoke for \#(naming.moduleName). Finds the running app by
     /// bundle id, waits for SwiftUI accessibilityIdentifier values, and asserts
     /// the greeting copy matches crates/core via UniFFI.
     enum AXSmokeError: Error, CustomStringConvertible {
@@ -1017,7 +1103,7 @@ public enum RustProjectScaffold {
 
     let bundleID = CommandLine.arguments.count > 1
       ? CommandLine.arguments[1]
-      : "com.compass.generated.GeneratedApp"
+      : "\#(naming.bundleIdentifier)"
     let expectedLabel = CommandLine.arguments.count > 2
       ? CommandLine.arguments[2]
       : "hello, world!"
@@ -1144,10 +1230,12 @@ public enum RustProjectScaffold {
       return nil
     }
     """#
+  }
 
-  private static let macosUISmokeScript = #"""
+  private static func macosUISmokeScript(naming: MacOSNaming) -> String {
+    #"""
     #!/usr/bin/env bash
-    # Opt-in headed fidelity: launch GeneratedApp in a GUI session, assert
+    # Opt-in headed fidelity: launch \#(naming.moduleName) in a GUI session, assert
     # Accessibility identifiers, and capture a screenshot for audit.
     # Enable with COMPASS_MACOS_UI_FIDELITY=1 (default off). Primary UI proof is
     # crates/ui simulation under `cargo test`.
@@ -1162,8 +1250,8 @@ public enum RustProjectScaffold {
       exit 0
     fi
 
-    BUNDLE_ID="com.compass.generated.GeneratedApp"
-    APP="$ROOT/apps/macos/dist/GeneratedApp.app"
+    BUNDLE_ID="\#(naming.bundleIdentifier)"
+    APP="$ROOT/apps/macos/dist/\#(naming.moduleName).app"
     SHOT="$ROOT/apps/macos/dist/ui-smoke.png"
     AX_SRC="$ROOT/scripts/macos-ax-smoke.swift"
     AX_BIN="$(mktemp -t macos-ax-smoke)"
@@ -1171,7 +1259,7 @@ public enum RustProjectScaffold {
     EXPECTED_CAPTION="UI policy lives in crates/ui; this shell is SwiftUI only."
 
     cleanup() {
-      /usr/bin/killall GeneratedApp 2>/dev/null || true
+      /usr/bin/killall "\#(naming.moduleName)" 2>/dev/null || true
       rm -f "$AX_BIN"
     }
     trap cleanup EXIT
@@ -1194,7 +1282,7 @@ public enum RustProjectScaffold {
       exit 1
     fi
 
-    /usr/bin/killall GeneratedApp 2>/dev/null || true
+    /usr/bin/killall "\#(naming.moduleName)" 2>/dev/null || true
     rm -f "$SHOT"
 
     # Compile AX helper for the guest toolchain (no Xcode project required).
@@ -1217,20 +1305,25 @@ public enum RustProjectScaffold {
 
     echo "macos ui fidelity ok ($SHOT)"
     """#
+  }
 
-  private static let verifyMacOSScript = #"""
+  private static func verifyMacOSScript(naming: MacOSNaming) -> String {
+    #"""
     #!/usr/bin/env bash
     # macOS product verify. Runs inside the embedded macOS VM: bindings +
-    # swift build/test. Headed launch + screenshot only when
+    # swift build + FFIChecks executable. Headed launch + screenshot only when
     # COMPASS_MACOS_UI_FIDELITY=1. Primary UI proof is crates/ui simulation
     # under the standard Rust verify (`cargo test`).
+    #
+    # Uses `swift run FFIChecks` (not `swift test`): the VM has Command Line
+    # Tools only, which do not ship XCTest / swift-testing.
     set -euo pipefail
 
     ROOT="$(cd "$(dirname "$0")/.." && pwd)"
     cd "$ROOT"
 
     if ! command -v swift >/dev/null 2>&1; then
-      echo "macos product requires a Mac host/VM with the Swift toolchain (Xcode)." >&2
+      echo "macos product requires a Mac host/VM with the Swift toolchain (Xcode CLT)." >&2
       exit 1
     fi
 
@@ -1248,17 +1341,17 @@ public enum RustProjectScaffold {
 
     cd "$ROOT/apps/macos"
     swift build -c release
-    # Compiles the generated UniFFI bindings and runs FFI round-trip tests.
-    swift test
+    # Compiles the generated UniFFI bindings and runs FFI round-trip checks.
+    swift run -c release FFIChecks
 
     if xcrun -f swift-format >/dev/null 2>&1; then
       xcrun swift-format lint --strict --recursive \
         --configuration "$ROOT/.swift-format" \
-        Sources/GeneratedApp Tests
+        Sources/\#(naming.moduleName) Sources/FFIChecks
     elif command -v swift-format >/dev/null 2>&1; then
       swift-format lint --strict --recursive \
         --configuration "$ROOT/.swift-format" \
-        Sources/GeneratedApp Tests
+        Sources/\#(naming.moduleName) Sources/FFIChecks
     else
       echo "swift-format not found; skipping Swift lint"
     fi
@@ -1268,4 +1361,5 @@ public enum RustProjectScaffold {
 
     echo "macos verify ok"
     """#
+  }
 }

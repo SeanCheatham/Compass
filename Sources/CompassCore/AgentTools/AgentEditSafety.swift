@@ -54,6 +54,51 @@ public enum AgentEditSafety {
       || path.contains("/__tests__/")
   }
 
+  /// Returns a short preview when `text` contains bare `#[test]` / `mod tests`
+  /// outside a `#[cfg(test)]` module in production Rust sources. Allows the
+  /// grandfathered unit-test pattern:
+  /// `#[cfg(test)] mod tests { #[test] fn ... }`.
+  public static func inappropriateBareRustTestCode(in text: String) -> String? {
+    var pendingCfgTest = false
+    var cfgTestDepth: Int? = nil
+    for rawLine in text.components(separatedBy: "\n") {
+      let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.hasPrefix("#[cfg(test)]") {
+        pendingCfgTest = true
+      }
+
+      let opens = rawLine.filter { $0 == "{" }.count
+      let closes = rawLine.filter { $0 == "}" }.count
+
+      if pendingCfgTest,
+        trimmed.range(of: #"^mod\s+\w+"#, options: .regularExpression) != nil
+      {
+        pendingCfgTest = false
+        cfgTestDepth = 0
+      }
+
+      let isBareTest =
+        trimmed.hasPrefix("#[test]")
+        || trimmed.hasPrefix("#[tokio::test]")
+        || trimmed.range(of: #"^mod\s+tests\b"#, options: .regularExpression) != nil
+
+      if isBareTest, cfgTestDepth == nil {
+        return "`\(String(trimmed.prefix(120)))`"
+      }
+
+      if var depth = cfgTestDepth {
+        depth += opens - closes
+        cfgTestDepth = depth > 0 ? depth : nil
+      } else if pendingCfgTest, opens > 0 {
+        // `#[cfg(test)]` followed by an inline block without `mod`.
+        pendingCfgTest = false
+        let depth = opens - closes
+        cfgTestDepth = depth > 0 ? depth : nil
+      }
+    }
+    return nil
+  }
+
   public static func newPlaceholderImplementationMarker(
     originalText: String,
     editedText: String

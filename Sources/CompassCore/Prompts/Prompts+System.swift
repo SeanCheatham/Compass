@@ -212,7 +212,9 @@ extension Prompts {
         tool. Project Git (status, commit, push) is host-only; do not use `git` in factory
         bash. Dirty host files after Develop are expected — the harness lands a commit after
         Critic approves. The guest has the Rust toolchain (cargo, rustc, rustfmt, clippy) and
-        Swift via Xcode Command Line Tools (`swift`, `swift test` / XCTest, clang).
+        Swift via Xcode Command Line Tools (`swift`, `swift build`, `swift run`, clang).
+        The guest does **not** ship XCTest or swift-testing — macOS adapter verify uses the
+        `FFIChecks` executable (`swift run FFIChecks`), not `swift test`.
         """
     }
   }

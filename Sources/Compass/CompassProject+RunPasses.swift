@@ -478,6 +478,7 @@ extension CompassProject {
           } else {
             succeeded = true
             feedback(.commitsPromoted)
+            retireShippedImmediate(workspace: workspace, shipped: next)
           }
           break criticLoop
         }
@@ -849,7 +850,8 @@ extension CompassProject {
 
       let artifactIssues = GeneratedArtifactHygiene.issues(forChangedPaths: changedPaths)
       if let message = GeneratedArtifactHygiene.formattedIssue(from: artifactIssues) {
-        log("Artifact hygiene check found generated build outputs in the change set.", level: .error)
+        log(
+          "Artifact hygiene check found generated build outputs in the change set.", level: .error)
         gitStatusIssues.append(message)
       }
     }

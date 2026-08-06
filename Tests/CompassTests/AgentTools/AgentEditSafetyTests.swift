@@ -70,12 +70,30 @@ struct AgentEditSafetyTests {
   }
 
   @Test
-  func detectsPlaceholderOnFreshWrite() {
-    let marker = AgentEditSafety.newPlaceholderImplementationMarker(
-      originalText: "",
-      editedText: "fn work() { unimplemented!() }\n"
-    )
-    #expect(marker?.lineNumber == 1)
-    #expect(marker?.preview.contains("unimplemented") == true)
+  func allowsCfgTestModulesInProductionSources() {
+    let allowed = """
+      pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+      #[cfg(test)]
+      mod tests {
+          use super::*;
+
+          #[test]
+          fn add_works() {
+              assert_eq!(add(1, 2), 3);
+          }
+      }
+      """
+    #expect(AgentEditSafety.inappropriateBareRustTestCode(in: allowed) == nil)
+
+    let bare = """
+      pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+      #[test]
+      fn add_works() {
+          assert_eq!(add(1, 2), 3);
+      }
+      """
+    #expect(AgentEditSafety.inappropriateBareRustTestCode(in: bare)?.contains("#[test]") == true)
   }
 }

@@ -27,7 +27,9 @@ struct ScaffoldTests {
     #expect(byPath.keys.contains("apps/macos/Sources/AppFFI/Placeholder.swift"))
     #expect(byPath.keys.contains("apps/macos/Sources/app_ffiFFI/shim.c"))
     #expect(byPath.keys.contains("apps/macos/Sources/app_ffiFFI/include/.gitkeep"))
-    #expect(byPath.keys.contains("apps/macos/Tests/GeneratedAppTests/UiFFITests.swift"))
+    #expect(byPath.keys.contains("apps/macos/Sources/MyFactoryApp/MyFactoryApp.swift"))
+    #expect(byPath.keys.contains("apps/macos/Sources/FFIChecks/main.swift"))
+    #expect(!byPath.keys.contains("apps/macos/Tests/GeneratedAppTests/UiFFITests.swift"))
     #expect(byPath.keys.contains("apps/macos/Info.plist"))
     #expect(byPath.keys.contains("scripts/generate-bindings.sh"))
     #expect(byPath.keys.contains("scripts/bundle-macos.sh"))
@@ -35,11 +37,29 @@ struct ScaffoldTests {
     #expect(byPath.keys.contains("scripts/macos-ui-smoke.sh"))
     #expect(byPath.keys.contains("scripts/macos-ax-smoke.swift"))
 
-    let app = try #require(byPath["apps/macos/Sources/GeneratedApp/GeneratedApp.swift"])
+    let app = try #require(byPath["apps/macos/Sources/MyFactoryApp/MyFactoryApp.swift"])
     #expect(app.contains("import AppFFI"))
     #expect(app.contains("uiInitialSnapshot"))
     #expect(app.contains("greeting.label"))
+    #expect(app.contains("struct MyFactoryApp"))
+    #expect(app.contains("WindowGroup(\"My Factory App\")"))
     #expect(!byPath.keys.contains("apps/macos/Sources/GeneratedApp/GreetingBridge.swift"))
+
+    let package = try #require(byPath["apps/macos/Package.swift"])
+    #expect(package.contains("name: \"MyFactoryApp\""))
+    #expect(package.contains("FFIChecks"))
+    #expect(package.contains("Context.packageDirectory"))
+    #expect(!package.contains("GeneratedAppTests"))
+    #expect(!package.contains("import XCTest"))
+    #expect(!package.contains(".testTarget("))
+
+    let ffiChecks = try #require(byPath["apps/macos/Sources/FFIChecks/main.swift"])
+    #expect(ffiChecks.contains("FFIChecks ok"))
+    #expect(!ffiChecks.contains("import XCTest"))
+
+    let info = try #require(byPath["apps/macos/Info.plist"])
+    #expect(info.contains("com.compass.generated.myfactoryapp"))
+    #expect(info.contains("MyFactoryApp"))
 
     let ui = try #require(byPath["crates/ui/src/lib.rs"])
     #expect(ui.contains("struct ViewState"))
@@ -53,15 +73,20 @@ struct ScaffoldTests {
     #expect(ffi.contains("app_ui::"))
 
     let verify = try #require(byPath["scripts/verify-macos.sh"])
-    #expect(verify.contains("swift test"))
+    #expect(verify.contains("swift run"))
+    #expect(verify.contains("FFIChecks"))
+    #expect(verify.contains("not `swift test`") || verify.contains("not swift test"))
+    #expect(!verify.contains("\nswift test\n") && !verify.contains("swift test\n"))
     #expect(verify.contains("swift-format"))
     #expect(verify.contains("macos-ui-smoke.sh"))
     #expect(verify.contains("crates/ui"))
+    #expect(verify.contains("Sources/MyFactoryApp"))
 
     let uiSmoke = try #require(byPath["scripts/macos-ui-smoke.sh"])
     #expect(uiSmoke.contains("COMPASS_MACOS_UI_FIDELITY"))
     #expect(uiSmoke.contains("launchctl asuser"))
     #expect(uiSmoke.contains("screencapture"))
+    #expect(uiSmoke.contains("com.compass.generated.myfactoryapp"))
     #expect(
       uiSmoke.contains("greeting.label")
         || byPath["scripts/macos-ax-smoke.swift"]!.contains("greeting.label"))
@@ -70,6 +95,7 @@ struct ScaffoldTests {
     #expect(axSmoke.contains("greeting.label"))
     #expect(axSmoke.contains("hello, world!"))
     #expect(axSmoke.contains("crates/ui"))
+    #expect(axSmoke.contains("com.compass.generated.myfactoryapp"))
 
     let workspace = try #require(byPath["Cargo.toml"])
     #expect(workspace.contains("crates/core"))
@@ -83,6 +109,17 @@ struct ScaffoldTests {
     #expect(readme.contains("verify-macos"))
     #expect(readme.contains("COMPASS_MACOS_UI_FIDELITY"))
     #expect(readme.contains("crates/ui"))
+    #expect(readme.contains("Current status"))
+  }
+
+  @Test
+  func rustScaffoldMacOSNamingSanitizesIdentifiers() {
+    let naming = RustProjectScaffold.MacOSNaming(projectName: "CompassRustApp5")
+    #expect(naming.moduleName == "CompassRustApp5")
+    #expect(naming.bundleIdentifier == "com.compass.generated.compassrustapp5")
+    #expect(RustProjectScaffold.MacOSNaming.swiftTypeName(from: "my factory app") == "MyFactoryApp")
+    #expect(RustProjectScaffold.MacOSNaming.swiftTypeName(from: "cli-fixture") == "CliFixture")
+    #expect(RustProjectScaffold.MacOSNaming.swiftTypeName(from: "99 bottles") == "App99Bottles")
   }
 
   @Test

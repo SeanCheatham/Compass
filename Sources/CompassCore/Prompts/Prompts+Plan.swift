@@ -79,8 +79,21 @@ extension Prompts {
       - Prefer dependency-free implementation packets. If the next slice needs a new
         crate dependency, the handoff must explicitly include the owning `Cargo.toml`
         update and tests.
-      - Keep `brief` stable and short: summary, target users, desired outcomes, constraints,
-        and acceptance signals.
+      - Prefer thin end-to-end slices once `crates/core` has any real domain API beyond
+        the greeting scaffold: wire CLI (and/or macOS binder) to that API before stacking
+        more core-only features. Do not block product shells behind a long core-only queue
+        (unread/search/etc.) when a smaller "post + list" or "post + file merge" vertical
+        would prove the product. When greeting is still the only CLI/macOS path and core
+        already has non-greeting APIs, prefer replacing the greeting scaffold in those
+        shells (or queue that cleanup as immediate) over deepening core further.
+      - Keep `brief` honest: do not invent acceptance signals, traits, property-test
+        claims, or entities that no near-term packet will implement. Align brief bullets
+        with shipped work plus the concrete queue. After shipping features, refresh
+        README "Current status" (or equivalent) when it would otherwise go stale.
+      - Surviving mutants in known greeting-scaffold paths (`greeting`, `GreetingError`,
+        `GreetingRequest`, `personalized_greeting`, `uniffi-bindgen`) are excluded from
+        Plan pressure until scaffold cleanup; do not spend a bugHunt/test iteration only
+        pinning greeting Display strings while product shells are still hello-world.
       - Keep `queue` to at most six actionable work items. Mark obsolete work stale or drop it.
         For a simple first slice, use `"queue": []`. Only include queued follow-ups when
         they are concrete, and every queue item has `id`, `title`, `outcome`, `why`,
@@ -90,13 +103,16 @@ extension Prompts {
         of `draft`, `feedback`, `repository`, `plan`, `lesson`, `user`; `priority`
         is one of `low`, `medium`, `high`; `status` is one of `available`, `active`,
         `blocked`, `deferred`, `done`, `stale`.
+        Compass retires the shipped `immediate` candidate (marks it `done`, clears
+        `immediate`) after Critic approves — do not leave completed work as `active`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
       - Name likely target files in the handoff. Use `crates/core/src` for domain logic,
         `crates/cli/src` for CLI behavior, `crates/ui` for ViewState/Actions/simulation,
         `crates/ffi` for UniFFI exports, and `apps/macos` only for thin SwiftUI binder work
         (no domain or UI policy in Swift).
         Put Rust integration tests in `crates/*/tests/`; unit tests belong in `#[cfg(test)]`
-        modules inside the crate sources.
+        modules inside the crate sources (new production files may include
+        `#[cfg(test)] mod tests { ... }`).
       - Do not name a file path as an existing target unless a read-only tool proved it
         exists. If a path is intentionally new, say `create new file <path>` in the
         handoff.

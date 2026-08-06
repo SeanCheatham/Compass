@@ -37,6 +37,8 @@ public enum GeneratedProjectQuality {
     - Coverage is collected after verify with `\(coverageCollectCommand)`.
     - Mutation testing runs post-verify scoped to changed Rust files; surviving
       mutants indicate weak tests and should drive test-strengthening work.
+      Greeting-scaffold survivors are excluded from Plan pressure until cleanup.
+    - macOS adapter verify uses `FFIChecks` (`swift run`), not XCTest/`swift test`.
     - Documentation-only README/docs slices may use a simple `grep -q` content
       check against the edited Markdown/text file instead of cargo.
     """

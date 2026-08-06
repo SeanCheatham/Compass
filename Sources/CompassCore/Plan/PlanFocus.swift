@@ -65,6 +65,9 @@ public enum PlanFocus: String, CaseIterable, Equatable {
           in a way that delivers visible value.
         - Prefer increments that finish a slice end-to-end over
           scaffolding that future work has to come back and wire up.
+        - Once core exposes real domain APIs beyond the greeting
+          scaffold, prefer wiring CLI/macOS to those APIs (even a
+          thin post/list/status command) before more core-only depth.
         """
     case .test:
       return """
@@ -95,6 +98,8 @@ public enum PlanFocus: String, CaseIterable, Equatable {
         - Improve documentation that a real reader would hit:
           README, in-app help, top-of-file context comments,
           onboarding notes. Fix stale or wrong docs first.
+        - Prefer refreshing README "Current status" / commands when
+          they lag behind shipped queue items.
         - Avoid line-by-line comments that just restate code. Aim
           for the kind of context a new contributor would need.
         - The verify command is usually a build or doc-lint; if
@@ -110,6 +115,9 @@ public enum PlanFocus: String, CaseIterable, Equatable {
         - Ground the hunt in the repo: read suspect code, run the
           app or tests, reproduce before fixing. Do not invent
           hypothetical bugs.
+        - Do not spend the iteration only pinning greeting-scaffold
+          mutants or Display strings while product shells are still
+          hello-world; prefer real product-surface bugs.
         - The verify command should be a test that fails before the
           fix and passes after, when feasible.
         """

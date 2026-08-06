@@ -991,7 +991,11 @@ public struct HeadlessCompassRunner: Sendable {
       session.endedAt = Date().timeIntervalSince1970 * 1000
       try persist(session: session, workspace: workspace)
       if ok {
-        try? recordShippedIterations(workspace: workspace, onEvent: onEvent)
+        try? recordShippedIterations(
+          workspace: workspace,
+          onEvent: onEvent,
+          shippedImmediate: immediate
+        )
         if options.commitIterations {
           commitIterationChanges(
             repoURL: repoURL,
@@ -1081,12 +1085,14 @@ public struct HeadlessCompassRunner: Sendable {
 
   private func recordShippedIterations(
     workspace: CompassWorkspace,
-    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void,
+    shippedImmediate: PlanNext? = nil
   ) throws {
     let current = try workspace.readState()
-    let recorded = PlanCompletionRecorder.recordingShippedIterations(
+    let recorded = PlanCompletionRecorder.recordingSuccessfulSession(
       into: current,
-      sessions: workspace.readSessions()
+      sessions: workspace.readSessions(),
+      shippedImmediate: shippedImmediate
     )
     guard recorded != current else { return }
     try workspace.writeState(recorded)
@@ -1121,7 +1127,7 @@ public struct HeadlessCompassRunner: Sendable {
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
-      focus: .feature,
+      focus: PlanFocus.weightedRandom(),
       coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
       mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
       promptMode: promptMode

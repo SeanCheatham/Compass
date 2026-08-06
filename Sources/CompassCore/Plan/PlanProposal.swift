@@ -238,6 +238,51 @@ public enum PlanCompletionRecorder {
     return updated
   }
 
+  /// After Critic approves (or verify succeeds when Critic is skipped), clear the
+  /// shipped `immediate` packet and mark the matching queue candidate `done`.
+  /// Dependents that listed that id in `blockedBy` are unblocked when empty.
+  public static func retiringShippedImmediate(
+    into state: PlanState,
+    shipped: PlanNext?
+  ) -> PlanState {
+    guard let shipped else { return state }
+    var updated = state
+    updated.immediate = nil
+
+    let candidateID = shipped.candidateID?.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let candidateID, !candidateID.isEmpty else { return updated }
+
+    updated.queue = updated.queue.map { candidate in
+      var next = candidate
+      if next.id == candidateID {
+        next.status = .done
+        if next.why.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          next.why = "Shipped by Compass after Critic approval."
+        } else if !next.why.lowercased().contains("shipped") {
+          next.why = "Shipped: \(next.why)"
+        }
+      }
+      if next.blockedBy.contains(candidateID) {
+        next.blockedBy = next.blockedBy.filter { $0 != candidateID }
+        if next.blockedBy.isEmpty, next.status == .blocked {
+          next.status = .available
+        }
+      }
+      return next
+    }
+    return updated
+  }
+
+  /// Records completed session summaries and retires the shipped immediate/queue item.
+  public static func recordingSuccessfulSession(
+    into state: PlanState,
+    sessions: [SessionRecord],
+    shippedImmediate: PlanNext?
+  ) -> PlanState {
+    let recorded = recordingShippedIterations(into: state, sessions: sessions)
+    return retiringShippedImmediate(into: recorded, shipped: shippedImmediate)
+  }
+
   public static func completionSummary(for session: SessionRecord) -> String {
     if let planLine = firstMeaningfulLine(session.plan) {
       return planLine

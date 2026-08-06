@@ -88,7 +88,7 @@ public enum MacOSUISmokeSupport {
       name: auditArtifactName,
       kind: "image",
       data: data,
-      note: "macOS UI fidelity screenshot (guest GeneratedApp)."
+      note: "macOS UI fidelity screenshot (guest macOS app)."
     )
   }
 }

@@ -331,4 +331,39 @@ struct PlanModelsTests {
     #expect(nudge.userMessage.contains("narrow the Outcome to core-only work"))
     #expect(nudge.userMessage.contains("exactly one repair"))
   }
+
+  @Test
+  func retiringShippedImmediateMarksQueueDoneAndUnblocksDependents() {
+    var state = PlanState.empty
+    state.immediate = PlanNext(
+      plan: "## Outcome\nShip reactions\n\n## Acceptance checks\n- tests pass",
+      verify: GeneratedProjectQuality.standardVerifyCommand,
+      candidateID: "core-reactions"
+    )
+    state.queue = [
+      PlanCandidate(
+        id: "core-reactions",
+        title: "Reactions",
+        outcome: "Reactions land",
+        status: .active
+      ),
+      PlanCandidate(
+        id: "cli-wire",
+        title: "Wire CLI",
+        outcome: "CLI posts messages",
+        status: .blocked,
+        blockedBy: ["core-reactions"]
+      ),
+    ]
+
+    let retired = PlanCompletionRecorder.retiringShippedImmediate(
+      into: state,
+      shipped: state.immediate
+    )
+
+    #expect(retired.immediate == nil)
+    #expect(retired.queue.first { $0.id == "core-reactions" }?.status == .done)
+    #expect(retired.queue.first { $0.id == "cli-wire" }?.status == .available)
+    #expect(retired.queue.first { $0.id == "cli-wire" }?.blockedBy.isEmpty == true)
+  }
 }

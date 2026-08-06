@@ -22,7 +22,13 @@ public struct MutationSnapshot: Codable, Equatable, Sendable {
   }
 
   public func formattedForPrompt(maxMissed: Int = 10) -> String {
-    guard tested > 0 || !missedMutants.isEmpty else {
+    let actionableMissed = missedMutants.filter { !Self.isGreetingScaffoldMutant($0) }
+    let scaffoldMissed = missedMutants.count - actionableMissed.count
+    guard tested > 0 || !actionableMissed.isEmpty else {
+      if scaffoldMissed > 0 {
+        return
+          "_(mutation data collected; \(scaffoldMissed) greeting-scaffold survivor(s) excluded from Plan pressure)_"
+      }
       return "_(no mutation data collected yet)_"
     }
     var lines: [String] = []
@@ -34,13 +40,34 @@ public struct MutationSnapshot: Codable, Equatable, Sendable {
     } else {
       lines.append("Mutation run: \(caught) caught, \(missed) missed, \(timeout) timeout.")
     }
-    for mutant in missedMutants.prefix(maxMissed) {
+    if scaffoldMissed > 0 {
+      lines.append(
+        "_(excluding \(scaffoldMissed) greeting-scaffold survivor(s) from Plan pressure)_")
+    }
+    for mutant in actionableMissed.prefix(maxMissed) {
       lines.append("- SURVIVED: \(mutant)")
     }
-    if missedMutants.count > maxMissed {
-      lines.append("_(+\(missedMutants.count - maxMissed) more surviving mutants)_")
+    if actionableMissed.count > maxMissed {
+      lines.append("_(+\(actionableMissed.count - maxMissed) more surviving mutants)_")
     }
     return lines.joined(separator: "\n")
+  }
+
+  /// Greeting scaffold paths that should not drive bugHunt/test packets while
+  /// product shells are still hello-world.
+  public static func isGreetingScaffoldMutant(_ description: String) -> Bool {
+    let lowered = description.lowercased()
+    let markers = [
+      "greeting",
+      "greetingerror",
+      "greetingrequest",
+      "personalized_greeting",
+      "uniffi-bindgen",
+      "greeting_caption",
+      "greeting.label",
+      "greeting.caption",
+    ]
+    return markers.contains { lowered.contains($0) }
   }
 }
 
@@ -177,10 +204,19 @@ extension GeneratedProjectQuality {
   /// current iteration, so post-verify mutation runs stay fast and relevant.
   public static func mutationTestCommand(forChangedFiles changedFiles: [String]) -> String {
     let sources = changedFiles.filter {
-      $0.hasSuffix(".rs") && !$0.contains("/tests/") && !$0.hasSuffix("_tests.rs")
+      $0.hasSuffix(".rs")
+        && !$0.contains("/tests/")
+        && !$0.hasSuffix("_tests.rs")
+        && !isGreetingScaffoldSourcePath($0)
     }
     guard !sources.isEmpty else { return mutationTestCommand }
     let scope = sources.map { "-f '\($0)'" }.joined(separator: " ")
     return "\(mutationTestCommand) \(scope)"
+  }
+
+  /// UniFFI bindgen binary and pure greeting-only glue paths are scaffold noise.
+  private static func isGreetingScaffoldSourcePath(_ path: String) -> Bool {
+    let lowered = path.lowercased()
+    return lowered.contains("uniffi-bindgen")
   }
 }

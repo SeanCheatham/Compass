@@ -148,12 +148,14 @@ public struct AgentWriteFileTool: AgentTool {
     }
     if existing == nil,
       AgentEditSafety.isSourceFile(url),
-      let inappropriateTest = Self.inappropriateRustTestCode(in: args.content, url: url)
+      url.pathExtension.lowercased() == "rs",
+      !AgentEditSafety.isTestFile(url),
+      let inappropriateTest = AgentEditSafety.inappropriateBareRustTestCode(in: args.content)
     {
       let relative = context.relativize(url)
       return .failure(
         .invalidArguments(
-          "write_file refused to create \(relative) because \(inappropriateTest). Do not paste `#[test]` functions or bare `mod tests` blocks into production crate sources. Put tests in `crates/*/tests/` integration files or inside a `#[cfg(test)]` module."
+          "write_file refused to create \(relative) because \(inappropriateTest). Do not paste bare `#[test]` functions or `mod tests` blocks into production crate sources. Put tests in `crates/*/tests/` integration files, or wrap unit tests in `#[cfg(test)] mod tests { ... }`."
         ))
     }
     if existing == nil,
@@ -473,25 +475,6 @@ public struct AgentWriteFileTool: AgentTool {
 
   private struct EmptyOrCommentOnlySourceContent {
     public let preview: String
-  }
-
-  private static func inappropriateRustTestCode(in text: String, url: URL) -> String? {
-    guard url.pathExtension.lowercased() == "rs", !AgentEditSafety.isTestFile(url) else {
-      return nil
-    }
-    let path = url.path.lowercased()
-    guard path.contains("/src/") else { return nil }
-    for line in text.components(separatedBy: "\n") {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      if trimmed.hasPrefix("#[test]")
-        || trimmed.hasPrefix("#[tokio::test]")
-        || trimmed == "mod tests {"
-        || trimmed.hasPrefix("mod tests ")
-      {
-        return "`\(trimmed)`"
-      }
-    }
-    return nil
   }
 
   private static func emptyOrCommentOnlySourceContent(

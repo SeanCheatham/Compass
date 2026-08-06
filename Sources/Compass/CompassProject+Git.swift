@@ -33,6 +33,31 @@ extension CompassProject {
     return nil
   }
 
+  /// Clears shipped `immediate` work and marks the matching queue item done.
+  func retireShippedImmediate(workspace: CompassWorkspace, shipped: PlanNext) {
+    do {
+      let current = try workspace.readState()
+      let sessions = workspace.readSessions()
+      let recorded = PlanCompletionRecorder.recordingSuccessfulSession(
+        into: current,
+        sessions: sessions,
+        shippedImmediate: shipped
+      )
+      guard recorded != current else { return }
+      try workspace.writeState(recorded)
+      state = recorded
+      log(
+        "Retired shipped immediate; \(recorded.completed.count) completed iteration(s) recorded.",
+        level: .info
+      )
+    } catch {
+      log(
+        "Failed to retire shipped immediate: \(error.localizedDescription)",
+        level: .warning
+      )
+    }
+  }
+
   /// Stages whatever the agent's host-side file tools left in the main
   /// repo and lands it as a single commit on the user's current branch.
   ///

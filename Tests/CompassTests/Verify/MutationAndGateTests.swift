@@ -92,6 +92,30 @@ struct MutationReportParserTests {
   }
 
   @Test
+  func formattedPromptExcludesGreetingScaffoldSurvivors() {
+    let snapshot = MutationSnapshot(
+      collectedAt: Date(),
+      sessionNumber: 1,
+      command: "cargo mutants",
+      exitCode: 1,
+      caught: 2,
+      missed: 2,
+      timeout: 0,
+      unviable: 0,
+      missedMutants: [
+        "crates/core/src/lib.rs:10: replace GreetingError::Display with empty",
+        "crates/core/src/store.rs:40: replace absorb guard with true",
+      ],
+      rawSummary: nil
+    )
+    let prompt = snapshot.formattedForPrompt()
+    #expect(prompt.contains("absorb guard"))
+    #expect(!prompt.contains("GreetingError"))
+    #expect(prompt.contains("excluding 1 greeting-scaffold"))
+    #expect(MutationSnapshot.isGreetingScaffoldMutant("personalized_greeting Display"))
+  }
+
+  @Test
   func fallsBackToFullRunWithoutRustSources() {
     let command = GeneratedProjectQuality.mutationTestCommand(forChangedFiles: ["README.md"])
     #expect(command == GeneratedProjectQuality.mutationTestCommand)
