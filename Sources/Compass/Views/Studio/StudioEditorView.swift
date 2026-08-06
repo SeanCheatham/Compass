@@ -12,7 +12,6 @@ struct StudioEditorView: View {
       let buffer = state.presentationBuffers[path] ?? state.buffers[path]
     {
       VStack(spacing: 0) {
-        recentStrip
         breadcrumb(path: path)
         Divider()
         let theme =
@@ -98,39 +97,6 @@ struct StudioEditorView: View {
           .foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-  }
-
-  @ViewBuilder
-  private var recentStrip: some View {
-    if !state.recentPaths.isEmpty {
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 6) {
-          ForEach(state.recentPaths.reversed(), id: \.self) { path in
-            Button {
-              state.peek(path)
-            } label: {
-              Text((path as NSString).lastPathComponent)
-                .font(.caption)
-                .lineLimit(1)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                  RoundedRectangle(cornerRadius: 4)
-                    .fill(
-                      path == state.openFile
-                        ? Color.accentColor.opacity(0.22)
-                        : Color.secondary.opacity(0.12)
-                    )
-                )
-            }
-            .buttonStyle(.plain)
-          }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-      }
-      Divider()
     }
   }
 

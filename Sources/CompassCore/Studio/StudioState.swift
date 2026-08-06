@@ -142,15 +142,24 @@ public final class StudioState: ObservableObject {
   /// the whole repo.
   @Published public private(set) var knownFiles: [String: KnownFile] = [:]
   @Published public private(set) var isTypewriting = false
-  /// Which pane should dominate the vertical split (screensaver camera).
+  /// Which editor-pane tab the screensaver camera should prefer.
+  /// Drives auto-selection of `selectedSurface` while tools run; heights are
+  /// no longer split between editor and terminal (terminal is a tab).
   @Published public private(set) var paneFocus: StudioPaneFocus = .balanced
+  /// Active tab in the upper Studio pane (file editor vs terminal).
+  @Published public private(set) var selectedSurface: StudioEditorSurface = .file
 
   public enum StudioPaneFocus: String, Equatable, Sendable {
-    /// Default ~60/40 editor/terminal.
+    /// Idle — leave the current tab alone.
     case balanced
-    /// Read / write / edit in flight (or typewriter playback) — editor ~75%.
+    /// Read / write / edit in flight (or typewriter playback) — show file tab.
     case editor
-    /// Bash in flight — terminal ~75%.
+    /// Bash in flight — show terminal tab.
+    case terminal
+  }
+
+  public enum StudioEditorSurface: String, Equatable, Sendable {
+    case file
     case terminal
   }
 
@@ -194,6 +203,7 @@ public final class StudioState: ObservableObject {
     rejectedKnownPaths = []
     isTypewriting = false
     paneFocus = .balanced
+    selectedSurface = .file
     runningBashIDs = []
     runningEditorIDs = []
   }
@@ -202,6 +212,7 @@ public final class StudioState: ObservableObject {
 
   public func resumeFollowing() {
     followAgent = true
+    selectedSurface = .file
     if let lastTouchedPath, buffers[lastTouchedPath] != nil {
       openFile = lastTouchedPath
       snapPresentation(for: lastTouchedPath)
@@ -214,6 +225,7 @@ public final class StudioState: ObservableObject {
     let path = normalizePath(rawPath)
     guard !path.isEmpty else { return }
     followAgent = false
+    selectedSurface = .file
     if buffers[path] == nil {
       let buffer = FileBuffer(lines: diskLines(for: path) ?? [])
       setTruthBuffer(buffer, for: path)
@@ -223,6 +235,12 @@ public final class StudioState: ObservableObject {
     }
     openFile = path
     bumpRecent(path)
+  }
+
+  /// Switch the upper pane to the Terminal tab (manual camera).
+  public func selectTerminal() {
+    followAgent = false
+    selectedSurface = .terminal
   }
 
   // MARK: - Path normalization
@@ -564,11 +582,13 @@ public final class StudioState: ObservableObject {
   }
 
   private func recomputePaneFocus() {
-    // Bash wins while running so the terminal camera takes over.
+    // Bash wins while running so the terminal tab takes the camera.
     if !runningBashIDs.isEmpty {
       paneFocus = .terminal
+      selectedSurface = .terminal
     } else if !runningEditorIDs.isEmpty || isTypewriting {
       paneFocus = .editor
+      selectedSurface = .file
     } else {
       paneFocus = .balanced
     }
@@ -642,6 +662,7 @@ public final class StudioState: ObservableObject {
 
   private func agentFocus(_ path: String) {
     followAgent = true
+    selectedSurface = .file
     openFile = path
     lastTouchedPath = path
     bumpRecent(path)

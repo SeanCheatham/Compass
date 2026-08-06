@@ -304,6 +304,7 @@ struct StudioStatePresentationTests {
   func paneFocusTracksBashVersusEditorTools() {
     let state = StudioState()
     #expect(state.paneFocus == .balanced)
+    #expect(state.selectedSurface == .file)
 
     state.apply(
       line(
@@ -311,6 +312,7 @@ struct StudioStatePresentationTests {
         correlationID: "r1",
         payload: .readFile(path: "a.rs", offset: 1, limit: nil, content: nil)))
     #expect(state.paneFocus == .editor)
+    #expect(state.selectedSurface == .file)
 
     state.apply(
       line(
@@ -318,6 +320,7 @@ struct StudioStatePresentationTests {
         correlationID: "b1",
         payload: .bash(command: "ls", cwd: nil, output: nil, isError: nil)))
     #expect(state.paneFocus == .terminal)
+    #expect(state.selectedSurface == .terminal)
 
     state.apply(
       line(
@@ -325,6 +328,7 @@ struct StudioStatePresentationTests {
         correlationID: "b1",
         payload: .bash(command: "ls", cwd: nil, output: "ok", isError: false)))
     #expect(state.paneFocus == .editor)
+    #expect(state.selectedSurface == .file)
 
     state.apply(
       line(
@@ -333,6 +337,31 @@ struct StudioStatePresentationTests {
         payload: .readFile(
           path: "a.rs", offset: 1, limit: nil, content: "     1\tx\n")))
     #expect(state.paneFocus == .balanced)
+    #expect(state.selectedSurface == .file)
+  }
+
+  @Test
+  func selectTerminalAndPeekSwitchEditorSurface() {
+    let state = StudioState()
+    state.apply(
+      line(
+        status: .completed,
+        payload: .readFile(
+          path: "a.rs", offset: 1, limit: nil, content: "     1\tx\n")))
+    #expect(state.selectedSurface == .file)
+
+    state.selectTerminal()
+    #expect(state.selectedSurface == .terminal)
+    #expect(!state.followAgent)
+
+    state.peek("a.rs")
+    #expect(state.selectedSurface == .file)
+    #expect(!state.followAgent)
+
+    state.selectTerminal()
+    state.resumeFollowing()
+    #expect(state.selectedSurface == .file)
+    #expect(state.followAgent)
   }
 
   @Test

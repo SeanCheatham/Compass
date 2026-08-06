@@ -15,46 +15,33 @@ struct StudioTerminalView: View {
   }
 
   var body: some View {
-    VStack(spacing: 0) {
-      HStack(spacing: 6) {
-        Image(systemName: "terminal")
-          .font(.system(size: 11))
-          .foregroundStyle(.secondary)
-        Text("Terminal")
-          .font(.callout.weight(.semibold))
-        Spacer(minLength: 0)
-      }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 7)
-      Divider()
-      // Keep ScrollView mounted even when empty so the first bash (often the
-      // event that opens Studio) does not remount the reader mid-layout.
-      ScrollViewReader { proxy in
-        ScrollView {
-          VStack(alignment: .leading, spacing: 6) {
-            if state.terminalEntries.isEmpty {
-              Text("bash commands the agent runs will appear here")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 4)
-            } else {
-              ForEach(state.terminalEntries) { entry in
-                StudioTerminalEntryView(entry: entry, colorScheme: colorScheme)
-                  .id(entry.id)
-              }
+    // Keep ScrollView mounted even when empty so the first bash (often the
+    // event that opens Studio) does not remount the reader mid-layout.
+    ScrollViewReader { proxy in
+      ScrollView {
+        VStack(alignment: .leading, spacing: 6) {
+          if state.terminalEntries.isEmpty {
+            Text("bash commands the agent runs will appear here")
+              .font(.caption)
+              .foregroundStyle(.tertiary)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.top, 4)
+          } else {
+            ForEach(state.terminalEntries) { entry in
+              StudioTerminalEntryView(entry: entry, colorScheme: colorScheme)
+                .id(entry.id)
             }
           }
-          .padding(.horizontal, 10)
-          .padding(.vertical, 8)
-          .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .onAppear {
-          scrollToBottom(proxy: proxy, animated: false)
-        }
-        .onChange(of: scrollEpoch) {
-          scrollToBottom(proxy: proxy, animated: false)
-        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+      }
+      .onAppear {
+        scrollToBottom(proxy: proxy, animated: false)
+      }
+      .onChange(of: scrollEpoch) {
+        scrollToBottom(proxy: proxy, animated: false)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

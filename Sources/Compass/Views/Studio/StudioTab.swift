@@ -1,13 +1,12 @@
 import CompassCore
 import SwiftUI
 
-/// Agent-perspective screensaver: file tree on the left, read-only highlighted
-/// editor in the center (with typewriter playback of edits), bash log below,
-/// and optional thinking transcript under the terminal.
+/// Agent-perspective screensaver: file tree on the left, tabbed editor/terminal
+/// in the upper pane, and optional thinking transcript pinned below.
 struct StudioTab: View {
   @ObservedObject var project: CompassProject
   /// Observed directly — `CompassProject.studioState` is not `@Published`, so
-  /// pane-focus / activity changes would not otherwise rebuild this split.
+  /// surface / activity changes would not otherwise rebuild this split.
   @ObservedObject private var state: StudioState
 
   init(project: CompassProject) {
@@ -22,17 +21,20 @@ struct StudioTab: View {
           .frame(minWidth: 180, idealWidth: 230, maxWidth: 320)
         GeometryReader { geo in
           let heights = paneHeights(
-            for: state.paneFocus,
             showsThinking: !state.thinkingEntries.isEmpty,
             in: geo.size.height
           )
           VStack(spacing: 0) {
-            StudioEditorView(state: state)
-              .frame(width: geo.size.width, height: heights.editor)
-              .clipped()
-            StudioTerminalView(state: state)
-              .frame(width: geo.size.width, height: heights.terminal)
-              .clipped()
+            VStack(spacing: 0) {
+              studioTabStrip
+              if state.selectedSurface == .terminal {
+                StudioTerminalView(state: state)
+              } else {
+                StudioEditorView(state: state)
+              }
+            }
+            .frame(width: geo.size.width, height: heights.upper)
+            .clipped()
             if heights.thinking > 0 {
               Divider()
               StudioThinkingView(
@@ -44,13 +46,8 @@ struct StudioTab: View {
               .clipped()
             }
           }
-          // Animate only after the split has a real size — first bash often
-          // opens Studio from the empty state, and animating 0→height + scroll
-          // together produces a blank terminal.
-          .animation(
-            geo.size.height > 1 ? .easeInOut(duration: 0.35) : nil,
-            value: state.paneFocus
-          )
+          // Animate only after the split has a real size — first content often
+          // opens Studio from the empty state.
           .animation(
             geo.size.height > 1 ? .easeInOut(duration: 0.25) : nil,
             value: state.thinkingEntries.isEmpty
@@ -68,7 +65,7 @@ struct StudioTab: View {
         Text("Studio")
           .font(.headline)
         Text(
-          "When the agent runs, files it touches open here, edits type in place, bash lands in the terminal, and thinking streams below."
+          "When the agent runs, files it touches open here, edits type in place, bash lands in the Terminal tab, and thinking streams below."
         )
         .font(.callout)
         .foregroundStyle(.secondary)
@@ -82,66 +79,84 @@ struct StudioTab: View {
     }
   }
 
-  private func editorHeightFraction(for focus: StudioState.StudioPaneFocus) -> CGFloat {
-    switch focus {
-    case .editor: return 0.75
-    case .terminal: return 0.25
-    case .balanced: return 0.62
+  @ViewBuilder
+  private var studioTabStrip: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 6) {
+        tabChip(
+          title: "Terminal",
+          systemImage: "terminal",
+          selected: state.selectedSurface == .terminal
+        ) {
+          state.selectTerminal()
+        }
+        ForEach(state.recentPaths.reversed(), id: \.self) { path in
+          tabChip(
+            title: (path as NSString).lastPathComponent,
+            systemImage: nil,
+            selected: state.selectedSurface == .file && path == state.openFile
+          ) {
+            state.peek(path)
+          }
+        }
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, 5)
     }
+    Divider()
   }
 
-  /// Split height that always sums to `total` so min-height floors cannot
-  /// overflow the pane (and steal the majority from the focused side).
+  private func tabChip(
+    title: String,
+    systemImage: String?,
+    selected: Bool,
+    action: @escaping () -> Void
+  ) -> some View {
+    Button(action: action) {
+      HStack(spacing: 4) {
+        if let systemImage {
+          Image(systemName: systemImage)
+            .font(.system(size: 10))
+        }
+        Text(title)
+          .font(.caption)
+          .lineLimit(1)
+      }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 3)
+      .background(
+        RoundedRectangle(cornerRadius: 4)
+          .fill(
+            selected
+              ? Color.accentColor.opacity(0.22)
+              : Color.secondary.opacity(0.12)
+          )
+      )
+    }
+    .buttonStyle(.plain)
+  }
+
+  /// Upper pane vs pinned thinking. Terminal shares the upper pane as a tab,
+  /// so it no longer competes for a separate vertical slice.
   private func paneHeights(
-    for focus: StudioState.StudioPaneFocus,
     showsThinking: Bool,
     in total: CGFloat
-  ) -> (editor: CGFloat, thinking: CGFloat, terminal: CGFloat) {
-    let minEditor: CGFloat = 80
-    let minTerminal: CGFloat = 64
+  ) -> (upper: CGFloat, thinking: CGFloat) {
+    let minUpper: CGFloat = 120
     let minThinking: CGFloat = 72
     let maxThinking: CGFloat = 180
-    // Divider above thinking (under the terminal) sits outside the thinking frame.
     let divider: CGFloat = 1
 
-    let twoPane: (editor: CGFloat, thinking: CGFloat, terminal: CGFloat) = {
-      guard total > minEditor + minTerminal else {
-        let half = max(total / 2, 0)
-        return (half, 0, max(total - half, 0))
-      }
-      let idealEditor = total * editorHeightFraction(for: focus)
-      let editor = min(max(idealEditor, minEditor), total - minTerminal)
-      return (editor, 0, total - editor)
-    }()
-
-    guard showsThinking else { return twoPane }
-
-    // Hide thinking rather than render a sub-minimum strip that clips content.
-    let minTotalForThinking = minEditor + minTerminal + minThinking + divider
-    guard total >= minTotalForThinking else { return twoPane }
-
-    var thinking = min(max(total * 0.22, minThinking), maxThinking)
-    // When the terminal is focused, keep enough split budget that the terminal
-    // can stay the majority even after minEditor floors the editor pane.
-    if focus == .terminal {
-      let usableNeededForTerminalMajority = (minEditor * 2) + 1
-      let maxThinkingForFocus = total - divider - usableNeededForTerminalMajority
-      if maxThinkingForFocus < minThinking {
-        return twoPane
-      }
-      thinking = min(thinking, maxThinkingForFocus)
+    guard showsThinking else {
+      return (max(total, 0), 0)
     }
 
-    let usable = total - thinking - divider
-    switch focus {
-    case .terminal:
-      let idealTerminal = usable * (1 - editorHeightFraction(for: focus))
-      let terminal = min(max(idealTerminal, minTerminal), usable - minEditor)
-      return (usable - terminal, thinking, terminal)
-    case .editor, .balanced:
-      let idealEditor = usable * editorHeightFraction(for: focus)
-      let editor = min(max(idealEditor, minEditor), usable - minTerminal)
-      return (editor, thinking, usable - editor)
+    let minTotalForThinking = minUpper + minThinking + divider
+    guard total >= minTotalForThinking else {
+      return (max(total, 0), 0)
     }
+
+    let thinking = min(max(total * 0.22, minThinking), maxThinking)
+    return (total - thinking - divider, thinking)
   }
 }
