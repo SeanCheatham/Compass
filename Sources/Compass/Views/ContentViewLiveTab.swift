@@ -10,8 +10,6 @@ enum LiveTabLayout: Equatable {
 struct LiveTab: View {
   @ObservedObject var project: CompassProject
   var layout: LiveTabLayout = .standalone
-  @State private var liveTimelineGuideNarration: LiveTimelineGuideNarration?
-  @State private var recoveryGuideNarration: ProjectRecoveryGuideNarration?
   @State private var liveActivitySummaryCache: [String: LiveActivitySummary] = [:]
   @State private var liveActivitySummaryInFlightKeys: Set<String> = []
   @State private var expandedLiveActivityClusterKeys: Set<String> = []
@@ -44,16 +42,14 @@ struct LiveTab: View {
       if !reliabilityStatus.isEmpty {
         ProjectReliabilityBanner(
           status: reliabilityStatus,
-          recoveryGuide: recoveryGuide,
-          narration: matchingNarration(for: recoveryGuide)
+          recoveryGuide: recoveryGuide
         )
       }
 
       if timelineGuide.shouldShow {
         LiveTimelineGuidePanel(
           guide: timelineGuide,
-          clipboardPayload: timelinePayload,
-          narration: matchingNarration(for: timelineGuide)
+          clipboardPayload: timelinePayload
         )
       }
 
@@ -107,23 +103,6 @@ struct LiveTab: View {
     }
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .applyLiveTabOuterFrame(layout: layout)
-    .task(id: timelineGuide.narrationIdentifier) {
-      liveTimelineGuideNarration = nil
-      guard !project.isRunning, !project.isAutoPlaying else { return }
-      liveTimelineGuideNarration = await LiveTimelineGuideNarrator.narrate(
-        guide: timelineGuide
-      )
-    }
-    .task(
-      id:
-        "\(recoveryGuide.narrationIdentifier)|running-\(project.isRunning)|auto-\(project.isAutoPlaying)"
-    ) {
-      recoveryGuideNarration = nil
-      guard !project.isRunning, !project.isAutoPlaying else { return }
-      recoveryGuideNarration = await ProjectRecoveryGuideNarrator.narrate(
-        guide: recoveryGuide
-      )
-    }
   }
 
   private var showsThinkingIndicator: Bool {
@@ -191,29 +170,11 @@ struct LiveTab: View {
     }
   }
 
-  private func matchingNarration(
-    for guide: LiveTimelineGuide
-  ) -> LiveTimelineGuideNarration? {
-    guard liveTimelineGuideNarration?.guideIdentifier == guide.narrationIdentifier else {
-      return nil
-    }
-    return liveTimelineGuideNarration
-  }
-
-  private func matchingNarration(
-    for guide: ProjectRecoveryGuide
-  ) -> ProjectRecoveryGuideNarration? {
-    guard recoveryGuideNarration?.guideIdentifier == guide.narrationIdentifier else {
-      return nil
-    }
-    return recoveryGuideNarration
-  }
 }
 
 struct LiveTimelineGuidePanel: View {
   var guide: LiveTimelineGuide
   var clipboardPayload: LiveTimelineClipboardPayload
-  var narration: LiveTimelineGuideNarration?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -235,7 +196,7 @@ struct LiveTimelineGuidePanel: View {
           .background(.quaternary.opacity(0.65), in: Capsule())
       }
 
-      Text(narration?.text ?? guide.detail)
+      Text(guide.detail)
         .font(.callout)
         .foregroundStyle(.primary)
         .fixedSize(horizontal: false, vertical: true)
@@ -255,16 +216,6 @@ struct LiveTimelineGuidePanel: View {
               .background(color.opacity(0.1), in: Capsule())
               .help(checkpoint.detail)
           }
-
-          if narration != nil {
-            Label("On-device note", systemImage: "sparkles")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.secondary)
-              .lineLimit(1)
-              .padding(.horizontal, 7)
-              .padding(.vertical, 3)
-              .background(.quaternary.opacity(0.55), in: Capsule())
-          }
         }
       }
     }
@@ -277,7 +228,7 @@ struct LiveTimelineGuidePanel: View {
     }
     .accessibilityElement(children: .combine)
     .accessibilityLabel(
-      "\(guide.title). \(narration?.text ?? guide.detail). Evidence: \(guide.evidenceCoverage.label). \(guide.evidenceCoverage.detail)"
+      "\(guide.title). \(guide.detail). Evidence: \(guide.evidenceCoverage.label). \(guide.evidenceCoverage.detail)"
     )
   }
 
@@ -522,7 +473,6 @@ struct LiveActivityClusterRow: View {
 struct ProjectReliabilityBanner: View {
   var status: ProjectReliabilityStatus
   var recoveryGuide: ProjectRecoveryGuide
-  var narration: ProjectRecoveryGuideNarration?
 
   var body: some View {
     let recoveryPayload = ProjectRecoveryClipboardPayload(status: status, guide: recoveryGuide)
@@ -585,23 +535,6 @@ struct ProjectReliabilityBanner: View {
             CopyProjectRecoveryButton(payload: recoveryPayload)
           }
 
-          if let narration {
-            HStack(alignment: .top, spacing: 7) {
-              Image(systemName: "sparkles")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(color)
-                .frame(width: 16)
-                .padding(.top, 2)
-
-              Text(narration.text)
-                .font(.caption)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-          }
-
           ForEach(Array(recoveryGuide.steps.enumerated()), id: \.offset) { index, step in
             HStack(alignment: .top, spacing: 7) {
               Text("\(index + 1)")
@@ -638,7 +571,7 @@ struct ProjectReliabilityBanner: View {
     }
     .help(helpText)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(status.primaryCue). \(narration?.text ?? status.detail)")
+    .accessibilityLabel("\(status.primaryCue). \(status.detail)")
   }
 
   private var color: Color {
@@ -957,24 +890,15 @@ struct LiveStatusIcon: View {
 struct LiveDetail: View {
   var line: LiveLine
   var detail: String
-  @State private var failureNarration: LiveFailureInsightNarration?
 
   var body: some View {
     let insight = LiveFailureInsight(line: line)
     VStack(alignment: .leading, spacing: 6) {
       if let insight {
-        LiveFailureInsightPanel(
-          insight: insight,
-          narration: matchingNarration(for: insight)
-        )
+        LiveFailureInsightPanel(insight: insight)
       }
 
       rawDetailView
-    }
-    .task(id: insight?.narrationIdentifier ?? "no-failure-insight") {
-      failureNarration = nil
-      guard let insight else { return }
-      failureNarration = await LiveFailureInsightNarrator.narrate(insight: insight)
     }
   }
 
@@ -1003,20 +927,10 @@ struct LiveDetail: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
-
-  private func matchingNarration(
-    for insight: LiveFailureInsight
-  ) -> LiveFailureInsightNarration? {
-    guard failureNarration?.insightIdentifier == insight.narrationIdentifier else {
-      return nil
-    }
-    return failureNarration
-  }
 }
 
 struct LiveFailureInsightPanel: View {
   var insight: LiveFailureInsight
-  var narration: LiveFailureInsightNarration?
 
   var body: some View {
     let failurePayload = LiveFailureInsightClipboardPayload(insight: insight)
@@ -1040,7 +954,7 @@ struct LiveFailureInsightPanel: View {
         CopyLiveFailureButton(payload: failurePayload)
       }
 
-      Text(narration?.text ?? insight.explanation)
+      Text(insight.explanation)
         .font(.caption)
         .foregroundStyle(.primary)
         .fixedSize(horizontal: false, vertical: true)
@@ -1060,12 +974,6 @@ struct LiveFailureInsightPanel: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
-
-      if narration != nil {
-        Label("On-device note", systemImage: "sparkles")
-          .font(.caption2.weight(.semibold))
-          .foregroundStyle(.secondary)
-      }
     }
     .padding(.horizontal, 8)
     .padding(.vertical, 7)
@@ -1076,7 +984,7 @@ struct LiveFailureInsightPanel: View {
         .stroke(.red.opacity(0.18))
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(insight.title). \(narration?.text ?? insight.explanation)")
+    .accessibilityLabel("\(insight.title). \(insight.explanation)")
   }
 }
 

@@ -1,7 +1,6 @@
 import Foundation
 
 public struct ProjectRunControlGuide: Equatable {
-  public static let identifierLimit = 1_200
   public static let previewDetailLimit = 180
 
   public var primaryHelp: String
@@ -10,11 +9,6 @@ public struct ProjectRunControlGuide: Equatable {
   public var decisionBadge: DecisionBadge
   public var options: [Option]
   public var previewSteps: [PreviewStep]
-  public var narrationIdentifier: String
-
-  public var allowsNarration: Bool {
-    !narrationIdentifier.isEmpty && readiness.title != "Run in progress"
-  }
 
   public var primaryOption: Option {
     options.first { $0.kind == primaryKind } ?? options[0]
@@ -150,31 +144,12 @@ public struct ProjectRunControlGuide: Equatable {
       draftIntakeGuide: draftIntakeGuide,
       visionGuide: visionGuide
     )
-    narrationIdentifier = Self.narrationIdentifier(
-      primaryHelp: primaryHelp,
-      primaryKind: primaryKind,
-      readiness: readiness,
-      decisionBadge: decisionBadge,
-      options: options,
-      previewSteps: previewSteps
-    )
   }
 
   public enum Kind: Hashable {
     case loop
     case planOnly
     case developOnly
-
-    public var narrationKey: String {
-      switch self {
-      case .loop:
-        return "loop"
-      case .planOnly:
-        return "planOnly"
-      case .developOnly:
-        return "developOnly"
-      }
-    }
   }
 
   public struct Readiness: Equatable {
@@ -851,34 +826,6 @@ public struct ProjectRunControlGuide: Equatable {
       return message
     }
     return "\(message) \(handoffReadiness.repairDetail)"
-  }
-
-  private static func narrationIdentifier(
-    primaryHelp: String,
-    primaryKind: Kind,
-    readiness: Readiness,
-    decisionBadge: DecisionBadge,
-    options: [Option],
-    previewSteps: [PreviewStep]
-  ) -> String {
-    let optionFragment = options.map { option in
-      "\(option.kind.narrationKey):\(option.title):\(option.detail):enabled:\(option.isEnabled)"
-    }.joined(separator: "|")
-    let previewFragment = previewSteps.map { step in
-      "\(step.id):\(step.title):\(step.detail)"
-    }.joined(separator: "|")
-
-    return StringUtils.boundedText(
-      [
-        "primary:\(primaryKind.narrationKey)",
-        "help:\(primaryHelp)",
-        "readiness:\(readiness.title):\(readiness.detail)",
-        "signal:\(decisionBadge.label):\(decisionBadge.detail):\(decisionBadge.tone.rawValue)",
-        "options:\(optionFragment)",
-        "preview:\(previewFragment)",
-      ].joined(separator: "\n"),
-      limit: Self.identifierLimit
-    )
   }
 
   private struct HandoffReadiness: Equatable {

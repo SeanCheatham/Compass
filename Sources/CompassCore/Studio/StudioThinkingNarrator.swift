@@ -10,8 +10,8 @@ public enum StudioThinkingNarrator {
   public static func narrate(thinking: String) async -> String? {
     let input = boundedInput(thinking)
     guard !input.isEmpty else { return nil }
-    guard FoundationModelsAvailability.isAvailable else { return nil }
-    guard let generated = await FoundationModelsAvailability._streamText(prompt: prompt(for: input))
+    guard AssistTextRuntime.isAvailable else { return nil }
+    guard let generated = await AssistTextRuntime.generateText(prompt: prompt(for: input))
     else { return nil }
     let text = sanitized(generated)
     return text.isEmpty ? nil : text

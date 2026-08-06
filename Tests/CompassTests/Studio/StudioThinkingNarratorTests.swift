@@ -8,8 +8,8 @@ struct StudioThinkingNarratorTests {
   private static func provider(
     available: Bool,
     response: String?
-  ) -> FoundationModelsAvailability.TextProvider {
-    FoundationModelsAvailability.TextProvider(
+  ) -> AssistTextRuntime.TextProvider {
+    AssistTextRuntime.TextProvider(
       isAvailable: { available },
       streamText: { _ in response }
     )
@@ -17,7 +17,7 @@ struct StudioThinkingNarratorTests {
 
   @Test
   func narrateReturnsSanitizedModelText() async {
-    let narration = await FoundationModelsAvailability.withTextProvider(
+    let narration = await AssistTextRuntime.withTextProvider(
       Self.provider(available: true, response: "\"I'm checking the parser before editing.\"")
     ) {
       await StudioThinkingNarrator.narrate(
@@ -28,7 +28,7 @@ struct StudioThinkingNarratorTests {
 
   @Test
   func narrateRejectsCodeishOutput() async {
-    let narration = await FoundationModelsAvailability.withTextProvider(
+    let narration = await AssistTextRuntime.withTextProvider(
       Self.provider(available: true, response: "Editing `foo() { return 1 }` now")
     ) {
       await StudioThinkingNarrator.narrate(thinking: "fix the parser")
@@ -38,7 +38,7 @@ struct StudioThinkingNarratorTests {
 
   @Test
   func narrateReturnsNilWhenUnavailable() async {
-    let narration = await FoundationModelsAvailability.withTextProvider(
+    let narration = await AssistTextRuntime.withTextProvider(
       Self.provider(available: false, response: "ignored")
     ) {
       await StudioThinkingNarrator.narrate(thinking: "some thought")
@@ -48,7 +48,7 @@ struct StudioThinkingNarratorTests {
 
   @Test
   func narrateReturnsNilForEmptyInput() async {
-    let narration = await FoundationModelsAvailability.withTextProvider(
+    let narration = await AssistTextRuntime.withTextProvider(
       Self.provider(available: true, response: "unused")
     ) {
       await StudioThinkingNarrator.narrate(thinking: "   \n  ")

@@ -9,7 +9,7 @@ import Foundation
 public enum ModelRoutingHint: String, Sendable, Equatable {
   /// Plan / Develop / Critic agent turns — prefer the configured cloud endpoint.
   case cloudPrimary
-  /// Cheap assist work (compaction, narrators, codemap) — prefer MLX when ready.
+  /// Cheap assist work (`AssistTextRuntime`, e.g. Studio thinking narration) — prefer MLX when ready.
   case localPreferred
 }
 

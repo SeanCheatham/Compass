@@ -5,7 +5,6 @@ struct ProjectIntakeGuideCard: View {
   var guide: ProjectIntakeGuide
   var compact = false
   var addProject: () -> Void
-  @State private var guideNarration: ProjectIntakeGuideNarration?
 
   var body: some View {
     let payload = ProjectIntakeClipboardPayload(guide: guide)
@@ -21,20 +20,10 @@ struct ProjectIntakeGuideCard: View {
           Text(guide.title)
             .font(compact ? .headline : .title2.weight(.semibold))
             .fixedSize(horizontal: false, vertical: true)
-          Text(matchingNarration?.text ?? guide.detail)
+          Text(guide.detail)
             .font(compact ? .caption : .callout)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
-
-          if matchingNarration != nil {
-            Label("On-device intake note", systemImage: "sparkles")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.secondary)
-              .lineLimit(1)
-              .padding(.horizontal, 7)
-              .padding(.vertical, 3)
-              .background(.quaternary.opacity(0.55), in: Capsule())
-          }
         }
 
         Spacer(minLength: 8)
@@ -73,24 +62,10 @@ struct ProjectIntakeGuideCard: View {
     .padding(compact ? 12 : 16)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
-    .task(id: guide.narrationIdentifier) {
-      guideNarration = nil
-      guard guide.allowsNarration else { return }
-      try? await Task.sleep(nanoseconds: 700_000_000)
-      guard !Task.isCancelled else { return }
-      guideNarration = await ProjectIntakeGuideNarrator.narrate(guide: guide)
-    }
   }
 
   private var visibleSteps: [ProjectIntakeGuide.Step] {
     compact ? Array(guide.steps.prefix(2)) : guide.steps
-  }
-
-  private var matchingNarration: ProjectIntakeGuideNarration? {
-    guard guideNarration?.guideIdentifier == guide.narrationIdentifier else {
-      return nil
-    }
-    return guideNarration
   }
 }
 

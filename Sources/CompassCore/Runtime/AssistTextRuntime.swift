@@ -1,14 +1,13 @@
 import Foundation
 
-/// Lightweight assist text path for narrators and Explore helpers.
+/// Lightweight assist text path for Studio thinking narration and similar
+/// non-agent helpers.
 ///
 /// Prefer MLX when downloaded; otherwise fall back to the configured
-/// OpenAI-compatible cloud endpoint. Agent Plan/Develop/Critic turns do not
-/// use this path — they go through `AgentExecutor` + `RoutedModelRuntime`.
-public enum FoundationModelsAvailability {
-  public static let generatedExploreUnavailableMessage =
-    "Generated Explore insight is unavailable until a text model is configured. Deterministic change details remain available."
-
+/// OpenAI-compatible cloud endpoint. Agent Plan/Develop/Critic turns and
+/// transcript compaction do not use this path — they go through
+/// `AgentExecutor` + `RoutedModelRuntime` with `.cloudPrimary`.
+public enum AssistTextRuntime {
   public struct TextProvider: Sendable {
     public var isAvailable: @Sendable () -> Bool
     public var streamText: @Sendable (_ prompt: String) async -> String?
@@ -41,7 +40,7 @@ public enum FoundationModelsAvailability {
     return settings.isTextCapabilityReady || settings.isLocalAssistReady
   }
 
-  public static func _streamText(prompt: String) async -> String? {
+  public static func generateText(prompt: String) async -> String? {
     if let textProviderOverride {
       return await textProviderOverride.streamText(prompt)
     }
@@ -56,7 +55,7 @@ public enum FoundationModelsAvailability {
             "You write concise, practical guidance for a local software-factory UI. Reply with plain text only.",
           prompt: prompt,
           maxOutputTokens: 512,
-          logLabel: "assist-narration",
+          logLabel: "assist-text",
           routingHint: .localPreferred
         )
       )

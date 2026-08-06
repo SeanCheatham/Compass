@@ -3,7 +3,6 @@ import Foundation
 public struct ProjectVisionGuide: Equatable, Sendable {
   public static let detailLimit = 220
   public static let visionPreviewLimit = 1_200
-  public static let identifierLimit = 1_200
 
   public var status: Status
   public var title: String
@@ -12,14 +11,9 @@ public struct ProjectVisionGuide: Equatable, Sendable {
   public var nextAction: NextAction
   public var cues: [Cue]
   public var visionPreview: String
-  public var narrationIdentifier: String
 
   public var isEmpty: Bool {
     status == .empty
-  }
-
-  public var allowsNarration: Bool {
-    status != .empty
   }
 
   public var satisfiedSignalTitles: [String] {
@@ -119,14 +113,6 @@ public struct ProjectVisionGuide: Equatable, Sendable {
     }
 
     detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
-    narrationIdentifier = Self.narrationIdentifier(
-      title: title,
-      detail: detail,
-      scoreLabel: scoreLabel,
-      status: status,
-      cues: cues,
-      visionPreview: visionPreview
-    )
   }
 
   public enum Status: Equatable, Sendable {
@@ -305,26 +291,6 @@ public struct ProjectVisionGuide: Equatable, Sendable {
     let escaped = NSRegularExpression.escapedPattern(for: word)
     let pattern = #"(?<![A-Za-z0-9])"# + escaped + #"(?![A-Za-z0-9])"#
     return text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
-  }
-
-  private static func narrationIdentifier(
-    title: String,
-    detail: String,
-    scoreLabel: String,
-    status: Status,
-    cues: [Cue],
-    visionPreview: String
-  ) -> String {
-    let raw = [
-      "title:\(title)",
-      "detail:\(detail)",
-      "score:\(scoreLabel)",
-      "status:\(status)",
-      "present:\(cues.filter(\.isSatisfied).map(\.title).joined(separator: ","))",
-      "missing:\(cues.filter { !$0.isSatisfied }.map(\.title).joined(separator: ","))",
-      "vision:\(visionPreview)",
-    ].joined(separator: "\n")
-    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 }
 

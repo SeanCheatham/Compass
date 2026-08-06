@@ -660,7 +660,7 @@ extension AgentExecutor {
           """,
         maxOutputTokens: maxSummaryCompletionTokens,
         logLabel: nil,
-        routingHint: .localPreferred
+        routingHint: .cloudPrimary
       )
     )
     let (summary, _) = stripThinkBlocks(generation.text)

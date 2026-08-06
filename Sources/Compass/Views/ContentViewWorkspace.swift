@@ -549,7 +549,6 @@ struct ProjectRunControls: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject var project: CompassProject
   @ObservedObject private var localModelManager: LocalModelManager = .shared
-  @State private var runGuideNarration: ProjectRunControlGuideNarration?
 
   var body: some View {
     let deliverySnapshot = NativeFeedbackService.shared.deliverySnapshot(
@@ -562,8 +561,7 @@ struct ProjectRunControls: View {
     )
     let executionEnvironmentMenu = project.runtimeDiagnosticsMenu
     let runGuide = ProjectSnapshotBuilder.runGuide(for: project)
-    let runNarration = matchingNarration(for: runGuide)
-    let primaryExplanation = runNarration?.text ?? runGuide.primaryHelp
+    let primaryExplanation = runGuide.primaryHelp
     let runControlPayload = ProjectRunControlClipboardPayload(guide: runGuide)
     let snapshotPayload = ProjectSnapshotBuilder.payload(
       for: project,
@@ -647,11 +645,6 @@ struct ProjectRunControls: View {
       Menu {
         Label(runGuide.readiness.title, systemImage: runGuide.readiness.systemImage)
         Text(runGuide.readiness.detail)
-        if let runNarration {
-          Divider()
-          Label("Run note", systemImage: "sparkles")
-          Text(runNarration.text)
-        }
         Divider()
         Label("Next run preview", systemImage: "list.bullet.rectangle")
         ForEach(runGuide.previewSteps) { step in
@@ -706,10 +699,6 @@ struct ProjectRunControls: View {
       .help("Stop")
     }
     .controlSize(.regular)
-    .task(id: runGuide.narrationIdentifier) {
-      runGuideNarration = nil
-      runGuideNarration = await ProjectRunControlGuideNarrator.narrate(guide: runGuide)
-    }
   }
 
   private func run(_ kind: ProjectRunControlGuide.Kind) {
@@ -732,15 +721,6 @@ struct ProjectRunControls: View {
         )
       }
     }
-  }
-
-  private func matchingNarration(
-    for guide: ProjectRunControlGuide
-  ) -> ProjectRunControlGuideNarration? {
-    guard runGuideNarration?.guideIdentifier == guide.narrationIdentifier else {
-      return nil
-    }
-    return runGuideNarration
   }
 }
 

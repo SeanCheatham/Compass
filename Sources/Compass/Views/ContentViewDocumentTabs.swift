@@ -5,7 +5,6 @@ import SwiftUI
 struct VisionTab: View {
   @ObservedObject var project: CompassProject
   @State private var mode: MarkdownDocumentMode
-  @State private var guideNarration: ProjectVisionGuideNarration?
 
   init(project: CompassProject) {
     self.project = project
@@ -36,8 +35,7 @@ struct VisionTab: View {
       }
       ProjectVisionGuidePanel(
         guide: guide,
-        clipboardPayload: clipboardPayload,
-        narration: matchingNarration(for: guide)
+        clipboardPayload: clipboardPayload
       )
       MarkdownDocumentBody(
         text: $project.vision,
@@ -46,29 +44,12 @@ struct VisionTab: View {
         editPlaceholder: "Sketch the software goal, target users, success signals, and constraints."
       )
     }
-    .task(id: "\(guide.narrationIdentifier)|running-\(project.isRunning)") {
-      guideNarration = nil
-      guard !project.isRunning, guide.allowsNarration else { return }
-      try? await Task.sleep(nanoseconds: 700_000_000)
-      guard !Task.isCancelled else { return }
-      guideNarration = await ProjectVisionGuideNarrator.narrate(guide: guide)
-    }
-  }
-
-  private func matchingNarration(
-    for guide: ProjectVisionGuide
-  ) -> ProjectVisionGuideNarration? {
-    guard guideNarration?.guideIdentifier == guide.narrationIdentifier else {
-      return nil
-    }
-    return guideNarration
   }
 }
 
 private struct ProjectVisionGuidePanel: View {
   var guide: ProjectVisionGuide
   var clipboardPayload: ProjectVisionClipboardPayload
-  var narration: ProjectVisionGuideNarration?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -90,7 +71,7 @@ private struct ProjectVisionGuidePanel: View {
           .background(.quaternary.opacity(0.65), in: Capsule())
       }
 
-      Text(narration?.text ?? guide.detail)
+      Text(guide.detail)
         .font(.callout)
         .foregroundStyle(.primary)
         .fixedSize(horizontal: false, vertical: true)
@@ -107,16 +88,6 @@ private struct ProjectVisionGuidePanel: View {
               .padding(.vertical, 3)
               .background((cue.isSatisfied ? color : Color.secondary).opacity(0.1), in: Capsule())
               .help(cue.detail)
-          }
-
-          if narration != nil {
-            Label("On-device vision note", systemImage: "sparkles")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.secondary)
-              .lineLimit(1)
-              .padding(.horizontal, 7)
-              .padding(.vertical, 3)
-              .background(.quaternary.opacity(0.55), in: Capsule())
           }
         }
       }
@@ -135,7 +106,7 @@ private struct ProjectVisionGuidePanel: View {
     }
     .accessibilityElement(children: .combine)
     .accessibilityLabel(
-      "\(guide.title). \(narration?.text ?? guide.detail). \(guide.scoreLabel). Next action: \(guide.nextAction.title). \(guide.nextAction.detail)"
+      "\(guide.title). \(guide.detail). \(guide.scoreLabel). Next action: \(guide.nextAction.title). \(guide.nextAction.detail)"
     )
   }
 

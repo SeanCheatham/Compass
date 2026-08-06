@@ -1032,7 +1032,7 @@ extension AgentExecutor {
         ),
         maxOutputTokens: maxSummaryCompletionTokens,
         logLabel: Self.generationLogLabel(configuration: configuration, suffix: "compaction"),
-        routingHint: .localPreferred
+        routingHint: .cloudPrimary
       )
     )
 

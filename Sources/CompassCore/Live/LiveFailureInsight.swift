@@ -2,7 +2,6 @@ import Foundation
 
 public struct LiveFailureInsight: Equatable, Sendable {
   public static let detailLimit = 420
-  public static let identifierLimit = 1_200
 
   public enum Kind: String, Equatable, Sendable {
     case argumentRepair
@@ -33,7 +32,6 @@ public struct LiveFailureInsight: Equatable, Sendable {
   public var systemImageName: String
   public var lineTitle: String
   public var detail: String
-  public var narrationIdentifier: String
 
   public init?(line: LiveLine) {
     guard line.status == .failed || line.level == .error else { return nil }
@@ -53,19 +51,6 @@ public struct LiveFailureInsight: Equatable, Sendable {
     self.systemImageName = presentation.systemImageName
     self.lineTitle = StringUtils.boundedText(lineTitle, limit: 160)
     self.detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
-    self.narrationIdentifier = Self.identifier(
-      kind: presentation.kind,
-      title: presentation.title,
-      explanation: presentation.explanation,
-      nextStep: presentation.nextStep,
-      repairOwner: repairOwner,
-      lineTitle: lineTitle,
-      detail: detail
-    )
-  }
-
-  public var allowsNarration: Bool {
-    !narrationIdentifier.isEmpty
   }
 
   public struct RepairOwner: Equatable, Sendable {
@@ -510,32 +495,6 @@ public struct LiveFailureInsight: Equatable, Sendable {
       systemImageName: systemImageName
     )
   }
-
-  private static func identifier(
-    kind: Kind,
-    title: String,
-    explanation: String,
-    nextStep: String,
-    repairOwner: RepairOwner,
-    lineTitle: String,
-    detail: String
-  ) -> String {
-    let raw = [
-      "kind:\(kind.rawValue)",
-      "title:\(title)",
-      "explanation:\(explanation)",
-      "next:\(nextStep)",
-      "owner:\(repairOwner.label):\(repairOwner.detail)",
-      "line:\(StringUtils.boundedText(lineTitle, limit: 160))",
-      "detail:\(StringUtils.boundedText(detail, limit: detailLimit))",
-    ].joined(separator: "|")
-    return StringUtils.boundedText(raw, limit: identifierLimit)
-  }
-}
-
-public struct LiveFailureInsightNarration: Equatable, Sendable {
-  public var insightIdentifier: String
-  public var text: String
 }
 
 public struct LiveFailureInsightClipboardPayload: Equatable, Sendable {
@@ -590,73 +549,5 @@ private enum LiveFailureInsightClipboardText {
 
     return String(text.prefix(limit - 3))
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
-  }
-}
-
-public enum LiveFailureInsightNarrator {
-  public static let maxCharacters = 340
-
-  public static func narrate(insight: LiveFailureInsight) async -> LiveFailureInsightNarration? {
-    guard insight.allowsNarration else { return nil }
-    guard FoundationModelsAvailability.isAvailable else { return nil }
-
-    if #available(macOS 26.0, *) {
-      guard
-        let generated = await FoundationModelsAvailability._streamText(
-          prompt: prompt(for: insight)
-        )
-      else {
-        return nil
-      }
-      let text = sanitized(generated)
-      guard !text.isEmpty else { return nil }
-      return LiveFailureInsightNarration(
-        insightIdentifier: insight.narrationIdentifier,
-        text: text
-      )
-    }
-
-    return nil
-  }
-
-  public static func prompt(for insight: LiveFailureInsight) -> String {
-    """
-    You are Compass explaining one failed live event to a non-engineer.
-    Use only the facts below. Do not invent project facts, files, commands, outcomes, or promises.
-    Return one calm sentence under 45 words. No Markdown.
-
-    Failure type: \(insight.title)
-    Plain explanation: \(insight.explanation)
-    Repair owner: \(insight.repairOwner.label) - \(insight.repairOwner.detail)
-    Safe next step: \(insight.nextStep)
-    Raw live row: \(insight.lineTitle)
-    Raw detail: \(insight.detail)
-    """
-  }
-
-  private static func sanitized(_ text: String) -> String {
-    let normalized = StringUtils.boundedText(
-      text
-        .components(separatedBy: .newlines)
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
-        .joined(separator: " "),
-      limit: maxCharacters
-    )
-    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'` "))
-
-    let lowercased = normalized.lowercased()
-    guard
-      !normalized.contains("{"),
-      !normalized.contains("}"),
-      !normalized.contains("```"),
-      !normalized.hasPrefix("-"),
-      !lowercased.contains("http://"),
-      !lowercased.contains("https://"),
-      !RuntimeCopy.containsImplementationTerm(normalized)
-    else {
-      return ""
-    }
-    return normalized
   }
 }

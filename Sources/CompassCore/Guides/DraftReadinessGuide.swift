@@ -3,7 +3,6 @@ import Foundation
 public struct DraftReadinessGuide: Equatable, Sendable {
   public static let detailLimit = 160
   public static let draftPreviewLimit = 220
-  public static let identifierLimit = 1_000
 
   public var status: Status
   public var title: String
@@ -12,11 +11,6 @@ public struct DraftReadinessGuide: Equatable, Sendable {
   public var cues: [Cue]
   public var coachingPrompts: [CoachingPrompt]
   public var draftPreview: String
-  public var narrationIdentifier: String
-
-  public var allowsNarration: Bool {
-    status != .ready && !draftPreview.isEmpty
-  }
 
   public var missingSignalTitles: [String] {
     cues.filter { !$0.isSatisfied }.map(\.title)
@@ -83,15 +77,6 @@ public struct DraftReadinessGuide: Equatable, Sendable {
     }
 
     detail = Self.bounded(detail)
-    narrationIdentifier = Self.narrationIdentifier(
-      draft: draftPreview,
-      title: title,
-      detail: detail,
-      scoreLabel: scoreLabel,
-      status: status,
-      cues: cues,
-      coachingPrompts: coachingPrompts
-    )
   }
 
   public enum Status: Equatable, Sendable {
@@ -277,34 +262,11 @@ public struct DraftReadinessGuide: Equatable, Sendable {
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
-
-  private static func narrationIdentifier(
-    draft: String,
-    title: String,
-    detail: String,
-    scoreLabel: String,
-    status: Status,
-    cues: [Cue],
-    coachingPrompts: [CoachingPrompt]
-  ) -> String {
-    let raw = [
-      "draft:\(draft)",
-      "title:\(title)",
-      "detail:\(detail)",
-      "score:\(scoreLabel)",
-      "status:\(status)",
-      "present:\(cues.filter(\.isSatisfied).map(\.title).joined(separator: ","))",
-      "missing:\(cues.filter { !$0.isSatisfied }.map(\.title).joined(separator: ","))",
-      "questions:\(coachingPrompts.map(\.question).joined(separator: "|"))",
-    ].joined(separator: "\n")
-    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
-  }
 }
 
 public struct DraftIntakeGuide: Equatable, Sendable {
   public static let maxEntries = 6
   public static let draftTextLimit = 220
-  public static let identifierLimit = 1_200
   public static let planScopeDetailLimit = 260
 
   private var allEntries: [Entry]
@@ -312,10 +274,6 @@ public struct DraftIntakeGuide: Equatable, Sendable {
 
   public var isEmpty: Bool {
     allEntries.isEmpty
-  }
-
-  public var allowsNarration: Bool {
-    !allEntries.isEmpty
   }
 
   public var totalEntryCount: Int {
@@ -328,20 +286,6 @@ public struct DraftIntakeGuide: Equatable, Sendable {
 
   public var isCapped: Bool {
     hiddenEntryCount > 0
-  }
-
-  public var narrationIdentifier: String {
-    let raw = [
-      "title:\(title)",
-      "detail:\(detail)",
-      "status:\(status)",
-      "score:\(scoreLabel)",
-      "next:\(nextAction.title) - \(nextAction.detail)",
-      "total:\(totalEntryCount)",
-      "hidden:\(hiddenEntryCount)",
-      "entries:\(entries.map(\.narrationIdentifierFragment).joined(separator: "|"))",
-    ].joined(separator: "\n")
-    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 
   public var status: Status {
@@ -538,16 +482,6 @@ public struct DraftIntakeGuide: Equatable, Sendable {
 
     public var isReadyForPlan: Bool {
       readiness.status == .ready
-    }
-
-    fileprivate var narrationIdentifierFragment: String {
-      [
-        "draft\(number):\(draft)",
-        "status:\(readiness.title)",
-        "score:\(readiness.scoreLabel)",
-        "present:\(satisfiedSignalText)",
-        "missing:\(missingSignalText)",
-      ].joined(separator: ";")
     }
 
     private func signalTitles(satisfied: Bool) -> [String] {

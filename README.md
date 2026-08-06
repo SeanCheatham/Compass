@@ -5,7 +5,7 @@ Compass is a macOS-native local software factory for Git repositories.
 The current direction:
 
 - Factory turns (Plan / Develop / Critic) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
-- Optional **MLX** local assist handles cheap/small work (narration, compaction, Explore helpers) when the blessed local model is downloaded.
+- Optional **MLX** local assist handles cheap/small work (e.g. Studio thinking narration) when the blessed local model is downloaded. Transcript compaction uses the cloud endpoint.
 - Compass does deterministic work through local tools and the embedded macOS VM.
 - Generated projects require Rust `crates/core` plus at least one product: `cli` and/or `macos` (default both). Domain logic stays in Rust; UI policy in `crates/ui`; macOS uses UniFFI + a dumb SwiftUI binder.
 

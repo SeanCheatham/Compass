@@ -2,7 +2,6 @@ import Foundation
 
 public struct LiveTimelineGuide: Equatable, Sendable {
   public static let detailLimit = 240
-  public static let identifierLimit = 1_200
 
   public enum Tone: String, Equatable, Sendable {
     case idle
@@ -54,11 +53,6 @@ public struct LiveTimelineGuide: Equatable, Sendable {
   public var failedEventCount: Int
   public var latestEvents: [EventSummary]
   public var evidenceCoverage: EvidenceCoverage
-  public var narrationIdentifier: String
-
-  public var allowsNarration: Bool {
-    shouldShow && tone != .running
-  }
 
   public init(
     phase: LoopPhase,
@@ -138,22 +132,6 @@ public struct LiveTimelineGuide: Equatable, Sendable {
     }
 
     detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
-    narrationIdentifier = Self.narrationIdentifier(
-      title: title,
-      detail: detail,
-      statusLabel: statusLabel,
-      tone: tone,
-      phase: phase,
-      isRunning: isRunning,
-      isAutoPlaying: isAutoPlaying,
-      isPaused: isPaused,
-      eventCount: eventCount,
-      runningEventCount: runningEventCount,
-      failedEventCount: failedEventCount,
-      evidenceCoverage: evidenceCoverage,
-      checkpoints: checkpoints,
-      liveLog: liveLog
-    )
   }
 
   private static func runningPresentation(
@@ -322,52 +300,6 @@ public struct LiveTimelineGuide: Equatable, Sendable {
 
   private static func eventLabel(_ count: Int) -> String {
     count == 1 ? "1 event" : "\(count) events"
-  }
-
-  private static func narrationIdentifier(
-    title: String,
-    detail: String,
-    statusLabel: String,
-    tone: Tone,
-    phase: LoopPhase,
-    isRunning: Bool,
-    isAutoPlaying: Bool,
-    isPaused: Bool,
-    eventCount: Int,
-    runningEventCount: Int,
-    failedEventCount: Int,
-    evidenceCoverage: EvidenceCoverage,
-    checkpoints: [Checkpoint],
-    liveLog: [LiveLine]
-  ) -> String {
-    let latestEvents = liveLog.suffix(4).map { line in
-      [
-        line.text,
-        line.detail ?? "",
-      ]
-      .filter { !$0.isEmpty }
-      .joined(separator: ":")
-    }
-    .joined(separator: ",")
-
-    let raw = [
-      "title:\(title)",
-      "detail:\(detail)",
-      "status:\(statusLabel)",
-      "tone:\(tone.rawValue)",
-      "phase:\(phase.rawValue)",
-      "running:\(isRunning)",
-      "auto:\(isAutoPlaying)",
-      "paused:\(isPaused)",
-      "events:\(eventCount)",
-      "runningEvents:\(runningEventCount)",
-      "failedEvents:\(failedEventCount)",
-      "evidence:\(evidenceCoverage.label):\(evidenceCoverage.detail)",
-      "checkpoints:\(checkpoints.map(\.id).joined(separator: ","))",
-      "latest:\(latestEvents)",
-    ].joined(separator: "|")
-
-    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 
   private static func evidenceCoverage(from liveLog: [LiveLine]) -> EvidenceCoverage {

@@ -14,7 +14,6 @@ struct CompassSettingsView: View {
 private struct AgentSettingsTab: View {
   @EnvironmentObject var model: AppModel
   @ObservedObject private var localModelManager = LocalModelManager.shared
-  @State private var settingsNarration: AgentSettingsGuideNarration?
   @State private var textProviderRaw = AgentRuntimeSettings.defaultTextProvider.rawValue
   @State private var baseURLString = AgentRuntimeSettings.defaultBaseURLString
   @State private var modelIdentifier = ""
@@ -37,8 +36,7 @@ private struct AgentSettingsTab: View {
       Section {
         AgentSettingsGuidePanel(
           guide: settingsGuide,
-          clipboardPayload: settingsPayload,
-          narration: matchingNarration(for: settingsGuide)
+          clipboardPayload: settingsPayload
         )
       }
 
@@ -86,7 +84,7 @@ private struct AgentSettingsTab: View {
         LabeledContent("Storage", value: localModelManager.snapshot.directory.path)
           .textSelection(.enabled)
         LabeledContent("Credentials", value: "Not required")
-        LabeledContent("Used for", value: "Narration, compaction, cheap assist")
+        LabeledContent("Used for", value: "Studio thinking narration, cheap assist")
 
         if let error = localModelManager.snapshot.errorMessage {
           Text(error)
@@ -159,10 +157,6 @@ private struct AgentSettingsTab: View {
     .onChange(of: contextWindowTokens) { _, _ in
       normalizeContextWindow()
     }
-    .task(id: settingsGuide.narrationIdentifier) {
-      settingsNarration = nil
-      settingsNarration = await AgentSettingsGuideNarrator.narrate(guide: settingsGuide)
-    }
   }
 
   private func syncFieldsFromModel() {
@@ -190,15 +184,6 @@ private struct AgentSettingsTab: View {
     syncFieldsFromModel()
   }
 
-  private func matchingNarration(
-    for guide: AgentSettingsGuide
-  ) -> AgentSettingsGuideNarration? {
-    guard settingsNarration?.guideIdentifier == guide.narrationIdentifier else {
-      return nil
-    }
-    return settingsNarration
-  }
-
   private func normalizeContextWindow() {
     let trimmed = contextWindowTokens.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let parsed = Int(trimmed), parsed > 0 else {
@@ -214,7 +199,6 @@ private struct AgentSettingsTab: View {
 private struct AgentSettingsGuidePanel: View {
   let guide: AgentSettingsGuide
   let clipboardPayload: AgentSettingsClipboardPayload
-  let narration: AgentSettingsGuideNarration?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -233,7 +217,7 @@ private struct AgentSettingsGuidePanel: View {
           .lineLimit(1)
       }
 
-      Text(narration?.text ?? guide.detail)
+      Text(guide.detail)
         .font(.callout)
         .foregroundStyle(.primary)
         .fixedSize(horizontal: false, vertical: true)

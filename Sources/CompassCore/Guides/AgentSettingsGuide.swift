@@ -3,7 +3,6 @@ import Foundation
 public struct AgentSettingsGuide: Equatable, Sendable {
   public static let detailLimit = 280
   public static let rowDetailLimit = 190
-  public static let identifierLimit = 1_600
 
   public enum Tone: String, Equatable, Sendable {
     case ready
@@ -43,7 +42,6 @@ public struct AgentSettingsGuide: Equatable, Sendable {
   public var systemImageName: String
   public var runtimeCoverage: RuntimeCoverage
   public var rows: [Row]
-  public var narrationIdentifier: String
 
   public init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
     let cloudReady =
@@ -78,7 +76,7 @@ public struct AgentSettingsGuide: Equatable, Sendable {
       localStatus = .attention
     } else {
       localDetail =
-        "Optional: download \(modelSnapshot.modelID) for local assist (narration, compaction)."
+        "Optional: download \(modelSnapshot.modelID) for local assist (Studio thinking narration)."
       localStatus = settings.textProvider == .mlx ? .blocked : .off
     }
 
@@ -158,16 +156,6 @@ public struct AgentSettingsGuide: Equatable, Sendable {
     }
 
     detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
-    narrationIdentifier = Self.narrationIdentifier(
-      title: title,
-      detail: detail,
-      actionLabel: actionLabel,
-      tone: tone,
-      systemImageName: systemImageName,
-      runtimeCoverage: runtimeCoverage,
-      rows: rows,
-      modelSnapshot: modelSnapshot
-    )
   }
 
   private static func coverage(
@@ -188,31 +176,6 @@ public struct AgentSettingsGuide: Equatable, Sendable {
 
   private static func boundedRowDetail(_ detail: String) -> String {
     StringUtils.boundedText(detail, limit: Self.rowDetailLimit)
-  }
-
-  private static func narrationIdentifier(
-    title: String,
-    detail: String,
-    actionLabel: String,
-    tone: Tone,
-    systemImageName: String,
-    runtimeCoverage: RuntimeCoverage,
-    rows: [Row],
-    modelSnapshot: LocalModelSnapshot
-  ) -> String {
-    let raw = [
-      "title:\(title)",
-      "detail:\(detail)",
-      "action:\(actionLabel)",
-      "tone:\(tone.rawValue)",
-      "image:\(systemImageName)",
-      "coverage:\(runtimeCoverage.label):\(runtimeCoverage.readyCount)/\(runtimeCoverage.selectedCount)",
-      "modelStatus:\(modelSnapshot.status.rawValue)",
-      "modelID:\(modelSnapshot.modelID)",
-      "rows:\(rows.map { "\($0.id):\($0.status.rawValue):\($0.detail)" }.joined(separator: ","))",
-    ].joined(separator: "|")
-
-    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 }
 
