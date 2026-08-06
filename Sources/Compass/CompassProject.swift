@@ -12,7 +12,8 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var draftEntry = ""
   @Published var lessons = ""
   @Published var assumptions: [AssumptionRecord] = []
-  @Published var vision = ""
+  @Published var brief = ProjectBrief.empty
+  @Published var requirementLedger = RequirementLedger.empty
   @Published var sessions: [SessionRecord] = []
   @Published var archivedSessions: [SessionRecord] = []
   @Published var hasOlderArchivedSessions = false
@@ -59,6 +60,12 @@ final class CompassProject: ObservableObject, Identifiable {
 
   var executor: AgentExecutor?
   var stopRequested = false
+  /// When Plan returns no immediate work and a full requirements audit finds
+  /// unsatisfied items, auto-play injects findings and continues once.
+  var pendingRequirementsReplan = false
+  /// True after we already continued auto-play once for unsatisfied findings
+  /// without shipping new work — prevents infinite Plan/audit loops.
+  var alreadyReplannedAfterUnsatisfiedAudit = false
   var activeAuditSessionNumber: Int?
   var activeAuditEventSequence = 0
   /// Session number the codemap was last refreshed for. When Plan and

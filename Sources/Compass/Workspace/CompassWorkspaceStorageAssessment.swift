@@ -126,7 +126,8 @@ struct CompassWorkspaceStorageAssessment: Equatable {
     case state = "state.json"
     case drafts = "drafts.md"
     case lessons = "lessons.md"
-    case vision = "COMPASS.md"
+    case brief = "brief.json"
+    case requirements = "requirements.json"
     case sessionsRecord = "sessions.jsonl"
 
     var relativePath: String { rawValue }
@@ -344,8 +345,10 @@ struct CompassWorkspaceStorageAssessment: Equatable {
       return workspace.draftsURL
     case .lessons:
       return workspace.lessonsURL
-    case .vision:
-      return workspace.visionURL
+    case .brief:
+      return workspace.briefURL
+    case .requirements:
+      return workspace.requirementsURL
     case .sessionsRecord:
       return workspace.sessionsRecordURL
     }

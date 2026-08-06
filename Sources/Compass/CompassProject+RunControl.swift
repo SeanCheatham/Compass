@@ -38,9 +38,18 @@ extension CompassProject {
         modelOverride: modelOverride
       )
 
-      if state.immediate == nil, phase == .idle {
+      if state.immediate == nil, phase == .idle || phase == .succeeded {
+        if pendingRequirementsReplan {
+          pendingRequirementsReplan = false
+          log("Continuing auto-play to replan unsatisfied requirements.", level: .info)
+          continue
+        }
         isAutoPlaying = false
-        log("Auto-play stopped: no immediate work.", level: .info)
+        if phase == .succeeded {
+          log("Auto-play stopped: all product requirements verified.", level: .success)
+        } else {
+          log("Auto-play stopped: no immediate work.", level: .info)
+        }
         return
       }
 

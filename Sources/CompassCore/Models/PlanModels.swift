@@ -8,6 +8,7 @@ public struct PlanNext: Codable, Equatable {
   public var selectedBecause: String?
   public var source: Source?
   public var candidateID: String?
+  public var targetedRequirementIDs: [String]?
 
   public enum Difficulty: String, Codable, CaseIterable {
     case low
@@ -58,6 +59,8 @@ public struct PlanNext: Codable, Equatable {
     case source
     case candidateID
     case candidateIDSnake = "candidate_id"
+    case targetedRequirementIDs
+    case targetedRequirementIDsSnake = "targeted_requirement_ids"
   }
 
   public init(
@@ -67,7 +70,8 @@ public struct PlanNext: Codable, Equatable {
     estimatedDifficulty: Difficulty? = nil,
     selectedBecause: String? = "Selected by Compass as the next useful slice.",
     source: Source? = .repository,
-    candidateID: String? = nil
+    candidateID: String? = nil,
+    targetedRequirementIDs: [String]? = nil
   ) {
     self.plan = plan.trimmingCharacters(in: .whitespacesAndNewlines)
     self.verify = verify.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -78,6 +82,7 @@ public struct PlanNext: Codable, Equatable {
       .nilIfEmpty
     self.source = source
     self.candidateID = candidateID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    self.targetedRequirementIDs = Self.sanitizedRequirementIDs(targetedRequirementIDs)
   }
 
   public init(from decoder: Decoder) throws {
@@ -124,6 +129,16 @@ public struct PlanNext: Codable, Equatable {
       preferredKey: .candidateID,
       aliases: [.candidateIDSnake]
     )?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    let targeted =
+      try FlexibleModelDecoder.decodeStringArrayIfPresent(
+        from: container,
+        forKey: .targetedRequirementIDs
+      )
+      ?? (try FlexibleModelDecoder.decodeStringArrayIfPresent(
+        from: container,
+        forKey: .targetedRequirementIDsSnake
+      ))
+    self.targetedRequirementIDs = Self.sanitizedRequirementIDs(targeted)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -135,6 +150,16 @@ public struct PlanNext: Codable, Equatable {
     try container.encodeIfPresent(selectedBecause, forKey: .selectedBecause)
     try container.encodeIfPresent(source, forKey: .source)
     try container.encodeIfPresent(candidateID, forKey: .candidateID)
+    try container.encodeIfPresent(targetedRequirementIDs, forKey: .targetedRequirementIDs)
+  }
+
+  private static func sanitizedRequirementIDs(_ ids: [String]?) -> [String]? {
+    guard let ids else { return nil }
+    let cleaned =
+      ids
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    return cleaned.isEmpty ? nil : cleaned
   }
 
   private static func decodePositiveInt(

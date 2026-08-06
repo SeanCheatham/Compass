@@ -173,6 +173,13 @@ public struct LiveTimelineGuide: Equatable, Sendable {
         statusLabel,
         "text.magnifyingglass"
       )
+    case .auditing:
+      return (
+        "Auditing Requirements",
+        "Compass is judging product requirements against the repository with evidence and criteria.",
+        statusLabel,
+        "checklist"
+      )
     default:
       return (
         "Run In Progress",

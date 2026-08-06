@@ -149,7 +149,7 @@ struct CompassApp: App {
         .help(ClipboardHelpText.recovery)
         .disabled(selectedProjectRecoveryPayload == nil)
 
-        Button("Copy Project Vision") {
+        Button("Copy Project Brief") {
           if let payload = selectedProjectVisionPayload {
             copyTextToPasteboard(payload.text)
           }
@@ -245,7 +245,7 @@ struct CompassApp: App {
 
   private var selectedProjectVisionPayload: ProjectVisionClipboardPayload? {
     guard isOnboardingComplete, let project = model.selectedProject else { return nil }
-    let guide = ProjectVisionGuide(vision: project.vision)
+    let guide = ProjectVisionGuide(brief: project.brief)
     let payload = ProjectVisionClipboardPayload(guide: guide)
     return payload.isEmpty ? nil : payload
   }

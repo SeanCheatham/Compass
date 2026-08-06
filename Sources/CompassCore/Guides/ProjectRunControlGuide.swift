@@ -23,11 +23,19 @@ public struct ProjectRunControlGuide: Equatable {
     isPaused: Bool,
     languageProfile: RepositoryLanguageProfile = .empty,
     drafts: String = "",
-    vision: String? = nil
+    brief: ProjectBrief? = nil,
+    requirementLedger: RequirementLedger = .empty
   ) {
     let canStart = hasRepository && !isRunning && !isAutoPlaying
     let draftIntakeGuide = DraftIntakeGuide(drafts: drafts)
-    let visionGuide = vision.map(ProjectVisionGuide.init(vision:))
+    let visionGuide = brief.map {
+      ProjectVisionGuide(brief: $0, ledger: requirementLedger)
+    }
+    let requirementsComplete =
+      (brief?.hasRequirements ?? false)
+      && requirementLedger.reconciled(with: brief ?? .empty).entries.allSatisfy {
+        $0.status == .satisfied
+      }
     let handoffReadiness = HandoffReadiness(
       state: state,
       languageProfile: languageProfile
@@ -42,7 +50,8 @@ public struct ProjectRunControlGuide: Equatable {
       isAutoPlaying: isAutoPlaying,
       isPaused: isPaused,
       draftIntakeGuide: draftIntakeGuide,
-      visionGuide: visionGuide
+      visionGuide: visionGuide,
+      requirementsComplete: requirementsComplete
     )
     decisionBadge = Self.decisionBadge(
       handoffReadiness: handoffReadiness,
@@ -52,7 +61,8 @@ public struct ProjectRunControlGuide: Equatable {
       isAutoPlaying: isAutoPlaying,
       isPaused: isPaused,
       draftIntakeGuide: draftIntakeGuide,
-      visionGuide: visionGuide
+      visionGuide: visionGuide,
+      requirementsComplete: requirementsComplete
     )
     primaryKind = Self.primaryKind(
       reliabilityStatus: reliabilityStatus,
@@ -74,7 +84,9 @@ public struct ProjectRunControlGuide: Equatable {
       loopDetail =
         "Ask Plan to repair Immediate Work, then continue only if the handoff becomes executable."
     } else if hasImmediate {
-      loopDetail = "Let Compass plan, develop, verify, review, and keep going."
+      loopDetail = "Let Compass plan, develop, verify, review, audit requirements, and keep going."
+    } else if requirementsComplete {
+      loopDetail = "All product requirements are verified. Run Loop only if you want another pass."
     } else if !draftIntakeGuide.isEmpty {
       loopDetail = Self.loopDetail(draftIntakeGuide: draftIntakeGuide)
     } else if Self.needsVisionBeforePlan(
@@ -83,7 +95,7 @@ public struct ProjectRunControlGuide: Equatable {
       visionGuide: visionGuide
     ) {
       loopDetail =
-        "Capture Project Vision first, or let Plan infer the next slice from the repository."
+        "Capture the Project Brief first, or let Plan infer the next slice from the repository."
     } else {
       loopDetail = "Let Plan choose the next slice, then Develop it if one is found."
     }
@@ -130,7 +142,8 @@ public struct ProjectRunControlGuide: Equatable {
       isAutoPlaying: isAutoPlaying,
       isPaused: isPaused,
       draftIntakeGuide: draftIntakeGuide,
-      visionGuide: visionGuide
+      visionGuide: visionGuide,
+      requirementsComplete: requirementsComplete
     )
 
     primaryHelp = Self.primaryHelp(
@@ -142,7 +155,8 @@ public struct ProjectRunControlGuide: Equatable {
       handoffReadiness: handoffReadiness,
       reliabilityStatus: reliabilityStatus,
       draftIntakeGuide: draftIntakeGuide,
-      visionGuide: visionGuide
+      visionGuide: visionGuide,
+      requirementsComplete: requirementsComplete
     )
   }
 
@@ -255,7 +269,7 @@ public struct ProjectRunControlGuide: Equatable {
       visionGuide: visionGuide
     ) {
       return
-        "Capture Project Vision first, or ask Plan to infer one executable next slice for review."
+        "Capture the Project Brief first, or ask Plan to infer one executable next slice for review."
     }
 
     return handoffReadiness.hasImmediate
@@ -273,7 +287,8 @@ public struct ProjectRunControlGuide: Equatable {
     isAutoPlaying: Bool,
     isPaused: Bool,
     draftIntakeGuide: DraftIntakeGuide,
-    visionGuide: ProjectVisionGuide?
+    visionGuide: ProjectVisionGuide?,
+    requirementsComplete: Bool = false
   ) -> [PreviewStep] {
     if !hasRepository {
       return [
@@ -304,6 +319,17 @@ public struct ProjectRunControlGuide: Equatable {
           title: "Resume from the gate",
           detail: "Compass will continue from the paused factory gate.",
           systemImage: "pause.circle"
+        )
+      ]
+    }
+
+    if requirementsComplete, !handoffReadiness.hasImmediate {
+      return [
+        PreviewStep(
+          id: "requirementsVerified",
+          title: "All requirements verified",
+          detail: "Product requirements are audited as satisfied. The factory finish line is met.",
+          systemImage: "checkmark.seal.fill"
         )
       ]
     }
@@ -424,7 +450,7 @@ public struct ProjectRunControlGuide: Equatable {
       visionGuide: visionGuide
     ) {
       return
-        "Project Vision is empty; Plan will otherwise infer one executable next slice from the repository."
+        "Project Brief is empty; Plan will otherwise infer one executable next slice from the repository."
     }
 
     return "Plan will choose one executable next slice from the repository and strategic context."
@@ -505,7 +531,8 @@ public struct ProjectRunControlGuide: Equatable {
     isAutoPlaying: Bool,
     isPaused: Bool,
     draftIntakeGuide: DraftIntakeGuide,
-    visionGuide: ProjectVisionGuide?
+    visionGuide: ProjectVisionGuide?,
+    requirementsComplete: Bool = false
   ) -> DecisionBadge {
     if !hasRepository {
       return badge(
@@ -531,6 +558,15 @@ public struct ProjectRunControlGuide: Equatable {
         detail: "Resume from the current factory gate when you are ready.",
         systemImage: "pause.circle",
         tone: .paused
+      )
+    }
+
+    if requirementsComplete, !handoffReadiness.hasImmediate {
+      return badge(
+        label: "Verified",
+        detail: "All product requirements are audited as satisfied.",
+        systemImage: "checkmark.seal.fill",
+        tone: .ready
       )
     }
 
@@ -593,7 +629,7 @@ public struct ProjectRunControlGuide: Equatable {
       return badge(
         label: "Vision first",
         detail:
-          "Project Vision is empty. Add audience, problem, success, and guardrails before the first Plan when possible.",
+          "Project Brief is empty. Add audience, problem, and product requirements before the first Plan when possible.",
         systemImage: "scope",
         tone: .warning
       )
@@ -642,7 +678,8 @@ public struct ProjectRunControlGuide: Equatable {
     isAutoPlaying: Bool,
     isPaused: Bool,
     draftIntakeGuide: DraftIntakeGuide,
-    visionGuide: ProjectVisionGuide?
+    visionGuide: ProjectVisionGuide?,
+    requirementsComplete: Bool = false
   ) -> Readiness {
     if !hasRepository {
       return Readiness(
@@ -665,6 +702,14 @@ public struct ProjectRunControlGuide: Equatable {
         title: "Paused at gate",
         detail: "Resume the loop or choose a different pause point.",
         systemImage: "pause.circle"
+      )
+    }
+
+    if requirementsComplete, !handoffReadiness.hasImmediate {
+      return Readiness(
+        title: "All requirements verified",
+        detail: "Product requirements are audited as satisfied. The factory finish line is met.",
+        systemImage: "checkmark.seal.fill"
       )
     }
 
@@ -711,7 +756,7 @@ public struct ProjectRunControlGuide: Equatable {
       return Readiness(
         title: "Vision missing",
         detail:
-          "Capture Project Vision before Plan so the first slice has audience, problem, success, and guardrails.",
+          "Capture the Project Brief before Plan so the first slice has audience, problem, and product requirements.",
         systemImage: "scope"
       )
     }
@@ -732,7 +777,8 @@ public struct ProjectRunControlGuide: Equatable {
     handoffReadiness: HandoffReadiness,
     reliabilityStatus: ProjectReliabilityStatus,
     draftIntakeGuide: DraftIntakeGuide,
-    visionGuide: ProjectVisionGuide?
+    visionGuide: ProjectVisionGuide?,
+    requirementsComplete: Bool = false
   ) -> String {
     if !hasRepository {
       return "Add a Git repository before running the factory loop."
@@ -742,6 +788,9 @@ public struct ProjectRunControlGuide: Equatable {
     }
     if isPaused {
       return "Choose how to resume the paused factory loop."
+    }
+    if requirementsComplete, !hasImmediate {
+      return "All product requirements are verified."
     }
     if !reliabilityStatus.isEmpty {
       return "\(reliabilityStatus.primaryCue): \(reliabilityStatus.actionLabel)"
@@ -766,7 +815,7 @@ public struct ProjectRunControlGuide: Equatable {
       visionGuide: visionGuide
     ) {
       return
-        "Capture Project Vision first, or run Plan if you want Compass to infer a starting slice."
+        "Capture the Project Brief first, or run Plan if you want Compass to infer a starting slice."
     }
     return "Run Plan first, or let the full loop choose and build the next slice."
   }

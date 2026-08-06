@@ -32,7 +32,7 @@ extension CompassProject {
       drafts = ""
       lessons = ""
       assumptions = []
-      vision = ""
+      brief = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -57,7 +57,7 @@ extension CompassProject {
       drafts = ""
       lessons = ""
       assumptions = []
-      vision = ""
+      brief = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -75,7 +75,8 @@ extension CompassProject {
     }
     lessons = workspace.readLessons()
     assumptions = try workspace.readAssumptionLedger().assumptions
-    vision = workspace.readVision()
+    brief = workspace.readBrief()
+    requirementLedger = workspace.readRequirementLedger(reconciledWith: brief)
     sessions = workspace.readSessions()
     archivedSessions = []
     hasOlderArchivedSessions = workspace.hasArchivedSessions()

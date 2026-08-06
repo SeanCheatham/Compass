@@ -109,6 +109,8 @@ struct ContinuationParserTests {
       .develop:
         #"{"status":"succeeded","summary":"Done","feedback":"Verified cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","bypassVerify":false,"lessonEdits":[]}"#,
       .critic: #"{"verdict":"approve","summary":"No blockers","feedback":""}"#,
+      .requirementsAudit:
+        #"{"results":[{"requirementID":"r1","verdict":"satisfied","evidence":["ok"],"proposedCriteria":[]}],"summary":"All good"}"#,
       .delegate: #"{"findings":"No blockers found."}"#,
     ]
 

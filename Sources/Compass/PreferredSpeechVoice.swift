@@ -24,6 +24,7 @@ enum PreferredSpeechVoice {
     case .plan: return "lee"
     case .develop: return "zoe"
     case .critic: return "matilda"
+    case .requirementsAudit: return "nora"
     }
   }
 

@@ -4,7 +4,7 @@ Compass is a macOS-native local software factory for Git repositories.
 
 The current direction:
 
-- Factory turns (Plan / Develop / Critic) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
+- Factory turns (Plan / Develop / Critic / Requirements Audit) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
 - Optional **MLX** local assist handles cheap/small work (e.g. Studio thinking narration) when the blessed local model is downloaded. Transcript compaction uses the cloud endpoint.
 - Compass does deterministic work through local tools and the embedded macOS VM.
 - Generated projects require Rust `crates/core` plus at least one product: `cli` and/or `macos` (default both). Domain logic stays in Rust; UI policy in `crates/ui`; macOS uses UniFFI + a dumb SwiftUI binder.
@@ -13,21 +13,26 @@ The current direction:
 
 Compass keeps a small persisted factory state in `.compass/state.json`:
 
-- `brief`: summary, target users, desired outcomes, constraints, and acceptance signals.
+- `brief`: Plan-owned strategic context (summary, target users, desired outcomes, constraints, acceptance signals).
 - `queue`: decomposed work items.
 - `immediate`: the selected implementation packet for the next Develop pass.
 - `completed`: completed iteration notes.
 - `openQuestions`: unresolved questions that affect scope.
 - `products`: enabled generated-project products (`cli` and/or `macos`).
 
+User product intent lives in `.compass/brief.json` (audience, problem, product requirements) and is edited in the Brief tab or passed to `compass-cli run` via `--audience`, `--problem`, and `--requirement`.
+
+Factory-owned requirement verification lives in `.compass/requirements.json` (per-requirement criteria, audit verdicts, evidence). Plan links slices via `immediate.targetedRequirementIDs`. After Critic approves a slice, Compass runs an incremental requirements audit for those ids. When Plan returns no immediate work, a full audit must find every requirement satisfied before the loop declares done; otherwise findings are fed back into Plan.
+
 The v1 loop is:
 
 1. Brief
 2. Decompose queue
-3. Select immediate work
+3. Select immediate work (optionally targeting product requirements)
 4. Develop
 5. Verify
 6. Critic
+7. Requirements audit (incremental after ship; full audit before loop completion)
 
 Activity/Live is the primary project surface.
 

@@ -75,7 +75,6 @@ extension CompassProject {
       let focus = PlanFocus.weightedRandom()
       log("Plan focus this iteration: \(focus.displayName).", level: .info)
 
-      let visionText = workspace.readVision()
       let prompt = try Prompts.planPrompt(
         state: currentState.proposal,
         completedCount: currentState.completed.count,
@@ -83,7 +82,10 @@ extension CompassProject {
         feedback: priorFeedback,
         lessons: workspace.readLessons(),
         assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
-        vision: visionText,
+        vision: workspace.readBrief().renderedMarkdown(),
+        requirementsStatus: workspace.readRequirementLedger(
+          reconciledWith: workspace.readBrief()
+        ).renderedStatusMarkdown(brief: workspace.readBrief()),
         focus: focus,
         coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
         mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
@@ -139,6 +141,71 @@ extension CompassProject {
       try persistSessions()
 
       if nextState.immediate == nil {
+        let brief = workspace.readBrief()
+        if brief.hasRequirements {
+          let ledger = await runRequirementsAuditPass(
+            workspace: workspace,
+            requirementIDs: nil,
+            agentSettings: agentSettings,
+            modelOverride: modelOverride,
+            sessionIndex: sessionIndex,
+            commit: await gitCurrentSha(at: workspace.repoURL)
+          )
+          let decision = RequirementsLoopCompletion.decide(
+            brief: brief,
+            ledger: ledger,
+            alreadyReplannedAfterUnsatisfiedAudit: alreadyReplannedAfterUnsatisfiedAudit
+          )
+          switch decision {
+          case .complete:
+            alreadyReplannedAfterUnsatisfiedAudit = false
+            pendingRequirementsReplan = false
+            endSession(sessionIndex, status: .succeeded)
+            phase = .succeeded
+            log("All product requirements verified.", level: .success)
+            feedback(.requirementsVerified)
+            isRunning = false
+            executor = nil
+            await refresh()
+            return
+          case .replan(let findingsDraft):
+            try workspace.appendDraft(findingsDraft)
+            drafts = workspace.readDrafts()
+            pendingRequirementsReplan = true
+            alreadyReplannedAfterUnsatisfiedAudit = true
+            if sessions.indices.contains(sessionIndex) {
+              sessions[sessionIndex].feedback = findingsDraft
+            }
+            endSession(sessionIndex, status: .skipped)
+            phase = .idle
+            log(
+              "Requirements remain unsatisfied; feeding findings back to Plan.",
+              level: .warning
+            )
+            feedback(.requirementsUnsatisfied)
+            isRunning = false
+            executor = nil
+            await refresh()
+            return
+          case .stopUnverified(let findingsDraft):
+            pendingRequirementsReplan = false
+            if sessions.indices.contains(sessionIndex) {
+              sessions[sessionIndex].feedback = findingsDraft
+            }
+            endSession(sessionIndex, status: .skipped)
+            phase = .idle
+            log(
+              "Plan found no work and requirements remain unverified after replan.",
+              level: .warning
+            )
+            feedback(.requirementsUnsatisfied)
+            isRunning = false
+            executor = nil
+            await refresh()
+            return
+          }
+        }
+
         endSession(sessionIndex, status: .skipped)
         phase = .idle
         log("Plan returned no immediate work.", level: .info)
@@ -337,7 +404,7 @@ extension CompassProject {
             next: next,
             lessons: workspace.readLessons(),
             assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
-            vision: workspace.readVision(),
+            vision: workspace.readBrief().renderedMarkdown(),
             attempt: attempt,
             priorIssues: priorIssues,
             criticFeedback: criticFeedbacks,
@@ -479,6 +546,18 @@ extension CompassProject {
             succeeded = true
             feedback(.commitsPromoted)
             retireShippedImmediate(workspace: workspace, shipped: next)
+            alreadyReplannedAfterUnsatisfiedAudit = false
+            if let targeted = next.targetedRequirementIDs, !targeted.isEmpty {
+              let commit = await gitCurrentSha(at: workspace.repoURL)
+              _ = await runRequirementsAuditPass(
+                workspace: workspace,
+                requirementIDs: targeted,
+                agentSettings: agentSettings,
+                modelOverride: modelOverride,
+                sessionIndex: sessionIndex,
+                commit: commit
+              )
+            }
           }
           break criticLoop
         }
@@ -592,7 +671,7 @@ extension CompassProject {
       priorCritiques: priorCritiques,
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
-      vision: workspace.readVision(),
+      vision: workspace.readBrief().renderedMarkdown(),
       iteration: iteration,
       maxIterations: maxCriticAttempts,
       promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)

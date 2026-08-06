@@ -25,7 +25,7 @@ public struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
       "- Use Run readiness and Primary action before starting work; disabled run modes stay "
         + "disabled until the named blocker changes.",
       "- If Project recovery appears, follow it before retrying failed work.",
-      "- Use Project vision and visible run history as guidance, not new scope. Keep missing "
+      "- Use Project Brief and visible run history as guidance, not new scope. Keep missing "
         + "signals visible instead of silently filling them in.",
       "- Runtime credential values are intentionally omitted. Never ask the user to paste API "
         + "keys into chat.",
@@ -96,7 +96,7 @@ public struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     to sections: inout [String]
   ) {
     sections.append("")
-    sections.append("Project vision:")
+    sections.append("Project brief:")
     sections.append("- Status: \(guide.title) - \(guide.detail)")
     sections.append("- Score: \(guide.scoreLabel)")
     sections.append("- Next action: \(guide.nextAction.title) - \(guide.nextAction.detail)")
@@ -105,7 +105,7 @@ public struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
 
     guard !guide.visionPreview.isEmpty else { return }
 
-    sections.append("- Vision preview: \(singleLine(guide.visionPreview, limit: 520))")
+    sections.append("- Brief preview: \(singleLine(guide.visionPreview, limit: 520))")
   }
 
   private static func appendDraftQueue(

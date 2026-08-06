@@ -4,15 +4,37 @@ import Foundation
 
 @MainActor
 extension CompassProject {
-  func saveVision() async {
+  func saveBrief() async {
     do {
       guard let workspace else {
         fail(AppModelError.noRepositorySelected)
         return
       }
       try await initializeIfNeeded(workspace)
-      try workspace.writeVision(vision)
-      log("Saved vision.", level: .success)
+      try workspace.writeBrief(brief)
+      // Keep ledger aligned when requirements are added/removed.
+      let ledger = workspace.readRequirementLedger(reconciledWith: brief)
+      try workspace.writeRequirementLedger(ledger)
+      requirementLedger = ledger
+      log("Saved brief.", level: .success)
+    } catch {
+      fail(error)
+    }
+  }
+
+  func saveRequirementLedger() async {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return
+      }
+      try await initializeIfNeeded(workspace)
+      try workspace.writeRequirementLedger(
+        requirementLedger,
+        reconciledWith: brief
+      )
+      requirementLedger = workspace.readRequirementLedger(reconciledWith: brief)
+      log("Saved requirement criteria.", level: .success)
     } catch {
       fail(error)
     }

@@ -11,7 +11,10 @@ enum ProjectSnapshotBuilder {
   ) -> ProjectSnapshotClipboardPayload {
     let runGuide = providedRunGuide ?? self.runGuide(for: project)
     let draftGuide = DraftIntakeGuide(drafts: project.drafts)
-    let visionGuide = ProjectVisionGuide(vision: project.vision)
+    let visionGuide = ProjectVisionGuide(
+      brief: project.brief,
+      ledger: project.requirementLedger
+    )
     let settingsGuide = AgentSettingsGuide(
       settings: agentSettings,
       modelSnapshot: modelSnapshot
@@ -40,7 +43,8 @@ enum ProjectSnapshotBuilder {
       isPaused: project.isPaused,
       languageProfile: project.languageProfile,
       drafts: project.drafts,
-      vision: project.vision
+      brief: project.brief,
+      requirementLedger: project.requirementLedger
     )
   }
 

@@ -9,6 +9,7 @@ extension Prompts {
     lessons: String,
     assumptions: String = "",
     vision: String,
+    requirementsStatus: String = "",
     focus: PlanFocus,
     coverageSnapshot: CoverageSnapshot? = nil,
     mutationSnapshot: MutationSnapshot? = nil,
@@ -25,7 +26,8 @@ extension Prompts {
             "estimatedDifficulty": "low",
             "selectedBecause": "<why this is next>",
             "source": "candidate",
-            "candidateID": null
+            "candidateID": null,
+            "targetedRequirementIDs": ["<requirement-id-or-omit>"]
           },
           "queue": [],
           "brief": {
@@ -106,6 +108,14 @@ extension Prompts {
         Compass retires the shipped `immediate` candidate (marks it `done`, clears
         `immediate`) after Critic approves — do not leave completed work as `active`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
+      - When the Project Brief lists product requirements, prioritize unverified or
+        unsatisfied ones. Set `immediate.targetedRequirementIDs` to the requirement id(s)
+        this slice advances (from the Requirements status section). Omit the field only
+        when the slice is unrelated maintenance.
+      - Use `immediate: null` only when there is no useful draft, feedback, queue item, or
+        repository-originated cleanup/test/docs slice — and only when every product
+        requirement is already satisfied (or the brief has none). Do not claim done while
+        requirements remain unverified or unsatisfied.
       - Name likely target files in the handoff. Use `crates/core/src` for domain logic,
         `crates/cli/src` for CLI behavior, `crates/ui` for ViewState/Actions/simulation,
         `crates/ffi` for UniFFI exports, and `apps/macos` only for thin SwiftUI binder work
@@ -120,8 +130,6 @@ extension Prompts {
         matching test file/update in the handoff or choose a verify command that directly
         exercises that behavior. The standard verify command only proves new behavior when
         the packet adds or updates tests for it.
-      - Use `immediate: null` only when there is no useful draft, feedback, queue item, or
-        repository-originated cleanup/test/docs slice.
       - Acceptance checks describe observable behavior or state. Put shell commands only in
         `immediate.verify`.
       - Completed history is managed by Compass. It currently has \(completedCount) completed
@@ -154,6 +162,9 @@ extension Prompts {
 
       ## Project context
       \(fencedOrEmpty(compactPromptBlock(vision, maxLines: 10, maxCharacters: 2400), empty: "_(no project context set)_"))
+
+      ## Requirements status
+      \(fencedOrEmpty(compactPromptBlock(requirementsStatus, maxLines: 20, maxCharacters: 3000), empty: "_(no product requirements)_"))
 
       ## Coverage
       \(coverageSnapshot?.formattedForPrompt() ?? "_(no coverage snapshot yet)_")

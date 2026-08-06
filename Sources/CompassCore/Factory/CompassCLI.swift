@@ -108,12 +108,17 @@ public enum CompassCLI {
         let workspace = CompassWorkspace(repoURL: repo)
         try workspace.initialize()
         let record = workspace.readSessions(includeArchived: true).first { $0.session == session }
-        let brief =
+        let projectBrief = workspace.readBrief()
+        let projectContext =
+          projectBrief.isEmpty
+          ? nil
+          : "Project context:\n\(projectBrief.renderedMarkdown())"
+        let problem =
           [
             "Replay Compass session #\(session).",
             record?.plan.map { "Previous plan:\n\($0)" },
             record?.feedback.map { "Previous feedback:\n\($0)" },
-            workspace.readVision().nilIfBlank.map { "Project context:\n\($0)" },
+            projectContext,
           ]
           .compactMap { $0 }
           .joined(separator: "\n\n")
@@ -128,7 +133,13 @@ public enum CompassCLI {
         let ok = try await runner.run(
           options: HeadlessRunOptions(
             repoURL: repo,
-            brief: brief,
+            brief: ProjectBrief(
+              audience: "Replay operator",
+              problem: problem,
+              productRequirements: [
+                ProductRequirement(text: "Replay session #\(session) with the captured context.")
+              ]
+            ),
             mode: mode,
             fixtureURL: fixture,
             promptLogDirectory: promptLog,
@@ -263,8 +274,27 @@ public enum CompassCLICommand: Equatable {
 
     case "run":
       let repo = try parser.requireURLOption("--repo")
-      let briefRaw = try parser.requireValue("--brief")
-      let brief = try parser.briefText(from: briefRaw)
+      if try parser.optionalValue("--brief") != nil {
+        throw CompassCLIError.usage(
+          "`--brief` was removed. Use `--audience`, `--problem`, and one or more `--requirement`."
+        )
+      }
+      let audience = try parser.requireTextOrFile("--audience")
+      let problem = try parser.requireTextOrFile("--problem")
+      let requirementTexts = try parser.consumeAllValues("--requirement")
+      guard !requirementTexts.isEmpty else {
+        throw CompassCLIError.usage("Missing required option --requirement (repeatable).")
+      }
+      let brief = ProjectBrief(
+        audience: audience,
+        problem: problem,
+        productRequirements: requirementTexts.map { ProductRequirement(text: $0) }
+      )
+      guard brief.isReady else {
+        throw CompassCLIError.usage(
+          "`--audience`, `--problem`, and at least one non-empty `--requirement` are required."
+        )
+      }
       let mode = try parser.modelMode()
       let fixture = try parser.optionalURLOption("--fixture")
       let promptLog = try parser.optionalURLOption("--prompt-log")
@@ -439,7 +469,12 @@ public struct CompassCLIParser {
     return mode
   }
 
-  public func briefText(from raw: String) throws -> String {
+  public mutating func requireTextOrFile(_ name: String) throws -> String {
+    let raw = try requireValue(name)
+    return try textOrFile(from: raw)
+  }
+
+  public func textOrFile(from raw: String) throws -> String {
     let url = try normalizeURL(raw)
     if FileManager.default.fileExists(atPath: url.path) {
       return try String(contentsOf: url, encoding: .utf8)
@@ -523,7 +558,7 @@ extension CompassCLI {
       compass-cli help [--format json|text]
       compass-cli doctor --repo <path> [--check-cloud] [--format json|text]
       compass-cli scaffold rust <path> [--name <name>] [--product cli|macos]... [--format json|text]
-      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--commit] [--format json|text]
+      compass-cli run --repo <path> --audience <text-or-file> --problem <text-or-file> --requirement <text> [--requirement <text>...] [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--commit] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
       compass-cli vm smoke --repo <path> [--command <cmd>] [--format json|text]

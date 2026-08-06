@@ -356,6 +356,21 @@ extension AgentExecutor {
           "feedback": ""
         }
         """
+    case .requirementsAudit:
+      return """
+        Requirements audit shape:
+        {
+          "results": [
+            {
+              "requirementID": "<id>",
+              "verdict": "satisfied",
+              "evidence": ["<citation>"],
+              "proposedCriteria": []
+            }
+          ],
+          "summary": "<overall status>"
+        }
+        """
     case nil:
       return "Use the JSON schema for the current phase and include every required field."
     }

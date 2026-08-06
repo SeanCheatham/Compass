@@ -4,31 +4,23 @@ import SwiftUI
 
 struct VisionTab: View {
   @ObservedObject var project: CompassProject
-  @State private var mode: MarkdownDocumentMode
-
-  init(project: CompassProject) {
-    self.project = project
-    _mode = State(initialValue: MarkdownDocumentMode.initial(for: project.vision))
-  }
 
   var body: some View {
-    let guide = ProjectVisionGuide(vision: project.vision)
+    let guide = ProjectVisionGuide(
+      brief: project.brief,
+      ledger: project.requirementLedger
+    )
     let clipboardPayload = ProjectVisionClipboardPayload(guide: guide)
 
     VStack(alignment: .leading, spacing: 12) {
       HStack {
         SectionHeader("Project Brief", systemImage: "scope")
         Spacer()
-        Picker("Vision display mode", selection: $mode) {
-          ForEach(MarkdownDocumentMode.allCases) { mode in
-            Text(mode.rawValue).tag(mode)
-          }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(width: 150)
         Button {
-          Task { await project.saveVision() }
+          Task {
+            await project.saveBrief()
+            await project.saveRequirementLedger()
+          }
         } label: {
           Label("Save", systemImage: "square.and.arrow.down")
         }
@@ -37,12 +29,210 @@ struct VisionTab: View {
         guide: guide,
         clipboardPayload: clipboardPayload
       )
-      MarkdownDocumentBody(
-        text: $project.vision,
-        mode: mode,
-        empty: "No project brief.",
-        editPlaceholder: "Sketch the software goal, target users, success signals, and constraints."
-      )
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          BriefTextField(
+            title: "Audience",
+            placeholder: "Who does this software help?",
+            text: $project.brief.audience
+          )
+          BriefTextField(
+            title: "Problem",
+            placeholder: "What pain or opportunity should Compass address?",
+            text: $project.brief.problem
+          )
+          ProductRequirementsEditor(
+            requirements: $project.brief.productRequirements,
+            ledger: $project.requirementLedger
+          )
+        }
+        .padding(.bottom, 8)
+      }
+    }
+  }
+}
+
+private struct BriefTextField: View {
+  var title: String
+  var placeholder: String
+  @Binding var text: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(title)
+        .font(.subheadline.weight(.semibold))
+      ZStack(alignment: .topLeading) {
+        TextEditor(text: $text)
+          .font(.body)
+          .scrollContentBackground(.hidden)
+          .frame(minHeight: 72, maxHeight: 120)
+          .padding(8)
+
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          Text(placeholder)
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 16)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+      }
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
+private struct ProductRequirementsEditor: View {
+  @Binding var requirements: [ProductRequirement]
+  @Binding var ledger: RequirementLedger
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        Text("Product Requirements")
+          .font(.subheadline.weight(.semibold))
+        Spacer()
+        Button {
+          requirements.append(ProductRequirement(text: ""))
+        } label: {
+          Label("Add", systemImage: "plus")
+        }
+        .buttonStyle(.borderless)
+      }
+
+      if requirements.isEmpty {
+        Text("Add the concrete outcomes this product must deliver.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .padding(12)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+      } else {
+        ForEach($requirements) { $requirement in
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+              TextField("Requirement", text: $requirement.text, axis: .vertical)
+                .lineLimit(2...4)
+                .textFieldStyle(.plain)
+                .padding(8)
+                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+
+              Button {
+                let id = requirement.id
+                requirements.removeAll { $0.id == id }
+                ledger = RequirementLedger(
+                  entries: ledger.entries.filter { $0.requirementID != id }
+                )
+              } label: {
+                Image(systemName: "minus.circle.fill")
+                  .foregroundStyle(.secondary)
+              }
+              .buttonStyle(.borderless)
+              .help("Remove requirement")
+              .accessibilityLabel("Remove requirement")
+            }
+
+            RequirementStatusRow(
+              entry: ledger.entry(for: requirement.id)
+            )
+
+            RequirementCriteriaEditor(
+              requirementID: requirement.id,
+              ledger: $ledger
+            )
+          }
+          .padding(10)
+          .background(.quaternary.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
+        }
+      }
+    }
+  }
+}
+
+private struct RequirementStatusRow: View {
+  var entry: RequirementLedgerEntry?
+
+  var body: some View {
+    let status = entry?.status ?? .unverified
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Label(statusLabel(status), systemImage: statusImage(status))
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(statusColor(status))
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(statusColor(status).opacity(0.12), in: Capsule())
+
+      if let evidence = entry?.lastAudit?.evidence.prefix(2), !evidence.isEmpty {
+        Text(evidence.joined(separator: " · "))
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+          .textSelection(.enabled)
+      } else {
+        Text("No audit evidence yet.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  private func statusLabel(_ status: RequirementVerificationStatus) -> String {
+    switch status {
+    case .unverified: return "Unverified"
+    case .satisfied: return "Satisfied"
+    case .unsatisfied: return "Unsatisfied"
+    }
+  }
+
+  private func statusImage(_ status: RequirementVerificationStatus) -> String {
+    switch status {
+    case .unverified: return "questionmark.circle"
+    case .satisfied: return "checkmark.seal.fill"
+    case .unsatisfied: return "exclamationmark.triangle.fill"
+    }
+  }
+
+  private func statusColor(_ status: RequirementVerificationStatus) -> Color {
+    switch status {
+    case .unverified: return .secondary
+    case .satisfied: return .green
+    case .unsatisfied: return .orange
+    }
+  }
+}
+
+private struct RequirementCriteriaEditor: View {
+  var requirementID: String
+  @Binding var ledger: RequirementLedger
+
+  private var criteriaBinding: Binding<String> {
+    Binding(
+      get: {
+        ledger.entry(for: requirementID)?.criteria.joined(separator: "\n") ?? ""
+      },
+      set: { newValue in
+        let lines =
+          newValue
+          .components(separatedBy: .newlines)
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+          .filter { !$0.isEmpty }
+        ledger = ledger.updatingCriteria(requirementID: requirementID, criteria: lines)
+      }
+    )
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text("Verification criteria (one shell command per line)")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      TextEditor(text: criteriaBinding)
+        .font(.system(.caption, design: .monospaced))
+        .scrollContentBackground(.hidden)
+        .frame(minHeight: 44, maxHeight: 88)
+        .padding(6)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
     }
   }
 }
@@ -116,8 +306,6 @@ private struct ProjectVisionGuidePanel: View {
       return .secondary
     case .needsFocus:
       return .orange
-    case .grounded:
-      return .blue
     case .ready:
       return .green
     }
@@ -129,8 +317,6 @@ private struct ProjectVisionGuidePanel: View {
       return "scope"
     case .needsFocus:
       return "questionmark.circle"
-    case .grounded:
-      return "scope"
     case .ready:
       return "checkmark.seal"
     }
@@ -156,7 +342,7 @@ private struct CopyProjectVisionButton: View {
     .buttonStyle(.borderless)
     .disabled(payload.isEmpty)
     .help(ClipboardHelpText.projectVision)
-    .accessibilityLabel(copied ? "Copied project vision" : "Copy project vision")
+    .accessibilityLabel(copied ? "Copied project brief" : "Copy project brief")
   }
 }
 
@@ -260,6 +446,7 @@ func phaseColor(_ phase: LoopPhase) -> Color {
   case .developing: return .orange
   case .verifying: return .purple
   case .reviewing: return .pink
+  case .auditing: return .teal
   case .paused: return .yellow
   case .failed: return .red
   case .succeeded: return .green

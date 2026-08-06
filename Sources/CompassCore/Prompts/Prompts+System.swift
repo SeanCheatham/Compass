@@ -87,6 +87,14 @@ extension Prompts {
         - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused review questions
         - Assumptions: \(assumptionTools)
         """
+    case .requirementsAudit:
+      toolList = """
+        - Codemap: \(codemapTools)
+        - Files: \(fileTools)
+        - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
+        - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused evidence gathering
+        - Assumptions: \(assumptionTools)
+        """
     }
 
     let visibleWorkingDirectory = Self.visibleWorkingDirectory(
@@ -143,10 +151,10 @@ extension Prompts {
   public static func compassOverviewSection() -> String {
     """
     Compass is a macOS host app that runs one Git repository as a local software factory.
-    The loop is Brief -> decomposed queue -> immediate packet -> Develop -> Verify -> Critic.
-    Compass uses an OpenAI-compatible cloud model for factory turns when configured, with
-    optional local MLX assist for cheap work, and keeps the harness responsible for state,
-    verification, files, history, assumptions, and retries.
+    The loop is Brief -> decomposed queue -> immediate packet -> Develop -> Verify -> Critic
+    -> Requirements Audit. Compass uses an OpenAI-compatible cloud model for factory turns
+    when configured, with optional local MLX assist for cheap work, and keeps the harness
+    responsible for state, verification, files, history, assumptions, and retries.
     Generated output requires Rust `crates/core` plus at least one product (`cli`
     and/or `macos`). Domain logic stays in `crates/core`; UI policy in `crates/ui`
     when macOS is enabled; CLI and macOS shells are adapters.
@@ -165,6 +173,9 @@ extension Prompts {
       return "Current role: Develop. Implement the immediate packet and report a concrete result."
     case .critic:
       return "Current role: Critic. Review the diff and approve or request one focused repair."
+    case .requirementsAudit:
+      return
+        "Current role: Requirements Audit. Judge in-scope product requirements against the repo with evidence."
     }
   }
 

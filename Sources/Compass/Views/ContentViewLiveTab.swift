@@ -784,6 +784,8 @@ struct ThinkingLiveRow: View {
       return "Agent is thinking"
     case .verifying:
       return "Compass is checking"
+    case .auditing:
+      return "Auditing requirements"
     default:
       return "Agent is working"
     }
@@ -797,6 +799,8 @@ struct ThinkingLiveRow: View {
       return "Waiting for the next development event."
     case .verifying:
       return "Running post-checks for this project."
+    case .auditing:
+      return "Judging product requirements against the repository."
     default:
       return "Waiting for the next live event."
     }

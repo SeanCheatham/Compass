@@ -224,8 +224,10 @@ struct CompassWorkspaceStorageActivationPlan: Equatable {
       return workspace.draftsURL
     case .lessons:
       return workspace.lessonsURL
-    case .vision:
-      return workspace.visionURL
+    case .brief:
+      return workspace.briefURL
+    case .requirements:
+      return workspace.requirementsURL
     case .sessionsRecord:
       return workspace.sessionsRecordURL
     }

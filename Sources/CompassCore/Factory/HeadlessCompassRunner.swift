@@ -41,7 +41,7 @@ public enum HeadlessCompassError: LocalizedError, Equatable {
 
 public struct HeadlessRunOptions: Equatable, Sendable {
   public var repoURL: URL
-  public var brief: String
+  public var brief: ProjectBrief
   public var mode: HeadlessModelMode
   public var fixtureURL: URL?
   public var promptLogDirectory: URL?
@@ -55,7 +55,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
 
   public init(
     repoURL: URL,
-    brief: String,
+    brief: ProjectBrief,
     mode: HeadlessModelMode = .auto,
     fixtureURL: URL? = nil,
     promptLogDirectory: URL? = nil,
@@ -68,7 +68,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     commitIterations: Bool = false
   ) {
     self.repoURL = repoURL.standardizedFileURL
-    self.brief = brief
+    self.brief = brief.sanitized()
     self.mode = mode
     self.fixtureURL = fixtureURL?.standardizedFileURL
     self.promptLogDirectory = promptLogDirectory?.standardizedFileURL
@@ -551,11 +551,16 @@ public struct HeadlessCompassRunner: Sendable {
       break
     }
 
-    let brief = options.brief.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !brief.isEmpty else {
-      throw HeadlessCompassError.invalidBrief("Brief cannot be empty.")
+    let brief = options.brief.sanitized()
+    guard brief.isReady else {
+      throw HeadlessCompassError.invalidBrief(
+        "Brief requires non-empty --audience, --problem, and at least one --requirement."
+      )
     }
-    try workspace.writeVision(brief)
+    try workspace.writeBrief(brief)
+    try workspace.writeRequirementLedger(
+      workspace.readRequirementLedger(reconciledWith: brief)
+    )
     try seedHeadlessBrief(brief, workspace: workspace)
 
     onEvent(
@@ -587,6 +592,59 @@ public struct HeadlessCompassRunner: Sendable {
       try persist(session: session, workspace: workspace)
 
       guard options.runDevelop, let immediate = plannedState.immediate else {
+        let brief = workspace.readBrief()
+        if brief.hasRequirements {
+          let ledger = try await runRequirementsAudit(
+            workspace: workspace,
+            requirementIDs: nil,
+            settings: settings,
+            runtime: runtime,
+            sessionNumber: sessionNumber,
+            maxIterations: options.maxIterations,
+            commit: await gitCurrentSHA(repoURL: repoURL),
+            onEvent: onEvent
+          )
+          let decision = RequirementsLoopCompletion.decide(
+            brief: brief,
+            ledger: ledger,
+            alreadyReplannedAfterUnsatisfiedAudit: false
+          )
+          switch decision {
+          case .complete:
+            session.status = .succeeded
+            session.endedAt = Date().timeIntervalSince1970 * 1000
+            try persist(session: session, workspace: workspace)
+            onEvent(
+              HeadlessCompassEvent(
+                kind: "session_end",
+                level: "success",
+                status: "completed",
+                message: "All product requirements verified.",
+                metadata: ["session": "\(sessionNumber)"]
+              )
+            )
+            return true
+          case .replan(let findingsDraft), .stopUnverified(let findingsDraft):
+            try workspace.appendDraft(findingsDraft)
+            session.feedback = findingsDraft
+            session.status = .succeeded
+            session.endedAt = Date().timeIntervalSince1970 * 1000
+            try persist(session: session, workspace: workspace)
+            onEvent(
+              HeadlessCompassEvent(
+                kind: "session_end",
+                level: "warning",
+                status: "completed",
+                message:
+                  "Plan completed without Develop; requirements remain unsatisfied.",
+                detail: findingsDraft,
+                metadata: ["session": "\(sessionNumber)"]
+              )
+            )
+            // Headless is single-shot; surface findings via drafts/feedback for a follow-up run.
+            return true
+          }
+        }
         session.status = .succeeded
         session.endedAt = Date().timeIntervalSince1970 * 1000
         try persist(session: session, workspace: workspace)
@@ -1004,6 +1062,18 @@ public struct HeadlessCompassRunner: Sendable {
             onEvent: onEvent
           )
         }
+        if let targeted = immediate.targetedRequirementIDs, !targeted.isEmpty {
+          _ = try? await runRequirementsAudit(
+            workspace: workspace,
+            requirementIDs: targeted,
+            settings: settings,
+            runtime: runtime,
+            sessionNumber: sessionNumber,
+            maxIterations: options.maxIterations,
+            commit: await gitCurrentSHA(repoURL: repoURL),
+            onEvent: onEvent
+          )
+        }
       }
       onEvent(
         HeadlessCompassEvent(
@@ -1033,39 +1103,30 @@ public struct HeadlessCompassRunner: Sendable {
     }
   }
 
-  private func seedHeadlessBrief(_ brief: String, workspace: CompassWorkspace) throws {
+  private func seedHeadlessBrief(_ brief: ProjectBrief, workspace: CompassWorkspace) throws {
     let current = try workspace.readState()
     let seeded = Self.stateBySeedingHeadlessBrief(current, brief: brief)
     guard seeded != current else { return }
     try workspace.writeState(seeded)
   }
 
-  public static func stateBySeedingHeadlessBrief(_ state: PlanState, brief: String) -> PlanState {
-    let rawSummary = Self.compactBriefSummary(brief)
-    guard !rawSummary.isEmpty else { return state }
+  public static func stateBySeedingHeadlessBrief(_ state: PlanState, brief: ProjectBrief) -> PlanState {
+    let sanitized = brief.sanitized()
+    guard !sanitized.isEmpty else { return state }
 
     var seeded = state
     var strategicContext = state.brief
     if strategicContext.summary.isEmpty {
-      strategicContext.summary = rawSummary
+      strategicContext.summary = sanitized.compactSummary()
     }
-    if strategicContext.targetUsers.isEmpty {
-      strategicContext.targetUsers = ["People using this repository's Compass workflow."]
+    if strategicContext.targetUsers.isEmpty, sanitized.hasAudience {
+      strategicContext.targetUsers = [sanitized.audience]
     }
-    if strategicContext.desiredOutcomes.isEmpty {
-      strategicContext.desiredOutcomes = [
-        "The requested brief is implemented with verified, repository-local changes."
-      ]
+    if strategicContext.desiredOutcomes.isEmpty, sanitized.hasRequirements {
+      strategicContext.desiredOutcomes = sanitized.nonEmptyRequirements.map(\.text)
     }
-    if strategicContext.constraints.isEmpty {
-      strategicContext.constraints = [
-        "Preserve existing project behavior and work within the current repository."
-      ]
-    }
-    if strategicContext.acceptanceSignals.isEmpty {
-      strategicContext.acceptanceSignals = [
-        "The configured verify command passes and the changes match the brief."
-      ]
+    if strategicContext.acceptanceSignals.isEmpty, sanitized.hasRequirements {
+      strategicContext.acceptanceSignals = sanitized.nonEmptyRequirements.map(\.text)
     }
     seeded.brief = strategicContext
     return seeded
@@ -1116,6 +1177,7 @@ public struct HeadlessCompassRunner: Sendable {
   ) async throws -> PlanRunResult {
     let current = try workspace.readState()
     let promptMode = ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
+    let brief = workspace.readBrief()
     let prompt = try Prompts.planPrompt(
       state: current.proposal,
       completedCount: current.completed.count,
@@ -1126,7 +1188,9 @@ public struct HeadlessCompassRunner: Sendable {
       ),
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
-      vision: workspace.readVision(),
+      vision: brief.renderedMarkdown(),
+      requirementsStatus: workspace.readRequirementLedger(reconciledWith: brief)
+        .renderedStatusMarkdown(brief: brief),
       focus: PlanFocus.weightedRandom(),
       coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
       mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
@@ -1154,6 +1218,105 @@ public struct HeadlessCompassRunner: Sendable {
     )
   }
 
+  @discardableResult
+  private func runRequirementsAudit(
+    workspace: CompassWorkspace,
+    requirementIDs: [String]?,
+    settings: AgentRuntimeSettings,
+    runtime: any LocalModelGenerating,
+    sessionNumber: Int,
+    maxIterations: Int,
+    commit: String?,
+    onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
+  ) async throws -> RequirementLedger {
+    let brief = workspace.readBrief()
+    var ledger = workspace.readRequirementLedger(reconciledWith: brief)
+    let scopedIDs: [String]
+    if let requirementIDs, !requirementIDs.isEmpty {
+      scopedIDs = requirementIDs.filter { id in
+        brief.nonEmptyRequirements.contains(where: { $0.id == id })
+      }
+    } else {
+      scopedIDs = brief.nonEmptyRequirements.map(\.id)
+    }
+    guard !scopedIDs.isEmpty else { return ledger }
+
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "phase_start",
+        status: "running",
+        phase: AgentPhase.requirementsAudit.rawValue,
+        message: "Requirements audit starting for \(scopedIDs.count) requirement(s)."
+      )
+    )
+
+    let criterionResults = await RequirementCriteriaRunner.collect(
+      ledger: ledger,
+      requirementIDs: scopedIDs
+    ) { command in
+      let result = try await self.runVerifyCommand(
+        command,
+        repoURL: workspace.repoURL,
+        timeoutSeconds: 600,
+        onEvent: onEvent
+      )
+      return (exitCode: Int(result.exitCode), output: result.stdout + "\n" + result.stderr)
+    }
+
+    let promptMode = ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
+    let prompt = Prompts.requirementsAuditPrompt(
+      brief: brief,
+      ledger: ledger,
+      requirementIDs: scopedIDs,
+      criterionResults: criterionResults,
+      commit: commit,
+      promptMode: promptMode
+    )
+    _ = try workspace.writeSessionAuditArtifact(
+      session: sessionNumber,
+      name: "requirements-audit-prompt.md",
+      kind: "prompt",
+      contents: prompt,
+      note: "Requirements audit prompt."
+    )
+
+    let agentResult = try await runAgent(
+      phase: .requirementsAudit,
+      settings: settings,
+      runtime: runtime,
+      userPrompt: prompt,
+      schema: Prompts.requirementsAuditSchema,
+      workspace: workspace,
+      sessionNumber: sessionNumber,
+      promptLogLabelPrefix: "requirements_audit",
+      maxIterations: maxIterations,
+      decode: RequirementsAuditResult.self,
+      onEvent: onEvent
+    )
+
+    ledger = RequirementAuditEvaluator.apply(
+      agentResult: agentResult,
+      criterionResults: criterionResults,
+      into: ledger,
+      commit: commit
+    )
+    ledger = ledger.reconciled(with: brief)
+    try workspace.writeRequirementLedger(ledger, reconciledWith: brief)
+
+    let satisfied = scopedIDs.filter { ledger.entry(for: $0)?.status == .satisfied }.count
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "requirements_audit_result",
+        level: satisfied == scopedIDs.count ? "success" : "warning",
+        status: "completed",
+        phase: AgentPhase.requirementsAudit.rawValue,
+        message: "Requirements audit: \(satisfied)/\(scopedIDs.count) satisfied.",
+        detail: agentResult.summary
+      )
+    )
+    return ledger
+  }
+
   private func runDevelop(
     immediate: PlanNext,
     workspace: CompassWorkspace,
@@ -1170,7 +1333,7 @@ public struct HeadlessCompassRunner: Sendable {
       next: immediate,
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
-      vision: workspace.readVision(),
+      vision: workspace.readBrief().renderedMarkdown(),
       attempt: attempt,
       priorIssues: priorIssues,
       promptMode: promptMode
@@ -1221,7 +1384,7 @@ public struct HeadlessCompassRunner: Sendable {
       priorCritiques: [],
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
-      vision: workspace.readVision(),
+      vision: workspace.readBrief().renderedMarkdown(),
       iteration: 1,
       maxIterations: 1,
       promptMode: promptMode

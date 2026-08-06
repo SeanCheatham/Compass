@@ -88,13 +88,20 @@ struct CompassCLITests {
     }
 
     if case .run(let options, let format) = try CompassCLICommand.parse([
-      "run", "--repo", "/tmp/project", "--brief", "Add a slice", "--mode", "auto",
+      "run", "--repo", "/tmp/project",
+      "--audience", "Maintainers",
+      "--problem", "Add a slice",
+      "--requirement", "Ship the slice",
+      "--requirement", "Verify it",
+      "--mode", "auto",
       "--fixture", "/tmp/fixture.jsonl", "--max-iterations", "3", "--max-develop-attempts", "4",
       "--max-verify-repairs", "0", "--sessions", "2", "--prompt-log", "/tmp/prompts", "--critic",
       "--format", "text",
     ]) {
       #expect(options.repoURL.path == "/tmp/project")
-      #expect(options.brief == "Add a slice")
+      #expect(options.brief.audience == "Maintainers")
+      #expect(options.brief.problem == "Add a slice")
+      #expect(options.brief.productRequirements.map(\.text) == ["Ship the slice", "Verify it"])
       #expect(options.mode == .auto)
       #expect(options.fixtureURL?.path == "/tmp/fixture.jsonl")
       #expect(options.promptLogDirectory?.path == "/tmp/prompts")
@@ -109,7 +116,10 @@ struct CompassCLITests {
     }
 
     if case .run(let options, _) = try CompassCLICommand.parse([
-      "run", "--repo", "/tmp/project", "--brief", "Add a slice",
+      "run", "--repo", "/tmp/project",
+      "--audience", "Maintainers",
+      "--problem", "Add a slice",
+      "--requirement", "Ship the slice",
     ]) {
       #expect(options.sessionCount == 1)
     } else {
@@ -221,18 +231,51 @@ struct CompassCLITests {
 
     let seeded = HeadlessCompassRunner.stateBySeedingHeadlessBrief(
       state,
-      brief: """
-        Add a small CLI summarize helper
-        with tests and verification.
-        """
+      brief: ProjectBrief(
+        audience: "CLI users",
+        problem: """
+          Add a small CLI summarize helper
+          with tests and verification.
+          """,
+        productRequirements: [
+          ProductRequirement(text: "summarize helper exists"),
+          ProductRequirement(text: "helper is covered by tests"),
+        ]
+      )
     )
 
     #expect(seeded.completed == ["prior-item"])
     #expect(seeded.brief.summary == "Existing structured summary.")
     #expect(seeded.brief.constraints == ["Keep current constraints."])
-    #expect(!seeded.brief.targetUsers.isEmpty)
-    #expect(!seeded.brief.desiredOutcomes.isEmpty)
-    #expect(!seeded.brief.acceptanceSignals.isEmpty)
+    #expect(seeded.brief.targetUsers == ["CLI users"])
+    #expect(seeded.brief.desiredOutcomes == [
+      "summarize helper exists",
+      "helper is covered by tests",
+    ])
+    #expect(seeded.brief.acceptanceSignals == [
+      "summarize helper exists",
+      "helper is covered by tests",
+    ])
+  }
+
+  @Test
+  func parserRejectsLegacyBriefFlag() {
+    #expect(throws: CompassCLIError.self) {
+      try CompassCLICommand.parse([
+        "run", "--repo", "/tmp/project", "--brief", "old prose",
+      ])
+    }
+  }
+
+  @Test
+  func parserRequiresStructuredBriefFields() {
+    #expect(throws: CompassCLIError.self) {
+      try CompassCLICommand.parse([
+        "run", "--repo", "/tmp/project",
+        "--audience", "Maintainers",
+        "--problem", "Need structured brief",
+      ])
+    }
   }
 
   @Test
@@ -403,7 +446,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a fixture smoke note to the README",
+        brief: .problemFocused("Add a fixture smoke note to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -444,7 +487,7 @@ struct CompassCLITests {
     let ok = try await runner.runSessions(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a fixture smoke note to the README",
+        brief: .problemFocused("Add a fixture smoke note to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -484,7 +527,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a retry marker to the README",
+        brief: .problemFocused("Add a retry marker to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 6,
@@ -528,7 +571,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Exercise package-manager bootstrap failure handling",
+        brief: .problemFocused("Exercise package-manager bootstrap failure handling"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 4,
@@ -569,7 +612,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Exercise package-manager bootstrap verify failure handling",
+        brief: .problemFocused("Exercise package-manager bootstrap verify failure handling"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 6,
@@ -614,7 +657,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a no-change retry marker to the README",
+        brief: .problemFocused("Add a no-change retry marker to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 6,
@@ -657,7 +700,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a verify repair marker to the README",
+        brief: .problemFocused("Add a verify repair marker to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 6,
@@ -712,7 +755,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a small summarize helper with tests",
+        brief: .problemFocused("Add a small summarize helper with tests"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -777,7 +820,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a CLI --format json flag and update crates/cli/tests/cli.rs",
+        brief: .problemFocused("Add a CLI --format json flag and update crates/cli/tests/cli.rs"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -828,7 +871,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a CLI --format json flag and update crates/cli/tests/cli.rs",
+        brief: .problemFocused("Add a CLI --format json flag and update crates/cli/tests/cli.rs"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -879,7 +922,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a CLI weekly habit momentum command with tests",
+        brief: .problemFocused("Add a CLI weekly habit momentum command with tests"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -930,7 +973,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Add a CLI weekly habit momentum command with tests",
+        brief: .problemFocused("Add a CLI weekly habit momentum command with tests"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -976,7 +1019,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: "Exercise Develop budget retry handling",
+        brief: .problemFocused("Exercise Develop budget retry handling"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 1,

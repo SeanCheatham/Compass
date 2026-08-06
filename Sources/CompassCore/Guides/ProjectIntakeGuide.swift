@@ -52,7 +52,7 @@ public struct ProjectIntakeGuide: Equatable, Sendable {
           id: "capture-project-vision",
           title: "Describe the pain",
           detail:
-            "After adding the repo, answer \"What user pain should Compass explore?\" Include who feels it, what they do today, current alternatives, success signals, and guardrails in Project Vision.",
+            "After adding the repo, answer who feels the pain and what problem to solve in the Project Brief, then list product requirements.",
           systemImage: "scope",
           isPrimary: false
         ),
@@ -165,7 +165,7 @@ public struct ProjectIntakeClipboardPayload: Equatable, Sendable {
       "Recipient instructions:",
       "- Help the user add or select a real Git repository. Do not invent a repo path.",
       "- Keep guidance plain-language and product-focused; the user may not know build tooling.",
-      "- After a project is selected, capture the user pain, current workflow, alternatives, success signals, and guardrails in Project Vision; use Drafts for proof ideas or validation questions, and let Compass discover, plan, develop, and verify.",
+      "- After a project is selected, capture audience, problem, and product requirements in the Project Brief; use Drafts for proof ideas or validation questions, and let Compass discover, plan, develop, and verify.",
       "",
       "Status: \(guide.statusLabel)",
       "Recommended action: \(guide.actionLabel)",

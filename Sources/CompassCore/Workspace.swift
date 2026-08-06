@@ -21,7 +21,8 @@ public struct CompassWorkspace {
   public var draftsURL: URL { compassURL.appending(path: "drafts.md") }
   public var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
   public var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
-  public var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
+  public var briefURL: URL { compassURL.appending(path: "brief.json") }
+  public var requirementsURL: URL { compassURL.appending(path: "requirements.json") }
   public var sessionsURL: URL {
     compassURL.appending(path: "sessions", directoryHint: .isDirectory)
   }
@@ -60,7 +61,8 @@ public struct CompassWorkspace {
     try createFileIfMissing(draftsURL, contents: "")
     try createFileIfMissing(lessonsURL, contents: "")
     try createFileIfMissing(assumptionsURL, contents: AssumptionLedger.emptyJSON)
-    try createFileIfMissing(visionURL, contents: "")
+    try createFileIfMissing(briefURL, contents: ProjectBrief.emptyJSON)
+    try createFileIfMissing(requirementsURL, contents: RequirementLedger.emptyJSON)
     try createFileIfMissing(sessionsRecordURL, contents: "")
     if isRepoLocalStorage {
       try ensureCompassIsIgnored()
@@ -209,12 +211,44 @@ public struct CompassWorkspace {
     return updated
   }
 
-  public func readVision() -> String {
-    (try? String(contentsOf: visionURL, encoding: .utf8)) ?? ""
+  public func readBrief() -> ProjectBrief {
+    guard let data = try? Data(contentsOf: briefURL), !data.isEmpty else {
+      return .empty
+    }
+    return (try? JSONDecoder().decode(ProjectBrief.self, from: data)) ?? .empty
   }
 
-  public func writeVision(_ text: String) throws {
-    try text.write(to: visionURL, atomically: true, encoding: .utf8)
+  public func writeBrief(_ brief: ProjectBrief) throws {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(brief.sanitized())
+    try data.write(to: briefURL, options: .atomic)
+  }
+
+  public func readRequirementLedger() -> RequirementLedger {
+    guard let data = try? Data(contentsOf: requirementsURL), !data.isEmpty else {
+      return .empty
+    }
+    return (try? JSONDecoder().decode(RequirementLedger.self, from: data)) ?? .empty
+  }
+
+  /// Read ledger reconciled against the current brief (create/drop entries).
+  public func readRequirementLedger(reconciledWith brief: ProjectBrief) -> RequirementLedger {
+    readRequirementLedger().reconciled(with: brief)
+  }
+
+  public func writeRequirementLedger(_ ledger: RequirementLedger) throws {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(RequirementLedger(entries: ledger.entries))
+    try data.write(to: requirementsURL, options: .atomic)
+  }
+
+  /// Persist a ledger after reconciling it to `brief`.
+  public func writeRequirementLedger(_ ledger: RequirementLedger, reconciledWith brief: ProjectBrief)
+    throws
+  {
+    try writeRequirementLedger(ledger.reconciled(with: brief))
   }
 
   public func readSessions(includeArchived: Bool = false) -> [SessionRecord] {

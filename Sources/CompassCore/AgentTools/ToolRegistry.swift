@@ -39,7 +39,7 @@ public enum ToolRegistry {
     switch phase {
     case .plan:
       return inspectionTools() + [AgentPlanHistoryTool()]
-    case .critic:
+    case .critic, .requirementsAudit:
       return inspectionTools()
     case .develop:
       return developTools(promptMode: promptMode)

@@ -170,6 +170,7 @@ public enum LoopPhase: String, CaseIterable {
   case developing = "Developing"
   case verifying = "Verifying"
   case reviewing = "Reviewing"
+  case auditing = "Auditing"
   case paused = "Paused"
   case failed = "Failed"
   case succeeded = "Succeeded"

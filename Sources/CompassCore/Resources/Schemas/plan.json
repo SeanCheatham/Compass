@@ -50,7 +50,12 @@
           "type": ["string", "null"],
           "enum": ["draft", "feedback", "candidate", "focus", "repository", "repair", null]
         },
-        "candidateID": { "type": ["string", "null"] }
+        "candidateID": { "type": ["string", "null"] },
+        "targetedRequirementIDs": {
+          "type": ["array", "null"],
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Product requirement ids from brief.json that this slice advances."
+        }
       }
     },
     "workItem": {

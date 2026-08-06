@@ -64,6 +64,8 @@ enum NativeFeedbackMilestone: String, CaseIterable {
   case paused
   case stopped
   case noImmediateWork
+  case requirementsVerified
+  case requirementsUnsatisfied
   case testFeedback
 
   /// Voice used for spoken milestones; nil keeps the default fallback voice.
@@ -74,6 +76,8 @@ enum NativeFeedbackMilestone: String, CaseIterable {
     case .developReady, .developStarted, .verifyStarted, .verifyPassed,
       .developRetrying, .postChecksFailed, .commitsPromoted:
       return .develop
+    case .requirementsVerified, .requirementsUnsatisfied:
+      return .requirementsAudit
     case .paused, .stopped, .testFeedback:
       return nil
     }
@@ -348,6 +352,14 @@ struct NativeFeedbackContent: Equatable {
       title = "\(projectName): No immediate work"
       body = "Plan returned no ready next task."
       spokenPhrase = "\(projectName). No immediate work."
+    case .requirementsVerified:
+      title = "\(projectName): Requirements verified"
+      body = "All product requirements are satisfied."
+      spokenPhrase = "\(projectName). All product requirements verified."
+    case .requirementsUnsatisfied:
+      title = "\(projectName): Requirements unsatisfied"
+      body = "Requirements audit found work still needed."
+      spokenPhrase = "\(projectName). Requirements remain unsatisfied."
     case .testFeedback:
       title = "\(projectName): Feedback test"
       body = "Native Compass feedback is ready."

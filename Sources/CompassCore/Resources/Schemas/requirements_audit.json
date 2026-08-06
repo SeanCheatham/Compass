@@ -1,0 +1,42 @@
+{
+  "type": "object",
+  "description": "Requirements audit submit payload. Judge each in-scope product requirement with evidence.",
+  "additionalProperties": false,
+  "required": ["results", "summary"],
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["requirementID", "verdict", "evidence", "proposedCriteria"],
+        "properties": {
+          "requirementID": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable id of the product requirement from the brief/ledger."
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["satisfied", "unsatisfied"],
+            "description": "Whether the product currently satisfies this requirement."
+          },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Citations: file paths, command output summaries, or observed behavior."
+          },
+          "proposedCriteria": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional shell commands that can re-check this requirement later. Use empty array when none."
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "One to three sentences summarizing overall requirements status."
+    }
+  }
+}

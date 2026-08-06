@@ -7,7 +7,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="${ROOT}/.build/debug/compass-cli"
 TEST_REPO="${COMPASS_TEST_REPO:-${HOME}/tmp/compass-test}"
-BRIEF="${COMPASS_TEST_BRIEF:-${TEST_REPO}/factory-brief.md}"
+AUDIENCE="${COMPASS_TEST_AUDIENCE:-Maintainers exercising the Compass factory loop}"
+PROBLEM="${COMPASS_TEST_PROBLEM:-${TEST_REPO}/factory-brief.md}"
+REQUIREMENT="${COMPASS_TEST_REQUIREMENT:-Deliver the requested factory-brief change with verified repository-local edits}"
 MAX_ITERATIONS="${COMPASS_MAX_ITERATIONS:-10}"
 MAX_DEVELOP_ATTEMPTS="${COMPASS_MAX_DEVELOP_ATTEMPTS:-3}"
 MAX_VERIFY_REPAIRS="${COMPASS_MAX_VERIFY_REPAIRS:-1}"
@@ -17,11 +19,6 @@ RUN_LOG="${TEST_REPO}/.compass/runs/${RUN_ID}.jsonl"
 
 if [[ ! -d "${TEST_REPO}" ]]; then
   echo "error: candidate repo not found: ${TEST_REPO}" >&2
-  exit 1
-fi
-
-if [[ ! -f "${BRIEF}" ]]; then
-  echo "error: brief not found: ${BRIEF}" >&2
   exit 1
 fi
 
@@ -43,7 +40,9 @@ mkdir -p "${PROMPT_LOG_DIR}" "$(dirname "${RUN_LOG}")"
 set +e
 "${CLI}" run \
   --repo "${TEST_REPO}" \
-  --brief "${BRIEF}" \
+  --audience "${AUDIENCE}" \
+  --problem "${PROBLEM}" \
+  --requirement "${REQUIREMENT}" \
   --mode mlx \
   --prompt-log "${PROMPT_LOG_DIR}" \
   --max-iterations "${MAX_ITERATIONS}" \

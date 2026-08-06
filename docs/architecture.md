@@ -21,7 +21,7 @@ The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt ass
 
 Text generation goes through `LocalModelGenerating`:
 
-- **OpenAI-compatible cloud** (`OpenAICompatibleModelRuntime`) — primary for Plan / Develop / Critic.
+- **OpenAI-compatible cloud** (`OpenAICompatibleModelRuntime`) — primary for Plan / Develop / Critic / Requirements Audit.
 - **MLX local** (`MLXLocalModelRuntime`) — preferred for cheap assist (`AssistTextRuntime`, e.g. Studio thinking narration) when the blessed model is downloaded.
 - **`RoutedModelRuntime`** selects between them using `ModelRoutingHint` (`.cloudPrimary` vs `.localPreferred`). Transcript compaction uses `.cloudPrimary`.
 
@@ -34,13 +34,17 @@ There is no Cursor model provider in this build. Cursor’s SDK is an agent harn
 `.compass/state.json` stores `PlanState` (docs historically called this factory state):
 
 - `schemaVersion`
-- `brief`
+- `brief` (Plan-owned strategic context)
 - `queue`
 - `immediate`
 - `completed`
 - `openQuestions`
 - `products` (enabled generated-project products: `cli` and/or `macos`)
 - `acceptanceGates` (optional deterministic quality thresholds)
+
+User product intent is stored separately in `.compass/brief.json` (`audience`, `problem`, `productRequirements`) and injected into agent prompts as project context.
+
+Requirement verification is factory-owned in `.compass/requirements.json` (`RequirementLedger`: criteria, status, last audit evidence), keyed by `ProductRequirement.id`. The Requirements Audit agent judges in-scope requirements with evidence; host-run shell criteria force `unsatisfied` on non-zero exit. Plan sees a “Requirements status” section and may set `immediate.targetedRequirementIDs`. Incremental audits run after shipped iterations; a full audit runs when Plan returns no immediate work and gates loop completion.
 
 Legacy state files from older projects are ignored in-place.
 
