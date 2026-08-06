@@ -2,8 +2,8 @@ import CompassCore
 import SwiftUI
 
 /// Agent-perspective screensaver: file tree on the left, read-only highlighted
-/// editor in the center (with typewriter playback of edits), optional thinking
-/// transcript, and bash log at the bottom.
+/// editor in the center (with typewriter playback of edits), bash log below,
+/// and optional thinking transcript under the terminal.
 struct StudioTab: View {
   @ObservedObject var project: CompassProject
   /// Observed directly — `CompassProject.studioState` is not `@Published`, so
@@ -30,6 +30,9 @@ struct StudioTab: View {
             StudioEditorView(state: state)
               .frame(width: geo.size.width, height: heights.editor)
               .clipped()
+            StudioTerminalView(state: state)
+              .frame(width: geo.size.width, height: heights.terminal)
+              .clipped()
             if heights.thinking > 0 {
               Divider()
               StudioThinkingView(
@@ -40,9 +43,6 @@ struct StudioTab: View {
               .frame(width: geo.size.width, height: heights.thinking)
               .clipped()
             }
-            StudioTerminalView(state: state)
-              .frame(width: geo.size.width, height: heights.terminal)
-              .clipped()
           }
           // Animate only after the split has a real size — first bash often
           // opens Studio from the empty state, and animating 0→height + scroll
@@ -68,7 +68,7 @@ struct StudioTab: View {
         Text("Studio")
           .font(.headline)
         Text(
-          "When the agent runs, files it touches open here, edits type in place, thinking streams beside the editor, and bash lands in the terminal."
+          "When the agent runs, files it touches open here, edits type in place, bash lands in the terminal, and thinking streams below."
         )
         .font(.callout)
         .foregroundStyle(.secondary)
@@ -101,7 +101,7 @@ struct StudioTab: View {
     let minTerminal: CGFloat = 64
     let minThinking: CGFloat = 72
     let maxThinking: CGFloat = 180
-    // Divider between editor and thinking sits outside the thinking frame.
+    // Divider above thinking (under the terminal) sits outside the thinking frame.
     let divider: CGFloat = 1
 
     let twoPane: (editor: CGFloat, thinking: CGFloat, terminal: CGFloat) = {
