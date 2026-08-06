@@ -86,7 +86,8 @@ public struct ProjectVisionGuide: Equatable, Sendable {
         "Write who the software helps, what pain it removes, and the product requirements to deliver."
       nextAction = NextAction(
         title: "Add a first brief",
-        detail: "Start with audience, problem, and one product requirement.",
+        detail:
+          "Start with audience, problem, and one product requirement — or use Random idea.",
         systemImage: "square.and.pencil"
       )
     } else if audience && problem && requirements && verificationReady {

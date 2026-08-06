@@ -22,6 +22,13 @@ extension CompassProject {
     }
   }
 
+  /// Fill the Brief tab from a curated random starter idea (in-memory; Save to persist).
+  func applyRandomBriefIdea() {
+    brief = ProjectBriefIdeaGenerator.random()
+    requirementLedger = requirementLedger.reconciled(with: brief)
+    log("Filled brief with a random idea. Save when you want to keep it.", level: .info)
+  }
+
   func saveRequirementLedger() async {
     do {
       guard let workspace else {

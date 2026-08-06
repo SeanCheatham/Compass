@@ -42,9 +42,9 @@ There is no Cursor model provider in this build. Cursor’s SDK is an agent harn
 - `products` (enabled generated-project products: `cli` and/or `macos`)
 - `acceptanceGates` (optional deterministic quality thresholds)
 
-User product intent is stored separately in `.compass/brief.json` (`audience`, `problem`, `productRequirements` with `kind` / `proofLevel`) and injected into agent prompts as project context.
+User product intent is stored separately in `.compass/brief.json` (`audience`, `problem`, `productRequirements` with `kind` / `proofLevel`) and injected into agent prompts as project context. The Brief tab **Random idea** action fills fields from `ProjectBriefIdeaGenerator` (curated starters; Save persists).
 
-Requirement verification is factory-owned in `.compass/requirements.json` (`RequirementLedger`: criteria, scenarios, owned paths, ship traces, status, satisfied-at / last-revalidated). Statuses are `unverified` / `satisfied` / `unsatisfied` / `stale`. Plan must set `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves, Compass records a ship trace, marks other satisfied requirements stale when owned paths changed, and runs an incremental audit. A full audit gates loop completion when Plan returns no immediate work. Proof levels (`deterministic` / `hybrid` / `judgment`) control how host-run criteria interact with auditor judgment.
+Requirement verification is factory-owned in `.compass/requirements.json` (`RequirementLedger`: criteria, scenarios, owned paths, ship traces, status, satisfied-at / last-revalidated). Statuses are `unverified` / `satisfied` / `unsatisfied` / `stale`. Plan must set `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves, Compass records a ship trace, marks other satisfied requirements stale when owned paths changed, and runs an incremental audit. A full audit gates loop completion when Plan returns no immediate work. Auto-play uses `PlanPassOutcome` so a successful Develop (which clears Immediate Work) continues into the next Plan instead of treating Develop success as requirements-complete. Proof levels (`deterministic` / `hybrid` / `judgment`) control how host-run criteria interact with auditor judgment.
 
 Legacy state files from older projects are ignored in-place.
 

@@ -17,6 +17,12 @@ struct VisionTab: View {
         SectionHeader("Project Brief", systemImage: "scope")
         Spacer()
         Button {
+          project.applyRandomBriefIdea()
+        } label: {
+          Label("Random idea", systemImage: "dice")
+        }
+        .help("Fill audience, problem, and requirements with a random starter idea.")
+        Button {
           Task {
             await project.saveBrief()
             await project.saveRequirementLedger()

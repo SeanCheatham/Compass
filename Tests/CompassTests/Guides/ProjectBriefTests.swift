@@ -63,6 +63,48 @@ struct ProjectBriefTests {
   }
 }
 
+@Suite("ProjectBriefIdeaGenerator")
+struct ProjectBriefIdeaGeneratorTests {
+  @Test
+  func catalogIdeasAreReady() {
+    let ideas = ProjectBriefIdeaGenerator.allIdeas()
+    #expect(ideas.count == ProjectBriefIdeaGenerator.catalogCount)
+    #expect(!ideas.isEmpty)
+    for brief in ideas {
+      #expect(brief.isReady)
+      #expect(brief.productRequirements.count >= 2)
+    }
+  }
+
+  @Test
+  func randomUsesGenerator() {
+    var a = SeededGenerator(seed: 7)
+    var b = SeededGenerator(seed: 7)
+    let first = ProjectBriefIdeaGenerator.random(using: &a)
+    let second = ProjectBriefIdeaGenerator.random(using: &b)
+    #expect(first.audience == second.audience)
+    #expect(first.problem == second.problem)
+    #expect(first.productRequirements.map(\.text) == second.productRequirements.map(\.text))
+  }
+}
+
+/// Deterministic RNG for idea-generator tests.
+private struct SeededGenerator: RandomNumberGenerator {
+  private var state: UInt64
+
+  init(seed: UInt64) {
+    state = seed == 0 ? 0x9E37_79B9_7F4A_7C15 : seed
+  }
+
+  mutating func next() -> UInt64 {
+    state &+= 0x9E37_79B9_7F4A_7C15
+    var z = state
+    z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+    z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+    return z ^ (z >> 31)
+  }
+}
+
 @Suite("ProjectVisionGuide")
 struct ProjectVisionGuideTests {
   @Test

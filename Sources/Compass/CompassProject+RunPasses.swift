@@ -4,24 +4,25 @@ import Foundation
 
 @MainActor
 extension CompassProject {
+  @discardableResult
   func runPlanPass(
     continueToDevelop: Bool,
     agentSettings: AgentRuntimeSettings,
     modelOverride: String
-  ) async {
+  ) async -> PlanPassOutcome {
     let workspace: CompassWorkspace
     do {
       workspace = try await resolveWorkspaceForRun()
     } catch {
       fail(error)
-      return
+      return .failed
     }
 
     do {
       try await initializeIfNeeded(workspace)
     } catch {
       fail(error)
-      return
+      return .failed
     }
 
     isRunning = true
@@ -32,7 +33,7 @@ extension CompassProject {
       fail(AppModelError.internalInvariant("Could not start a Compass session."))
       isRunning = false
       phase = .failed
-      return
+      return .failed
     }
     let sessionNumber = sessions[sessionIndex].session
     var consumedDrafts = ""
@@ -167,7 +168,7 @@ extension CompassProject {
             isRunning = false
             executor = nil
             await refresh()
-            return
+            return .requirementsComplete
           case .replan(let findingsDraft):
             try workspace.appendDraft(findingsDraft)
             drafts = workspace.readDrafts()
@@ -186,7 +187,7 @@ extension CompassProject {
             isRunning = false
             executor = nil
             await refresh()
-            return
+            return .requirementsNeedReplan
           case .stopUnverified(let findingsDraft):
             pendingRequirementsReplan = false
             if sessions.indices.contains(sessionIndex) {
@@ -202,7 +203,7 @@ extension CompassProject {
             isRunning = false
             executor = nil
             await refresh()
-            return
+            return .noImmediateWork
           }
         }
 
@@ -213,7 +214,7 @@ extension CompassProject {
         isRunning = false
         executor = nil
         await refresh()
-        return
+        return .noImmediateWork
       }
 
       log("Plan selected: \(immediateTitle)", level: .success)
@@ -245,7 +246,7 @@ extension CompassProject {
           isRunning = false
           executor = nil
           await refresh()
-          return
+          return .paused
         }
 
         isRunning = false
@@ -255,6 +256,8 @@ extension CompassProject {
           agentSettings: agentSettings,
           modelOverride: modelOverride
         )
+        await refresh()
+        return planPassOutcomeAfterDevelop()
       } else {
         appendSessionNote("Plan-only run; Develop was not started.", to: sessionIndex)
         endSession(sessionIndex, status: .awaitingApproval)
@@ -262,6 +265,8 @@ extension CompassProject {
         feedbackPlanReadinessGate(for: nextState, gate: .planOnly)
         isRunning = false
         executor = nil
+        await refresh()
+        return .noImmediateWork
       }
     } catch {
       if !consumedDrafts.isEmpty {
@@ -270,9 +275,29 @@ extension CompassProject {
           [consumedDrafts, current].filter { !$0.isEmpty }.joined(separator: "\n"))
       }
       performSessionErrorCleanup(sessionIndex: sessionIndex, error: error)
+      await refresh()
+      return phase == .cancelled ? .cancelled : .failed
     }
+  }
 
-    await refresh()
+  /// Map Develop's ending phase into auto-play control.
+  private func planPassOutcomeAfterDevelop() -> PlanPassOutcome {
+    switch phase {
+    case .failed:
+      return .failed
+    case .cancelled:
+      return .cancelled
+    case .paused:
+      return .paused
+    case .succeeded:
+      // Keep looping during auto-play; one-shot Develop keeps Succeeded for UI.
+      if isAutoPlaying {
+        phase = .idle
+      }
+      return .developed
+    case .idle, .planning, .developing, .verifying, .reviewing, .auditing:
+      return .developed
+    }
   }
 
   func runDevelopPass(

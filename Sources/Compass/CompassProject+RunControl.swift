@@ -2,6 +2,21 @@ import AppKit
 import CompassCore
 import Foundation
 
+/// Result of one Plan pass for auto-play control flow.
+///
+/// Distinguishes "Develop finished and retired Immediate Work" from
+/// "Plan found no Immediate Work" — both leave `state.immediate == nil`,
+/// but only the latter (plus a passing requirements audit) should stop the loop.
+enum PlanPassOutcome: Equatable, Sendable {
+  case developed
+  case noImmediateWork
+  case requirementsComplete
+  case requirementsNeedReplan
+  case paused
+  case failed
+  case cancelled
+}
+
 @MainActor
 extension CompassProject {
   func play(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
@@ -22,6 +37,15 @@ extension CompassProject {
         agentSettings: agentSettings,
         modelOverride: modelOverride
       )
+      if phase == .failed || phase == .cancelled {
+        isAutoPlaying = false
+        return
+      }
+      // Successful (or Plan-handoff) Develop clears Immediate Work; keep looping
+      // so the next Plan can pick up unsatisfied requirements.
+      if isAutoPlaying, !isPaused, phase == .succeeded {
+        phase = .idle
+      }
     } else {
       log("Auto-play started.", level: .success)
     }
@@ -32,33 +56,37 @@ extension CompassProject {
         return
       }
 
-      await runPlanPass(
+      let outcome = await runPlanPass(
         continueToDevelop: true,
         agentSettings: agentSettings,
         modelOverride: modelOverride
       )
 
-      if state.immediate == nil, phase == .idle || phase == .succeeded {
-        if pendingRequirementsReplan {
-          pendingRequirementsReplan = false
-          log("Continuing auto-play to replan unsatisfied requirements.", level: .info)
-          continue
-        }
+      switch outcome {
+      case .developed:
+        // Next Plan iteration — Incremental audit may have left requirements open.
+        await Task.yield()
+        continue
+      case .requirementsNeedReplan:
+        pendingRequirementsReplan = false
+        log("Continuing auto-play to replan unsatisfied requirements.", level: .info)
+        await Task.yield()
+        continue
+      case .requirementsComplete:
         isAutoPlaying = false
-        if phase == .succeeded {
-          log("Auto-play stopped: all product requirements verified.", level: .success)
-        } else {
-          log("Auto-play stopped: no immediate work.", level: .info)
-        }
+        log("Auto-play stopped: all product requirements verified.", level: .success)
+        return
+      case .noImmediateWork:
+        isAutoPlaying = false
+        log("Auto-play stopped: no immediate work.", level: .info)
+        return
+      case .paused:
+        isAutoPlaying = false
+        return
+      case .failed, .cancelled:
+        isAutoPlaying = false
         return
       }
-
-      if phase == .failed || phase == .cancelled {
-        isAutoPlaying = false
-        return
-      }
-
-      await Task.yield()
     }
   }
 

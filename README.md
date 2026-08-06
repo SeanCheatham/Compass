@@ -20,9 +20,9 @@ Compass keeps a small persisted factory state in `.compass/state.json`:
 - `openQuestions`: unresolved questions that affect scope.
 - `products`: enabled generated-project products (`cli` and/or `macos`).
 
-User product intent lives in `.compass/brief.json` (audience, problem, product requirements) and is edited in the Brief tab or passed to `compass-cli run` via `--audience`, `--problem`, and `--requirement`.
+User product intent lives in `.compass/brief.json` (audience, problem, product requirements) and is edited in the Brief tab or passed to `compass-cli run` via `--audience`, `--problem`, and `--requirement`. New projects can use **Random idea** on the Brief tab to fill a curated starter brief.
 
-Factory-owned requirement verification lives in `.compass/requirements.json` (criteria, Given/When/Then scenarios, owned paths, ship traces, audit verdicts). Each product requirement has a `kind` and `proofLevel`. Plan must link slices via `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves a slice, Compass records a ship trace, may mark other requirements stale when owned paths changed, and runs an incremental audit. When Plan returns no immediate work, a full audit must find every requirement satisfied before the loop declares done; otherwise findings are fed back into Plan.
+Factory-owned requirement verification lives in `.compass/requirements.json` (criteria, Given/When/Then scenarios, owned paths, ship traces, audit verdicts). Each product requirement has a `kind` and `proofLevel`. Plan must link slices via `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves a slice, Compass records a ship trace, may mark other requirements stale when owned paths changed, and runs an incremental audit. When Plan returns no immediate work, a full audit must find every requirement satisfied before the loop declares done; otherwise findings are fed back into Plan. Auto-play continues after a successful Develop (which retires Immediate Work) so the next Plan can address still-open requirements — Develop success alone is not “all requirements verified.”
 
 The v1 loop is:
 
