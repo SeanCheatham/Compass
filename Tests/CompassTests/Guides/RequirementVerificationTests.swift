@@ -12,13 +12,30 @@ struct RequirementLedgerTests {
         RequirementLedgerEntry(
           requirementID: "req-1",
           criteria: ["cargo test -p core"],
+          scenarios: [
+            RequirementScenario(
+              given: "built CLI",
+              whenAction: "run --help",
+              thenExpectations: ["exit 0"],
+              command: "cargo run -p cli -- --help"
+            )
+          ],
+          ownedPaths: ["crates/cli/src"],
           status: .unsatisfied,
           lastAudit: RequirementAuditRecord(
             verdict: .unsatisfied,
             evidence: ["missing CLI flag"],
             commit: "abc123",
             timestamp: 1_700_000_000_000
-          )
+          ),
+          shipTraces: [
+            RequirementShipTrace(
+              session: 3,
+              commit: "abc123",
+              verify: "cargo test --workspace",
+              planSummary: "## Outcome\nShip help"
+            )
+          ]
         )
       ]
     )
@@ -60,6 +77,64 @@ struct RequirementLedgerTests {
   }
 
   @Test
+  func recordingShipAppendsTrace() {
+    let ledger = RequirementLedger(
+      entries: [RequirementLedgerEntry(requirementID: "req-1", status: .unverified)]
+    )
+    let next = ledger.recordingShip(
+      requirementIDs: ["req-1"],
+      session: 7,
+      commit: "deadbeef",
+      verify: "cargo test --workspace",
+      planSummary: "Ship feature"
+    )
+    #expect(next.entry(for: "req-1")?.shipTraces.count == 1)
+    #expect(next.entry(for: "req-1")?.shipTraces.first?.session == 7)
+    #expect(next.entry(for: "req-1")?.shipTraces.first?.commit == "deadbeef")
+  }
+
+  @Test
+  func markingStaleWhenOwnedPathsChange() {
+    let ledger = RequirementLedger(
+      entries: [
+        RequirementLedgerEntry(
+          requirementID: "req-a",
+          ownedPaths: ["crates/cli/src"],
+          status: .satisfied
+        ),
+        RequirementLedgerEntry(
+          requirementID: "req-b",
+          ownedPaths: ["crates/core/src"],
+          status: .satisfied
+        ),
+      ]
+    )
+    let next = ledger.markingStale(
+      changedPaths: ["crates/cli/src/main.rs"],
+      excludingRequirementIDs: ["req-a"]
+    )
+    #expect(next.entry(for: "req-a")?.status == .satisfied)
+    #expect(next.entry(for: "req-b")?.status == .satisfied)
+
+    let stale = ledger.markingStale(changedPaths: ["crates/cli/src/main.rs"])
+    #expect(stale.entry(for: "req-a")?.status == .stale)
+    #expect(stale.entry(for: "req-b")?.status == .satisfied)
+  }
+
+  @Test
+  func executableCommandsMergeCriteriaAndScenarios() {
+    let entry = RequirementLedgerEntry(
+      requirementID: "r1",
+      criteria: ["true"],
+      scenarios: [
+        RequirementScenario(command: "cargo test -p core"),
+        RequirementScenario(command: "true"),
+      ]
+    )
+    #expect(entry.executableCommands == ["true", "cargo test -p core"])
+  }
+
+  @Test
   func renderedStatusIncludesVerdict() {
     let brief = ProjectBrief.problemFocused("Ship it")
     let id = brief.productRequirements[0].id
@@ -79,13 +154,21 @@ struct RequirementLedgerTests {
     #expect(markdown.contains("[satisfied]"))
     #expect(markdown.contains(id))
     #expect(markdown.contains("cargo test passed"))
+    #expect(markdown.contains("behavior/hybrid"))
   }
 }
 
 @Suite("RequirementAuditEvaluator")
 struct RequirementAuditEvaluatorTests {
   @Test
-  func criterionFailureOverridesSatisfiedVerdict() {
+  func criterionFailureOverridesSatisfiedVerdictForHybrid() {
+    let brief = ProjectBrief(
+      audience: "a",
+      problem: "p",
+      productRequirements: [
+        ProductRequirement(id: "req-1", text: "x", kind: .behavior, proofLevel: .hybrid)
+      ]
+    )
     let ledger = RequirementLedger(
       entries: [RequirementLedgerEntry(requirementID: "req-1", criteria: ["false"])]
     )
@@ -95,7 +178,8 @@ struct RequirementAuditEvaluatorTests {
           requirementID: "req-1",
           verdict: .satisfied,
           evidence: ["looks good"],
-          proposedCriteria: ["cargo test -p core"]
+          proposedCriteria: ["cargo test -p core"],
+          proposedOwnedPaths: ["crates/core/src"]
         )
       ],
       summary: "ok"
@@ -113,11 +197,13 @@ struct RequirementAuditEvaluatorTests {
       agentResult: agent,
       criterionResults: criterionResults,
       into: ledger,
+      brief: brief,
       commit: "deadbeef"
     )
 
     #expect(next.entry(for: "req-1")?.status == .unsatisfied)
     #expect(next.entry(for: "req-1")?.criteria.contains("cargo test -p core") == true)
+    #expect(next.entry(for: "req-1")?.ownedPaths.contains("crates/core/src") == true)
     #expect(
       next.entry(for: "req-1")?.lastAudit?.evidence.contains(where: {
         $0.contains("Criterion failed")
@@ -126,7 +212,15 @@ struct RequirementAuditEvaluatorTests {
   }
 
   @Test
-  func criterionPassKeepsSatisfied() {
+  func deterministicForcesSatisfiedWhenCriteriaPass() {
+    let brief = ProjectBrief(
+      audience: "a",
+      problem: "p",
+      productRequirements: [
+        ProductRequirement(
+          id: "req-1", text: "x", kind: .constraint, proofLevel: .deterministic)
+      ]
+    )
     let ledger = RequirementLedger(
       entries: [RequirementLedgerEntry(requirementID: "req-1", criteria: ["true"])]
     )
@@ -134,11 +228,11 @@ struct RequirementAuditEvaluatorTests {
       results: [
         RequirementAuditItemResult(
           requirementID: "req-1",
-          verdict: .satisfied,
-          evidence: ["behavior present"]
+          verdict: .unsatisfied,
+          evidence: ["agent unsure"]
         )
       ],
-      summary: "done"
+      summary: "unsure"
     )
     let next = RequirementAuditEvaluator.apply(
       agentResult: agent,
@@ -150,9 +244,103 @@ struct RequirementAuditEvaluatorTests {
           output: "ok"
         )
       ],
-      into: ledger
+      into: ledger,
+      brief: brief
     )
     #expect(next.entry(for: "req-1")?.status == .satisfied)
+    #expect(next.entry(for: "req-1")?.satisfiedCommit != nil || next.entry(for: "req-1")?.satisfiedAt != nil)
+  }
+
+  @Test
+  func judgmentIgnoresFailedCriteriaHardOverride() {
+    let brief = ProjectBrief(
+      audience: "a",
+      problem: "p",
+      productRequirements: [
+        ProductRequirement(id: "req-1", text: "feels calm", kind: .narrative, proofLevel: .judgment)
+      ]
+    )
+    let ledger = RequirementLedger(
+      entries: [RequirementLedgerEntry(requirementID: "req-1")]
+    )
+    let agent = RequirementsAuditResult(
+      results: [
+        RequirementAuditItemResult(
+          requirementID: "req-1",
+          verdict: .satisfied,
+          evidence: ["copy reads calm"]
+        )
+      ],
+      summary: "ok"
+    )
+    let next = RequirementAuditEvaluator.apply(
+      agentResult: agent,
+      criterionResults: [
+        RequirementCriterionResult(
+          requirementID: "req-1",
+          command: "false",
+          exitCode: 1,
+          output: "n/a"
+        )
+      ],
+      into: ledger,
+      brief: brief
+    )
+    #expect(next.entry(for: "req-1")?.status == .satisfied)
+  }
+}
+
+@Suite("RequirementTargetingValidator")
+struct RequirementTargetingValidatorTests {
+  @Test
+  func requiresTargetingWhenIncomplete() {
+    let brief = ProjectBrief.problemFocused("Need work")
+    let id = brief.productRequirements[0].id
+    let ledger = RequirementLedger(
+      entries: [RequirementLedgerEntry(requirementID: id, status: .unverified)]
+    )
+    let immediate = PlanNext(plan: "## Outcome\nX\n\n## Acceptance checks\n- y", verify: "true")
+    #expect(throws: PlanTransitionValidationError.self) {
+      try RequirementTargetingValidator.validate(
+        immediate: immediate,
+        brief: brief,
+        ledger: ledger
+      )
+    }
+  }
+
+  @Test
+  func acceptsValidTargeting() throws {
+    let brief = ProjectBrief.problemFocused("Need work")
+    let id = brief.productRequirements[0].id
+    let ledger = RequirementLedger(
+      entries: [RequirementLedgerEntry(requirementID: id, status: .unsatisfied)]
+    )
+    let immediate = PlanNext(
+      plan: "## Outcome\nX\n\n## Acceptance checks\n- y",
+      verify: "true",
+      targetedRequirementIDs: [id]
+    )
+    try RequirementTargetingValidator.validate(
+      immediate: immediate,
+      brief: brief,
+      ledger: ledger
+    )
+  }
+
+  @Test
+  func allowsEmptyTargetingWhenAllSatisfied() throws {
+    let brief = ProjectBrief.problemFocused("Done")
+    let id = brief.productRequirements[0].id
+    let ledger = RequirementLedger(
+      entries: [RequirementLedgerEntry(requirementID: id, status: .satisfied)]
+    )
+    let immediate = PlanNext(plan: "## Outcome\nX\n\n## Acceptance checks\n- y", verify: "true")
+    try RequirementTargetingValidator.validate(
+      immediate: immediate,
+      brief: brief,
+      ledger: ledger
+    )
   }
 }
 
@@ -181,6 +369,24 @@ struct RequirementsLoopCompletionTests {
       alreadyReplannedAfterUnsatisfiedAudit: false
     )
     #expect(decision == .complete)
+  }
+
+  @Test
+  func staleIsIncomplete() {
+    let brief = ProjectBrief.problemFocused("Need revalidation")
+    let id = brief.productRequirements[0].id
+    let ledger = RequirementLedger(
+      entries: [RequirementLedgerEntry(requirementID: id, status: .stale)]
+    )
+    let decision = RequirementsLoopCompletion.decide(
+      brief: brief,
+      ledger: ledger,
+      alreadyReplannedAfterUnsatisfiedAudit: false
+    )
+    guard case .replan = decision else {
+      Issue.record("expected replan for stale")
+      return
+    }
   }
 
   @Test
@@ -238,11 +444,25 @@ struct RequirementsAuditPromptTests {
     let brief = ProjectBrief(
       audience: "Ops",
       problem: "Need audit",
-      productRequirements: [ProductRequirement(id: "r1", text: "Ship checklist")]
+      productRequirements: [
+        ProductRequirement(id: "r1", text: "Ship checklist", kind: .behavior)
+      ]
     )
     let ledger = RequirementLedger(
       entries: [
-        RequirementLedgerEntry(requirementID: "r1", criteria: ["cargo test -p core"])
+        RequirementLedgerEntry(
+          requirementID: "r1",
+          criteria: ["cargo test -p core"],
+          scenarios: [
+            RequirementScenario(
+              given: "tests exist",
+              whenAction: "cargo test -p core",
+              thenExpectations: ["exit 0"],
+              command: "cargo test -p core"
+            )
+          ],
+          ownedPaths: ["crates/core/src"]
+        )
       ]
     )
     let prompt = Prompts.requirementsAuditPrompt(
@@ -264,5 +484,33 @@ struct RequirementsAuditPromptTests {
     #expect(prompt.contains("Ship checklist"))
     #expect(prompt.contains("cargo test -p core"))
     #expect(prompt.contains("Host-run criterion results"))
+    #expect(prompt.contains("proposedScenarios"))
+    #expect(prompt.contains("behavior/hybrid"))
+  }
+}
+
+@Suite("ProductRequirementTaxonomy")
+struct ProductRequirementTaxonomyTests {
+  @Test
+  func encodeDecodePreservesKindAndProof() throws {
+    let requirement = ProductRequirement(
+      id: "r1",
+      text: "CLI lists posts",
+      kind: .behavior,
+      proofLevel: .deterministic
+    )
+    let data = try JSONEncoder().encode(requirement)
+    let decoded = try JSONDecoder().decode(ProductRequirement.self, from: data)
+    #expect(decoded == requirement)
+  }
+
+  @Test
+  func defaultsProofFromKind() {
+    #expect(
+      ProductRequirement(text: "x", kind: .narrative).proofLevel == .judgment
+    )
+    #expect(
+      ProductRequirement(text: "x", kind: .constraint).proofLevel == .deterministic
+    )
   }
 }

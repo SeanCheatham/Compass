@@ -133,8 +133,41 @@ private struct ProductRequirementsEditor: View {
               .accessibilityLabel("Remove requirement")
             }
 
+            HStack(spacing: 12) {
+              Picker("Kind", selection: $requirement.kind) {
+                ForEach(ProductRequirementKind.allCases, id: \.self) { kind in
+                  Text(kind.title).tag(kind)
+                }
+              }
+              .labelsHidden()
+              .frame(maxWidth: 140)
+
+              Picker("Proof", selection: $requirement.proofLevel) {
+                ForEach(RequirementProofLevel.allCases, id: \.self) { level in
+                  Text(level.title).tag(level)
+                }
+              }
+              .labelsHidden()
+              .frame(maxWidth: 140)
+
+              Spacer()
+            }
+            .onChange(of: requirement.kind) { _, newKind in
+              requirement.proofLevel = newKind.defaultProofLevel
+            }
+
             RequirementStatusRow(
               entry: ledger.entry(for: requirement.id)
+            )
+
+            RequirementOwnedPathsEditor(
+              requirementID: requirement.id,
+              ledger: $ledger
+            )
+
+            RequirementScenariosEditor(
+              requirementID: requirement.id,
+              ledger: $ledger
             )
 
             RequirementCriteriaEditor(
@@ -155,24 +188,39 @@ private struct RequirementStatusRow: View {
 
   var body: some View {
     let status = entry?.status ?? .unverified
-    HStack(alignment: .firstTextBaseline, spacing: 8) {
-      Label(statusLabel(status), systemImage: statusImage(status))
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(statusColor(status))
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(statusColor(status).opacity(0.12), in: Capsule())
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(statusLabel(status), systemImage: statusImage(status))
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(statusColor(status))
+          .padding(.horizontal, 7)
+          .padding(.vertical, 3)
+          .background(statusColor(status).opacity(0.12), in: Capsule())
 
-      if let evidence = entry?.lastAudit?.evidence.prefix(2), !evidence.isEmpty {
-        Text(evidence.joined(separator: " · "))
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-          .textSelection(.enabled)
-      } else {
-        Text("No audit evidence yet.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        if let evidence = entry?.lastAudit?.evidence.prefix(2), !evidence.isEmpty {
+          Text(evidence.joined(separator: " · "))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .textSelection(.enabled)
+        } else {
+          Text("No audit evidence yet.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      if let latest = entry?.shipTraces.last {
+        let bits = [
+          latest.session.map { "session \($0)" },
+          latest.commit.map { "commit \($0.prefix(8))" },
+          latest.verify.map { _ in "verify" },
+        ].compactMap { $0 }
+        if !bits.isEmpty {
+          Text("Latest ship: \(bits.joined(separator: " · "))")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
       }
     }
   }
@@ -182,6 +230,7 @@ private struct RequirementStatusRow: View {
     case .unverified: return "Unverified"
     case .satisfied: return "Satisfied"
     case .unsatisfied: return "Unsatisfied"
+    case .stale: return "Stale"
     }
   }
 
@@ -190,6 +239,7 @@ private struct RequirementStatusRow: View {
     case .unverified: return "questionmark.circle"
     case .satisfied: return "checkmark.seal.fill"
     case .unsatisfied: return "exclamationmark.triangle.fill"
+    case .stale: return "clock.arrow.circlepath"
     }
   }
 
@@ -198,7 +248,170 @@ private struct RequirementStatusRow: View {
     case .unverified: return .secondary
     case .satisfied: return .green
     case .unsatisfied: return .orange
+    case .stale: return .yellow
     }
+  }
+}
+
+private struct RequirementOwnedPathsEditor: View {
+  var requirementID: String
+  @Binding var ledger: RequirementLedger
+
+  private var pathsBinding: Binding<String> {
+    Binding(
+      get: {
+        ledger.entry(for: requirementID)?.ownedPaths.joined(separator: "\n") ?? ""
+      },
+      set: { newValue in
+        let lines =
+          newValue
+          .components(separatedBy: .newlines)
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+          .filter { !$0.isEmpty }
+        ledger = ledger.updatingOwnedPaths(requirementID: requirementID, ownedPaths: lines)
+      }
+    )
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text("Owned paths (one repo-relative prefix per line)")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      TextEditor(text: pathsBinding)
+        .font(.system(.caption, design: .monospaced))
+        .scrollContentBackground(.hidden)
+        .frame(minHeight: 36, maxHeight: 64)
+        .padding(6)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
+    }
+  }
+}
+
+private struct RequirementScenariosEditor: View {
+  var requirementID: String
+  @Binding var ledger: RequirementLedger
+
+  private var scenarios: [RequirementScenario] {
+    ledger.entry(for: requirementID)?.scenarios ?? []
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Text("Acceptance scenarios")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Spacer()
+        Button {
+          var next = scenarios
+          next.append(RequirementScenario())
+          ledger = ledger.updatingScenarios(requirementID: requirementID, scenarios: next)
+        } label: {
+          Label("Add scenario", systemImage: "plus")
+            .font(.caption)
+        }
+        .buttonStyle(.borderless)
+      }
+
+      if scenarios.isEmpty {
+        Text("Optional Given/When/Then checks. Prefer these over opaque shell criteria.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      } else {
+        ForEach(Array(scenarios.enumerated()), id: \.element.id) { index, _ in
+          RequirementScenarioRow(
+            scenario: Binding(
+              get: {
+                ledger.entry(for: requirementID)?.scenarios[safe: index]
+                  ?? RequirementScenario()
+              },
+              set: { updated in
+                var next = ledger.entry(for: requirementID)?.scenarios ?? []
+                if next.indices.contains(index) {
+                  next[index] = updated
+                }
+                ledger = ledger.updatingScenarios(
+                  requirementID: requirementID, scenarios: next)
+              }
+            ),
+            onRemove: {
+              var next = scenarios
+              if next.indices.contains(index) {
+                next.remove(at: index)
+              }
+              ledger = ledger.updatingScenarios(
+                requirementID: requirementID, scenarios: next)
+            }
+          )
+        }
+      }
+    }
+  }
+}
+
+private struct RequirementScenarioRow: View {
+  @Binding var scenario: RequirementScenario
+  var onRemove: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack {
+        Text("Scenario")
+          .font(.caption2.weight(.semibold))
+        Spacer()
+        Button(action: onRemove) {
+          Image(systemName: "minus.circle.fill")
+            .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.borderless)
+      }
+      TextField("Given", text: $scenario.given)
+        .textFieldStyle(.roundedBorder)
+        .font(.caption)
+      TextField("When", text: $scenario.whenAction)
+        .textFieldStyle(.roundedBorder)
+        .font(.caption)
+      TextField(
+        "Then (semicolon-separated)",
+        text: Binding(
+          get: { scenario.thenExpectations.joined(separator: "; ") },
+          set: { raw in
+            scenario.thenExpectations =
+              raw
+              .split(separator: ";")
+              .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+              .filter { !$0.isEmpty }
+          }
+        )
+      )
+      .textFieldStyle(.roundedBorder)
+      .font(.caption)
+      TextField(
+        "Command (optional)",
+        text: Binding(
+          get: { scenario.command ?? "" },
+          set: { scenario.command = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyUI }
+        )
+      )
+      .textFieldStyle(.roundedBorder)
+      .font(.system(.caption, design: .monospaced))
+    }
+    .padding(8)
+    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 6))
+  }
+}
+
+private extension String {
+  var nilIfEmptyUI: String? {
+    let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+}
+
+private extension Array {
+  subscript(safe index: Int) -> Element? {
+    indices.contains(index) ? self[index] : nil
   }
 }
 
@@ -224,7 +437,7 @@ private struct RequirementCriteriaEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text("Verification criteria (one shell command per line)")
+      Text("Extra shell criteria (one command per line)")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
       TextEditor(text: criteriaBinding)

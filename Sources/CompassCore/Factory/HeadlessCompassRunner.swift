@@ -1062,15 +1062,31 @@ public struct HeadlessCompassRunner: Sendable {
             onEvent: onEvent
           )
         }
-        if let targeted = immediate.targetedRequirementIDs, !targeted.isEmpty {
+        let commit = await gitCurrentSHA(repoURL: repoURL)
+        let brief = workspace.readBrief()
+        var ledger = workspace.readRequirementLedger(reconciledWith: brief)
+        let targeted = immediate.targetedRequirementIDs ?? []
+        if !targeted.isEmpty {
+          ledger = ledger.recordingShip(
+            requirementIDs: targeted,
+            session: sessionNumber,
+            commit: commit,
+            verify: immediate.verify,
+            planSummary: immediate.plan.split(whereSeparator: \.isNewline).first.map(String.init)
+          )
+          try? workspace.writeRequirementLedger(ledger, reconciledWith: brief)
+        }
+        let staleIDs = ledger.entries.filter { $0.status == .stale }.map(\.requirementID)
+        let auditIDs = Array(Set(targeted + staleIDs))
+        if !auditIDs.isEmpty {
           _ = try? await runRequirementsAudit(
             workspace: workspace,
-            requirementIDs: targeted,
+            requirementIDs: auditIDs,
             settings: settings,
             runtime: runtime,
             sessionNumber: sessionNumber,
             maxIterations: options.maxIterations,
-            commit: await gitCurrentSHA(repoURL: repoURL),
+            commit: commit,
             onEvent: onEvent
           )
         }
@@ -1252,7 +1268,8 @@ public struct HeadlessCompassRunner: Sendable {
 
     let criterionResults = await RequirementCriteriaRunner.collect(
       ledger: ledger,
-      requirementIDs: scopedIDs
+      requirementIDs: scopedIDs,
+      brief: brief
     ) { command in
       let result = try await self.runVerifyCommand(
         command,
@@ -1298,6 +1315,7 @@ public struct HeadlessCompassRunner: Sendable {
       agentResult: agentResult,
       criterionResults: criterionResults,
       into: ledger,
+      brief: brief,
       commit: commit
     )
     ledger = ledger.reconciled(with: brief)
@@ -1543,7 +1561,9 @@ public struct HeadlessCompassRunner: Sendable {
       try PlanTransitionValidator.validate(
         from: current,
         to: next,
-        repoURL: workspace.repoURL
+        repoURL: workspace.repoURL,
+        productBrief: workspace.readBrief(),
+        requirementLedger: workspace.readRequirementLedger()
       )
     }
   }

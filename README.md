@@ -22,7 +22,7 @@ Compass keeps a small persisted factory state in `.compass/state.json`:
 
 User product intent lives in `.compass/brief.json` (audience, problem, product requirements) and is edited in the Brief tab or passed to `compass-cli run` via `--audience`, `--problem`, and `--requirement`.
 
-Factory-owned requirement verification lives in `.compass/requirements.json` (per-requirement criteria, audit verdicts, evidence). Plan links slices via `immediate.targetedRequirementIDs`. After Critic approves a slice, Compass runs an incremental requirements audit for those ids. When Plan returns no immediate work, a full audit must find every requirement satisfied before the loop declares done; otherwise findings are fed back into Plan.
+Factory-owned requirement verification lives in `.compass/requirements.json` (criteria, Given/When/Then scenarios, owned paths, ship traces, audit verdicts). Each product requirement has a `kind` and `proofLevel`. Plan must link slices via `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves a slice, Compass records a ship trace, may mark other requirements stale when owned paths changed, and runs an incremental audit. When Plan returns no immediate work, a full audit must find every requirement satisfied before the loop declares done; otherwise findings are fed back into Plan.
 
 The v1 loop is:
 

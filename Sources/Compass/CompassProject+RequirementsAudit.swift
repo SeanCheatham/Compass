@@ -4,6 +4,36 @@ import Foundation
 
 @MainActor
 extension CompassProject {
+  /// Record ship traces for targeted requirements after Critic approve + commit.
+  func recordRequirementShipTraces(
+    workspace: CompassWorkspace,
+    shipped: PlanNext,
+    sessionNumber: Int,
+    commit: String?,
+    changedPaths: [String] = []
+  ) {
+    let brief = workspace.readBrief()
+    var ledger = workspace.readRequirementLedger(reconciledWith: brief)
+    let targeted = shipped.targetedRequirementIDs ?? []
+    if !targeted.isEmpty {
+      ledger = ledger.recordingShip(
+        requirementIDs: targeted,
+        session: sessionNumber,
+        commit: commit,
+        verify: shipped.verify,
+        planSummary: firstLine(shipped.plan)
+      )
+    }
+    if !changedPaths.isEmpty {
+      ledger = ledger.markingStale(
+        changedPaths: changedPaths,
+        excludingRequirementIDs: Set(targeted)
+      )
+    }
+    try? workspace.writeRequirementLedger(ledger, reconciledWith: brief)
+    requirementLedger = ledger
+  }
+
   /// Run criteria + requirements audit agent for the given requirement ids
   /// (nil/empty = all brief requirements). Persists the updated ledger.
   @discardableResult
@@ -40,7 +70,8 @@ extension CompassProject {
     let launchPlan = agentLaunchPlan(for: workspace.repoURL)
     let criterionResults = await RequirementCriteriaRunner.collect(
       ledger: ledger,
-      requirementIDs: scopedIDs
+      requirementIDs: scopedIDs,
+      brief: brief
     ) { command in
       let result = try await self.runVerifyCommand(
         command: command,
@@ -98,9 +129,9 @@ extension CompassProject {
         agentResult: agentResult,
         criterionResults: criterionResults,
         into: ledger,
+        brief: brief,
         commit: commit
       )
-      // Ensure scoped requirements missing from agent output are marked if criteria failed.
       ledger = ledger.reconciled(with: brief)
       try workspace.writeRequirementLedger(ledger, reconciledWith: brief)
       requirementLedger = ledger
@@ -115,7 +146,6 @@ extension CompassProject {
         to: sessionIndex
       )
     } catch {
-      // Even without the agent, persist criterion failures as unsatisfied.
       if !criterionResults.isEmpty {
         let synthetic = RequirementsAuditResult(
           results: scopedIDs.map { id in
@@ -132,6 +162,7 @@ extension CompassProject {
           agentResult: synthetic,
           criterionResults: criterionResults,
           into: ledger,
+          brief: brief,
           commit: commit
         )
         try? workspace.writeRequirementLedger(ledger, reconciledWith: brief)

@@ -51,7 +51,8 @@ struct ProjectBriefTests {
     #expect(markdown.contains("### Problem"))
     #expect(markdown.contains("Missing checklist"))
     #expect(markdown.contains("### Product Requirements"))
-    #expect(markdown.contains("- Show requirements"))
+    #expect(markdown.contains("Show requirements"))
+    #expect(markdown.contains("behavior/hybrid"))
   }
 
   @Test

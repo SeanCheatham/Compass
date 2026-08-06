@@ -247,7 +247,9 @@ extension CompassProject {
       try PlanTransitionValidator.validate(
         from: currentState,
         to: nextState,
-        repoURL: hostRepoURL
+        repoURL: hostRepoURL,
+        productBrief: hostWorkspace.readBrief(),
+        requirementLedger: hostWorkspace.readRequirementLedger()
       )
     }
   }

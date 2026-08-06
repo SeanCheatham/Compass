@@ -108,14 +108,15 @@ extension Prompts {
         Compass retires the shipped `immediate` candidate (marks it `done`, clears
         `immediate`) after Critic approves — do not leave completed work as `active`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
-      - When the Project Brief lists product requirements, prioritize unverified or
-        unsatisfied ones. Set `immediate.targetedRequirementIDs` to the requirement id(s)
-        this slice advances (from the Requirements status section). Omit the field only
-        when the slice is unrelated maintenance.
+      - When the Project Brief lists product requirements, prioritize unverified,
+        unsatisfied, or stale ones. Set `immediate.targetedRequirementIDs` to the
+        requirement id(s) this slice advances (from the Requirements status section).
+        Compass rejects Immediate Work that omits targeting while requirements remain
+        incomplete. Prefer the smallest slice that advances incomplete requirement ids.
       - Use `immediate: null` only when there is no useful draft, feedback, queue item, or
         repository-originated cleanup/test/docs slice — and only when every product
-        requirement is already satisfied (or the brief has none). Do not claim done while
-        requirements remain unverified or unsatisfied.
+        requirement is already satisfied (not stale/unverified/unsatisfied), or the brief
+        has none. Do not claim done while requirements remain incomplete.
       - Name likely target files in the handoff. Use `crates/core/src` for domain logic,
         `crates/cli/src` for CLI behavior, `crates/ui` for ViewState/Actions/simulation,
         `crates/ffi` for UniFFI exports, and `apps/macos` only for thin SwiftUI binder work

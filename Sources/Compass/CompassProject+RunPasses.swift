@@ -547,11 +547,32 @@ extension CompassProject {
             feedback(.commitsPromoted)
             retireShippedImmediate(workspace: workspace, shipped: next)
             alreadyReplannedAfterUnsatisfiedAudit = false
-            if let targeted = next.targetedRequirementIDs, !targeted.isEmpty {
-              let commit = await gitCurrentSha(at: workspace.repoURL)
+            let commit = await gitCurrentSha(at: workspace.repoURL)
+            let changedPaths =
+              (try? await gitChangedPathsForPostChecks(
+                beforeSha: beforeSha,
+                workingDirectory: workspace.repoURL,
+                launchPlan: launchPlan
+              )) ?? []
+            recordRequirementShipTraces(
+              workspace: workspace,
+              shipped: next,
+              sessionNumber: sessions[sessionIndex].session,
+              commit: commit,
+              changedPaths: changedPaths
+            )
+            let targeted = next.targetedRequirementIDs ?? []
+            // Incremental: targeted + any newly stale requirements.
+            let staleIDs =
+              workspace.readRequirementLedger(reconciledWith: workspace.readBrief())
+              .entries
+              .filter { $0.status == .stale }
+              .map(\.requirementID)
+            let auditIDs = Array(Set(targeted + staleIDs))
+            if !auditIDs.isEmpty {
               _ = await runRequirementsAuditPass(
                 workspace: workspace,
-                requirementIDs: targeted,
+                requirementIDs: auditIDs,
                 agentSettings: agentSettings,
                 modelOverride: modelOverride,
                 sessionIndex: sessionIndex,
@@ -713,10 +734,13 @@ extension CompassProject {
     to next: PlanState
   ) throws {
     do {
+      let brief = workspace?.readBrief() ?? .empty
       try PlanTransitionValidator.validate(
         from: current,
         to: next,
-        repoURL: workspace?.repoURL
+        repoURL: workspace?.repoURL,
+        productBrief: brief,
+        requirementLedger: workspace?.readRequirementLedger(reconciledWith: brief)
       )
     } catch let error as PlanTransitionValidationError {
       throw AppModelError.rejectedPlan(error.message)

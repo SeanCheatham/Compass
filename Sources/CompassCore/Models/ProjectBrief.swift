@@ -3,10 +3,61 @@ import Foundation
 public struct ProductRequirement: Codable, Equatable, Identifiable, Sendable {
   public var id: String
   public var text: String
+  public var kind: ProductRequirementKind
+  public var proofLevel: RequirementProofLevel
 
-  public init(id: String = UUID().uuidString.lowercased(), text: String) {
+  public enum CodingKeys: String, CodingKey {
+    case id
+    case text
+    case kind
+    case proofLevel
+    case proofLevelSnake = "proof_level"
+  }
+
+  public init(
+    id: String = UUID().uuidString.lowercased(),
+    text: String,
+    kind: ProductRequirementKind = .behavior,
+    proofLevel: RequirementProofLevel? = nil
+  ) {
     self.id = id.trimmingCharacters(in: .whitespacesAndNewlines)
     self.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.kind = kind
+    self.proofLevel = proofLevel ?? kind.defaultProofLevel
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let id =
+      (try? container.decodeIfPresent(String.self, forKey: .id))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      ?? UUID().uuidString.lowercased()
+    let text =
+      (try container.decodeIfPresent(String.self, forKey: .text))?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let kindRaw =
+      (try? container.decodeIfPresent(String.self, forKey: .kind))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    let kind = ProductRequirementKind(rawValue: kindRaw ?? "") ?? .behavior
+    let proofRaw =
+      (try? container.decodeIfPresent(String.self, forKey: .proofLevel))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+      ?? (try? container.decodeIfPresent(String.self, forKey: .proofLevelSnake))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    let proof =
+      proofRaw.flatMap(RequirementProofLevel.init(rawValue:)) ?? kind.defaultProofLevel
+    self.init(id: id.isEmpty ? UUID().uuidString.lowercased() : id, text: text, kind: kind, proofLevel: proof)
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, forKey: .id)
+    try container.encode(text, forKey: .text)
+    try container.encode(kind.rawValue, forKey: .kind)
+    try container.encode(proofLevel.rawValue, forKey: .proofLevel)
   }
 
   public var isEmpty: Bool {
@@ -85,7 +136,9 @@ public struct ProjectBrief: Codable, Equatable, Sendable {
       lines.append("- _(none)_")
     } else {
       for requirement in nonEmptyRequirements {
-        lines.append("- \(requirement.text)")
+        lines.append(
+          "- (\(requirement.kind.rawValue)/\(requirement.proofLevel.rawValue)) \(requirement.text) `(id: \(requirement.id))`"
+        )
       }
     }
 
@@ -113,12 +166,16 @@ public struct ProjectBrief: Codable, Equatable, Sendable {
   public static func problemFocused(
     _ problem: String,
     audience: String = "Compass maintainers",
-    requirement: String = "Deliver the requested change with verified repository-local edits."
+    requirement: String = "Deliver the requested change with verified repository-local edits.",
+    kind: ProductRequirementKind = .behavior,
+    proofLevel: RequirementProofLevel? = nil
   ) -> ProjectBrief {
     ProjectBrief(
       audience: audience,
       problem: problem,
-      productRequirements: [ProductRequirement(text: requirement)]
+      productRequirements: [
+        ProductRequirement(text: requirement, kind: kind, proofLevel: proofLevel)
+      ]
     )
   }
 }

@@ -42,9 +42,9 @@ There is no Cursor model provider in this build. Cursor’s SDK is an agent harn
 - `products` (enabled generated-project products: `cli` and/or `macos`)
 - `acceptanceGates` (optional deterministic quality thresholds)
 
-User product intent is stored separately in `.compass/brief.json` (`audience`, `problem`, `productRequirements`) and injected into agent prompts as project context.
+User product intent is stored separately in `.compass/brief.json` (`audience`, `problem`, `productRequirements` with `kind` / `proofLevel`) and injected into agent prompts as project context.
 
-Requirement verification is factory-owned in `.compass/requirements.json` (`RequirementLedger`: criteria, status, last audit evidence), keyed by `ProductRequirement.id`. The Requirements Audit agent judges in-scope requirements with evidence; host-run shell criteria force `unsatisfied` on non-zero exit. Plan sees a “Requirements status” section and may set `immediate.targetedRequirementIDs`. Incremental audits run after shipped iterations; a full audit runs when Plan returns no immediate work and gates loop completion.
+Requirement verification is factory-owned in `.compass/requirements.json` (`RequirementLedger`: criteria, scenarios, owned paths, ship traces, status, satisfied-at / last-revalidated). Statuses are `unverified` / `satisfied` / `unsatisfied` / `stale`. Plan must set `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves, Compass records a ship trace, marks other satisfied requirements stale when owned paths changed, and runs an incremental audit. A full audit gates loop completion when Plan returns no immediate work. Proof levels (`deterministic` / `hybrid` / `judgment`) control how host-run criteria interact with auditor judgment.
 
 Legacy state files from older projects are ignored in-place.
 

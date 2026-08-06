@@ -43,7 +43,7 @@ public struct ProjectVisionGuide: Equatable, Sendable {
     let requirements = brief.hasRequirements
     let reconciled = ledger.reconciled(with: brief)
     let verificationReady =
-      requirements && reconciled.entries.allSatisfy { $0.status == .satisfied }
+      requirements && reconciled.entries.allSatisfy(\.status.countsAsComplete)
 
     cues = [
       Cue(

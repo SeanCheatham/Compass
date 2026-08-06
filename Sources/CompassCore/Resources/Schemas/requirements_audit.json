@@ -9,7 +9,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["requirementID", "verdict", "evidence", "proposedCriteria"],
+        "required": ["requirementID", "verdict", "evidence", "proposedCriteria", "proposedOwnedPaths", "proposedScenarios"],
         "properties": {
           "requirementID": {
             "type": "string",
@@ -29,7 +29,33 @@
           "proposedCriteria": {
             "type": "array",
             "items": { "type": "string" },
-            "description": "Optional shell commands that can re-check this requirement later. Use empty array when none."
+            "description": "Optional shell commands that can re-check this requirement later."
+          },
+          "proposedOwnedPaths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Repo-relative path prefixes this requirement owns for staleness detection."
+          },
+          "proposedScenarios": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["given", "whenAction", "thenExpectations"],
+              "properties": {
+                "id": { "type": "string" },
+                "given": { "type": "string" },
+                "whenAction": { "type": "string" },
+                "thenExpectations": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "command": {
+                  "type": ["string", "null"],
+                  "description": "Optional shell command that proves the scenario."
+                }
+              }
+            }
           }
         }
       }

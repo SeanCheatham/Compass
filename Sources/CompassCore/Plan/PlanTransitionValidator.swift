@@ -44,7 +44,9 @@ public enum PlanTransitionValidator {
   public static func validate(
     from current: PlanState,
     to next: PlanState,
-    repoURL: URL? = nil
+    repoURL: URL? = nil,
+    productBrief: ProjectBrief? = nil,
+    requirementLedger: RequirementLedger? = nil
   )
     throws
   {
@@ -123,6 +125,14 @@ public enum PlanTransitionValidator {
           "Plan returned an immediate handoff without `source`. Set `source` to draft, feedback, candidate, focus, repository, or repair so Compass can explain why this work was selected.",
         reason: .weakHandoff,
         missingLabels: ["Selection source"]
+      )
+    }
+
+    if let productBrief {
+      try RequirementTargetingValidator.validate(
+        immediate: immediate,
+        brief: productBrief,
+        ledger: requirementLedger ?? .empty
       )
     }
 

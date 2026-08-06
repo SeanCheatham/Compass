@@ -24,17 +24,36 @@ extension Prompts {
       let entry = reconciled.entry(for: requirement.id)
       scopeLines.append("- id: `\(requirement.id)`")
       scopeLines.append("  text: \(requirement.text)")
-      let criteria = entry?.criteria ?? []
-      if criteria.isEmpty {
+      scopeLines.append(
+        "  kind/proof: \(requirement.kind.rawValue)/\(requirement.proofLevel.rawValue)")
+      if let owned = entry?.ownedPaths, !owned.isEmpty {
+        scopeLines.append("  owned paths: \(owned.map { "`\($0)`" }.joined(separator: ", "))")
+      }
+      if let scenarios = entry?.scenarios, !scenarios.isEmpty {
+        scopeLines.append("  scenarios:")
+        for scenario in scenarios {
+          scopeLines.append("  ```")
+          scopeLines.append(scenario.renderedMarkdown)
+          scopeLines.append("  ```")
+        }
+      }
+      let commands = entry?.executableCommands ?? []
+      if commands.isEmpty {
         scopeLines.append("  criteria: _(none)_")
       } else {
         scopeLines.append("  criteria:")
-        for criterion in criteria {
+        for criterion in commands {
           scopeLines.append("  - `\(criterion)`")
         }
       }
       if let status = entry?.status {
         scopeLines.append("  prior status: \(status.rawValue)")
+      }
+      if let latest = entry?.shipTraces.last {
+        var bits: [String] = []
+        if let session = latest.session { bits.append("session \(session)") }
+        if let commit = latest.commit { bits.append("commit \(commit.prefix(8))") }
+        scopeLines.append("  latest ship: \(bits.joined(separator: ", "))")
       }
     }
 
@@ -53,7 +72,16 @@ extension Prompts {
             "requirementID": "<id>",
             "verdict": "satisfied",
             "evidence": ["<file path or command evidence>"],
-            "proposedCriteria": ["<optional shell command>"]
+            "proposedCriteria": ["<optional shell command>"],
+            "proposedOwnedPaths": ["crates/cli/src"],
+            "proposedScenarios": [
+              {
+                "given": "a built CLI",
+                "whenAction": "user runs `cargo run -p cli -- --help`",
+                "thenExpectations": ["exit 0", "help text mentions the feature"],
+                "command": "cargo run -p cli -- --help"
+              }
+            ]
           }
         ],
         "summary": "<overall requirements status>"
@@ -88,12 +116,16 @@ extension Prompts {
       Audit rules:
       - Return one result for every in-scope requirement id listed below.
       - Verdict is `satisfied` or `unsatisfied` only.
+      - Respect proof level:
+        - `deterministic`: host-run criteria/scenario commands decide; propose commands if missing.
+        - `hybrid`: commands plus judgment with citations; FAILED criteria force unsatisfied.
+        - `judgment`: citations required; commands optional.
+      - Prefer Given/When/Then scenarios in `proposedScenarios` over opaque bash when describing
+        product behavior. Put the executable probe in `command` when one exists.
+      - Propose `proposedOwnedPaths` (repo-relative prefixes) so future ships can mark this
+        requirement stale when those paths change.
       - Cite evidence (paths, commands, observable behavior). Do not invent requirements.
-      - When a requirement has no criteria, propose shell commands in `proposedCriteria` that
-        future audits can run to re-check it. Prefer repository-local commands (cargo test,
-        cargo run -- …, scripts). Leave `proposedCriteria` as [] when nothing useful exists.
-      - Host-run criterion results below are authoritative for those commands: a FAILED criterion
-        must yield `unsatisfied` for that requirement.
+      - Host-run criterion results below are authoritative for deterministic/hybrid proof.
       - Product requirements are user-owned. Judge the product against them; do not rewrite them.
 
       \(submitSection)## Project brief

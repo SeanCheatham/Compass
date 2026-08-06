@@ -34,7 +34,7 @@ public struct ProjectRunControlGuide: Equatable {
     let requirementsComplete =
       (brief?.hasRequirements ?? false)
       && requirementLedger.reconciled(with: brief ?? .empty).entries.allSatisfy {
-        $0.status == .satisfied
+        $0.status.countsAsComplete
       }
     let handoffReadiness = HandoffReadiness(
       state: state,
