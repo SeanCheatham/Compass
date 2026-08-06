@@ -4,6 +4,7 @@ import SwiftUI
 
 struct StudioTerminalView: View {
   @ObservedObject var state: StudioState
+  @Environment(\.colorScheme) private var colorScheme
 
   /// Bumps when the latest entry is added or its output is filled in.
   private var scrollEpoch: String {
@@ -34,12 +35,12 @@ struct StudioTerminalView: View {
             if state.terminalEntries.isEmpty {
               Text("bash commands the agent runs will appear here")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.35))
+                .foregroundStyle(.tertiary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 4)
             } else {
               ForEach(state.terminalEntries) { entry in
-                StudioTerminalEntryView(entry: entry)
+                StudioTerminalEntryView(entry: entry, colorScheme: colorScheme)
                   .id(entry.id)
               }
             }
@@ -57,8 +58,7 @@ struct StudioTerminalView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(Color.black.opacity(0.88))
-    .foregroundStyle(Color.white.opacity(0.92))
+    .background(Color(nsColor: .controlBackgroundColor).opacity(0.55))
   }
 
   private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
@@ -80,21 +80,22 @@ struct StudioTerminalView: View {
 
 private struct StudioTerminalEntryView: View {
   let entry: StudioState.TerminalEntry
+  let colorScheme: ColorScheme
   @State private var isHovered = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 6) {
         Text("$")
-          .foregroundStyle(Color.white.opacity(0.35))
+          .foregroundStyle(.tertiary)
         Text(entry.command)
           .fontWeight(.medium)
           .lineLimit(2)
           .truncationMode(.tail)
-          .foregroundStyle(Color.white.opacity(0.9))
+          .foregroundStyle(.primary)
         if let cwd = entry.cwd, !cwd.isEmpty, cwd != "/" {
           Text("(\(cwd))")
-            .foregroundStyle(Color.white.opacity(0.35))
+            .foregroundStyle(.tertiary)
             .lineLimit(1)
         }
         Spacer(minLength: 4)
@@ -108,7 +109,7 @@ private struct StudioTerminalEntryView: View {
           } label: {
             Image(systemName: "doc.on.doc")
               .font(.system(size: 10))
-              .foregroundStyle(Color.white.opacity(0.55))
+              .foregroundStyle(.secondary)
           }
           .buttonStyle(.plain)
           .help("Copy output")
@@ -120,11 +121,7 @@ private struct StudioTerminalEntryView: View {
         Text(
           StudioANSIParser.attributedString(
             output,
-            options: .init(
-              defaultForeground: entry.isError == true
-                ? NSColor(calibratedRed: 1, green: 0.45, blue: 0.45, alpha: 1)
-                : NSColor(calibratedWhite: 0.75, alpha: 1)
-            )
+            options: .init(defaultForeground: defaultOutputColor)
           )
         )
         .font(.system(.caption, design: .monospaced))
@@ -136,19 +133,29 @@ private struct StudioTerminalEntryView: View {
     .onHover { isHovered = $0 }
   }
 
+  private var defaultOutputColor: NSColor {
+    if entry.isError == true {
+      return .systemRed
+    }
+    // Resolve against the current scheme so AttributedString doesn't keep a
+    // stale dark-panel gray after appearance changes.
+    return colorScheme == .dark
+      ? NSColor(calibratedWhite: 0.78, alpha: 1)
+      : NSColor(calibratedWhite: 0.28, alpha: 1)
+  }
+
   @ViewBuilder
   private var statusBadge: some View {
     if entry.output == nil {
       ProgressView()
         .controlSize(.mini)
-        .colorInvert()
     } else if entry.isError == true {
       Image(systemName: "xmark.circle.fill")
         .foregroundStyle(.red)
         .font(.system(size: 11))
     } else {
       Image(systemName: "checkmark.circle.fill")
-        .foregroundStyle(Color.green.opacity(0.85))
+        .foregroundStyle(.green)
         .font(.system(size: 11))
     }
   }
