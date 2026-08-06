@@ -143,15 +143,18 @@ final class AppModel: ObservableObject {
     panel.canSelectHiddenExtension = false
     panel.isExtensionHidden = true
     panel.nameFieldStringValue = "CompassRustApp"
-    panel.message = "Create a Compass project (Rust core + CLI/macOS; UI state in crates/ui)"
-
+    panel.message = "Create a Compass project (Rust core + selected products)"
     panel.prompt = "Create"
+
+    let productPicker = NewProjectProductPickerView()
+    panel.accessoryView = productPicker
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
     let projectURL = url.standardizedFileURL
+    let products = productPicker.selectedProducts()
 
     do {
-      try await Self.initializeGeneratedRustProject(at: projectURL)
+      try await Self.initializeGeneratedRustProject(at: projectURL, products: products)
       let project = upsertProject(repoURL: projectURL)
       selectProject(project)
       project.logProjectSelected()

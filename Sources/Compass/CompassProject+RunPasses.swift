@@ -786,53 +786,25 @@ extension CompassProject {
     var verifyOutput: VerifyOutput?
     var requiresPlanRepair = false
 
-    switch summary.status {
-    case .succeeded:
-      break
-    case .blocked:
-      if summary.bypassVerify != true {
-        verifyIssues.append(
-          "[verify] Develop reported it was blocked but did not request verify bypass.")
-      }
-    case .failed:
-      verifyIssues.append("[verify] Develop reported failure: \(summary.feedback)")
-    }
-
-    let autoRepair = VerifyBypassAutoRepair.repair(
-      plannedCommand: next.verify,
-      developSummary: summary
-    )
-    if summary.bypassVerify == true, let autoRepair {
+    let preVerify = FactoryPostChecks.preVerifyDecision(next: next, summary: summary)
+    verifyIssues.append(contentsOf: preVerify.earlyIssues)
+    requiresPlanRepair = preVerify.requiresPlanRepair
+    if let note = preVerify.autoRepairNote {
       log(
-        "Post-check: auto-repairing verify bypass with `\(autoRepair.command)`.",
+        "Post-check: auto-repairing verify bypass with `\(preVerify.verifyCommand)`.",
         level: .warning
       )
-      appendSessionNote(
-        """
-        [verify] Auto-repaired Develop verify bypass (\(autoRepair.reason.rawValue)).
-        Planned verify command: `\(next.verify)`
-        Repaired verify command: `\(autoRepair.command)`
-        \(autoRepair.note)
-        """,
-        to: sessionIndex
-      )
+      appendSessionNote(note, to: sessionIndex)
     }
 
-    if summary.bypassVerify == true, autoRepair == nil {
-      requiresPlanRepair = true
-      let issue = """
-        [verify] Verify was skipped because Develop reported the planned command is wrong or out of scope.
-        Planned verify command: `\(next.verify)`
-        Develop handoff: \(summary.feedback)
-        Plan should replace the verify command or rescope Immediate Work before Develop continues.
-        """
-      verifyIssues.append(issue)
+    if preVerify.skipVerify {
       log(
         "Post-check: skipping verify per Develop bypassVerify=true; handing back to Plan.",
         level: .warning
       )
     } else {
-      let verifyCommand = autoRepair?.command ?? next.verify
+      let verifyCommand = preVerify.verifyCommand
+      let wasAutoRepaired = preVerify.autoRepairNote != nil
       phase = .verifying
       let timeoutMs = verifyTimeoutMs(for: next)
       logExecutionEnvironmentPreflight(
@@ -878,60 +850,42 @@ extension CompassProject {
             beforeSha: beforeSha,
             workingDirectory: workingDirectory,
             launchPlan: launchPlan
-          ),
-          let finding = SuccessfulVerifyGates.firstFinding(
-            immediate: next,
-            brief: state.brief,
-            command: verifyCommand,
+          )
+        {
+          let gateIssues = FactoryPostChecks.issuesAfterGreenVerify(
+            next: next,
+            state: state,
+            workspace: workspace,
+            verifyCommand: verifyCommand,
             verifyOutput: verify.stdout + verify.stderr,
             changedPaths: changedPaths,
             repoURL: workingDirectory
           )
-        {
-          verifyIssues.append(finding.issue)
-          log("Verify passed but semantic gate \(finding.retryKind) failed.", level: .error)
+          if !gateIssues.isEmpty {
+            verifyIssues.append(contentsOf: gateIssues)
+            log("Verify passed but a semantic or acceptance gate failed.", level: .error)
+          }
         }
         if let macosIssue = await runMacOSVerifyIfNeeded(
           workingDirectory: workingDirectory,
           sessionIndex: sessionIndex
         ) {
           verifyIssues.append(macosIssue)
-          log("macOS host verify failed after a green Rust verify.", level: .error)
-        }
-        if let workspace, let state = try? workspace.readState() {
-          let gateIssues = AcceptanceGateEvaluator.issues(state: state, workspace: workspace)
-          if !gateIssues.isEmpty {
-            verifyIssues.append(contentsOf: gateIssues)
-            log("Acceptance gates failed after a green verify.", level: .error)
-          }
         }
       } else {
-        let verifyTail = tail(verify.stdout + verify.stderr, max: 4000)
-        let output = VerifyOutput(
+        let failed = FactoryPostChecks.failedVerifyIssue(
           command: verifyCommand,
-          exitCode: Int(verify.exitCode),
-          tail: verifyTail
+          exitCode: verify.exitCode,
+          output: verify.stdout + verify.stderr,
+          plannedCommand: next.verify,
+          developFeedback: summary.feedback,
+          wasAutoRepaired: wasAutoRepaired
         )
-        let message = """
-          [verify] Verify command `\(verifyCommand)` exited with code \(output.exitCode ?? -1). Output (tail):
-          ```
-          \(output.tail)
-          ```
-          """
-        verifyIssues.append(message)
-        if let autoRepair {
+        verifyIssues.append(failed.issue)
+        verifyOutput = failed.verifyOutput
+        if failed.requiresPlanRepair {
           requiresPlanRepair = true
-          verifyIssues.append(
-            """
-            [verify] Auto-repaired verify command failed after Develop requested bypassVerify=true.
-            Planned verify command: `\(next.verify)`
-            Repaired verify command: `\(autoRepair.command)`
-            Develop handoff: \(summary.feedback)
-            Plan should now replace the verify command or rescope Immediate Work.
-            """
-          )
         }
-        verifyOutput = output
         log("Verify failed (exit \(verify.exitCode)).", level: .error)
       }
     }
@@ -959,7 +913,7 @@ extension CompassProject {
         workingDirectory: workingDirectory,
         launchPlan: launchPlan
       )
-      let assessment = DevelopPostCheckIssues.hostWorkingTreeIssues(
+      let assessment = FactoryPostChecks.workingTreeIssues(
         porcelain: gitStatus.stdout,
         changedPaths: changedPaths,
         develop: summary
@@ -974,13 +928,6 @@ extension CompassProject {
         )
       } else {
         log("Working tree clean with Develop changes recorded.", level: .success)
-      }
-
-      let artifactIssues = GeneratedArtifactHygiene.issues(forChangedPaths: changedPaths)
-      if let message = GeneratedArtifactHygiene.formattedIssue(from: artifactIssues) {
-        log(
-          "Artifact hygiene check found generated build outputs in the change set.", level: .error)
-        gitStatusIssues.append(message)
       }
     }
 
@@ -1159,49 +1106,43 @@ extension CompassProject {
   /// (see `MacOSVerifyGate`).
   func runMacOSVerifyIfNeeded(
     workingDirectory: URL,
-    sessionIndex: Int
+    sessionIndex: Int,
+    forceFidelity: Bool = false
   ) async -> String? {
     guard let workspace,
       let state = try? workspace.readState(),
       GeneratedProducts.contains(state.products, .macos)
     else { return nil }
 
+    let enableFidelity = FactoryPassRunner.shouldEnableMacOSFidelity(
+      state: state,
+      forceBeforeFullAudit: forceFidelity
+    )
+    if enableFidelity {
+      log("Post-check: enabling headed macOS UI fidelity for this ship.", level: .info)
+    }
     log(
       "Post-check: running macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)`.",
       level: .info
     )
     let sessionNumber =
       sessions.indices.contains(sessionIndex) ? sessions[sessionIndex].session : 0
-    let outcome = await MacOSVerifyGate.run(
+    let result = await FactoryPassRunner.runMacOSVerifyIfNeeded(
+      products: state.products,
       workingDirectory: workingDirectory,
       repoRoot: workingDirectory,
-      timeout: QualityCollectionTimeout.seconds()
-    )
-    let result = outcome.result
-    let combined = result.stdout + "\n" + result.stderr
-    let fallbackNote = outcome.fallbackReason.map { " (VM unavailable: \($0))" } ?? ""
-    _ = try? workspace.writeSessionAuditArtifact(
-      session: sessionNumber,
-      name: "macos-verify.log",
-      kind: "log",
-      contents: "$ \(GeneratedProjectQuality.macosVerifyCommand)\n\n" + combined,
-      note: "macOS verify output (\(outcome.runtimeDescription)\(fallbackNote))."
-    )
-    _ = await MacOSUISmokeSupport.writeScreenshotAuditArtifact(
       workspace: workspace,
-      session: sessionNumber,
-      repoURL: workingDirectory
+      sessionNumber: sessionNumber,
+      enableFidelity: enableFidelity
     )
-    guard result.exitCode == 0 else {
-      let tail = String(combined.suffix(4000))
-      return """
-        [macos-verify] macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` on \(outcome.runtimeDescription)\(fallbackNote) exited with code \(result.exitCode). Output (tail):
-        ```
-        \(tail)
-        ```
-        """
+    if result.screenshotSaved {
+      log("Saved macOS UI fidelity screenshot to session audit.", level: .success)
     }
-    log("macOS verify passed (\(outcome.runtimeDescription)\(fallbackNote)).", level: .success)
+    if let issue = result.issue {
+      log("macOS host verify failed after a green Rust verify.", level: .error)
+      return issue
+    }
+    log("macOS verify passed.", level: .success)
     return nil
   }
 

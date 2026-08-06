@@ -50,8 +50,11 @@ public struct HeadlessRunOptions: Equatable, Sendable {
   public var maxVerifyRepairAttempts: Int
   public var sessionCount: Int
   public var runDevelop: Bool
+  /// Critic runs after green post-checks by default; pass `false` / `--no-critic` to skip.
   public var runCritic: Bool
   public var commitIterations: Bool
+  /// Headed macOS fidelity every N successful ships (`0` disables cadence).
+  public var macosFidelityCadence: Int
 
   public init(
     repoURL: URL,
@@ -64,8 +67,9 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     maxVerifyRepairAttempts: Int = 1,
     sessionCount: Int = 1,
     runDevelop: Bool = true,
-    runCritic: Bool = false,
-    commitIterations: Bool = false
+    runCritic: Bool = true,
+    commitIterations: Bool = false,
+    macosFidelityCadence: Int = MacOSFidelityCadence.defaultInterval
   ) {
     self.repoURL = repoURL.standardizedFileURL
     self.brief = brief.sanitized()
@@ -79,6 +83,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     self.runDevelop = runDevelop
     self.runCritic = runCritic
     self.commitIterations = commitIterations
+    self.macosFidelityCadence = max(0, macosFidelityCadence)
   }
 }
 
@@ -911,33 +916,29 @@ public struct HeadlessCompassRunner: Sendable {
             break
           }
           if GeneratedProducts.contains(plannedState.products, .macos) {
-            let macosOutcome = await MacOSVerifyGate.run(
+            let enableFidelity = FactoryPassRunner.shouldEnableMacOSFidelity(
+              state: plannedState,
+              options: FactoryPassRunner.options(from: options)
+            )
+            if enableFidelity {
+              onEvent(
+                HeadlessCompassEvent(
+                  kind: "macos_verify",
+                  status: "running",
+                  phase: "verify",
+                  message: "Enabling headed macOS UI fidelity for this ship."
+                )
+              )
+            }
+            let macosResult = await FactoryPassRunner.runMacOSVerifyIfNeeded(
+              products: plannedState.products,
               workingDirectory: repoURL,
               repoRoot: repoURL,
-              timeout: QualityCollectionTimeout.seconds()
-            )
-            let macosResult = macosOutcome.result
-            let macosFallbackNote =
-              macosOutcome.fallbackReason.map { " (VM unavailable: \($0))" }
-              ?? ""
-            _ = try? workspace.writeSessionAuditArtifact(
-              session: sessionNumber,
-              name: "macos-verify.log",
-              kind: "log",
-              contents: "$ \(GeneratedProjectQuality.macosVerifyCommand)\n\n"
-                + macosResult.stdout + "\n" + macosResult.stderr,
-              note: "macOS verify output (\(macosOutcome.runtimeDescription)\(macosFallbackNote))."
-            )
-            _ = await MacOSUISmokeSupport.writeScreenshotAuditArtifact(
               workspace: workspace,
-              session: sessionNumber,
-              repoURL: repoURL
+              sessionNumber: sessionNumber,
+              enableFidelity: enableFidelity
             )
-            if macosResult.exitCode != 0 {
-              let issue = """
-                macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` on \(macosOutcome.runtimeDescription)\(macosFallbackNote) exited with code \(macosResult.exitCode).
-                \(tail(macosResult.stdout + macosResult.stderr, max: 4000))
-                """
+            if let issue = macosResult.issue {
               session.notes.append(
                 "Verify attempt \(attempt) passed Rust verify but the macOS gate failed.")
               let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
@@ -966,7 +967,8 @@ public struct HeadlessCompassRunner: Sendable {
                 kind: "macos_verify",
                 status: "completed",
                 phase: "verify",
-                message: "macOS verify passed (\(macosOutcome.runtimeDescription))."
+                message: "macOS verify passed"
+                  + (macosResult.screenshotSaved ? " (fidelity screenshot saved)." : ".")
               )
             )
           }
@@ -1166,11 +1168,14 @@ public struct HeadlessCompassRunner: Sendable {
     shippedImmediate: PlanNext? = nil
   ) throws {
     let current = try workspace.readState()
-    let recorded = PlanCompletionRecorder.recordingSuccessfulSession(
+    var recorded = PlanCompletionRecorder.recordingSuccessfulSession(
       into: current,
       sessions: workspace.readSessions(),
       shippedImmediate: shippedImmediate
     )
+    if shippedImmediate != nil {
+      recorded = FactoryPassRunner.recordingSuccessfulShip(in: recorded)
+    }
     guard recorded != current else { return }
     try workspace.writeState(recorded)
     onEvent(

@@ -7,6 +7,7 @@ import Foundation
 public enum GeneratedProduct: String, Codable, Equatable, Sendable, CaseIterable {
   case cli
   case macos
+  case server
 }
 
 public enum GeneratedProducts {
@@ -25,7 +26,7 @@ public enum GeneratedProducts {
 
   public static func validate(_ products: [GeneratedProduct]) -> String? {
     if products.isEmpty {
-      return "Generated projects require at least one product (`cli` and/or `macos`)."
+      return "Generated projects require at least one product (`cli`, `macos`, and/or `server`)."
     }
     return nil
   }
@@ -62,7 +63,7 @@ public enum GeneratedProductError: Error, LocalizedError, Equatable {
   public var errorDescription: String? {
     switch self {
     case .unknownProduct(let raw):
-      return "Unknown product `\(raw)`. Expected `cli` or `macos`."
+      return "Unknown product `\(raw)`. Expected `cli`, `macos`, or `server`."
     case .invalid(let message):
       return message
     }

@@ -38,11 +38,12 @@ extension CompassProject {
     do {
       let current = try workspace.readState()
       let sessions = workspace.readSessions()
-      let recorded = PlanCompletionRecorder.recordingSuccessfulSession(
+      var recorded = PlanCompletionRecorder.recordingSuccessfulSession(
         into: current,
         sessions: sessions,
         shippedImmediate: shipped
       )
+      recorded = FactoryPassRunner.recordingSuccessfulShip(in: recorded)
       guard recorded != current else { return }
       try workspace.writeState(recorded)
       state = recorded

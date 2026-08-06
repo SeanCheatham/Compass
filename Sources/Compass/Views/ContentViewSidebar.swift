@@ -48,7 +48,7 @@ struct SidebarView: View {
           Label("New Project", systemImage: "plus.square.dashed")
         }
         .labelStyle(.iconOnly)
-        .help("New project (Rust core + CLI/macOS)")
+        .help("New project (Rust core + CLI/macOS/server)")
 
         Button {
           Task { await model.chooseRepository() }

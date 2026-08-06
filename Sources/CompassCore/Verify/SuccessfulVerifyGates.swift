@@ -57,6 +57,16 @@ public enum SuccessfulVerifyGates {
     ) {
       return Finding(issue: issue, retryKind: "weak_cli_flag_tests")
     }
+    if let issue = weakCLIBinaryInvocationIssue(
+      command: command, changedPaths: changedPaths, repoURL: repoURL
+    ) {
+      return Finding(issue: issue, retryKind: "weak_cli_acceptance_tests")
+    }
+    if let issue = weakServerEndpointTestIssue(
+      command: command, changedPaths: changedPaths, repoURL: repoURL
+    ) {
+      return Finding(issue: issue, retryKind: "weak_server_endpoint_tests")
+    }
     if let issue = missingPackageEntryIssue(
       command: command, changedPaths: changedPaths, repoURL: repoURL
     ) {
@@ -177,6 +187,80 @@ public enum SuccessfulVerifyGates {
       - Update the CLI test to call the exported CLI function with split arguments, for example `main(["--format", "json", "Ship", "it"])`.
       - Assert the JSON title is `Ship it`, with `open` and `total` fields present.
       - Rerun `\(command)` after the test and implementation agree on real argv behavior.
+      """
+  }
+
+  /// Flags CLI source changes whose tests never invoke the built binary.
+  private static func weakCLIBinaryInvocationIssue(
+    command: String, changedPaths: [String], repoURL: URL
+  ) -> String? {
+    // Only gate binary-entry changes; helper modules may use library unit tests.
+    let changedCLIPaths = changedPaths.filter {
+      $0 == "crates/cli/src/main.rs" || $0.hasPrefix("crates/cli/src/bin/")
+    }
+    guard !changedCLIPaths.isEmpty else { return nil }
+    let changedTestPaths = changedPaths.filter { $0.hasPrefix("crates/cli/") && isTestPath($0) }
+    guard !changedTestPaths.isEmpty else { return nil }
+    let changedTestFiles: [(path: String, contents: String)] = changedTestPaths.compactMap { path in
+      guard let contents = try? String(contentsOf: repoURL.appending(path: path), encoding: .utf8)
+      else { return nil }
+      return (path, contents)
+    }
+    let invokesBinary = changedTestFiles.contains {
+      $0.contents.contains("CARGO_BIN_EXE") || $0.contents.contains("assert_cmd")
+        || $0.contents.contains("Command::new")
+    }
+    guard !invokesBinary else { return nil }
+    return """
+      Verify passed for `\(command)`, but CLI acceptance tests do not invoke the built binary.
+
+      Changed CLI source file(s):
+      \(changedCLIPaths.map { "- `\($0)`" }.joined(separator: "\n"))
+
+      Changed CLI test file(s):
+      \(changedTestFiles.map { "- `\($0.path)`" }.joined(separator: "\n"))
+
+      Required repair:
+      - Run `env!("CARGO_BIN_EXE_app-cli")` (or `assert_cmd`) and assert stdout/stderr/exit codes for the user flows named in requirements.
+      - Prefer golden-output assertions over library-only unit tests for CLI adapters.
+      - Rerun `\(command)` after the binary harness covers the changed behavior.
+      """
+  }
+
+  /// Flags server source changes whose tests never exercise HTTP endpoints.
+  private static func weakServerEndpointTestIssue(
+    command: String, changedPaths: [String], repoURL: URL
+  ) -> String? {
+    let changedServerPaths = changedPaths.filter {
+      $0.hasPrefix("crates/server/src/") && isCoverageGatedSourcePath($0)
+    }
+    guard !changedServerPaths.isEmpty else { return nil }
+    let changedTestPaths = changedPaths.filter { $0.hasPrefix("crates/server/") && isTestPath($0) }
+    guard !changedTestPaths.isEmpty else { return nil }
+    let changedTestFiles: [(path: String, contents: String)] = changedTestPaths.compactMap { path in
+      guard let contents = try? String(contentsOf: repoURL.appending(path: path), encoding: .utf8)
+      else { return nil }
+      return (path, contents)
+    }
+    let exercisesEndpoint = changedTestFiles.contains {
+      let body = $0.contents
+      return body.contains("oneshot") || body.contains(".uri(") || body.contains("reqwest")
+        || body.contains("/status") || body.contains("Router")
+    }
+    guard !exercisesEndpoint else { return nil }
+    return """
+      Verify passed for `\(command)`, but server tests do not exercise HTTP endpoints.
+
+      Changed server source file(s):
+      \(changedServerPaths.map { "- `\($0)`" }.joined(separator: "\n"))
+
+      Changed server test file(s):
+      \(changedTestFiles.map { "- `\($0.path)`" }.joined(separator: "\n"))
+
+      Required repair:
+      - Call the shared router via `tower::ServiceExt::oneshot` (or an ephemeral bind) and assert status + body for the changed routes.
+      - Keep domain logic in `crates/core`; server tests prove adapter behavior.
+      - Rerun `\(command)` after endpoint proofs cover the changed routes.
       """
   }
 

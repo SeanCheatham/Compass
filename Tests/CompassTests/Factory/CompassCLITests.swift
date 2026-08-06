@@ -120,8 +120,21 @@ struct CompassCLITests {
       "--audience", "Maintainers",
       "--problem", "Add a slice",
       "--requirement", "Ship the slice",
+      "--no-critic",
+    ]) {
+      #expect(options.runCritic == false)
+    } else {
+      Issue.record("Expected run command with --no-critic.")
+    }
+
+    if case .run(let options, _) = try CompassCLICommand.parse([
+      "run", "--repo", "/tmp/project",
+      "--audience", "Maintainers",
+      "--problem", "Add a slice",
+      "--requirement", "Ship the slice",
     ]) {
       #expect(options.sessionCount == 1)
+      #expect(options.runCritic)  // Critic on by default
     } else {
       Issue.record("Expected run command with default session count.")
     }
@@ -446,7 +459,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a fixture smoke note to the README"),
+        brief: harnessBrief("Add a fixture smoke note to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -487,7 +500,7 @@ struct CompassCLITests {
     let ok = try await runner.runSessions(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a fixture smoke note to the README"),
+        brief: harnessBrief("Add a fixture smoke note to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -527,7 +540,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a retry marker to the README"),
+        brief: harnessBrief("Add a retry marker to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 6,
@@ -571,7 +584,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Exercise package-manager bootstrap failure handling"),
+        brief: harnessBrief("Exercise package-manager bootstrap failure handling"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 4,
@@ -612,7 +625,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Exercise package-manager bootstrap verify failure handling"),
+        brief: harnessBrief("Exercise package-manager bootstrap verify failure handling"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 6,
@@ -657,7 +670,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a no-change retry marker to the README"),
+        brief: harnessBrief("Add a no-change retry marker to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 6,
@@ -700,7 +713,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a verify repair marker to the README"),
+        brief: harnessBrief("Add a verify repair marker to the README"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 6,
@@ -755,7 +768,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a small summarize helper with tests"),
+        brief: harnessBrief("Add a small summarize helper with tests"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -820,7 +833,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a CLI --format json flag and update crates/cli/tests/cli.rs"),
+        brief: harnessBrief("Add a CLI --format json flag and update crates/cli/tests/cli.rs"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -871,7 +884,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a CLI --format json flag and update crates/cli/tests/cli.rs"),
+        brief: harnessBrief("Add a CLI --format json flag and update crates/cli/tests/cli.rs"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -922,7 +935,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a CLI weekly habit momentum command with tests"),
+        brief: harnessBrief("Add a CLI weekly habit momentum command with tests"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -973,7 +986,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Add a CLI weekly habit momentum command with tests"),
+        brief: harnessBrief("Add a CLI weekly habit momentum command with tests"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 8,
@@ -1019,7 +1032,7 @@ struct CompassCLITests {
     let ok = try await runner.run(
       options: HeadlessRunOptions(
         repoURL: tempURL,
-        brief: .problemFocused("Exercise Develop budget retry handling"),
+        brief: harnessBrief("Exercise Develop budget retry handling"),
         mode: .fixture,
         fixtureURL: fixtureURL,
         maxIterations: 1,
@@ -1267,7 +1280,7 @@ private func writeFixture(_ outputs: [String], to url: URL) throws {
 
 private let retryFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Retry marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner can retry Develop after a verify failure.\\n\\n## Acceptance checks\\n- README.md contains Retry marker.","verify":"grep -q 'Retry marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice has a deterministic failing then passing verify command.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after verify failure.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Verify failure output reaches a second Develop attempt."],"constraints":["No cargo dependency for this retry test."],"acceptanceSignals":["README.md contains Retry marker."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Retry marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner can retry Develop after a verify failure.\\n\\n## Acceptance checks\\n- README.md contains Retry marker.","verify":"grep -q 'Retry marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice has a deterministic failing then passing verify command.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after verify failure.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Verify failure output reaches a second Develop attempt."],"constraints":["No cargo dependency for this retry test."],"acceptanceSignals":["README.md contains Retry marker."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before editing it."}
@@ -1291,7 +1304,7 @@ private let retryFixtureOutputs = [
 
 private let packageBootstrapDevelopFailureFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nExercise package-manager bootstrap failure handling.\\n\\n## Acceptance checks\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` reports the package-manager bootstrap failure.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves infrastructure failures are not treated as code retries.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise package-manager bootstrap failure handling.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Compass stops instead of asking Develop to rewrite app code."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["Infrastructure failure is surfaced."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nExercise package-manager bootstrap failure handling.\\n\\n## Acceptance checks\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` reports the package-manager bootstrap failure.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves infrastructure failures are not treated as code retries.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Exercise package-manager bootstrap failure handling.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Compass stops instead of asking Develop to rewrite app code."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["Infrastructure failure is surfaced."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run verify before submitting."}
@@ -1303,7 +1316,7 @@ private let packageBootstrapDevelopFailureFixtureOutputs = [
 
 private let packageBootstrapVerifyFailureFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Package bootstrap marker. sentence near the top of README.md.\\n\\n## Acceptance checks\\n- README.md contains Package bootstrap marker.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` runs after Develop.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves runner verify bootstrap failures are not treated as code retries.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise package-manager bootstrap verify handling.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Compass stops when the verify runtime cannot bootstrap the Rust toolchain."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["Infrastructure failure is surfaced."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Package bootstrap marker. sentence near the top of README.md.\\n\\n## Acceptance checks\\n- README.md contains Package bootstrap marker.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` runs after Develop.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves runner verify bootstrap failures are not treated as code retries.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Exercise package-manager bootstrap verify handling.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Compass stops when the verify runtime cannot bootstrap the Rust toolchain."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["Infrastructure failure is surfaced."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before editing."}
@@ -1324,7 +1337,7 @@ private let rustToolchainBootstrapFailureOutput = """
 
 private let noChangeRetryFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a No-change retry marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner does not accept baseline verify when Develop changed nothing.\\n\\n## Acceptance checks\\n- README.md contains No-change retry marker.","verify":"grep -q 'No-change retry marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice catches false-positive Develop success without file changes.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI no-change retry after a false success.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Develop retries when a Git-backed run changes no files."],"constraints":["No cargo dependency for this retry test."],"acceptanceSignals":["README.md contains No-change retry marker."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a No-change retry marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner does not accept baseline verify when Develop changed nothing.\\n\\n## Acceptance checks\\n- README.md contains No-change retry marker.","verify":"grep -q 'No-change retry marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice catches false-positive Develop success without file changes.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Exercise CLI no-change retry after a false success.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Develop retries when a Git-backed run changes no files."],"constraints":["No cargo dependency for this retry test."],"acceptanceSignals":["README.md contains No-change retry marker."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Claimed the README marker was added without making any file changes.","feedback":"No-change retry marker is present in README.md and verify can pass.","bypassVerify":false,"lessonEdits":[]}}
@@ -1342,7 +1355,7 @@ private let noChangeRetryFixtureOutputs = [
 
 private let verifyRepairFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Fixed verify marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner reserves a verify-repair pass after earlier Develop failures.\\n\\n## Acceptance checks\\n- README.md contains Fixed verify marker.","verify":"grep -q 'Fixed verify marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice fails verify once after exhausting the regular Develop budget.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI reserved verify repair after failed Develop attempts.","targetUsers":["Compass maintainers"],"desiredOutcomes":["A concrete verify failure still reaches one repair attempt."],"constraints":["No cargo dependency for this retry test."],"acceptanceSignals":["README.md contains Fixed verify marker."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Fixed verify marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner reserves a verify-repair pass after earlier Develop failures.\\n\\n## Acceptance checks\\n- README.md contains Fixed verify marker.","verify":"grep -q 'Fixed verify marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice fails verify once after exhausting the regular Develop budget.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Exercise CLI reserved verify repair after failed Develop attempts.","targetUsers":["Compass maintainers"],"desiredOutcomes":["A concrete verify failure still reaches one repair attempt."],"constraints":["No cargo dependency for this retry test."],"acceptanceSignals":["README.md contains Fixed verify marker."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_submit","payload":{"status":"failed","summary":"Could not identify the target file on the first pass.","feedback":"Retry should still have enough budget to continue toward a concrete implementation.","bypassVerify":false,"lessonEdits":[]}}
@@ -1372,7 +1385,7 @@ private let verifyRepairFixtureOutputs = [
 
 private let coverageGapFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nCreate new file `crates/cli/src/summarize.rs` with a `summarize_cli` helper and create new file `crates/cli/tests/summarize.rs` to cover it.\\n\\n## Acceptance checks\\n- Create new file `crates/cli/tests/summarize.rs` that exercises `summarize_cli`.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes with coverage for `summarize.rs`.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when changed source has 0% coverage.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise coverage-gap retry after a green verify.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Changed source with 0% coverage triggers another Develop pass."],"constraints":["Use cargo test coverage output."],"acceptanceSignals":["summarize.rs is covered by summarize.rs."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nCreate new file `crates/cli/src/summarize.rs` with a `summarize_cli` helper and create new file `crates/cli/tests/summarize.rs` to cover it.\\n\\n## Acceptance checks\\n- Create new file `crates/cli/tests/summarize.rs` that exercises `summarize_cli`.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes with coverage for `summarize.rs`.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when changed source has 0% coverage.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Exercise coverage-gap retry after a green verify.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Changed source with 0% coverage triggers another Develop pass."],"constraints":["Use cargo test coverage output."],"acceptanceSignals":["summarize.rs is covered by summarize.rs."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"write_file","arguments":{"path":"crates/cli/src/summarize.rs","content":"pub fn summarize_cli() -> String {\\n    \\"Done: 0, Pending: 0\\".to_string()\\n}\\n"},"reason":"Create the new helper, intentionally without its test so coverage catches the gap."}
@@ -1390,7 +1403,7 @@ private let coverageGapFixtureOutputs = [
 
 private let requiredTestsFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `crates/cli/src/main.rs` to support `--format json` and update `crates/cli/tests/cli.rs` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `crates/cli/tests/cli.rs` covers default text output, JSON output, and a title containing multiple words.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when explicit test-file acceptance work is skipped.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["crates/cli/tests/cli.rs covers JSON output."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `crates/cli/src/main.rs` to support `--format json` and update `crates/cli/tests/cli.rs` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `crates/cli/tests/cli.rs` covers default text output, JSON output, and a title containing multiple words.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when explicit test-file acceptance work is skipped.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["crates/cli/tests/cli.rs covers JSON output."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/src/main.rs"},"reason":"Need current line numbers before editing the existing CLI entrypoint."}
@@ -1414,7 +1427,7 @@ private let requiredTestsFixtureOutputs = [
 
 private let weakCLIFlagTestFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `crates/cli/src/main.rs` to support `--format json` and update `crates/cli/tests/cli.rs` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `crates/cli/tests/cli.rs` covers default text output, JSON output, and a title containing multiple words.\\n- The JSON test calls `cli_args([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"])` because real process arguments split the flag and value.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when CLI flag-value tests use a single combined argv token.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["crates/cli/tests/cli.rs covers split --format json argv."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `crates/cli/src/main.rs` to support `--format json` and update `crates/cli/tests/cli.rs` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `crates/cli/tests/cli.rs` covers default text output, JSON output, and a title containing multiple words.\\n- The JSON test calls `cli_args([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"])` because real process arguments split the flag and value.\\n- `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` passes.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when CLI flag-value tests use a single combined argv token.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["crates/cli/tests/cli.rs covers split --format json argv."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/src/main.rs"},"reason":"Need current line numbers before editing the existing CLI entrypoint."}
@@ -1444,7 +1457,7 @@ private let weakCLIFlagTestFixtureOutputs = [
 
 private let missingPackageEntryFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `crates/cli/tests/cli.rs` covers the CLI output.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when package bin points at a missing replacement entry point.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Package entry-point mistakes trigger repair."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["The CLI entry point exists and is tested."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `crates/cli/tests/cli.rs` covers the CLI output.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when package bin points at a missing replacement entry point.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Package entry-point mistakes trigger repair."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["The CLI entry point exists and is tested."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/Cargo.toml"},"reason":"Need current package manifest line numbers before changing the bin entry."}
@@ -1480,7 +1493,7 @@ private let missingPackageEntryFixtureOutputs = [
 
 private let metadataOnlyImplementationFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `crates/cli/tests/cli.rs` covers the CLI output.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when a source-behavior handoff changes only package metadata.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Metadata-only false success triggers repair."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["The CLI behavior is implemented and tested."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `crates/cli/tests/cli.rs` covers the CLI output.","verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when a source-behavior handoff changes only package metadata.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Metadata-only false success triggers repair."],"constraints":["Use cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace."],"acceptanceSignals":["The CLI behavior is implemented and tested."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"crates/cli/Cargo.toml"},"reason":"Need current package manifest line numbers before changing dependencies."}
@@ -1510,7 +1523,7 @@ private let metadataOnlyImplementationFixtureOutputs = [
 
 private let budgetExhaustionFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Fixture smoke note. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner retries Develop after max-iteration exhaustion.\\n\\n## Acceptance checks\\n- The second Develop attempt submits successfully.","verify":"grep -q 'Fixture smoke note.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"The first Develop output intentionally consumes the full max-iteration budget without submitting.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after iteration budget exhaustion.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Budget exhaustion reaches a fresh Develop attempt."],"constraints":["No file changes required for this control fixture."],"acceptanceSignals":["Verify runs after the second attempt."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Fixture smoke note. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner retries Develop after max-iteration exhaustion.\\n\\n## Acceptance checks\\n- The second Develop attempt submits successfully.","verify":"grep -q 'Fixture smoke note.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"The first Develop output intentionally consumes the full max-iteration budget without submitting.","source":"repository","candidateID":null,"targetedRequirementIDs":["fixture-req-1"]},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after iteration budget exhaustion.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Budget exhaustion reaches a fresh Develop attempt."],"constraints":["No file changes required for this control fixture."],"acceptanceSignals":["Verify runs after the second attempt."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"bash","arguments":{"command":"echo 'Fixture smoke note.' >> README.md"},"reason":"Consume the only allowed Develop iteration while still recording a concrete change to README.md."}
@@ -1587,8 +1600,26 @@ private let requiredTestsRepairedVerifyOutput = """
   -------------------|---------|----------|---------|---------|-------------------
   """
 
+
+/// Stable requirement id shared by fixture briefs and canned plan_submit payloads.
+private let fixtureRequirementID = "fixture-req-1"
+
+private func harnessBrief(_ problem: String) -> ProjectBrief {
+  ProjectBrief(
+    audience: "Compass maintainers",
+    problem: problem,
+    productRequirements: [
+      ProductRequirement(
+        id: fixtureRequirementID,
+        text: "Deliver the requested change with verified repository-local edits.",
+        kind: .behavior
+      )
+    ]
+  )
+}
+
 private let fixtureJSONL = """
-  {"text":"{\\"kind\\":\\"plan_submit\\",\\"payload\\":{\\"state\\":{\\"immediate\\":{\\"plan\\":\\"## Outcome\\\\nAdd a short README note that says Fixture smoke note.\\\\n\\\\n## Why it matters\\\\nThis proves the CLI fixture loop can plan a small observable documentation edit.\\\\n\\\\n## Acceptance checks\\\\n- README.md contains the sentence Fixture smoke note.\\",\\"verify\\":\\"grep -q 'Fixture smoke note.' README.md\\",\\"verifyTimeoutMs\\":60000,\\"estimatedDifficulty\\":\\"low\\",\\"selectedBecause\\":\\"This is a tiny deterministic slice for the CLI fixture harness.\\",\\"source\\":\\"repository\\",\\"candidateID\\":null},\\"queue\\":[],\\"brief\\":{\\"summary\\":\\"Smoke test the CompassCLI fixture harness on a generated Rust workspace.\\",\\"targetUsers\\":[\\"Compass maintainers\\"],\\"desiredOutcomes\\":[\\"A deterministic CLI run edits a file and verifies on host.\\"],\\"constraints\\":[\\"No cargo dependency for this smoke test.\\"],\\"acceptanceSignals\\":[\\"README.md contains Fixture smoke note.\\"]},\\"openQuestions\\":[]},\\"lessonEdits\\":[]}}"}
+  {"text":"{\\"kind\\":\\"plan_submit\\",\\"payload\\":{\\"state\\":{\\"immediate\\":{\\"plan\\":\\"## Outcome\\\\nAdd a short README note that says Fixture smoke note.\\\\n\\\\n## Why it matters\\\\nThis proves the CLI fixture loop can plan a small observable documentation edit.\\\\n\\\\n## Acceptance checks\\\\n- README.md contains the sentence Fixture smoke note.\\",\\"verify\\":\\"grep -q 'Fixture smoke note.' README.md\\",\\"verifyTimeoutMs\\":60000,\\"estimatedDifficulty\\":\\"low\\",\\"selectedBecause\\":\\"This is a tiny deterministic slice for the CLI fixture harness.\\",\\"source\\":\\"repository\\",\\"candidateID\\":null,\\"targetedRequirementIDs\\":[\\"fixture-req-1\\"]},\\"queue\\":[],\\"brief\\":{\\"summary\\":\\"Smoke test the CompassCLI fixture harness on a generated Rust workspace.\\",\\"targetUsers\\":[\\"Compass maintainers\\"],\\"desiredOutcomes\\":[\\"A deterministic CLI run edits a file and verifies on host.\\"],\\"constraints\\":[\\"No cargo dependency for this smoke test.\\"],\\"acceptanceSignals\\":[\\"README.md contains Fixture smoke note.\\"]},\\"openQuestions\\":[]},\\"lessonEdits\\":[]}}"}
   {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"read_file\\",\\"arguments\\":{\\"path\\":\\"README.md\\"},\\"reason\\":\\"Need the current README contents before editing.\\"}"}
   {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"edit_file\\",\\"arguments\\":{\\"path\\":\\"README.md\\",\\"startLine\\":3,\\"endLine\\":2,\\"insert\\":[\\"Fixture smoke note.\\",\\"\\"]},\\"reason\\":\\"Insert the planned smoke-test note near the top of the README.\\"}"}
   {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"bash\\",\\"arguments\\":{\\"command\\":\\"grep -q 'Fixture smoke note.' README.md\\",\\"timeoutSeconds\\":60},\\"reason\\":\\"Confirm the README edit is present before submit (project Git is host-only; do not commit from factory bash).\\"}"}

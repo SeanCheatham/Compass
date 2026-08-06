@@ -2,8 +2,8 @@ import Foundation
 
 /// Curated starter briefs for the Brief tab "Random idea" action.
 ///
-/// Ideas stay small enough for a Compass-generated Rust `cli` / `macos`
-/// scaffold so a new project can try the factory loop without inventing
+/// Ideas stay small enough for a Compass-generated Rust `cli` / `macos` /
+/// `server` scaffold so a new project can try the factory loop without inventing
 /// product intent by hand.
 public enum ProjectBriefIdeaGenerator {
   public static func random<G: RandomNumberGenerator>(
@@ -158,6 +158,28 @@ public enum ProjectBriefIdeaGenerator {
           ("Log a run with distance, duration, and a short note", .behavior),
           ("Show recent runs and a weekly mileage total", .ux),
           ("Never require a wearable or cloud account", .constraint),
+        ]
+      )
+    },
+    {
+      brief(
+        audience: "Teams that need a tiny internal status API",
+        problem: "Spreading service health across chat bots and ad-hoc scripts makes outages hard to see.",
+        requirements: [
+          ("Expose a /status HTTP endpoint with a clear healthy/unhealthy payload", .behavior),
+          ("Allow operators to flip a maintenance flag via a protected route", .behavior),
+          ("Keep the service runnable as a single local binary with no external DB", .constraint),
+        ]
+      )
+    },
+    {
+      brief(
+        audience: "Developers who want a local webhook receiver while building integrations",
+        problem: "Public tunnel tools are heavy when you only need to inspect POSTed JSON on localhost.",
+        requirements: [
+          ("Accept POST /hooks and store the last N payloads in memory", .behavior),
+          ("List recent payloads via GET /hooks", .behavior),
+          ("Provide a CLI that prints the latest payload as JSON", .behavior),
         ]
       )
     },

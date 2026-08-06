@@ -13,7 +13,7 @@ crates/ffi/      # UniFFI exports (snapshot + dispatch) over ui (+ core as neede
 apps/macos/      # SwiftUI binder only
 ```
 
-CLI products do not require `crates/ui`.
+CLI and server products do not require `crates/ui`.
 
 ## Contract
 
@@ -61,9 +61,7 @@ Failures fail `cargo test` like any other assertion.
 
 Unset / `0` / `false` means fidelity is **off**. Default verify does **not** require an Aqua session.
 
-Set the env var on the Compass host (or prefix the guest command) for an occasional full-fidelity iteration. Compass forwards `COMPASS_MACOS_UI_FIDELITY=1` into the guest macOS verify command when the host env enables it, and only then repairs guest auto-login for Desktop.
-
-Future work (not required yet): Plan/acceptance-gate scheduling of periodic fidelity runs.
+Set the env var on the Compass host (or prefix the guest command) for an occasional full-fidelity iteration. Compass also enables fidelity automatically every N successful Critic-approved ships (default N=5; override with `PlanState.macosFidelityCadence`) and when forcing a pre-full-audit check. Compass forwards `COMPASS_MACOS_UI_FIDELITY=1` into the guest macOS verify command when enabled, and only then repairs guest auto-login for Desktop.
 
 ## Agent rules
 

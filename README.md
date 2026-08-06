@@ -7,7 +7,7 @@ The current direction:
 - Factory turns (Plan / Develop / Critic / Requirements Audit) use a user-configured **OpenAI-compatible** cloud endpoint (`base URL` + `API key` + `model`).
 - Optional **MLX** local assist handles cheap/small work (e.g. Studio thinking narration) when the blessed local model is downloaded. Transcript compaction uses the cloud endpoint.
 - Compass does deterministic work through local tools and the embedded macOS VM.
-- Generated projects require Rust `crates/core` plus at least one product: `cli` and/or `macos` (default both). Domain logic stays in Rust; UI policy in `crates/ui`; macOS uses UniFFI + a dumb SwiftUI binder.
+- Generated projects require Rust `crates/core` plus at least one product: `cli`, `macos`, and/or `server` (default `cli+macos`). Domain logic stays in Rust; UI policy in `crates/ui`; macOS uses UniFFI + a dumb SwiftUI binder; server is an axum HTTP adapter.
 
 ## Factory Loop
 
@@ -18,7 +18,8 @@ Compass keeps a small persisted factory state in `.compass/state.json`:
 - `immediate`: the selected implementation packet for the next Develop pass.
 - `completed`: completed iteration notes.
 - `openQuestions`: unresolved questions that affect scope.
-- `products`: enabled generated-project products (`cli` and/or `macos`).
+- `products`: enabled generated-project products (`cli`, `macos`, and/or `server`).
+- `successfulShipCount` / optional `macosFidelityCadence`: drive headed macOS UI fidelity every N ships (default 5).
 
 User product intent lives in `.compass/brief.json` (audience, problem, product requirements) and is edited in the Brief tab or passed to `compass-cli run` via `--audience`, `--problem`, and `--requirement`. New projects can use **Random idea** on the Brief tab to fill a curated starter brief.
 
@@ -40,24 +41,24 @@ Activity/Live is the primary project surface.
 
 Compass-generated output requires a Rust `crates/core` library plus at least one product:
 
-- `cli` — `crates/cli` Cargo binary and integration tests
+- `cli` — `crates/cli` Cargo binary and golden-output integration tests
 - `macos` — `crates/ui` (ViewState / simulation / guardrails) + `crates/ffi` (UniFFI) + `apps/macos` (dumb SwiftUI binder)
+- `server` — `crates/server` axum HTTP adapter with in-process endpoint integration tests
 
-New projects default to **cli + macos**. Domain logic belongs only in `crates/core`. UI policy belongs in `crates/ui`. See [`docs/ui-runtime.md`](docs/ui-runtime.md).
+New projects default to **cli + macos** (picker also offers `server`). Domain logic belongs only in `crates/core`. UI policy belongs in `crates/ui`. See [`docs/ui-runtime.md`](docs/ui-runtime.md).
 
-Standard Rust verification (includes UI simulation tests when macOS is enabled):
+Standard Rust verification (includes UI simulation tests when macOS is enabled, and server HTTP tests when server is enabled):
 
 ```bash
 cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace
 ```
 
-When the `macos` product is enabled, Compass also runs the macOS product gate inside the embedded macOS VM (Apple Virtualization.framework) — UniFFI bindings + `swift build` / `swift test`. Headed launch + Accessibility assert + screenshot is **opt-in** via `COMPASS_MACOS_UI_FIDELITY=1` (default off; primary UI proof is `crates/ui` simulation):
+When the `macos` product is enabled, Compass also runs the macOS product gate inside the embedded macOS VM (Apple Virtualization.framework) — UniFFI bindings + `swift build` / `swift run FFIChecks` (not XCTest). Headed launch + Accessibility assert + screenshot is available via `COMPASS_MACOS_UI_FIDELITY=1`, and also runs automatically every N successful ships (default 5; override with `macosFidelityCadence` in `.compass/state.json`):
 
 ```bash
 bash scripts/verify-macos.sh
 COMPASS_MACOS_UI_FIDELITY=1 bash scripts/verify-macos.sh
 ```
-
 Coverage is collected after verify with:
 
 ```bash

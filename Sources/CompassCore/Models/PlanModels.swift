@@ -692,8 +692,12 @@ public struct PlanState: Codable, Equatable {
   public var brief: PlanStrategicContext
   public var openQuestions: [PlanQuestion]
   public var acceptanceGates: AcceptanceGates?
-  /// Product surfaces on top of required `crates/core` (`cli` and/or `macos`).
+  /// Product surfaces on top of required `crates/core` (`cli`, `macos`, and/or `server`).
   public var products: [GeneratedProduct]
+  /// Count of Critic-approved ships; drives headed macOS fidelity cadence.
+  public var successfulShipCount: Int
+  /// Override for headed fidelity interval (every N ships). `nil` uses factory default.
+  public var macosFidelityCadence: Int?
 
   public static let empty = PlanState(
     schemaVersion: 1,
@@ -716,6 +720,8 @@ public struct PlanState: Codable, Equatable {
     case openQuestions
     case acceptanceGates
     case products
+    case successfulShipCount
+    case macosFidelityCadence
   }
 
   public init(
@@ -728,7 +734,9 @@ public struct PlanState: Codable, Equatable {
     strategicContext: PlanStrategicContext = .empty,
     openQuestions: [PlanQuestion] = [],
     acceptanceGates: AcceptanceGates? = nil,
-    products: [GeneratedProduct] = GeneratedProducts.default
+    products: [GeneratedProduct] = GeneratedProducts.default,
+    successfulShipCount: Int = 0,
+    macosFidelityCadence: Int? = nil
   ) {
     self.schemaVersion = max(1, schemaVersion)
     self.completed = completed
@@ -738,6 +746,8 @@ public struct PlanState: Codable, Equatable {
     self.openQuestions = openQuestions
     self.acceptanceGates = acceptanceGates
     self.products = GeneratedProducts.normalize(products)
+    self.successfulShipCount = max(0, successfulShipCount)
+    self.macosFidelityCadence = macosFidelityCadence.map { max(0, $0) }
   }
 
   public init(from decoder: Decoder) throws {
@@ -759,6 +769,10 @@ public struct PlanState: Codable, Equatable {
       try container.decodeIfPresent([GeneratedProduct].self, forKey: .products)
       ?? GeneratedProducts.default
     products = GeneratedProducts.normalize(decodedProducts)
+    successfulShipCount = max(
+      0, try container.decodeIfPresent(Int.self, forKey: .successfulShipCount) ?? 0)
+    macosFidelityCadence = try container.decodeIfPresent(Int.self, forKey: .macosFidelityCadence)
+      .map { max(0, $0) }
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -774,6 +788,8 @@ public struct PlanState: Codable, Equatable {
     try container.encode(openQuestions, forKey: .openQuestions)
     try container.encodeIfPresent(acceptanceGates, forKey: .acceptanceGates)
     try container.encode(GeneratedProducts.normalize(products), forKey: .products)
+    try container.encode(successfulShipCount, forKey: .successfulShipCount)
+    try container.encodeIfPresent(macosFidelityCadence, forKey: .macosFidelityCadence)
   }
 
   public var candidates: [PlanCandidate] {

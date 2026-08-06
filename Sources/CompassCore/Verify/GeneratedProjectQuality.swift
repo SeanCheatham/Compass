@@ -14,8 +14,8 @@ public enum GeneratedProjectQuality {
   /// Post-verify mutation gate, scoped per iteration via `mutationTestCommand(forChangedFiles:)`.
   public static let mutationTestCommand = "cargo mutants --no-shuffle -j 1"
 
-  /// macOS product gate. Runs inside the embedded macOS VM when available,
-  /// falling back to the host shell (see `MacOSVerifyGate`).
+  /// macOS product gate. Always runs inside the embedded macOS VM
+  /// (see `MacOSVerifyGate`); there is no host-shell fallback.
   public static let macosVerifyCommand = "bash scripts/verify-macos.sh"
 
   /// Host/guest env var that enables headed launch + screenshot during macOS verify.
@@ -29,11 +29,13 @@ public enum GeneratedProjectQuality {
     Generated Compass projects require Rust `crates/core` plus at least one product:
     - `cli` → `crates/cli` (Cargo binary over core)
     - `macos` → `crates/ui` (ViewState/simulation/guardrails) + `crates/ffi` (UniFFI) + `apps/macos` (dumb SwiftUI binder)
-    - Domain logic lives only in `crates/core`. UI policy lives in `crates/ui`. CLI and macOS are adapters.
+    - `server` → `crates/server` (axum HTTP adapter over core; prove endpoints with integration tests)
+    - Domain logic lives only in `crates/core`. UI policy lives in `crates/ui`. CLI, server, and macOS are adapters.
     - Prefer `cargo fmt`, Clippy (`-D warnings`), and `cargo test` for Rust verification (UI simulation included).
     - Standard Rust verify is `\(standardVerifyCommand)`.
     - When the `macos` product is enabled, also run `\(macosVerifyCommand)`; it executes
-      inside the embedded macOS VM. Headed launch/screenshot is opt-in via `\(macosUIFidelityEnvironmentKey)=1`.
+      inside the embedded macOS VM. Headed launch/screenshot is opt-in via `\(macosUIFidelityEnvironmentKey)=1`
+      and also runs on a ship cadence (every \(MacOSFidelityCadence.defaultInterval) successful ships by default).
     - Coverage is collected after verify with `\(coverageCollectCommand)`.
     - Mutation testing runs post-verify scoped to changed Rust files; surviving
       mutants indicate weak tests and should drive test-strengthening work.
@@ -49,18 +51,24 @@ public enum GeneratedProjectQuality {
     var lines = """
       Generated Compass project products: `\(summary)` (required `crates/core` always present).
       - Domain logic lives only in `crates/core`. UI policy lives in `crates/ui` when macOS is enabled.
-      - Product crates/apps are adapters (CLI binary, UniFFI, SwiftUI binder).
+      - Product crates/apps are adapters (CLI binary, HTTP server, UniFFI, SwiftUI binder).
       """
     if GeneratedProducts.contains(normalized, .cli) {
       lines += """
-        - CLI product: `crates/cli` (binary + `crates/cli/tests`).
+        - CLI product: `crates/cli` (binary + `crates/cli/tests` golden-output acceptance).
+        """
+    }
+    if GeneratedProducts.contains(normalized, .server) {
+      lines += """
+        - Server product: `crates/server` (axum router over core + `tests/http.rs` endpoint proofs).
+        - Routes are adapters; keep domain logic in `crates/core` and prove endpoints with in-process tests.
         """
     }
     if GeneratedProducts.contains(normalized, .macos) {
       lines += """
         - macOS product: `crates/ui` + `crates/ffi` (UniFFI) + `apps/macos` (SwiftUI binder only).
         - UI proof: simulation/guardrails in `crates/ui` via `cargo test`; macOS adapter verify: `\(macosVerifyCommand)`.
-        - Occasional headed fidelity: `\(macosUIFidelityEnvironmentKey)=1` (launch + screenshot).
+        - Occasional headed fidelity: `\(macosUIFidelityEnvironmentKey)=1` (launch + screenshot), also on ship cadence.
         """
     }
     lines += """

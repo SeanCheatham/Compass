@@ -150,6 +150,61 @@ struct ScaffoldTests {
   }
 
   @Test
+  func rustScaffoldServerOnlyIncludesHTTPHarness() throws {
+    let files = RustProjectScaffold.files(
+      options: .init(projectName: "API Only", products: [.server])
+    )
+    let byPath = Dictionary(uniqueKeysWithValues: files.map { ($0.path, $0.contents) })
+    #expect(byPath.keys.contains("crates/core/Cargo.toml"))
+    #expect(byPath.keys.contains("crates/server/Cargo.toml"))
+    #expect(byPath.keys.contains("crates/server/src/lib.rs"))
+    #expect(byPath.keys.contains("crates/server/src/main.rs"))
+    #expect(byPath.keys.contains("crates/server/tests/http.rs"))
+    #expect(!byPath.keys.contains("crates/cli/Cargo.toml"))
+    #expect(!byPath.keys.contains("apps/macos/Package.swift"))
+
+    let workspace = try #require(byPath["Cargo.toml"])
+    #expect(workspace.contains("crates/server"))
+    #expect(workspace.contains("axum"))
+    #expect(workspace.contains("tokio"))
+
+    let httpTest = try #require(byPath["crates/server/tests/http.rs"])
+    #expect(httpTest.contains("oneshot"))
+    #expect(httpTest.contains("/status"))
+
+    let cliFiles = RustProjectScaffold.files(
+      options: .init(projectName: "CLI Harness", products: [.cli])
+    )
+    let cliTest = try #require(
+      Dictionary(uniqueKeysWithValues: cliFiles.map { ($0.path, $0.contents) })[
+        "crates/cli/tests/cli.rs"]
+    )
+    #expect(cliTest.contains("CARGO_BIN_EXE_app-cli"))
+    #expect(cliTest.contains("status_prints_greeting_golden"))
+    #expect(cliTest.contains("unknown_command_exits_2"))
+  }
+
+  @Test
+  func fidelityCadenceRunsEveryNthShip() {
+    #expect(
+      !MacOSFidelityCadence.shouldEnableFidelity(
+        successfulShipCount: 1, cadence: 5, force: false, environment: [:]))
+    #expect(
+      MacOSFidelityCadence.shouldEnableFidelity(
+        successfulShipCount: 5, cadence: 5, force: false, environment: [:]))
+    #expect(
+      MacOSFidelityCadence.shouldEnableFidelity(
+        successfulShipCount: 10, cadence: 5, force: false, environment: [:]))
+    #expect(
+      MacOSFidelityCadence.shouldEnableFidelity(
+        successfulShipCount: 3, cadence: 5, force: true, environment: [:]))
+    #expect(
+      MacOSFidelityCadence.shouldEnableFidelity(
+        successfulShipCount: 2, cadence: 5, force: false,
+        environment: ["COMPASS_MACOS_UI_FIDELITY": "1"]))
+  }
+
+  @Test
   func rustScaffoldDetectsGeneratedWorkspace() throws {
     let tempURL = FileManager.default.temporaryDirectory
       .appending(path: "CompassRustScaffoldTests-\(UUID().uuidString)")

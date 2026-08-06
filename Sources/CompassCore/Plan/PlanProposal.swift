@@ -87,7 +87,9 @@ public struct PlanProposal: Codable, Equatable {
       strategicContext: mergedContext,
       openQuestions: openQuestions,
       acceptanceGates: state.acceptanceGates,
-      products: state.products
+      products: state.products,
+      successfulShipCount: state.successfulShipCount,
+      macosFidelityCadence: state.macosFidelityCadence
     )
   }
 

@@ -303,7 +303,12 @@ public enum CompassCLICommand: Equatable {
       let maxVerifyRepairAttempts =
         try parser.optionalInt("--max-verify-repairs", allowingZero: true) ?? 1
       let sessionCount = try parser.optionalInt("--sessions") ?? 1
-      let runCritic = parser.consumeFlag("--critic")
+      let runCriticFlag = parser.consumeFlag("--critic")
+      let noCriticFlag = parser.consumeFlag("--no-critic")
+      if runCriticFlag && noCriticFlag {
+        throw CompassCLIError.usage("Pass only one of `--critic` or `--no-critic`.")
+      }
+      let runCritic = noCriticFlag ? false : true
       let commitIterations = parser.consumeFlag("--commit")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
@@ -557,8 +562,8 @@ extension CompassCLI {
     Usage:
       compass-cli help [--format json|text]
       compass-cli doctor --repo <path> [--check-cloud] [--format json|text]
-      compass-cli scaffold rust <path> [--name <name>] [--product cli|macos]... [--format json|text]
-      compass-cli run --repo <path> --audience <text-or-file> --problem <text-or-file> --requirement <text> [--requirement <text>...] [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--commit] [--format json|text]
+      compass-cli scaffold rust <path> [--name <name>] [--product cli|macos|server]... [--format json|text]
+      compass-cli run --repo <path> --audience <text-or-file> --problem <text-or-file> --requirement <text> [--requirement <text>...] [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic|--no-critic] [--commit] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
       compass-cli vm smoke --repo <path> [--command <cmd>] [--format json|text]
