@@ -32,15 +32,18 @@ enum PreferredSpeechVoice {
       if lhs.quality.rawValue != rhs.quality.rawValue {
         return lhs.quality.rawValue > rhs.quality.rawValue
       }
-      let lhsLocale = localePreferenceScore(lhs.language, preferred: preferred)
-      let rhsLocale = localePreferenceScore(rhs.language, preferred: preferred)
-      if lhsLocale != rhsLocale {
-        return lhsLocale > rhsLocale
-      }
+      // Explicit name stems beat locale so a preferred Premium voice (e.g. Lee
+      // en-AU) is not displaced by a same-quality voice that matches the Mac
+      // locale (e.g. Zoe en-US).
       let lhsName = namePreferenceScore(lhs.name)
       let rhsName = namePreferenceScore(rhs.name)
       if lhsName != rhsName {
         return lhsName > rhsName
+      }
+      let lhsLocale = localePreferenceScore(lhs.language, preferred: preferred)
+      let rhsLocale = localePreferenceScore(rhs.language, preferred: preferred)
+      if lhsLocale != rhsLocale {
+        return lhsLocale > rhsLocale
       }
       return lhs.identifier < rhs.identifier
     }.first

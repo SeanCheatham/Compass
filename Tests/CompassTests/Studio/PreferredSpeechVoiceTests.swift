@@ -20,22 +20,43 @@ struct PreferredSpeechVoiceTests {
   }
 
   @Test
-  func prefersMatchingLocaleWhenQualityTies() {
-    let voices = AVSpeechSynthesisVoice.speechVoices().filter {
-      $0.language.lowercased().hasPrefix("en") && $0.quality == .default
+  func prefersNamedStemOverMatchingLocaleWhenQualityTies() {
+    let voices = AVSpeechSynthesisVoice.speechVoices()
+    let lee = voices.first {
+      $0.name.lowercased().hasPrefix("lee") && $0.quality == .premium
     }
-    guard voices.count >= 2 else { return }
-    let preferred = "en-GB"
-    guard let best = PreferredSpeechVoice.bestEnglishVoice(
-      among: voices,
-      preferredLanguage: preferred
-    ) else {
-      return
+    let zoe = voices.first {
+      $0.name.lowercased().hasPrefix("zoe") && $0.quality == .premium
     }
-    let hasMatching = voices.contains { $0.language.lowercased().hasPrefix("en-gb") }
-    if hasMatching {
-      #expect(best.language.lowercased().hasPrefix("en-gb"))
+    guard let lee, let zoe else { return }
+
+    let best = PreferredSpeechVoice.bestEnglishVoice(
+      among: [lee, zoe],
+      preferredLanguage: "en-US"
+    )
+    #expect(best?.identifier == lee.identifier)
+  }
+
+  @Test
+  func prefersMatchingLocaleWhenNameScoresTie() {
+    // Compact novelty-free voices with no preferred-stem names: locale should decide.
+    let voices = AVSpeechSynthesisVoice.speechVoices().filter { voice in
+      guard voice.language.lowercased().hasPrefix("en") else { return false }
+      guard voice.quality == .default else { return false }
+      let name = voice.name.lowercased()
+      let stems = ["lee", "zoe", "ava", "nora", "nicky", "samantha", "susan", "allison",
+                   "matilda", "karen", "moira", "aaron", "evan", "tom", "daniel", "oliver"]
+      return !stems.contains { name.hasPrefix($0) }
     }
+    let enGB = voices.filter { $0.language.lowercased().hasPrefix("en-gb") }
+    let enUS = voices.filter { $0.language.lowercased().hasPrefix("en-us") }
+    guard let gb = enGB.first, let us = enUS.first else { return }
+
+    let best = PreferredSpeechVoice.bestEnglishVoice(
+      among: [gb, us],
+      preferredLanguage: "en-GB"
+    )
+    #expect(best?.language.lowercased().hasPrefix("en-gb") == true)
   }
 
   @Test
