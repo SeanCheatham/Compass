@@ -70,7 +70,7 @@ final class StudioThinkingSpeechService: NSObject, ObservableObject {
         return
       }
       let utterance = AVSpeechUtterance(string: spoken)
-      PreferredSpeechVoice.configure(utterance)
+      PreferredSpeechVoice.configure(utterance, phase: next.phase)
       self.synthesizer.speak(utterance)
     }
   }

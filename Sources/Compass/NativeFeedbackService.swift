@@ -65,6 +65,19 @@ enum NativeFeedbackMilestone: String, CaseIterable {
   case stopped
   case noImmediateWork
   case testFeedback
+
+  /// Voice used for spoken milestones; nil keeps the default fallback voice.
+  var speechPhase: AgentPhase? {
+    switch self {
+    case .planAccepted, .noImmediateWork:
+      return .plan
+    case .developReady, .developStarted, .verifyStarted, .verifyPassed,
+      .developRetrying, .postChecksFailed, .commitsPromoted:
+      return .develop
+    case .paused, .stopped, .testFeedback:
+      return nil
+    }
+  }
 }
 
 struct NativeFeedbackModeMenuItem: Identifiable, Equatable {
@@ -441,7 +454,7 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
       }
     }
     if mode.speaks {
-      speak(content.spokenPhrase)
+      speak(content.spokenPhrase, phase: milestone.speechPhase)
     } else {
       lastSpeechStateIdentifier = "suppressed-mode"
     }
@@ -520,13 +533,13 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
     }
   }
 
-  private func speak(_ phrase: String) {
+  private func speak(_ phrase: String, phase: AgentPhase? = nil) {
     guard !speechSynthesizer.isSpeaking else {
       lastSpeechStateIdentifier = "suppressed-speaking"
       return
     }
     let utterance = AVSpeechUtterance(string: phrase)
-    PreferredSpeechVoice.configure(utterance)
+    PreferredSpeechVoice.configure(utterance, phase: phase)
     speechSynthesizer.speak(utterance)
     lastSpeechStateIdentifier = "speaking"
   }

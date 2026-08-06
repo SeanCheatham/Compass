@@ -1,4 +1,5 @@
 import AVFoundation
+import CompassCore
 import Foundation
 import Testing
 
@@ -8,7 +9,6 @@ import Testing
 struct PreferredSpeechVoiceTests {
   @Test
   func prefersPremiumOverEnhancedAndCompact() {
-    // Use real installed voices when available; otherwise skip soft assertion.
     let voices = AVSpeechSynthesisVoice.speechVoices()
     guard let best = PreferredSpeechVoice.bestEnglishVoice(among: voices) else {
       return
@@ -20,7 +20,7 @@ struct PreferredSpeechVoiceTests {
   }
 
   @Test
-  func prefersNamedStemOverMatchingLocaleWhenQualityTies() {
+  func prefersLeeStemOverZoeWhenBothPremium() {
     let voices = AVSpeechSynthesisVoice.speechVoices()
     let lee = voices.first {
       $0.name.lowercased().hasPrefix("lee") && $0.quality == .premium
@@ -32,41 +32,75 @@ struct PreferredSpeechVoiceTests {
 
     let best = PreferredSpeechVoice.bestEnglishVoice(
       among: [lee, zoe],
-      preferredLanguage: "en-US"
+      preferredNameStem: "lee"
     )
     #expect(best?.identifier == lee.identifier)
   }
 
   @Test
-  func prefersMatchingLocaleWhenNameScoresTie() {
-    // Compact novelty-free voices with no preferred-stem names: locale should decide.
-    let voices = AVSpeechSynthesisVoice.speechVoices().filter { voice in
-      guard voice.language.lowercased().hasPrefix("en") else { return false }
-      guard voice.quality == .default else { return false }
-      let name = voice.name.lowercased()
-      let stems = ["lee", "zoe", "ava", "nora", "nicky", "samantha", "susan", "allison",
-                   "matilda", "karen", "moira", "aaron", "evan", "tom", "daniel", "oliver"]
-      return !stems.contains { name.hasPrefix($0) }
-    }
-    let enGB = voices.filter { $0.language.lowercased().hasPrefix("en-gb") }
-    let enUS = voices.filter { $0.language.lowercased().hasPrefix("en-us") }
-    guard let gb = enGB.first, let us = enUS.first else { return }
+  func phaseMapsToDistinctPreferredStems() {
+    #expect(PreferredSpeechVoice.preferredNameStem(for: .plan) == "lee")
+    #expect(PreferredSpeechVoice.preferredNameStem(for: .develop) == "zoe")
+    #expect(PreferredSpeechVoice.preferredNameStem(for: .critic) == "matilda")
+  }
 
-    let best = PreferredSpeechVoice.bestEnglishVoice(
-      among: [gb, us],
-      preferredLanguage: "en-GB"
+  @Test
+  func phaseSelectsMatchingInstalledPremiumVoice() {
+    let voices = AVSpeechSynthesisVoice.speechVoices()
+    let lee = voices.first {
+      $0.name.lowercased().hasPrefix("lee") && $0.quality == .premium
+    }
+    let zoe = voices.first {
+      $0.name.lowercased().hasPrefix("zoe") && $0.quality == .premium
+    }
+    let matilda = voices.first {
+      $0.name.lowercased().hasPrefix("matilda") && $0.quality == .premium
+    }
+    guard let lee, let zoe, let matilda else { return }
+
+    let pool = [lee, zoe, matilda]
+    #expect(
+      PreferredSpeechVoice.bestEnglishVoice(among: pool, phase: .plan)?.identifier
+        == lee.identifier
     )
-    #expect(best?.language.lowercased().hasPrefix("en-gb") == true)
+    #expect(
+      PreferredSpeechVoice.bestEnglishVoice(among: pool, phase: .develop)?.identifier
+        == zoe.identifier
+    )
+    #expect(
+      PreferredSpeechVoice.bestEnglishVoice(among: pool, phase: .critic)?.identifier
+        == matilda.identifier
+    )
+  }
+
+  @Test
+  func missingPreferredStemFallsBackWithoutUsingLocale() {
+    let voices = AVSpeechSynthesisVoice.speechVoices()
+    let zoe = voices.first {
+      $0.name.lowercased().hasPrefix("zoe") && $0.quality == .premium
+    }
+    let matilda = voices.first {
+      $0.name.lowercased().hasPrefix("matilda") && $0.quality == .premium
+    }
+    guard let zoe, let matilda else { return }
+
+    // Plan prefers Lee, which is absent — fall back by quality then fallback stems.
+    // Zoe precedes Matilda in the fallback stem list.
+    let best = PreferredSpeechVoice.bestEnglishVoice(
+      among: [zoe, matilda],
+      phase: .plan
+    )
+    #expect(best?.identifier == zoe.identifier)
   }
 
   @Test
   func configureSetsVoiceRateAndVolume() {
     let utterance = AVSpeechUtterance(string: "Hmm, maybe I should check the parser next.")
-    PreferredSpeechVoice.configure(utterance)
+    PreferredSpeechVoice.configure(utterance, phase: .plan)
     #expect(utterance.rate == AVSpeechUtteranceDefaultSpeechRate * 0.9)
     #expect(utterance.volume == 0.85)
     #expect(utterance.preUtteranceDelay == 0.12)
-    if PreferredSpeechVoice.bestEnglishVoice() != nil {
+    if PreferredSpeechVoice.bestEnglishVoice(phase: .plan) != nil {
       #expect(utterance.voice != nil)
     }
   }

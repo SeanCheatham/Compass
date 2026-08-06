@@ -162,7 +162,10 @@ struct AgentNativeLoopTests {
     #expect(result.reasoningText == "I need to inspect note.txt before editing.")
     #expect(
       sink.events.contains {
-        $0.payload == .thinking(text: "I need to inspect note.txt before editing.")
+        $0.payload == .thinking(
+          text: "I need to inspect note.txt before editing.",
+          phase: .develop
+        )
       })
 
     let secondRequest = try #require(runtime.requests.dropFirst().first)

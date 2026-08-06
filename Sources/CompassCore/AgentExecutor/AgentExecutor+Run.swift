@@ -225,7 +225,7 @@ extension AgentExecutor {
           detail: previewString(turnReasoning),
           kind: .agentMessage,
           status: .completed,
-          payload: .thinking(text: displayThinking)
+          payload: .thinking(text: displayThinking, phase: configuration.phase)
         )
       }
       // Always parse the stripped body. Falling back to `output` when cleaned

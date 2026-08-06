@@ -1,11 +1,12 @@
 import AVFoundation
+import CompassCore
 import Foundation
 
-/// Picks the most natural on-device English voice available and configures
-/// utterances for thought-style narration (slightly slower, small lead-in).
+/// Picks an on-device English voice and configures utterances for narration.
+/// Ranking is quality then preferred name stems — locale is ignored.
 enum PreferredSpeechVoice {
-  /// Soft preference among high-quality English voices when quality ties.
-  private static let preferredNameStems: [String] = [
+  /// Soft preference when no phase-specific stem is requested / available.
+  private static let fallbackNameStems: [String] = [
     "lee", "zoe", "ava", "nora", "nicky", "samantha", "susan", "allison",
     "matilda", "karen", "moira", "aaron", "evan", "tom", "daniel", "oliver",
   ]
@@ -17,53 +18,68 @@ enum PreferredSpeechVoice {
     "eloquence",
   ]
 
+  /// Distinct voices per agent so spoken thinking is recognizable by ear.
+  static func preferredNameStem(for phase: AgentPhase) -> String {
+    switch phase {
+    case .plan: return "lee"
+    case .develop: return "zoe"
+    case .critic: return "matilda"
+    }
+  }
+
   static func bestEnglishVoice(
     among voices: [AVSpeechSynthesisVoice] = AVSpeechSynthesisVoice.speechVoices(),
-    preferredLanguage: String = currentPreferredEnglishLanguage()
+    preferredNameStem: String? = nil
   ) -> AVSpeechSynthesisVoice? {
-    let english = voices.filter { normalizedLanguage($0.language).hasPrefix("en") }
+    let english = voices.filter { $0.language.lowercased().hasPrefix("en") }
     let candidates = english.filter { !isNovelty($0) }
     let pool = candidates.isEmpty ? english : candidates
     guard !pool.isEmpty else { return nil }
 
-    let preferred = normalizedLanguage(preferredLanguage)
+    if let stem = preferredNameStem?.lowercased(), !stem.isEmpty {
+      let matching = pool.filter { $0.name.lowercased().hasPrefix(stem) }
+      if let named = pickBest(from: matching, nameStems: [stem]) {
+        return named
+      }
+    }
 
-    return pool.sorted { lhs, rhs in
-      if lhs.quality.rawValue != rhs.quality.rawValue {
-        return lhs.quality.rawValue > rhs.quality.rawValue
-      }
-      // Explicit name stems beat locale so a preferred Premium voice (e.g. Lee
-      // en-AU) is not displaced by a same-quality voice that matches the Mac
-      // locale (e.g. Zoe en-US).
-      let lhsName = namePreferenceScore(lhs.name)
-      let rhsName = namePreferenceScore(rhs.name)
-      if lhsName != rhsName {
-        return lhsName > rhsName
-      }
-      let lhsLocale = localePreferenceScore(lhs.language, preferred: preferred)
-      let rhsLocale = localePreferenceScore(rhs.language, preferred: preferred)
-      if lhsLocale != rhsLocale {
-        return lhsLocale > rhsLocale
-      }
-      return lhs.identifier < rhs.identifier
-    }.first
+    return pickBest(from: pool, nameStems: fallbackNameStems)
   }
 
-  static func configure(_ utterance: AVSpeechUtterance) {
-    utterance.voice = bestEnglishVoice()
+  static func bestEnglishVoice(
+    among voices: [AVSpeechSynthesisVoice] = AVSpeechSynthesisVoice.speechVoices(),
+    phase: AgentPhase?
+  ) -> AVSpeechSynthesisVoice? {
+    bestEnglishVoice(
+      among: voices,
+      preferredNameStem: phase.map(preferredNameStem(for:))
+    )
+  }
+
+  static func configure(_ utterance: AVSpeechUtterance, phase: AgentPhase? = nil) {
+    utterance.voice = bestEnglishVoice(phase: phase)
     // Slightly under default so prose has room to breathe.
     utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
     utterance.volume = 0.85
     utterance.preUtteranceDelay = 0.12
   }
 
-  static func currentPreferredEnglishLanguage() -> String {
-    let code = Locale.current.language.languageCode?.identifier ?? "en"
-    guard code.lowercased() == "en" else { return "en-US" }
-    if let region = Locale.current.region?.identifier, !region.isEmpty {
-      return "en-\(region)"
-    }
-    return "en-US"
+  private static func pickBest(
+    from pool: [AVSpeechSynthesisVoice],
+    nameStems: [String]
+  ) -> AVSpeechSynthesisVoice? {
+    guard !pool.isEmpty else { return nil }
+    return pool.sorted { lhs, rhs in
+      if lhs.quality.rawValue != rhs.quality.rawValue {
+        return lhs.quality.rawValue > rhs.quality.rawValue
+      }
+      let lhsName = namePreferenceScore(lhs.name, stems: nameStems)
+      let rhsName = namePreferenceScore(rhs.name, stems: nameStems)
+      if lhsName != rhsName {
+        return lhsName > rhsName
+      }
+      return lhs.identifier < rhs.identifier
+    }.first
   }
 
   private static func isNovelty(_ voice: AVSpeechSynthesisVoice) -> Bool {
@@ -71,34 +87,10 @@ enum PreferredSpeechVoice {
     return noveltyIdentifierMarkers.contains { id.contains($0) }
   }
 
-  private static func normalizedLanguage(_ language: String) -> String {
-    language.lowercased().replacingOccurrences(of: "_", with: "-")
-  }
-
-  private static func localePreferenceScore(_ language: String, preferred: String) -> Int {
-    let lang = normalizedLanguage(language)
-    let pref = normalizedLanguage(preferred)
-    if lang == pref {
-      return 4
-    }
-    let prefRegion = pref.split(separator: "-").dropFirst().first.map(String.init)
-    let voiceRegion = lang.split(separator: "-").dropFirst().first.map(String.init)
-    if let prefRegion, voiceRegion == prefRegion {
-      return 3
-    }
-    if lang.hasPrefix("en-us") {
-      return 2
-    }
-    if lang.hasPrefix("en") {
-      return 1
-    }
-    return 0
-  }
-
-  private static func namePreferenceScore(_ name: String) -> Int {
+  private static func namePreferenceScore(_ name: String, stems: [String]) -> Int {
     let normalized = name.lowercased()
-    if let index = preferredNameStems.firstIndex(where: { normalized.hasPrefix($0) }) {
-      return preferredNameStems.count - index
+    if let index = stems.firstIndex(where: { normalized.hasPrefix($0) }) {
+      return stems.count - index
     }
     return 0
   }

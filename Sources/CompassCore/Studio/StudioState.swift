@@ -92,11 +92,18 @@ public final class StudioState: ObservableObject {
   public struct ThinkingEntry: Identifiable, Equatable {
     public let id: UUID
     public var text: String
+    public var phase: AgentPhase
     public var startedAt: Date
 
-    public init(id: UUID = UUID(), text: String, startedAt: Date = Date()) {
+    public init(
+      id: UUID = UUID(),
+      text: String,
+      phase: AgentPhase,
+      startedAt: Date = Date()
+    ) {
       self.id = id
       self.text = text
+      self.phase = phase
       self.startedAt = startedAt
     }
   }
@@ -387,12 +394,12 @@ public final class StudioState: ObservableObject {
         break
       }
 
-    case .thinking(let text):
+    case .thinking(let text, let phase):
       let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else { return }
       hasActivity = true
       var entries = thinkingEntries
-      entries.append(ThinkingEntry(text: trimmed))
+      entries.append(ThinkingEntry(text: trimmed, phase: phase))
       if entries.count > Self.maxTerminalEntries {
         entries.removeFirst(entries.count - Self.maxTerminalEntries)
       }

@@ -33,7 +33,7 @@ public enum LiveToolPayload: Equatable {
   case editFileStringReplace(path: String, edits: [LiveStringReplaceEdit])
   case bash(command: String, cwd: String?, output: String?, isError: Bool?)
   /// Model chain-of-thought (`reasoning_content` / `<think>` blocks).
-  case thinking(text: String)
+  case thinking(text: String, phase: AgentPhase)
 
   public var path: String? {
     switch self {

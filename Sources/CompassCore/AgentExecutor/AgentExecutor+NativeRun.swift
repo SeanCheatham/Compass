@@ -170,7 +170,7 @@ extension AgentExecutor {
           detail: previewString(trimmedReasoning),
           kind: .agentMessage,
           status: .completed,
-          payload: .thinking(text: displayThinking)
+          payload: .thinking(text: displayThinking, phase: configuration.phase)
         )
       }
 

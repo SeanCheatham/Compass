@@ -348,16 +348,17 @@ struct StudioStatePresentationTests {
     state.apply(
       line(
         status: .completed,
-        payload: .thinking(text: "Consider reading a.rs first.")))
+        payload: .thinking(text: "Consider reading a.rs first.", phase: .plan)))
     #expect(state.hasActivity)
     #expect(state.thinkingEntries.count == 1)
     #expect(state.thinkingEntries.first?.text == "Consider reading a.rs first.")
+    #expect(state.thinkingEntries.first?.phase == .plan)
     #expect(state.paneFocus == .editor)
 
     state.apply(
       line(
         status: .completed,
-        payload: .thinking(text: "  ")))
+        payload: .thinking(text: "  ", phase: .plan)))
     #expect(state.thinkingEntries.count == 1)
   }
 
@@ -368,7 +369,7 @@ struct StudioStatePresentationTests {
     state.apply(
       line(
         status: .completed,
-        payload: .thinking(text: "   \n\t")))
+        payload: .thinking(text: "   \n\t", phase: .develop)))
     #expect(!state.hasActivity)
     #expect(state.thinkingEntries.isEmpty)
   }
