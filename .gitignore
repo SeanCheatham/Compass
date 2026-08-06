@@ -35,3 +35,6 @@ App/LocalSigning.xcconfig
 # Agent implementation plans (local tasking; not versioned)
 docs/plans/
 scratchpad/
+
+AGENTS.md
+CLAUDE.md
