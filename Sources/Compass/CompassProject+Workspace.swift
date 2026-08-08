@@ -70,6 +70,8 @@ extension CompassProject {
     }
 
     state = try workspace.readState()
+    projectKind = state.projectKind
+    chamberSnapshot = ChamberSnapshotStore.readSnapshot(from: workspace)
     if includeDrafts {
       drafts = workspace.readDrafts()
     }

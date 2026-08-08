@@ -180,6 +180,13 @@ public struct LiveTimelineGuide: Equatable, Sendable {
         statusLabel,
         "checklist"
       )
+    case .hunting:
+      return (
+        "Chamber Hunt",
+        "Compass is generating failing tests to surface real bugs. Findings feed Plan pressure.",
+        statusLabel,
+        "flame.fill"
+      )
     default:
       return (
         "Run In Progress",

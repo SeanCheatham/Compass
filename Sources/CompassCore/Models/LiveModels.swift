@@ -171,6 +171,7 @@ public enum LoopPhase: String, CaseIterable {
   case verifying = "Verifying"
   case reviewing = "Reviewing"
   case auditing = "Auditing"
+  case hunting = "Hunting"
   case paused = "Paused"
   case failed = "Failed"
   case succeeded = "Succeeded"

@@ -6,6 +6,7 @@ import Foundation
 final class CompassProject: ObservableObject, Identifiable {
   let id: UUID
   @Published var repoURL: URL
+  @Published var projectKind: ProjectKind
   @Published var activeStorage: KnownProjectActiveStorage
   @Published var state = PlanState.empty
   @Published var drafts = ""
@@ -40,6 +41,7 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var activeStorageActivationConfirmation: CompassWorkspaceStorageActivationConfirmation?
   @Published var storageMigrationState = CompassProjectStorageMigrationState.idle
   @Published var storageMigrationConfirmation: CompassWorkspaceStorageMigrationConfirmation?
+  @Published var chamberSnapshot: ChamberSnapshot?
 
   var addedAt: Date
   var lastOpenedAt: Date
@@ -106,6 +108,7 @@ final class CompassProject: ObservableObject, Identifiable {
   init(
     id: UUID = UUID(),
     repoURL: URL,
+    projectKind: ProjectKind = .factory,
     activeStorage: KnownProjectActiveStorage = .repoLocal,
     addedAt: Date = Date(),
     lastOpenedAt: Date = Date(),
@@ -119,6 +122,7 @@ final class CompassProject: ObservableObject, Identifiable {
   ) {
     self.id = id
     self.repoURL = repoURL.standardizedFileURL
+    self.projectKind = projectKind
     self.activeStorage = activeStorage
     activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned(
       activeStorage: activeStorage)

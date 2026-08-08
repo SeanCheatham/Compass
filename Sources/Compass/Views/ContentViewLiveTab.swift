@@ -786,6 +786,8 @@ struct ThinkingLiveRow: View {
       return "Compass is checking"
     case .auditing:
       return "Auditing requirements"
+    case .hunting:
+      return "Chamber is hunting"
     default:
       return "Agent is working"
     }
@@ -801,6 +803,8 @@ struct ThinkingLiveRow: View {
       return "Running post-checks for this project."
     case .auditing:
       return "Judging product requirements against the repository."
+    case .hunting:
+      return "Writing compass_gen tests and triaging findings."
     default:
       return "Waiting for the next live event."
     }

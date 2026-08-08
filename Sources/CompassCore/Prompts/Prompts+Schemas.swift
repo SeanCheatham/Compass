@@ -11,6 +11,7 @@ extension Prompts {
   public static let developSchema = loadSchema("develop")
   public static let criticSchema = loadSchema("critic")
   public static let requirementsAuditSchema = loadSchema("requirements_audit")
+  public static let chamberSchema = loadSchema("chamber")
   public static let subAgentSchema = loadSchema("subAgent")
 
   /// Token type used to anchor `Bundle(for:)` lookups in the Xcode-built

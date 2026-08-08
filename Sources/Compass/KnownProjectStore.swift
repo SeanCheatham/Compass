@@ -51,6 +51,7 @@ struct CompassProjectStorageResolver: Equatable {
 struct KnownProjectRecord: Codable, Identifiable, Equatable {
   var id: UUID
   var path: String
+  var projectKind: ProjectKind
   var activeStorage: KnownProjectActiveStorage
   var addedAt: Double
   var lastOpenedAt: Double
@@ -60,6 +61,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
   enum CodingKeys: String, CodingKey {
     case id
     case path
+    case projectKind
     case activeStorage
     case addedAt
     case lastOpenedAt
@@ -70,6 +72,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
   init(
     id: UUID,
     path: String,
+    projectKind: ProjectKind = .factory,
     activeStorage: KnownProjectActiveStorage = .repoLocal,
     addedAt: Double,
     lastOpenedAt: Double,
@@ -78,6 +81,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
   ) {
     self.id = id
     self.path = path
+    self.projectKind = projectKind
     self.activeStorage = activeStorage
     self.addedAt = addedAt
     self.lastOpenedAt = lastOpenedAt
@@ -89,6 +93,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decode(UUID.self, forKey: .id)
     path = try container.decode(String.self, forKey: .path)
+    projectKind = try container.decodeIfPresent(ProjectKind.self, forKey: .projectKind) ?? .factory
     activeStorage =
       try container.decodeIfPresent(
         KnownProjectActiveStorage.self,
@@ -112,6 +117,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(id, forKey: .id)
     try container.encode(path, forKey: .path)
+    try container.encode(projectKind, forKey: .projectKind)
     try container.encode(activeStorage, forKey: .activeStorage)
     try container.encode(addedAt, forKey: .addedAt)
     try container.encode(lastOpenedAt, forKey: .lastOpenedAt)
@@ -125,6 +131,7 @@ extension CompassProject {
     self.init(
       id: record.id,
       repoURL: URL(fileURLWithPath: record.path).standardizedFileURL,
+      projectKind: record.projectKind,
       activeStorage: record.activeStorage,
       addedAt: Date(timeIntervalSince1970: record.addedAt),
       lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
@@ -137,6 +144,7 @@ extension CompassProject {
     KnownProjectRecord(
       id: id,
       path: repoURL.path,
+      projectKind: projectKind,
       activeStorage: activeStorage,
       addedAt: addedAt.timeIntervalSince1970,
       lastOpenedAt: lastOpenedAt.timeIntervalSince1970,

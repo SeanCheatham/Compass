@@ -686,6 +686,7 @@ extension String {
 
 public struct PlanState: Codable, Equatable {
   public var schemaVersion: Int
+  public var projectKind: ProjectKind
   public var completed: [String]
   public var immediate: PlanNext?
   public var queue: [PlanCandidate]
@@ -698,9 +699,12 @@ public struct PlanState: Codable, Equatable {
   public var successfulShipCount: Int
   /// Override for headed fidelity interval (every N ships). `nil` uses factory default.
   public var macosFidelityCadence: Int?
+  /// Budget for post-ship / pure chamber hunt passes.
+  public var chamberBudget: ChamberBudget?
 
   public static let empty = PlanState(
     schemaVersion: 1,
+    projectKind: .factory,
     completed: [],
     immediate: nil,
     queue: [],
@@ -711,6 +715,7 @@ public struct PlanState: Codable, Equatable {
 
   public enum CodingKeys: String, CodingKey {
     case schemaVersion
+    case projectKind
     case brief
     case queue
     case completed
@@ -722,10 +727,12 @@ public struct PlanState: Codable, Equatable {
     case products
     case successfulShipCount
     case macosFidelityCadence
+    case chamberBudget
   }
 
   public init(
     schemaVersion: Int = 1,
+    projectKind: ProjectKind = .factory,
     completed: [String],
     immediate: PlanNext?,
     queue: [PlanCandidate]? = nil,
@@ -736,9 +743,11 @@ public struct PlanState: Codable, Equatable {
     acceptanceGates: AcceptanceGates? = nil,
     products: [GeneratedProduct] = GeneratedProducts.default,
     successfulShipCount: Int = 0,
-    macosFidelityCadence: Int? = nil
+    macosFidelityCadence: Int? = nil,
+    chamberBudget: ChamberBudget? = nil
   ) {
     self.schemaVersion = max(1, schemaVersion)
+    self.projectKind = projectKind
     self.completed = completed
     self.immediate = immediate
     self.queue = queue ?? candidates
@@ -748,11 +757,13 @@ public struct PlanState: Codable, Equatable {
     self.products = GeneratedProducts.normalize(products)
     self.successfulShipCount = max(0, successfulShipCount)
     self.macosFidelityCadence = macosFidelityCadence.map { max(0, $0) }
+    self.chamberBudget = chamberBudget
   }
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     schemaVersion = max(1, try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1)
+    projectKind = try container.decodeIfPresent(ProjectKind.self, forKey: .projectKind) ?? .factory
     let completedValues =
       try container.decodeIfPresent([LossyString].self, forKey: .completed) ?? []
     completed = completedValues.compactMap(\.value)
@@ -773,11 +784,13 @@ public struct PlanState: Codable, Equatable {
       0, try container.decodeIfPresent(Int.self, forKey: .successfulShipCount) ?? 0)
     macosFidelityCadence = try container.decodeIfPresent(Int.self, forKey: .macosFidelityCadence)
       .map { max(0, $0) }
+    chamberBudget = try container.decodeIfPresent(ChamberBudget.self, forKey: .chamberBudget)
   }
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(schemaVersion, forKey: .schemaVersion)
+    try container.encode(projectKind, forKey: .projectKind)
     try container.encode(brief, forKey: .brief)
     try container.encode(queue, forKey: .queue)
     try container.encodeIfPresent(immediate, forKey: .immediate)
@@ -790,6 +803,7 @@ public struct PlanState: Codable, Equatable {
     try container.encode(GeneratedProducts.normalize(products), forKey: .products)
     try container.encode(successfulShipCount, forKey: .successfulShipCount)
     try container.encodeIfPresent(macosFidelityCadence, forKey: .macosFidelityCadence)
+    try container.encodeIfPresent(chamberBudget, forKey: .chamberBudget)
   }
 
   public var candidates: [PlanCandidate] {

@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["plan", "generatedTests", "findings", "notes"],
+  "properties": {
+    "plan": {
+      "type": "string",
+      "description": "Short hunt plan: which APIs/contracts you probed and why."
+    },
+    "generatedTests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "compiled"],
+        "properties": {
+          "path": { "type": "string" },
+          "targetHint": { "type": "string" },
+          "compiled": { "type": "boolean" },
+          "passed": { "type": ["boolean", "null"] },
+          "compileErrors": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "title", "description"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": ["failingGeneratedTest", "baselineFailure", "survivingMutant"]
+          },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "file": { "type": ["string", "null"] },
+          "testPath": { "type": ["string", "null"] },
+          "confidence": { "type": "number" },
+          "triage": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["isRealBug", "rationale"],
+            "properties": {
+              "isRealBug": { "type": "boolean" },
+              "rationale": { "type": "string" }
+            }
+          },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

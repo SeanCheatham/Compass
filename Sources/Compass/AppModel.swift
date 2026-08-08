@@ -122,13 +122,41 @@ final class AppModel: ObservableObject {
     panel.canChooseDirectories = true
     panel.canChooseFiles = false
     panel.allowsMultipleSelection = false
-    panel.message = "Choose a Git repository for Compass"
+    panel.message = "Choose a Git repository for Compass (factory)"
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
 
     do {
       let repoURL = try await resolveGitRoot(from: url)
-      let project = upsertProject(repoURL: repoURL)
+      let project = upsertProject(repoURL: repoURL, projectKind: .factory)
+      selectProject(project)
+      project.logProjectSelected()
+      await project.refresh()
+    } catch {
+      fail(error)
+    }
+  }
+
+  func chooseChamberRepository() async {
+    let panel = NSOpenPanel()
+    panel.canChooseDirectories = true
+    panel.canChooseFiles = false
+    panel.allowsMultipleSelection = false
+    panel.message = "Choose a Rust Git repository to open as a Compass chamber"
+
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+
+    do {
+      let repoURL = try await resolveGitRoot(from: url)
+      let workspace = CompassWorkspace(repoURL: repoURL)
+      try workspace.initialize()
+      var state = try workspace.readState()
+      state.projectKind = .chamber
+      if state.chamberBudget == nil {
+        state.chamberBudget = .chamberLoopDefault
+      }
+      try workspace.writeState(state)
+      let project = upsertProject(repoURL: repoURL, projectKind: .chamber)
       selectProject(project)
       project.logProjectSelected()
       await project.refresh()
@@ -143,7 +171,7 @@ final class AppModel: ObservableObject {
     panel.canSelectHiddenExtension = false
     panel.isExtensionHidden = true
     panel.nameFieldStringValue = "CompassRustApp"
-    panel.message = "Create a Compass project (Rust core + selected products)"
+    panel.message = "Create a Compass factory project (Rust core + selected products)"
     panel.prompt = "Create"
 
     let productPicker = NewProjectProductPickerView()
@@ -155,7 +183,7 @@ final class AppModel: ObservableObject {
 
     do {
       try await Self.initializeGeneratedRustProject(at: projectURL, products: products)
-      let project = upsertProject(repoURL: projectURL)
+      let project = upsertProject(repoURL: projectURL, projectKind: .factory)
       selectProject(project)
       project.logProjectSelected()
       await project.refresh()
@@ -198,16 +226,18 @@ final class AppModel: ObservableObject {
     await selectedProject?.refresh()
   }
 
-  private func upsertProject(repoURL: URL) -> CompassProject {
+  private func upsertProject(repoURL: URL, projectKind: ProjectKind = .factory) -> CompassProject {
     let standardized = repoURL.standardizedFileURL
     if let existing = projects.first(where: { $0.repoURL.path == standardized.path }) {
       existing.lastOpenedAt = Date()
+      existing.projectKind = projectKind
       saveProjects()
       return existing
     }
 
     let project = CompassProject(
-      repoURL: standardized
+      repoURL: standardized,
+      projectKind: projectKind
     )
     projects.insert(project, at: 0)
     saveProjects()
@@ -234,6 +264,7 @@ final class AppModel: ObservableObject {
     let workspace = CompassWorkspace(repoURL: projectURL)
     try workspace.initialize()
     var state = try workspace.readState()
+    state.projectKind = .factory
     state.products = normalizedProducts
     try workspace.writeState(state)
     try await initializeGeneratedRustGitRepository(at: projectURL)

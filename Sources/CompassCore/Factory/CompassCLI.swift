@@ -103,6 +103,20 @@ public enum CompassCLI {
         let ok = try await runner.runSessions(options: options, onEvent: emit)
         return ok ? 0 : 1
 
+      case .chamberRun(let repo, let mode, let fixture, let skipHunt, _):
+        let ok = try await runner.runChamber(
+          repoURL: repo,
+          mode: mode,
+          fixtureURL: fixture,
+          skipHunt: skipHunt,
+          onEvent: emit
+        )
+        return ok ? 0 : 1
+
+      case .chamberEval(let repo, let bugs, _):
+        _ = try runner.evalChamber(repoURL: repo, bugsTOML: bugs, onEvent: emit)
+        return 0
+
       case .replay(
         let repo, let session, let mode, let fixture, let promptLog, let maxIterations, _):
         let workspace = CompassWorkspace(repoURL: repo)
@@ -199,6 +213,10 @@ public enum CompassCLICommand: Equatable {
   case vmSmoke(repo: URL, command: String?, format: CompassCLIOutputFormat)
   case vmResetWorkspace(
     repo: URL, mode: SharedCompassVMGuestWorkspaceReset.Mode, format: CompassCLIOutputFormat)
+  case chamberRun(
+    repo: URL, mode: HeadlessModelMode, fixture: URL?, skipHunt: Bool,
+    format: CompassCLIOutputFormat)
+  case chamberEval(repo: URL, bugs: URL, format: CompassCLIOutputFormat)
 
   public var format: CompassCLIOutputFormat {
     switch self {
@@ -209,7 +227,9 @@ public enum CompassCLICommand: Equatable {
       .replay(_, _, _, _, _, _, let format),
       .verify(_, _, let format),
       .vmSmoke(_, _, let format),
-      .vmResetWorkspace(_, _, let format):
+      .vmResetWorkspace(_, _, let format),
+      .chamberRun(_, _, _, _, let format),
+      .chamberEval(_, _, let format):
       return format
     }
   }
@@ -354,6 +374,28 @@ public enum CompassCLICommand: Equatable {
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
       return .verify(repo: repo, command: command, format: format)
+
+    case "chamber":
+      let subcommand = try parser.requireCommand()
+      switch subcommand {
+      case "run":
+        let repo = try parser.requireURLOption("--repo")
+        let mode = try parser.modelMode()
+        let fixture = try parser.optionalURLOption("--fixture")
+        let skipHunt = parser.consumeFlag("--recon-only")
+        let format = try parser.outputFormat()
+        try parser.rejectRemaining()
+        return .chamberRun(
+          repo: repo, mode: mode, fixture: fixture, skipHunt: skipHunt, format: format)
+      case "eval":
+        let repo = try parser.requireURLOption("--repo")
+        let bugs = try parser.requireURLOption("--bugs")
+        let format = try parser.outputFormat()
+        try parser.rejectRemaining()
+        return .chamberEval(repo: repo, bugs: bugs, format: format)
+      default:
+        throw CompassCLIError.usage("Unsupported `chamber` subcommand. Use `chamber run` or `chamber eval`.")
+      }
 
     default:
       throw CompassCLIError.usage("Unknown command `\(command)`.")
@@ -566,6 +608,8 @@ extension CompassCLI {
       compass-cli run --repo <path> --audience <text-or-file> --problem <text-or-file> --requirement <text> [--requirement <text>...] [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--sessions <n>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic|--no-critic] [--commit] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
+      compass-cli chamber run --repo <path> [--mode auto|fixture|mlx|cloud] [--fixture <jsonl>] [--recon-only] [--format json|text]
+      compass-cli chamber eval --repo <path> --bugs <bugs.toml> [--format json|text]
       compass-cli vm smoke --repo <path> [--command <cmd>] [--format json|text]
       compass-cli vm reset-workspace --repo <path> [--dirt|--full] [--format json|text]
     """

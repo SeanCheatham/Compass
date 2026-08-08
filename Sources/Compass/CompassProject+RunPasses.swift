@@ -90,6 +90,7 @@ extension CompassProject {
         focus: focus,
         coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
         mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
+        chamberSnapshot: ChamberSnapshotStore.readSnapshot(from: workspace),
         promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -295,7 +296,7 @@ extension CompassProject {
         phase = .idle
       }
       return .developed
-    case .idle, .planning, .developing, .verifying, .reviewing, .auditing:
+    case .idle, .planning, .developing, .verifying, .reviewing, .auditing, .hunting:
       return .developed
     }
   }
@@ -604,6 +605,12 @@ extension CompassProject {
                 commit: commit
               )
             }
+            await runChamberPassAfterShip(
+              workspace: workspace,
+              agentSettings: agentSettings,
+              modelOverride: modelOverride,
+              sessionIndex: sessionIndex
+            )
           }
           break criticLoop
         }

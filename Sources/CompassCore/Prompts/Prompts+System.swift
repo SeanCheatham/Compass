@@ -95,6 +95,14 @@ extension Prompts {
         - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused evidence gathering
         - Assumptions: \(assumptionTools)
         """
+    case .chamber:
+      toolList = """
+        - Codemap: \(codemapTools)
+        - Files: \(fileTools)
+        - Chamber: write_generated_test (tests/compass_gen_*.rs only)
+        - Shell: bash for cargo test and read-only probes (no production file mutation via shell)
+        - Assumptions: \(assumptionTools)
+        """
     }
 
     let visibleWorkingDirectory = Self.visibleWorkingDirectory(
@@ -150,18 +158,21 @@ extension Prompts {
 
   public static func compassOverviewSection() -> String {
     """
-    Compass is a macOS host app that runs one Git repository as a local software factory.
-    The loop is Brief -> decomposed queue -> immediate packet -> Develop -> Verify -> Critic
-    -> Requirements Audit. Compass uses an OpenAI-compatible cloud model for factory turns
-    when configured, with optional local MLX assist for cheap work, and keeps the harness
-    responsible for state, verification, files, history, assumptions, and retries.
-    Generated output requires Rust `crates/core` plus at least one product (`cli`
+    Compass is a macOS host app with two project kinds: factory and chamber.
+    Factory loop: Brief -> Plan -> Develop -> Verify -> Critic -> Chamber (Plan pressure)
+    -> Requirements Audit. Chamber projects run a pure adversarial test-generation loop
+    (recon -> hunt -> triage) without shipping product code.
+    Compass uses an OpenAI-compatible cloud model for agent turns when configured, with
+    optional local MLX assist for cheap work, and keeps the harness responsible for state,
+    verification, files, history, assumptions, and retries.
+    Factory-generated output requires Rust `crates/core` plus at least one product (`cli`
     and/or `macos`). Domain logic stays in `crates/core`; UI policy in `crates/ui`
     when macOS is enabled; CLI and macOS shells are adapters.
     Rust verification uses `cargo fmt`, Clippy, and `cargo test` (UI simulation included);
     coverage uses `cargo llvm-cov`. When `macos` is enabled, also run
     `bash scripts/verify-macos.sh` inside the embedded macOS VM. Headed launch/screenshot
     is opt-in via `COMPASS_MACOS_UI_FIDELITY=1` (see `docs/ui-runtime.md`).
+    Chamber writes only `tests/compass_gen_*.rs` and runs tests inside the same macOS VM.
     """
   }
 
@@ -176,6 +187,9 @@ extension Prompts {
     case .requirementsAudit:
       return
         "Current role: Requirements Audit. Judge in-scope product requirements against the repo with evidence."
+    case .chamber:
+      return
+        "Current role: Chamber. Write failing compass_gen tests to surface real bugs; do not edit production sources."
     }
   }
 

@@ -371,6 +371,16 @@ extension AgentExecutor {
           "summary": "<overall status>"
         }
         """
+    case .chamber:
+      return """
+        Chamber shape:
+        {
+          "plan": "<hunt plan>",
+          "generatedTests": [],
+          "findings": [],
+          "notes": []
+        }
+        """
     case nil:
       return "Use the JSON schema for the current phase and include every required field."
     }

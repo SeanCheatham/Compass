@@ -70,22 +70,28 @@ struct CompassApp: App {
     .windowStyle(.titleBar)
     .commands {
       CommandGroup(replacing: .newItem) {
-        Button("New Project") {
+        Button("New Factory Project") {
           Task { await model.createRustProject() }
         }
         .keyboardShortcut("n", modifiers: [.command])
         .disabled(!isOnboardingComplete)
       }
       CommandMenu("Compass") {
-        Button("New Project") {
+        Button("New Factory Project") {
           Task { await model.createRustProject() }
         }
         .disabled(!isOnboardingComplete)
 
-        Button("Add Project") {
+        Button("Add Factory Project") {
           Task { await model.chooseRepository() }
         }
         .keyboardShortcut("o", modifiers: [.command])
+        .disabled(!isOnboardingComplete)
+
+        Button("Open Chamber…") {
+          Task { await model.chooseChamberRepository() }
+        }
+        .keyboardShortcut("o", modifiers: [.command, .shift])
         .disabled(!isOnboardingComplete)
 
         Button("Copy Project Intake") {

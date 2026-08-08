@@ -703,6 +703,26 @@ struct ProjectRunControls: View {
 
   private func run(_ kind: ProjectRunControlGuide.Kind) {
     Task {
+      if project.projectKind == .chamber {
+        switch kind {
+        case .loop:
+          await project.playChamber(
+            agentSettings: model.agentSettings,
+            modelOverride: model.modelOverride
+          )
+        case .planOnly:
+          await project.runChamberReconOnly(
+            agentSettings: model.agentSettings,
+            modelOverride: model.modelOverride
+          )
+        case .developOnly:
+          await project.runChamberHuntOnly(
+            agentSettings: model.agentSettings,
+            modelOverride: model.modelOverride
+          )
+        }
+        return
+      }
       switch kind {
       case .loop:
         await project.play(

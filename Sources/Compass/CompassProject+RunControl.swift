@@ -20,6 +20,10 @@ enum PlanPassOutcome: Equatable, Sendable {
 @MainActor
 extension CompassProject {
   func play(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
+    if projectKind == .chamber || state.projectKind == .chamber {
+      await playChamber(agentSettings: agentSettings, modelOverride: modelOverride)
+      return
+    }
     guard !isRunning, !isAutoPlaying else { return }
     stopRequested = false
     let resumedFromPause = isPaused

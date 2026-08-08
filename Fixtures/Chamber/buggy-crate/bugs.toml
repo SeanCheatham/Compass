@@ -1,0 +1,13 @@
+# Ground truth for chamber eval scoring.
+
+[[bugs]]
+id = "bump_identity"
+function = "bump"
+control = false
+match = ["bump"]
+
+[[bugs]]
+id = "clamp_control"
+function = "clamp"
+control = true
+match = ["clamp"]

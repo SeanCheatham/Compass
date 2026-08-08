@@ -13,6 +13,7 @@ extension Prompts {
     focus: PlanFocus,
     coverageSnapshot: CoverageSnapshot? = nil,
     mutationSnapshot: MutationSnapshot? = nil,
+    chamberSnapshot: ChamberSnapshot? = nil,
     promptMode: AgentPromptMode = .envelope
   ) throws -> String {
     let stateJSON = try CompassWorkspace.encodeProposal(state.promptDigest())
@@ -172,6 +173,9 @@ extension Prompts {
 
       ## Mutation testing
       \(mutationSnapshot?.formattedForPrompt() ?? "_(no mutation snapshot yet)_")
+
+      ## Chamber findings (Plan pressure)
+      \(chamberSnapshot?.formattedForPrompt() ?? "_(no chamber snapshot yet)_")
 
       \(closingLine)
       """

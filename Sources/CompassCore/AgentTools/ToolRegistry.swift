@@ -32,6 +32,13 @@ public enum ToolRegistry {
     readOnlyTools() + [AgentBashTool()]
   }
 
+  public static func chamberTools() -> [AgentTool] {
+    readOnlyTools() + [
+      AgentWriteGeneratedTestTool(),
+      AgentBashTool(),
+    ]
+  }
+
   public static func tools(
     for phase: AgentPhase,
     promptMode: AgentPromptMode = .envelope
@@ -43,6 +50,8 @@ public enum ToolRegistry {
       return inspectionTools()
     case .develop:
       return developTools(promptMode: promptMode)
+    case .chamber:
+      return chamberTools()
     }
   }
 }

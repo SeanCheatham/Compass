@@ -666,6 +666,7 @@ func phaseColor(_ phase: LoopPhase) -> Color {
   case .verifying: return .purple
   case .reviewing: return .pink
   case .auditing: return .teal
+  case .hunting: return .indigo
   case .paused: return .yellow
   case .failed: return .red
   case .succeeded: return .green

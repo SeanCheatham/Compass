@@ -45,18 +45,26 @@ struct SidebarView: View {
         Button {
           Task { await model.createRustProject() }
         } label: {
-          Label("New Project", systemImage: "plus.square.dashed")
+          Label("New Factory Project", systemImage: "plus.square.dashed")
         }
         .labelStyle(.iconOnly)
-        .help("New project (Rust core + CLI/macOS/server)")
+        .help("New factory project (Rust core + CLI/macOS/server)")
 
         Button {
           Task { await model.chooseRepository() }
         } label: {
-          Label("Add Project", systemImage: "folder.badge.plus")
+          Label("Add Factory Project", systemImage: "folder.badge.plus")
         }
         .labelStyle(.iconOnly)
-        .help("Add existing project")
+        .help("Add existing Git repo as factory project")
+
+        Button {
+          Task { await model.chooseChamberRepository() }
+        } label: {
+          Label("Open Chamber", systemImage: "flame")
+        }
+        .labelStyle(.iconOnly)
+        .help("Open existing Rust repo as chamber (test hunt)")
       }
 
       if model.projects.isEmpty {
@@ -293,6 +301,15 @@ struct ProjectListRow: View {
             .font(.callout.weight(.semibold))
             .foregroundStyle(.primary)
             .lineLimit(1)
+          if project.projectKind == .chamber {
+            Text("Chamber")
+              .font(.caption2.weight(.semibold))
+              .padding(.horizontal, 5)
+              .padding(.vertical, 1)
+              .background(Color.indigo.opacity(0.15))
+              .foregroundStyle(.indigo)
+              .clipShape(Capsule())
+          }
           if project.isRunning || project.isAutoPlaying {
             ProgressView()
               .controlSize(.small)

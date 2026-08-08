@@ -5,6 +5,7 @@ public enum AgentContinuationPhase: String, Equatable, Sendable, CaseIterable {
   case develop
   case critic
   case requirementsAudit = "requirements_audit"
+  case chamber
   case delegate
 
   public init(agentPhase: AgentPhase) {
@@ -17,6 +18,8 @@ public enum AgentContinuationPhase: String, Equatable, Sendable, CaseIterable {
       self = .critic
     case .requirementsAudit:
       self = .requirementsAudit
+    case .chamber:
+      self = .chamber
     }
   }
 
