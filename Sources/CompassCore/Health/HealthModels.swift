@@ -108,6 +108,37 @@ public struct HealthFinding: Codable, Equatable, Sendable, Identifiable {
       return triage?.isRealBug == true
     }
   }
+
+  /// Stable key for Run Loop novelty — ignores volatile `id` / evidence.
+  public var noveltyKey: String {
+    let title = self.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let file = self.file?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+    let testPath = self.testPath?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+    return "\(kind.rawValue)|\(title)|\(file)|\(testPath)"
+  }
+
+  /// Whether this finding counts toward Run Loop diminishing-returns novelty.
+  /// Baseline failures are excluded — recon re-emits them every pass while red.
+  public var countsTowardNovelty: Bool {
+    kind != .baselineFailure
+  }
+}
+
+/// Pure helpers for Health Run Loop idle-stop decisions.
+public enum HealthLoopNovelty {
+  public static func noveltyKeys(in findings: [HealthFinding]) -> Set<String> {
+    Set(findings.filter(\.countsTowardNovelty).map(\.noveltyKey))
+  }
+
+  /// Returns how many keys in `current` are absent from `seen`, then the updated seen set.
+  public static func incorporate(
+    current findings: [HealthFinding],
+    seen: Set<String>
+  ) -> (newCount: Int, seen: Set<String>) {
+    let keys = noveltyKeys(in: findings)
+    let novel = keys.subtracting(seen)
+    return (novel.count, seen.union(keys))
+  }
 }
 
 public struct HealthGeneratedTest: Codable, Equatable, Sendable {
@@ -208,25 +239,31 @@ public struct HealthReconResult: Codable, Equatable, Sendable {
 public struct HealthBudget: Equatable, Sendable {
   public var maxIterations: Int
   public var wallClockSecs: Int
+  /// Consecutive Health Run Loop passes with no new findings before auto-play stops.
+  public var idleStopPasses: Int
 
   /// Post-ship health inside a factory loop (fail-open, shorter leash).
   public static let factoryShipDefault = HealthBudget(
     maxIterations: 48,
-    wallClockSecs: 30 * 60
+    wallClockSecs: 30 * 60,
+    idleStopPasses: 3
   )
 
   /// Pure health project passes (UI / CLI default; editable at runtime).
   public static let healthLoopDefault = HealthBudget(
     maxIterations: 128,
-    wallClockSecs: 2 * 60 * 60
+    wallClockSecs: 2 * 60 * 60,
+    idleStopPasses: 3
   )
 
   public init(
     maxIterations: Int = 128,
-    wallClockSecs: Int = 2 * 60 * 60
+    wallClockSecs: Int = 2 * 60 * 60,
+    idleStopPasses: Int = 3
   ) {
     self.maxIterations = max(1, maxIterations)
     self.wallClockSecs = max(30, wallClockSecs)
+    self.idleStopPasses = max(1, idleStopPasses)
   }
 }
 

@@ -237,10 +237,12 @@ extension Prompts {
         the guest worktree automatically — use relative paths or `/workspace/...` for every
         tool. Project Git (status, commit, push) is host-only; do not use `git` in factory
         bash. Dirty host files after Develop are expected — the harness lands a commit after
-        Critic approves. The guest has the Rust toolchain (cargo, rustc, rustfmt, clippy) and
+        Critic approves.         The guest has the Rust toolchain (cargo, rustc, rustfmt, clippy) and
         Swift via Xcode Command Line Tools (`swift`, `swift build`, `swift run`, clang).
         The guest does **not** ship XCTest or swift-testing — macOS adapter verify uses the
         `FFIChecks` executable (`swift run FFIChecks`), not `swift test`.
+        Outbound internet is available via NAT — do not treat failing network tests as
+        "sandbox has no network" without verifying connectivity first.
         """
     }
   }

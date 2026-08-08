@@ -766,11 +766,20 @@ private struct HealthBudgetControls: View {
     )
   }
 
+  private var idleBinding: Binding<Int> {
+    Binding(
+      get: { project.healthBudget.idleStopPasses },
+      set: { project.healthBudget.idleStopPasses = max(1, $0) }
+    )
+  }
+
   var body: some View {
     HStack(spacing: 6) {
       Text("Turns")
         .font(.caption)
         .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .fixedSize()
       TextField(
         "",
         value: turnsBinding,
@@ -783,6 +792,8 @@ private struct HealthBudgetControls: View {
       Text("Min")
         .font(.caption)
         .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .fixedSize()
       TextField(
         "",
         value: minutesBinding,
@@ -791,11 +802,28 @@ private struct HealthBudgetControls: View {
       .textFieldStyle(.roundedBorder)
       .frame(width: 44)
       .help("Wall-clock limit in minutes for this health run (in-memory).")
+
+      Text("Idle")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .fixedSize()
+      TextField(
+        "",
+        value: idleBinding,
+        format: .number
+      )
+      .textFieldStyle(.roundedBorder)
+      .frame(width: 36)
+      .help(
+        "Stop Run Loop after this many consecutive passes with no new findings (in-memory)."
+      )
     }
+    .fixedSize(horizontal: true, vertical: false)
     .accessibilityElement(children: .combine)
     .accessibilityLabel("Health budget")
     .accessibilityValue(
-      "\(project.healthBudget.maxIterations) turns, \(max(1, project.healthBudget.wallClockSecs / 60)) minutes"
+      "\(project.healthBudget.maxIterations) turns, \(max(1, project.healthBudget.wallClockSecs / 60)) minutes, idle stop \(project.healthBudget.idleStopPasses)"
     )
   }
 }

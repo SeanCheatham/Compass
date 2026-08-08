@@ -295,4 +295,60 @@ struct HealthTests {
       Issue.record("Expected healthEval")
     }
   }
+
+  @Test("novelty keys ignore baseline failures and drive idle streak")
+  func noveltyIdle() {
+    let dead = HealthFinding(
+      kind: .deadCode,
+      title: "Unused helper",
+      description: "commented out",
+      file: "src/lib.rs",
+      confidence: 0.9,
+      evidence: "block"
+    )
+    let baseline = HealthFinding(
+      kind: .baselineFailure,
+      title: "Baseline tests failing",
+      description: "red",
+      confidence: 0.9,
+      evidence: "fail"
+    )
+    let sameDeadDifferentEvidence = HealthFinding(
+      kind: .deadCode,
+      title: "Unused helper",
+      description: "still there",
+      file: "src/lib.rs",
+      confidence: 0.8,
+      evidence: "other citation"
+    )
+    let docs = HealthFinding(
+      kind: .staleDoc,
+      title: "README drift",
+      description: "missing crate",
+      file: "README.md",
+      confidence: 0.7,
+      evidence: "listing"
+    )
+
+    #expect(dead.countsTowardNovelty)
+    #expect(!baseline.countsTowardNovelty)
+    #expect(dead.noveltyKey == sameDeadDifferentEvidence.noveltyKey)
+
+    var seen = HealthLoopNovelty.noveltyKeys(in: [dead, baseline])
+    #expect(seen.count == 1)
+
+    let idle1 = HealthLoopNovelty.incorporate(
+      current: [dead, baseline, sameDeadDifferentEvidence],
+      seen: seen
+    )
+    #expect(idle1.newCount == 0)
+    seen = idle1.seen
+
+    let novel = HealthLoopNovelty.incorporate(current: [docs, baseline], seen: seen)
+    #expect(novel.newCount == 1)
+    #expect(novel.seen.count == 2)
+
+    #expect(HealthBudget.healthLoopDefault.idleStopPasses == 3)
+    #expect(HealthBudget(idleStopPasses: 0).idleStopPasses == 1)
+  }
 }

@@ -22,7 +22,7 @@ The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt ass
 `PlanState.projectKind` is `factory` (default) or `health` (also on `KnownProjectRecord`):
 
 - **Factory** — Plan → Develop → Verify → Critic → Health (fail-open Plan pressure) → Requirements Audit.
-- **Health** — recon + focused pass (`bugHunt` / `test` / `docs` / `cleanup`) with focus-scoped writes + VM `cargo test` + triage. Proposed patches commit on `compass/health/<id>`; the user’s prior branch is restored. No brief/requirements completion gates.
+- **Health** — recon + focused pass (`bugHunt` / `test` / `docs` / `cleanup`) with focus-scoped writes + VM `cargo test` + triage. Proposed patches commit on `compass/health/<id>`; the user’s prior branch is restored. Run Loop holds one health branch across passes (weighted-random focus) and stops after N consecutive passes with no new findings (default 3; Activity **Idle**). No brief/requirements completion gates.
 
 Snapshots: `.compass/health-snapshot.json`, `.compass/findings.json` (Results tab). CLI: `compass-cli health run|eval`.
 
@@ -53,7 +53,7 @@ There is no Cursor model provider in this build. Cursor’s SDK is an agent harn
 - `acceptanceGates` (optional deterministic quality thresholds)
 - `successfulShipCount` / optional `macosFidelityCadence` (headed macOS UI fidelity every N ships; default interval 5)
 
-Health pass budgets (`maxIterations` / `wallClockSecs`) are runtime-only: UI Activity controls or `compass-cli health run --max-iterations` / `--wall-clock-secs`. They are not part of `PlanState`.
+Health pass budgets (`maxIterations` / `wallClockSecs` / `idleStopPasses`) are runtime-only: UI Activity controls or `compass-cli health run --max-iterations` / `--wall-clock-secs`. They are not part of `PlanState`. Run Loop stops after `idleStopPasses` consecutive passes with no new finding novelty (baseline failures excluded).
 
 User product intent is stored separately in `.compass/brief.json` (`audience`, `problem`, `productRequirements` with `kind` / `proofLevel`) and injected into agent prompts as project context. The Brief tab **Random idea** action fills fields from `ProjectBriefIdeaGenerator` (curated starters; Save persists).
 

@@ -6,6 +6,8 @@ public struct HealthPassOptions: Equatable, Sendable {
   public var failOpen: Bool
   /// When true, create/checkout a Compass health branch for the pass and restore afterward.
   public var manageBranch: Bool
+  /// When set, use this session for commit/metadata and skip begin/end (caller owns the branch).
+  public var branchSession: HealthBranch.Session?
   public var focus: HealthFocus?
   public var projectId: String
 
@@ -14,6 +16,7 @@ public struct HealthPassOptions: Equatable, Sendable {
     skipHunt: false,
     failOpen: true,
     manageBranch: false,
+    branchSession: nil,
     focus: .bugHunt,
     projectId: "factory"
   )
@@ -23,6 +26,7 @@ public struct HealthPassOptions: Equatable, Sendable {
     skipHunt: false,
     failOpen: false,
     manageBranch: true,
+    branchSession: nil,
     focus: nil,
     projectId: "health"
   )
@@ -32,6 +36,7 @@ public struct HealthPassOptions: Equatable, Sendable {
     skipHunt: Bool = false,
     failOpen: Bool = true,
     manageBranch: Bool = false,
+    branchSession: HealthBranch.Session? = nil,
     focus: HealthFocus? = nil,
     projectId: String = "health"
   ) {
@@ -39,6 +44,7 @@ public struct HealthPassOptions: Equatable, Sendable {
     self.skipHunt = skipHunt
     self.failOpen = failOpen
     self.manageBranch = manageBranch
+    self.branchSession = branchSession
     self.focus = focus
     self.projectId = projectId
   }
@@ -93,7 +99,12 @@ public enum HealthPassRunner {
     )
 
     var branchSession: HealthBranch.Session?
-    if options.manageBranch {
+    let ownsBranch: Bool
+    if let external = options.branchSession {
+      branchSession = external
+      ownsBranch = false
+    } else if options.manageBranch {
+      ownsBranch = true
       do {
         branchSession = try HealthBranch.begin(
           repoURL: workspace.repoURL,
@@ -121,9 +132,11 @@ public enum HealthPassRunner {
           errorMessage: message
         )
       }
+    } else {
+      ownsBranch = false
     }
     defer {
-      if let branchSession {
+      if ownsBranch, let branchSession {
         try? HealthBranch.end(repoURL: workspace.repoURL, session: branchSession)
       }
     }

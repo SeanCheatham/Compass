@@ -66,20 +66,90 @@ extension CompassProject {
     isPaused = false
     log("Health auto-play started.", level: .success)
 
+    var branchSession: HealthBranch.Session?
+    var repoURL: URL?
+    defer {
+      if let branchSession, let repoURL {
+        try? HealthBranch.end(repoURL: repoURL, session: branchSession)
+      }
+      if isAutoPlaying {
+        isAutoPlaying = false
+      }
+    }
+
+    do {
+      let workspace = try await resolveWorkspaceForRun()
+      try await initializeIfNeeded(workspace)
+      try await requireMacOSVMReady()
+      repoURL = workspace.repoURL
+      branchSession = try HealthBranch.begin(
+        repoURL: workspace.repoURL,
+        projectId: id.uuidString
+      )
+    } catch {
+      phase = .failed
+      errorMessage = error.localizedDescription
+      fail(error)
+      return
+    }
+
+    let priorFindings: [HealthFinding]
+    if let existing = healthSnapshot?.findings {
+      priorFindings = existing
+    } else if let repoURL {
+      priorFindings =
+        HealthSnapshotStore.readSnapshot(from: CompassWorkspace(repoURL: repoURL))?.findings ?? []
+    } else {
+      priorFindings = []
+    }
+    var seen = HealthLoopNovelty.noveltyKeys(in: priorFindings)
+    var idleStreak = 0
+    let idleLimit = healthBudget.idleStopPasses
+
     while isAutoPlaying, !isPaused, !stopRequested {
+      guard phase != .failed, phase != .cancelled else {
+        return
+      }
+
       let ok = await runHealthPass(
         agentSettings: agentSettings,
         modelOverride: modelOverride,
-        failOpen: false
+        failOpen: false,
+        manageBranch: false,
+        branchSession: branchSession
       )
       if !ok || stopRequested || isPaused {
-        isAutoPlaying = false
         return
       }
-      isAutoPlaying = false
-      phase = .succeeded
-      log("Health pass completed.", level: .success)
-      return
+
+      let findings = healthSnapshot?.findings ?? []
+      let incorporated = HealthLoopNovelty.incorporate(current: findings, seen: seen)
+      seen = incorporated.seen
+      if incorporated.newCount == 0 {
+        idleStreak += 1
+        log(
+          "Health pass added no new findings (\(idleStreak)/\(idleLimit) idle).",
+          level: .info
+        )
+      } else {
+        idleStreak = 0
+        log(
+          "Health pass added \(incorporated.newCount) new finding(s); idle streak reset.",
+          level: .info
+        )
+      }
+
+      if idleStreak >= idleLimit {
+        phase = .succeeded
+        log(
+          "Health auto-play stopped: no new findings for \(idleStreak) passes.",
+          level: .success
+        )
+        return
+      }
+
+      phase = .idle
+      await Task.yield()
     }
   }
 
@@ -109,7 +179,9 @@ extension CompassProject {
     agentSettings: AgentRuntimeSettings,
     modelOverride: String,
     failOpen: Bool,
-    skipHunt: Bool = false
+    skipHunt: Bool = false,
+    manageBranch: Bool = true,
+    branchSession: HealthBranch.Session? = nil
   ) async -> Bool {
     guard !isRunning else { return false }
     isRunning = true
@@ -145,6 +217,8 @@ extension CompassProject {
       options.skipHunt = skipHunt
       options.budget = healthBudget
       options.projectId = id.uuidString
+      options.manageBranch = manageBranch
+      options.branchSession = branchSession
 
       let outcome = await HealthPassRunner.run(
         workspace: workspace,

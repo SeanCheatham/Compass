@@ -46,7 +46,7 @@ The v1 factory loop is:
 
 ## Health projects
 
-**Open Health** (sidebar / menu) or `compass-cli health run --repo <path>` imports a Rust Git root as `projectKind: health`. Each pass samples a focus (`bugHunt`, `test`, `docs`, `cleanup`) with focus-scoped writes; proposed patches commit on `compass/health/<projectId>` then the user’s previous branch is restored. Health turn/time budgets are in-memory (Activity **Turns** / **Min** controls) or CLI `--max-iterations` / `--wall-clock-secs` — not stored in `.compass/state.json`. Defaults are 128 turns / 2 hours. Optional `--focus` pins the dimension. Eval scoring against a fixture `bugs.toml` is available via `compass-cli health eval --repo <path> --bugs <bugs.toml>` (see `Fixtures/Health/`).
+**Open Health** (sidebar / menu) or `compass-cli health run --repo <path>` imports a Rust Git root as `projectKind: health`. Each pass samples a focus (`bugHunt`, `test`, `docs`, `cleanup`) with focus-scoped writes; proposed patches commit on `compass/health/<projectId>` then the user’s previous branch is restored. **Run Loop** keeps iterating on one health branch (weighted-random focus each pass) until **Idle** consecutive passes add no new findings (default 3), or you pause/stop. Health turn/time/idle budgets are in-memory (Activity **Turns** / **Min** / **Idle** controls) or CLI `--max-iterations` / `--wall-clock-secs` — not stored in `.compass/state.json`. Defaults are 128 turns / 2 hours / 3 idle. Optional `--focus` pins the dimension. Eval scoring against a fixture `bugs.toml` is available via `compass-cli health eval --repo <path> --bugs <bugs.toml>` (see `Fixtures/Health/`).
 
 Activity/Live is the primary run surface; **Results** shows the latest health snapshot (findings, focus, branch commits).
 
