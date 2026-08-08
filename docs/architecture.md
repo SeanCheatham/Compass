@@ -52,7 +52,8 @@ There is no Cursor model provider in this build. Cursor’s SDK is an agent harn
 - `products` (enabled generated-project products: `cli`, `macos`, and/or `server`)
 - `acceptanceGates` (optional deterministic quality thresholds)
 - `successfulShipCount` / optional `macosFidelityCadence` (headed macOS UI fidelity every N ships; default interval 5)
-- optional `chamberBudget`
+
+Chamber hunt budgets (`maxIterations` / `wallClockSecs`) are runtime-only: UI Activity controls or `compass-cli chamber run --max-iterations` / `--wall-clock-secs`. They are not part of `PlanState`.
 
 User product intent is stored separately in `.compass/brief.json` (`audience`, `problem`, `productRequirements` with `kind` / `proofLevel`) and injected into agent prompts as project context. The Brief tab **Random idea** action fills fields from `ProjectBriefIdeaGenerator` (curated starters; Save persists).
 

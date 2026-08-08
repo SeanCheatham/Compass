@@ -26,7 +26,6 @@ Compass keeps a small persisted factory state in `.compass/state.json`:
 - `openQuestions`: unresolved questions that affect scope.
 - `products`: enabled generated-project products (`cli`, `macos`, and/or `server`).
 - `successfulShipCount` / optional `macosFidelityCadence`: drive headed macOS UI fidelity every N ships (default 5).
-- optional `chamberBudget`: max iterations / cloud calls / wall clock for chamber passes.
 
 User product intent lives in `.compass/brief.json` (audience, problem, product requirements) and is edited in the Brief tab or passed to `compass-cli run` via `--audience`, `--problem`, and `--requirement`. New projects can use **Random idea** on the Brief tab to fill a curated starter brief.
 
@@ -47,7 +46,7 @@ The v1 factory loop is:
 
 ## Chamber projects
 
-**Open Chamber** (sidebar / menu) or `compass-cli chamber run --repo <path>` imports a Rust Git root as `projectKind: chamber`. The agent may only write `tests/compass_gen_*.rs` and runs tests in the macOS VM. Eval scoring against a fixture `bugs.toml` is available via `compass-cli chamber eval --repo <path> --bugs <bugs.toml>` (see `Fixtures/Chamber/`).
+**Open Chamber** (sidebar / menu) or `compass-cli chamber run --repo <path>` imports a Rust Git root as `projectKind: chamber`. The agent may only write `tests/compass_gen_*.rs` and runs tests in the macOS VM. Chamber turn/time budgets are in-memory (Activity **Turns** / **Min** controls) or CLI `--max-iterations` / `--wall-clock-secs` — not stored in `.compass/state.json`. Defaults are 128 turns / 2 hours for pure chamber hunts. Eval scoring against a fixture `bugs.toml` is available via `compass-cli chamber eval --repo <path> --bugs <bugs.toml>` (see `Fixtures/Chamber/`).
 
 Activity/Live is the primary project surface.
 

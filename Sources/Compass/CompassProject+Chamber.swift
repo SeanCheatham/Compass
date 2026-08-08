@@ -22,21 +22,31 @@ extension CompassProject {
     let runtime = ModelRuntimeFactory.makeRouted(settings: settings)
     let environment = resolveAgentEnvironment(forHostURL: workspace.repoURL)
     var options = ChamberPassOptions.factoryShip
-    if let budget = state.chamberBudget {
-      options.budget = budget
-    }
+    options.budget = chamberBudget
     let outcome = await ChamberPassRunner.run(
       workspace: workspace,
       settings: settings,
       runtime: runtime,
       bashRunner: environment.bashRunner,
       sessionNumber: sessionNumber,
-      options: options
-    ) { [weak self] event in
-      Task { @MainActor in
-        self?.logChamberEvent(event)
+      options: options,
+      onEvent: { [weak self] event in
+        Task { @MainActor in
+          self?.logChamberStatus(event)
+        }
+      },
+      onLive: { [weak self] live in
+        Task { @MainActor in
+          self?.log(live)
+        }
+      },
+      bindExecutor: { [weak self] agent in
+        Task { @MainActor in
+          self?.executor = agent
+        }
       }
-    }
+    )
+    executor = nil
     chamberSnapshot = outcome.snapshot
     if let error = outcome.errorMessage {
       log("Chamber pass warning: \(error)", level: .warning)
@@ -106,16 +116,24 @@ extension CompassProject {
     isRunning = true
     stopRequested = false
     phase = .hunting
-    defer { isRunning = false }
+    defer {
+      isRunning = false
+      executor = nil
+    }
 
+    var sessionIndex: Int?
     do {
       let workspace = try await resolveWorkspaceForRun()
       try await initializeIfNeeded(workspace)
+      try await requireMacOSVMReady()
       var current = try workspace.readState()
       current.projectKind = .chamber
       try workspace.writeState(current)
       state = current
       projectKind = .chamber
+
+      sessionIndex = startSession()
+      let sessionNumber = sessions[sessionIndex!].session
 
       var settings = agentSettings
       if !modelOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -123,13 +141,10 @@ extension CompassProject {
       }
       let runtime = ModelRuntimeFactory.makeRouted(settings: settings)
       let environment = resolveAgentEnvironment(forHostURL: workspace.repoURL)
-      let sessionNumber = (sessions.map(\.session).max() ?? 0) + 1
       var options = ChamberPassOptions.chamberLoop
       options.failOpen = failOpen
       options.skipHunt = skipHunt
-      if let budget = current.chamberBudget ?? Optional(ChamberBudget.chamberLoopDefault) {
-        options.budget = budget
-      }
+      options.budget = chamberBudget
 
       let outcome = await ChamberPassRunner.run(
         workspace: workspace,
@@ -137,29 +152,58 @@ extension CompassProject {
         runtime: runtime,
         bashRunner: environment.bashRunner,
         sessionNumber: sessionNumber,
-        options: options
-      ) { [weak self] event in
-        Task { @MainActor in
-          self?.logChamberEvent(event)
+        options: options,
+        onEvent: { [weak self] event in
+          Task { @MainActor in
+            self?.logChamberStatus(event)
+          }
+        },
+        onLive: { [weak self] live in
+          Task { @MainActor in
+            self?.log(live)
+          }
+        },
+        bindExecutor: { [weak self] agent in
+          Task { @MainActor in
+            self?.executor = agent
+          }
         }
-      }
+      )
       chamberSnapshot = outcome.snapshot
       if let error = outcome.errorMessage, !failOpen {
         phase = .failed
         errorMessage = error
+        if let sessionIndex {
+          endSession(sessionIndex, status: .failed)
+        }
         log("Chamber hunt failed: \(error)", level: .error)
         return false
       }
       phase = .succeeded
+      if let sessionIndex {
+        endSession(sessionIndex, status: .succeeded)
+      }
       return true
     } catch {
       phase = .failed
+      if let sessionIndex {
+        endSession(sessionIndex, status: .failed)
+      }
       fail(error)
       return false
     }
   }
 
-  private func logChamberEvent(_ event: HeadlessCompassEvent) {
+  /// High-level chamber status lines for Activity (Studio gets full LiveEvents via `onLive`).
+  private func logChamberStatus(_ event: HeadlessCompassEvent) {
+    switch event.kind {
+    case "tool_start", "tool_end", "assistant_json", "submit_accepted", "submit_rejected",
+      "continuation_repair":
+      // Mirrored already through onLive → Studio / Activity LiveEvent stream.
+      return
+    default:
+      break
+    }
     let level: LiveLine.Level
     switch event.level {
     case "error": level = .error

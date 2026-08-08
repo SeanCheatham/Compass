@@ -72,22 +72,22 @@ struct ChamberTests {
     #expect(score.recall == 1.0)
   }
 
-  @Test("PlanState defaults projectKind to factory and round-trips chamber")
+  @Test("PlanState defaults projectKind to factory and ignores legacy chamberBudget")
   func planStateKind() throws {
     let empty = PlanState.empty
     #expect(empty.projectKind == .factory)
 
     var state = PlanState.empty
     state.projectKind = .chamber
-    state.chamberBudget = .chamberLoopDefault
     let data = try JSONEncoder().encode(state)
     let decoded = try JSONDecoder().decode(PlanState.self, from: data)
     #expect(decoded.projectKind == .chamber)
-    #expect(decoded.chamberBudget?.maxIterations == ChamberBudget.chamberLoopDefault.maxIterations)
 
-    let legacy = Data(#"{"schemaVersion":1,"completed":[],"queue":[],"brief":{"summary":"","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[],"products":["cli"],"successfulShipCount":0}"#.utf8)
+    let legacy = Data(
+      #"{"schemaVersion":1,"projectKind":"chamber","completed":[],"queue":[],"brief":{"summary":"","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[],"products":["cli"],"successfulShipCount":0,"chamberBudget":{"maxIterations":16,"maxCloudCalls":12,"wallClockSecs":1800}}"#
+        .utf8)
     let fromLegacy = try JSONDecoder().decode(PlanState.self, from: legacy)
-    #expect(fromLegacy.projectKind == .factory)
+    #expect(fromLegacy.projectKind == .chamber)
   }
 
   @Test("chamber snapshot formats Plan pressure")
@@ -115,14 +115,17 @@ struct ChamberTests {
     #expect(text.contains("Surviving mutants"))
   }
 
-  @Test("CLI parses chamber run and eval")
+  @Test("CLI parses chamber run budget args")
   func cliChamber() throws {
     let run = try CompassCLICommand.parse([
-      "chamber", "run", "--repo", "/tmp/repo", "--recon-only", "--format", "text",
+      "chamber", "run", "--repo", "/tmp/repo", "--recon-only",
+      "--max-iterations", "64", "--wall-clock-secs", "3600", "--format", "text",
     ])
-    if case .chamberRun(let repo, _, _, let skipHunt, let format) = run {
+    if case .chamberRun(let repo, _, _, let skipHunt, let budget, let format) = run {
       #expect(repo.path == "/tmp/repo")
       #expect(skipHunt)
+      #expect(budget.maxIterations == 64)
+      #expect(budget.wallClockSecs == 3600)
       #expect(format == .text)
     } else {
       Issue.record("Expected chamberRun")

@@ -291,6 +291,17 @@ extension AgentExecutor {
         path: args.path,
         content: Self.capHead(args.content, bytes: Self.payloadMaxEditorBytes)
       )
+    case AgentWriteGeneratedTestTool.toolName:
+      guard let args = try? decoder.decode(AgentWriteGeneratedTestTool.Arguments.self, from: data)
+      else {
+        return nil
+      }
+      let fileName = ChamberPaths.normalizeGeneratedTestFileName(args.path)
+      let relative = "\(ChamberPaths.generatedTestsDirectory)/\(fileName)"
+      return .writeFile(
+        path: relative,
+        content: Self.capHead(args.content, bytes: Self.payloadMaxEditorBytes)
+      )
     case AgentEditFileTool.toolName:
       if let args = try? decoder.decode(AgentEditFileTool.Arguments.self, from: data) {
         return .editFileLineRange(

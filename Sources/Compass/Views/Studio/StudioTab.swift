@@ -65,7 +65,7 @@ struct StudioTab: View {
         Text("Studio")
           .font(.headline)
         Text(
-          "When the agent runs, files it touches open here, edits type in place, bash lands in the Terminal tab, and thinking streams below."
+          "When the agent runs, files it touches open here, edits type in place, bash lands in the Terminal tab, and thinking streams below. Factory and chamber runs both feed this view."
         )
         .font(.callout)
         .foregroundStyle(.secondary)

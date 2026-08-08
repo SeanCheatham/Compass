@@ -47,7 +47,9 @@ public enum ChamberPassRunner {
     bashRunner: AgentBashRunner,
     sessionNumber: Int,
     options: ChamberPassOptions = .factoryShip,
-    onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void = { _ in }
+    onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void = { _ in },
+    onLive: (@Sendable (LiveEvent) -> Void)? = nil,
+    bindExecutor: (@Sendable (AgentExecutor?) -> Void)? = nil
   ) async -> ChamberPassOutcome {
     onEvent(
       HeadlessCompassEvent(
@@ -57,12 +59,23 @@ public enum ChamberPassRunner {
         message: "Chamber pass started."
       )
     )
+    onLive?(
+      LiveEvent(
+        level: .info,
+        text: "Chamber started",
+        detail: options.skipHunt ? "Recon only" : "Recon → hunt",
+        kind: .message,
+        status: .running,
+        metadata: ["phase": AgentPhase.chamber.rawValue]
+      )
+    )
 
     let prior = ChamberSnapshotStore.readSnapshot(from: workspace)
     let recon = await ChamberRecon.run(
       repoURL: workspace.repoURL,
       bashRunner: bashRunner,
-      timeout: TimeInterval(options.budget.wallClockSecs)
+      timeout: TimeInterval(options.budget.wallClockSecs),
+      onLive: onLive
     )
 
     var snapshot = ChamberSnapshot(
@@ -90,7 +103,7 @@ public enum ChamberPassRunner {
     }
 
     if options.skipHunt {
-      return persist(snapshot: snapshot, workspace: workspace, onEvent: onEvent)
+      return persist(snapshot: snapshot, workspace: workspace, onEvent: onEvent, onLive: onLive)
     }
 
     do {
@@ -103,7 +116,9 @@ public enum ChamberPassRunner {
         prior: prior,
         sessionNumber: sessionNumber,
         budget: options.budget,
-        onEvent: onEvent
+        onEvent: onEvent,
+        onLive: onLive,
+        bindExecutor: bindExecutor
       )
       snapshot.plan = hunt.plan
       snapshot.generatedTests = hunt.generatedTests
@@ -128,7 +143,18 @@ public enum ChamberPassRunner {
           detail: error.localizedDescription
         )
       )
+      onLive?(
+        LiveEvent(
+          level: options.failOpen ? .warning : .error,
+          text: "Chamber hunt failed",
+          detail: error.localizedDescription,
+          kind: .message,
+          status: .failed,
+          metadata: ["phase": AgentPhase.chamber.rawValue]
+        )
+      )
       if !options.failOpen {
+        bindExecutor?(nil)
         return ChamberPassOutcome(
           snapshot: snapshot,
           errorMessage: error.localizedDescription
@@ -136,13 +162,15 @@ public enum ChamberPassRunner {
       }
     }
 
-    return persist(snapshot: snapshot, workspace: workspace, onEvent: onEvent)
+    bindExecutor?(nil)
+    return persist(snapshot: snapshot, workspace: workspace, onEvent: onEvent, onLive: onLive)
   }
 
   private static func persist(
     snapshot: ChamberSnapshot,
     workspace: CompassWorkspace,
-    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void,
+    onLive: (@Sendable (LiveEvent) -> Void)?
   ) -> ChamberPassOutcome {
     do {
       try ChamberSnapshotStore.writeSnapshot(snapshot, workspace: workspace)
@@ -159,6 +187,7 @@ public enum ChamberPassRunner {
         )
       )
     }
+    let confirmed = snapshot.findings.filter(\.isConfirmedRealBug).count
     onEvent(
       HeadlessCompassEvent(
         kind: "chamber_end",
@@ -166,12 +195,22 @@ public enum ChamberPassRunner {
         status: "completed",
         phase: AgentPhase.chamber.rawValue,
         message:
-          "Chamber pass completed (\(snapshot.findings.filter(\.isConfirmedRealBug).count) confirmed bug(s)).",
+          "Chamber pass completed (\(confirmed) confirmed bug(s)).",
         metadata: [
           "findings": "\(snapshot.findings.count)",
-          "confirmed": "\(snapshot.findings.filter(\.isConfirmedRealBug).count)",
+          "confirmed": "\(confirmed)",
           "partial": snapshot.partial ? "1" : "0",
         ]
+      )
+    )
+    onLive?(
+      LiveEvent(
+        level: .success,
+        text: "Chamber completed",
+        detail: "\(snapshot.findings.count) finding(s), \(confirmed) confirmed",
+        kind: .message,
+        status: .completed,
+        metadata: ["phase": AgentPhase.chamber.rawValue]
       )
     )
     return ChamberPassOutcome(snapshot: snapshot)
@@ -186,7 +225,9 @@ public enum ChamberPassRunner {
     prior: ChamberSnapshot?,
     sessionNumber: Int,
     budget: ChamberBudget,
-    onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
+    onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void,
+    onLive: (@Sendable (LiveEvent) -> Void)?,
+    bindExecutor: (@Sendable (AgentExecutor?) -> Void)?
   ) async throws -> ChamberHuntSubmit {
     let promptMode = ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
     let userPrompt = try Prompts.chamberPrompt(
@@ -195,8 +236,10 @@ public enum ChamberPassRunner {
       promptMode: promptMode
     )
     let executor = AgentExecutor { live in
+      onLive?(live)
       onEvent(HeadlessCompassEvent(live: live, phase: .chamber))
     }
+    bindExecutor?(executor)
     let configuration = AgentExecutionConfiguration(
       settings: settings,
       phase: .chamber,

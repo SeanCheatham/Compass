@@ -152,11 +152,9 @@ final class AppModel: ObservableObject {
       try workspace.initialize()
       var state = try workspace.readState()
       state.projectKind = .chamber
-      if state.chamberBudget == nil {
-        state.chamberBudget = .chamberLoopDefault
-      }
       try workspace.writeState(state)
       let project = upsertProject(repoURL: repoURL, projectKind: .chamber)
+      project.chamberBudget = .chamberLoopDefault
       selectProject(project)
       project.logProjectSelected()
       await project.refresh()
@@ -230,7 +228,11 @@ final class AppModel: ObservableObject {
     let standardized = repoURL.standardizedFileURL
     if let existing = projects.first(where: { $0.repoURL.path == standardized.path }) {
       existing.lastOpenedAt = Date()
-      existing.projectKind = projectKind
+      if existing.projectKind != projectKind {
+        existing.projectKind = projectKind
+        existing.chamberBudget =
+          projectKind == .chamber ? .chamberLoopDefault : .factoryShipDefault
+      }
       saveProjects()
       return existing
     }

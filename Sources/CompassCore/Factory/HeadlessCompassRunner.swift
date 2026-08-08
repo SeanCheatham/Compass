@@ -426,15 +426,13 @@ public struct HeadlessCompassRunner: Sendable {
     mode: HeadlessModelMode = .auto,
     fixtureURL: URL? = nil,
     skipHunt: Bool = false,
+    budget: ChamberBudget = .chamberLoopDefault,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
   ) async throws -> Bool {
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
     var state = try workspace.readState()
     state.projectKind = .chamber
-    if state.chamberBudget == nil {
-      state.chamberBudget = .chamberLoopDefault
-    }
     try workspace.writeState(state)
 
     let resolvedSettings = settings ?? AgentRuntimeSettings.defaultFromEnvironment()
@@ -444,13 +442,10 @@ public struct HeadlessCompassRunner: Sendable {
       promptLogDirectory: nil,
       onEvent: onEvent
     )
-    // Prefer explicit settings when provided (tests / callers); otherwise store defaults.
     let effectiveSettings = settings ?? resolvedSettings
     var options = ChamberPassOptions.chamberLoop
     options.skipHunt = skipHunt
-    if let budget = state.chamberBudget {
-      options.budget = budget
-    }
+    options.budget = budget
     let outcome = await ChamberPassRunner.run(
       workspace: workspace,
       settings: effectiveSettings,
@@ -502,9 +497,6 @@ public struct HeadlessCompassRunner: Sendable {
     let state = (try? workspace.readState()) ?? .empty
     guard state.projectKind == .factory else { return }
     var options = ChamberPassOptions.factoryShip
-    if let budget = state.chamberBudget {
-      options.budget = budget
-    }
     _ = await ChamberPassRunner.run(
       workspace: workspace,
       settings: settings,

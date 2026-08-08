@@ -631,6 +631,11 @@ struct ProjectRunControls: View {
       CopyProjectSnapshotButton(payload: snapshotPayload)
       ProjectRunDecisionBadge(badge: runGuide.decisionBadge)
 
+      if project.projectKind == .chamber {
+        ChamberBudgetControls(project: project)
+          .disabled(project.isRunning || project.isAutoPlaying)
+      }
+
       Button {
         run(runGuide.primaryOption.kind)
       } label: {
@@ -741,6 +746,57 @@ struct ProjectRunControls: View {
         )
       }
     }
+  }
+}
+
+private struct ChamberBudgetControls: View {
+  @ObservedObject var project: CompassProject
+
+  private var turnsBinding: Binding<Int> {
+    Binding(
+      get: { project.chamberBudget.maxIterations },
+      set: { project.chamberBudget.maxIterations = max(1, $0) }
+    )
+  }
+
+  private var minutesBinding: Binding<Int> {
+    Binding(
+      get: { max(1, project.chamberBudget.wallClockSecs / 60) },
+      set: { project.chamberBudget.wallClockSecs = max(30, $0 * 60) }
+    )
+  }
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Text("Turns")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      TextField(
+        "",
+        value: turnsBinding,
+        format: .number
+      )
+      .textFieldStyle(.roundedBorder)
+      .frame(width: 56)
+      .help("Max chamber agent turns for this run (in-memory; not saved to the repo).")
+
+      Text("Min")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      TextField(
+        "",
+        value: minutesBinding,
+        format: .number
+      )
+      .textFieldStyle(.roundedBorder)
+      .frame(width: 44)
+      .help("Wall-clock limit in minutes for this chamber run (in-memory).")
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("Chamber budget")
+    .accessibilityValue(
+      "\(project.chamberBudget.maxIterations) turns, \(max(1, project.chamberBudget.wallClockSecs / 60)) minutes"
+    )
   }
 }
 

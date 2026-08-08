@@ -699,8 +699,6 @@ public struct PlanState: Codable, Equatable {
   public var successfulShipCount: Int
   /// Override for headed fidelity interval (every N ships). `nil` uses factory default.
   public var macosFidelityCadence: Int?
-  /// Budget for post-ship / pure chamber hunt passes.
-  public var chamberBudget: ChamberBudget?
 
   public static let empty = PlanState(
     schemaVersion: 1,
@@ -727,7 +725,6 @@ public struct PlanState: Codable, Equatable {
     case products
     case successfulShipCount
     case macosFidelityCadence
-    case chamberBudget
   }
 
   public init(
@@ -743,8 +740,7 @@ public struct PlanState: Codable, Equatable {
     acceptanceGates: AcceptanceGates? = nil,
     products: [GeneratedProduct] = GeneratedProducts.default,
     successfulShipCount: Int = 0,
-    macosFidelityCadence: Int? = nil,
-    chamberBudget: ChamberBudget? = nil
+    macosFidelityCadence: Int? = nil
   ) {
     self.schemaVersion = max(1, schemaVersion)
     self.projectKind = projectKind
@@ -757,7 +753,6 @@ public struct PlanState: Codable, Equatable {
     self.products = GeneratedProducts.normalize(products)
     self.successfulShipCount = max(0, successfulShipCount)
     self.macosFidelityCadence = macosFidelityCadence.map { max(0, $0) }
-    self.chamberBudget = chamberBudget
   }
 
   public init(from decoder: Decoder) throws {
@@ -784,7 +779,6 @@ public struct PlanState: Codable, Equatable {
       0, try container.decodeIfPresent(Int.self, forKey: .successfulShipCount) ?? 0)
     macosFidelityCadence = try container.decodeIfPresent(Int.self, forKey: .macosFidelityCadence)
       .map { max(0, $0) }
-    chamberBudget = try container.decodeIfPresent(ChamberBudget.self, forKey: .chamberBudget)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -803,7 +797,6 @@ public struct PlanState: Codable, Equatable {
     try container.encode(GeneratedProducts.normalize(products), forKey: .products)
     try container.encode(successfulShipCount, forKey: .successfulShipCount)
     try container.encodeIfPresent(macosFidelityCadence, forKey: .macosFidelityCadence)
-    try container.encodeIfPresent(chamberBudget, forKey: .chamberBudget)
   }
 
   public var candidates: [PlanCandidate] {

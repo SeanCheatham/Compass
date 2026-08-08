@@ -167,30 +167,27 @@ public struct ChamberReconResult: Codable, Equatable, Sendable {
   }
 }
 
-public struct ChamberBudget: Codable, Equatable, Sendable {
+public struct ChamberBudget: Equatable, Sendable {
   public var maxIterations: Int
-  public var maxCloudCalls: Int
   public var wallClockSecs: Int
 
+  /// Post-ship chamber inside a factory loop (fail-open, shorter leash).
   public static let factoryShipDefault = ChamberBudget(
-    maxIterations: 8,
-    maxCloudCalls: 6,
-    wallClockSecs: 15 * 60
-  )
-
-  public static let chamberLoopDefault = ChamberBudget(
-    maxIterations: 16,
-    maxCloudCalls: 12,
+    maxIterations: 48,
     wallClockSecs: 30 * 60
   )
 
+  /// Pure chamber project hunts (UI / CLI default; editable at runtime).
+  public static let chamberLoopDefault = ChamberBudget(
+    maxIterations: 128,
+    wallClockSecs: 2 * 60 * 60
+  )
+
   public init(
-    maxIterations: Int = 8,
-    maxCloudCalls: Int = 6,
-    wallClockSecs: Int = 15 * 60
+    maxIterations: Int = 128,
+    wallClockSecs: Int = 2 * 60 * 60
   ) {
     self.maxIterations = max(1, maxIterations)
-    self.maxCloudCalls = max(1, maxCloudCalls)
     self.wallClockSecs = max(30, wallClockSecs)
   }
 }
