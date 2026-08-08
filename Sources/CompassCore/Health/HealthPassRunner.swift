@@ -1,0 +1,405 @@
+import Foundation
+
+public struct HealthPassOptions: Equatable, Sendable {
+  public var budget: HealthBudget
+  public var skipHunt: Bool
+  public var failOpen: Bool
+  /// When true, create/checkout a Compass health branch for the pass and restore afterward.
+  public var manageBranch: Bool
+  public var focus: HealthFocus?
+  public var projectId: String
+
+  public static let factoryShip = HealthPassOptions(
+    budget: .factoryShipDefault,
+    skipHunt: false,
+    failOpen: true,
+    manageBranch: false,
+    focus: .bugHunt,
+    projectId: "factory"
+  )
+
+  public static let healthLoop = HealthPassOptions(
+    budget: .healthLoopDefault,
+    skipHunt: false,
+    failOpen: false,
+    manageBranch: true,
+    focus: nil,
+    projectId: "health"
+  )
+
+  public init(
+    budget: HealthBudget = .factoryShipDefault,
+    skipHunt: Bool = false,
+    failOpen: Bool = true,
+    manageBranch: Bool = false,
+    focus: HealthFocus? = nil,
+    projectId: String = "health"
+  ) {
+    self.budget = budget
+    self.skipHunt = skipHunt
+    self.failOpen = failOpen
+    self.manageBranch = manageBranch
+    self.focus = focus
+    self.projectId = projectId
+  }
+}
+
+public struct HealthPassOutcome: Equatable, Sendable {
+  public var snapshot: HealthSnapshot
+  public var errorMessage: String?
+
+  public init(snapshot: HealthSnapshot, errorMessage: String? = nil) {
+    self.snapshot = snapshot
+    self.errorMessage = errorMessage
+  }
+}
+
+/// Shared health orchestration for factory post-ship and pure health projects.
+public enum HealthPassRunner {
+  public static func run(
+    workspace: CompassWorkspace,
+    settings: AgentRuntimeSettings,
+    runtime: any LocalModelGenerating,
+    bashRunner: AgentBashRunner,
+    sessionNumber: Int,
+    options: HealthPassOptions = .factoryShip,
+    onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void = { _ in },
+    onLive: (@Sendable (LiveEvent) -> Void)? = nil,
+    bindExecutor: (@Sendable (AgentExecutor?) -> Void)? = nil
+  ) async -> HealthPassOutcome {
+    let focus = options.focus ?? HealthFocus.weightedRandom()
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "health_start",
+        status: "running",
+        phase: AgentPhase.health.rawValue,
+        message: "Health pass started (\(focus.displayName))."
+      )
+    )
+    onLive?(
+      LiveEvent(
+        level: .info,
+        text: "Health started",
+        detail: options.skipHunt
+          ? "Recon only"
+          : "Recon → \(focus.displayName)",
+        kind: .message,
+        status: .running,
+        metadata: [
+          "phase": AgentPhase.health.rawValue,
+          "focus": focus.rawValue,
+        ]
+      )
+    )
+
+    var branchSession: HealthBranch.Session?
+    if options.manageBranch {
+      do {
+        branchSession = try HealthBranch.begin(
+          repoURL: workspace.repoURL,
+          projectId: options.projectId
+        )
+      } catch {
+        let message = error.localizedDescription
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "health_branch_error",
+            level: "error",
+            status: "failed",
+            phase: AgentPhase.health.rawValue,
+            message: "Health branch setup failed.",
+            detail: message
+          )
+        )
+        return HealthPassOutcome(
+          snapshot: HealthSnapshot(
+            sessionNumber: sessionNumber,
+            notes: [message],
+            partial: true,
+            focus: focus
+          ),
+          errorMessage: message
+        )
+      }
+    }
+    defer {
+      if let branchSession {
+        try? HealthBranch.end(repoURL: workspace.repoURL, session: branchSession)
+      }
+    }
+
+    let prior = HealthSnapshotStore.readSnapshot(from: workspace)
+    let recon = await HealthRecon.run(
+      repoURL: workspace.repoURL,
+      bashRunner: bashRunner,
+      timeout: TimeInterval(options.budget.wallClockSecs),
+      onLive: onLive
+    )
+
+    var snapshot = HealthSnapshot(
+      collectedAt: Date(),
+      sessionNumber: sessionNumber,
+      recon: recon,
+      notes: recon.notes,
+      partial: false,
+      focus: focus,
+      healthBranch: branchSession?.healthBranch,
+      baseSHA: branchSession?.baseSHA
+    )
+
+    if !recon.baselineTests.success {
+      snapshot.findings.append(
+        HealthFinding(
+          kind: .baselineFailure,
+          title: "Baseline tests failing",
+          description: "Existing suite is red before health pass.",
+          confidence: 0.9,
+          triage: HealthTriageResult(
+            isRealBug: true,
+            rationale: "Baseline cargo test failed; treat as real defect signal."
+          ),
+          evidence: String((recon.baselineTests.stdout + recon.baselineTests.stderr).suffix(4000)),
+          focus: focus
+        )
+      )
+    }
+
+    if options.skipHunt {
+      return finalize(
+        snapshot: snapshot,
+        workspace: workspace,
+        branchSession: branchSession,
+        focus: focus,
+        onEvent: onEvent,
+        onLive: onLive
+      )
+    }
+
+    do {
+      let hunt = try await runHunt(
+        workspace: workspace,
+        settings: settings,
+        runtime: runtime,
+        bashRunner: bashRunner,
+        recon: recon,
+        prior: prior,
+        focus: focus,
+        sessionNumber: sessionNumber,
+        budget: options.budget,
+        onEvent: onEvent,
+        onLive: onLive,
+        bindExecutor: bindExecutor
+      )
+      snapshot.plan = hunt.plan
+      snapshot.generatedTests = hunt.generatedTests
+      var findings = hunt.findings.map { finding in
+        var updated = finding
+        if updated.focus == nil { updated.focus = focus }
+        return updated
+      }
+      if !recon.baselineTests.success,
+        !findings.contains(where: { $0.kind == .baselineFailure })
+      {
+        findings.insert(contentsOf: snapshot.findings.filter { $0.kind == .baselineFailure }, at: 0)
+      }
+      snapshot.findings = HealthFPGuards.apply(to: findings)
+      snapshot.notes.append(contentsOf: hunt.notes)
+    } catch {
+      snapshot.partial = true
+      snapshot.notes.append("health pass failed: \(error.localizedDescription)")
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "health_hunt_error",
+          level: options.failOpen ? "warning" : "error",
+          status: options.failOpen ? "completed" : "failed",
+          phase: AgentPhase.health.rawValue,
+          message: "Health pass failed\(options.failOpen ? " (fail-open)" : "").",
+          detail: error.localizedDescription
+        )
+      )
+      onLive?(
+        LiveEvent(
+          level: options.failOpen ? .warning : .error,
+          text: "Health pass failed",
+          detail: error.localizedDescription,
+          kind: .message,
+          status: .failed,
+          metadata: ["phase": AgentPhase.health.rawValue]
+        )
+      )
+      if !options.failOpen {
+        bindExecutor?(nil)
+        return HealthPassOutcome(
+          snapshot: snapshot,
+          errorMessage: error.localizedDescription
+        )
+      }
+    }
+
+    bindExecutor?(nil)
+    return finalize(
+      snapshot: snapshot,
+      workspace: workspace,
+      branchSession: branchSession,
+      focus: focus,
+      onEvent: onEvent,
+      onLive: onLive
+    )
+  }
+
+  private static func finalize(
+    snapshot: HealthSnapshot,
+    workspace: CompassWorkspace,
+    branchSession: HealthBranch.Session?,
+    focus: HealthFocus,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void,
+    onLive: (@Sendable (LiveEvent) -> Void)?
+  ) -> HealthPassOutcome {
+    var snapshot = snapshot
+    if branchSession != nil {
+      do {
+        if let tip = try HealthBranch.commitIfDirty(
+          repoURL: workspace.repoURL,
+          message: "health(\(focus.rawValue)): proposed patches"
+        ) {
+          snapshot.tipSHA = tip
+          snapshot.findings = snapshot.findings.map { finding in
+            var updated = finding
+            if updated.commitSHA == nil { updated.commitSHA = tip }
+            return updated
+          }
+        } else if let tip = try? HealthBranch.tipSHA(repoURL: workspace.repoURL) {
+          snapshot.tipSHA = tip
+        }
+        if let base = snapshot.baseSHA, let tip = snapshot.tipSHA {
+          snapshot.commits = (try? HealthBranch.commits(
+            repoURL: workspace.repoURL,
+            baseSHA: base,
+            tipSHA: tip
+          )) ?? []
+        }
+      } catch {
+        snapshot.notes.append("health commit failed: \(error.localizedDescription)")
+      }
+    }
+
+    return persist(snapshot: snapshot, workspace: workspace, onEvent: onEvent, onLive: onLive)
+  }
+
+  private static func persist(
+    snapshot: HealthSnapshot,
+    workspace: CompassWorkspace,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void,
+    onLive: (@Sendable (LiveEvent) -> Void)?
+  ) -> HealthPassOutcome {
+    do {
+      try HealthSnapshotStore.writeSnapshot(snapshot, workspace: workspace)
+      try HealthSnapshotStore.writeFindingsReport(snapshot, workspace: workspace)
+    } catch {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "health_persist_error",
+          level: "warning",
+          status: "completed",
+          phase: AgentPhase.health.rawValue,
+          message: "Failed to persist health snapshot.",
+          detail: error.localizedDescription
+        )
+      )
+    }
+    let confirmed = snapshot.findings.filter(\.isConfirmedRealBug).count
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "health_end",
+        level: "success",
+        status: "completed",
+        phase: AgentPhase.health.rawValue,
+        message:
+          "Health pass completed (\(confirmed) confirmed bug(s)).",
+        metadata: [
+          "findings": "\(snapshot.findings.count)",
+          "confirmed": "\(confirmed)",
+          "partial": snapshot.partial ? "1" : "0",
+          "focus": snapshot.focus?.rawValue ?? "",
+        ]
+      )
+    )
+    onLive?(
+      LiveEvent(
+        level: .success,
+        text: "Health completed",
+        detail: "\(snapshot.findings.count) finding(s), \(confirmed) confirmed",
+        kind: .message,
+        status: .completed,
+        metadata: ["phase": AgentPhase.health.rawValue]
+      )
+    )
+    return HealthPassOutcome(snapshot: snapshot)
+  }
+
+  private static func runHunt(
+    workspace: CompassWorkspace,
+    settings: AgentRuntimeSettings,
+    runtime: any LocalModelGenerating,
+    bashRunner: AgentBashRunner,
+    recon: HealthReconResult,
+    prior: HealthSnapshot?,
+    focus: HealthFocus,
+    sessionNumber: Int,
+    budget: HealthBudget,
+    onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void,
+    onLive: (@Sendable (LiveEvent) -> Void)?,
+    bindExecutor: (@Sendable (AgentExecutor?) -> Void)?
+  ) async throws -> HealthHuntSubmit {
+    let promptMode = ModelRuntimeFactory.promptMode(settings: settings, modelRuntime: runtime)
+    let userPrompt = try Prompts.healthPrompt(
+      recon: recon,
+      priorSnapshot: prior,
+      focus: focus,
+      promptMode: promptMode
+    )
+    let executor = AgentExecutor { live in
+      onLive?(live)
+      onEvent(HeadlessCompassEvent(live: live, phase: .health))
+    }
+    bindExecutor?(executor)
+    let configuration = AgentExecutionConfiguration(
+      settings: settings,
+      phase: .health,
+      systemPrompt: Prompts.agentSystemPrompt(
+        phase: .health,
+        workingDirectoryPath: workspace.repoURL.path,
+        executionEnvironment: .macOSVM,
+        promptMode: promptMode
+      ),
+      userPrompt: userPrompt,
+      tools: ToolRegistry.tools(for: .health, promptMode: promptMode, healthFocus: focus),
+      modelRuntime: runtime,
+      agentVisibleWorkspacePath: "/workspace",
+      submitResultSchema: AgentToolParametersSchema(json: Data(Prompts.healthSchema.utf8)),
+      workingDirectory: workspace.repoURL,
+      filesystem: AgentHostFilesystem(),
+      bashRunner: bashRunner,
+      codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
+      planHistoryEntries: [],
+      assumptionsURL: workspace.assumptionsURL,
+      sessionNumber: sessionNumber,
+      promptLogLabelPrefix: "health",
+      validateSubmitResult: { args in
+        _ = try JSONDecoder().decode(HealthHuntSubmit.self, from: args)
+      },
+      promptMode: promptMode,
+      maxIterations: budget.maxIterations,
+      wallClockTimeout: TimeInterval(budget.wallClockSecs)
+    )
+    let result = try await executor.run(configuration)
+    _ = try? workspace.writeSessionAuditArtifact(
+      session: sessionNumber,
+      name: "health-submit-payload.json",
+      kind: "phase_submit_payload",
+      contents: String(decoding: result.submitResultArguments, as: UTF8.self),
+      note: "health submit payload."
+    )
+    return try JSONDecoder().decode(HealthHuntSubmit.self, from: result.submitResultArguments)
+  }
+}

@@ -418,21 +418,23 @@ public struct HeadlessCompassRunner: Sendable {
     }
   }
 
-  /// Pure chamber hunt for an imported Rust repo.
+  /// Pure health pass for an imported Rust repo.
   @discardableResult
-  public func runChamber(
+  public func runHealth(
     repoURL: URL,
     settings: AgentRuntimeSettings? = nil,
     mode: HeadlessModelMode = .auto,
     fixtureURL: URL? = nil,
     skipHunt: Bool = false,
-    budget: ChamberBudget = .chamberLoopDefault,
+    budget: HealthBudget = .healthLoopDefault,
+    focus: HealthFocus? = nil,
+    projectId: String = "cli",
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
   ) async throws -> Bool {
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
     var state = try workspace.readState()
-    state.projectKind = .chamber
+    state.projectKind = .health
     try workspace.writeState(state)
 
     let resolvedSettings = settings ?? AgentRuntimeSettings.defaultFromEnvironment()
@@ -443,14 +445,16 @@ public struct HeadlessCompassRunner: Sendable {
       onEvent: onEvent
     )
     let effectiveSettings = settings ?? resolvedSettings
-    var options = ChamberPassOptions.chamberLoop
+    var options = HealthPassOptions.healthLoop
     options.skipHunt = skipHunt
     options.budget = budget
-    let outcome = await ChamberPassRunner.run(
+    options.focus = focus
+    options.projectId = projectId
+    let outcome = await HealthPassRunner.run(
       workspace: workspace,
       settings: effectiveSettings,
       runtime: runtime,
-      bashRunner: bashRunnerFactory(repoURL, "chamber"),
+      bashRunner: bashRunnerFactory(repoURL, "health"),
       sessionNumber: 1,
       options: options,
       onEvent: onEvent
@@ -458,25 +462,25 @@ public struct HeadlessCompassRunner: Sendable {
     return outcome.errorMessage == nil
   }
 
-  public func evalChamber(
+  public func evalHealth(
     repoURL: URL,
     bugsTOML: URL,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
-  ) throws -> ChamberEvalScore {
+  ) throws -> HealthEvalScore {
     let workspace = CompassWorkspace(repoURL: repoURL)
     let snapshot =
-      ChamberSnapshotStore.readSnapshot(from: workspace)
-      ?? ChamberSnapshot()
+      HealthSnapshotStore.readSnapshot(from: workspace)
+      ?? HealthSnapshot()
     let text = try String(contentsOf: bugsTOML, encoding: .utf8)
-    let bugs = ChamberEval.parseBugsTOML(text)
-    let score = ChamberEval.score(bugs: bugs, snapshot: snapshot)
+    let bugs = HealthEval.parseBugsTOML(text)
+    let score = HealthEval.score(bugs: bugs, snapshot: snapshot)
     onEvent(
       HeadlessCompassEvent(
-        kind: "chamber_eval",
+        kind: "health_eval",
         level: "info",
         status: "completed",
         message:
-          "Chamber eval recall=\(String(format: "%.2f", score.recall)) control_fp=\(score.controlFalsePositives)",
+          "Health eval recall=\(String(format: "%.2f", score.recall)) control_fp=\(score.controlFalsePositives)",
         metadata: [
           "hits": score.hits.joined(separator: ","),
           "missed": score.missed.joined(separator: ","),
@@ -487,7 +491,7 @@ public struct HeadlessCompassRunner: Sendable {
     return score
   }
 
-  private func runChamberAfterShip(
+  private func runHealthAfterShip(
     workspace: CompassWorkspace,
     settings: AgentRuntimeSettings,
     runtime: any LocalModelGenerating,
@@ -496,12 +500,12 @@ public struct HeadlessCompassRunner: Sendable {
   ) async {
     let state = (try? workspace.readState()) ?? .empty
     guard state.projectKind == .factory else { return }
-    var options = ChamberPassOptions.factoryShip
-    _ = await ChamberPassRunner.run(
+    let options = HealthPassOptions.factoryShip
+    _ = await HealthPassRunner.run(
       workspace: workspace,
       settings: settings,
       runtime: runtime,
-      bashRunner: bashRunnerFactory(workspace.repoURL, "chamber"),
+      bashRunner: bashRunnerFactory(workspace.repoURL, "health"),
       sessionNumber: sessionNumber,
       options: options,
       onEvent: onEvent
@@ -1183,7 +1187,7 @@ public struct HeadlessCompassRunner: Sendable {
             onEvent: onEvent
           )
         }
-        await runChamberAfterShip(
+        await runHealthAfterShip(
           workspace: workspace,
           settings: settings,
           runtime: runtime,
@@ -1313,7 +1317,7 @@ public struct HeadlessCompassRunner: Sendable {
       focus: PlanFocus.weightedRandom(),
       coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
       mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
-      chamberSnapshot: ChamberSnapshotStore.readSnapshot(from: workspace),
+      healthSnapshot: HealthSnapshotStore.readSnapshot(from: workspace),
       promptMode: promptMode
     )
     _ = try workspace.writeSessionAuditArtifact(

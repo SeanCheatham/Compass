@@ -242,6 +242,11 @@ public final class SharedCompassVM: ObservableObject {
   /// not spawn a duplicate poller.
   var postBootReadinessTask: Task<Void, Never>?
 
+  /// Host agent SHA last confirmed present in the guest. Avoids SSH hash
+  /// checks on every bash call while still replanting after a Compass rebuild
+  /// that ships a new `CompassGuestAgent` without requiring a VM reboot.
+  var verifiedGuestAgentHostSHA: String?
+
   /// Serializes restore-image installation. `VZMacOSInstaller` mutates the
   /// bundle's disk image, auxiliary storage, and platform identity files; only
   /// one caller may touch that state at a time.

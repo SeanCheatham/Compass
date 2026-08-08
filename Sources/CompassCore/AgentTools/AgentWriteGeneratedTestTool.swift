@@ -1,6 +1,6 @@
 import Foundation
 
-/// Confined write tool for chamber: only `tests/compass_gen_*.rs`.
+/// Confined write tool for health bug-hunt: only `tests/compass_gen_*.rs`.
 public struct AgentWriteGeneratedTestTool: AgentTool {
   public static let toolName = "write_generated_test"
 
@@ -59,7 +59,7 @@ public struct AgentWriteGeneratedTestTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Create or overwrite a chamber-generated integration test under tests/compass_gen_*.rs only. Do not edit production sources.",
+        "Create or overwrite a health-generated integration test under tests/compass_gen_*.rs only. Do not edit production sources.",
       parameters: schema
     )
   }
@@ -74,8 +74,8 @@ public struct AgentWriteGeneratedTestTool: AgentTool {
       return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
 
-    let fileName = ChamberPaths.normalizeGeneratedTestFileName(args.path)
-    let relativePath = "\(ChamberPaths.generatedTestsDirectory)/\(fileName)"
+    let fileName = HealthPaths.normalizeGeneratedTestFileName(args.path)
+    let relativePath = "\(HealthPaths.generatedTestsDirectory)/\(fileName)"
 
     let url: URL
     do {
@@ -87,19 +87,19 @@ public struct AgentWriteGeneratedTestTool: AgentTool {
     }
 
     let testsRoot = context.workingDirectory
-      .appending(path: ChamberPaths.generatedTestsDirectory)
+      .appending(path: HealthPaths.generatedTestsDirectory)
       .standardizedFileURL.path
     let resolvedPath = url.standardizedFileURL.path
     guard resolvedPath == testsRoot || resolvedPath.hasPrefix(testsRoot + "/") else {
       return .failure(
         .invalidArguments(
-          "Refused: chamber may only write under \(ChamberPaths.generatedTestsDirectory)/\(ChamberPaths.generatedTestPrefix)*.rs."
+          "Refused: health bug hunt may only write under \(HealthPaths.generatedTestsDirectory)/\(HealthPaths.generatedTestPrefix)*.rs."
         ))
     }
-    guard ChamberPaths.isGeneratedTestFileName(url.lastPathComponent) else {
+    guard HealthPaths.isGeneratedTestFileName(url.lastPathComponent) else {
       return .failure(
         .invalidArguments(
-          "Refused: filename must be \(ChamberPaths.generatedTestPrefix)*.rs."
+          "Refused: filename must be \(HealthPaths.generatedTestPrefix)*.rs."
         ))
     }
 

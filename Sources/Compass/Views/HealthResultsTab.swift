@@ -1,29 +1,29 @@
 import CompassCore
 import SwiftUI
 
-struct ChamberResultsTab: View {
+struct HealthResultsTab: View {
   @ObservedObject var project: CompassProject
 
   var body: some View {
     Group {
-      if let snapshot = project.chamberSnapshot {
-        ChamberResultsContent(snapshot: snapshot, projectKind: project.projectKind)
+      if let snapshot = project.healthSnapshot {
+        HealthResultsContent(snapshot: snapshot, projectKind: project.projectKind)
       } else {
-        ChamberResultsEmptyPlaceholder(projectKind: project.projectKind)
+        HealthResultsEmptyPlaceholder(projectKind: project.projectKind)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
-private struct ChamberResultsEmptyPlaceholder: View {
+private struct HealthResultsEmptyPlaceholder: View {
   var projectKind: ProjectKind
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      SectionHeader("Chamber Results", systemImage: "flame")
+      SectionHeader("Health Results", systemImage: "heart.text.square")
       VStack(alignment: .leading, spacing: 8) {
-        Text("No chamber snapshot yet.")
+        Text("No health snapshot yet.")
           .font(.callout.weight(.semibold))
         Text(emptyDetail)
           .font(.callout)
@@ -40,27 +40,40 @@ private struct ChamberResultsEmptyPlaceholder: View {
   private var emptyDetail: String {
     switch projectKind {
     case .factory:
-      return "After a successful Critic/ship, Compass runs a chamber pass. Findings and generated tests will show up here as Plan pressure."
-    case .chamber:
-      return "Run a chamber hunt to populate findings, generated tests, and recon summary."
+      return "After a successful Critic/ship, Compass runs a health pass. Findings and generated tests will show up here as Plan pressure."
+    case .health:
+      return "Run a health pass to populate findings, proposed branch commits, and recon summary."
     }
   }
 }
 
-private struct ChamberResultsContent: View {
-  var snapshot: ChamberSnapshot
+private struct HealthResultsContent: View {
+  var snapshot: HealthSnapshot
   var projectKind: ProjectKind
 
-  private var confirmed: [ChamberFinding] {
+  private var confirmed: [HealthFinding] {
     snapshot.findings.filter(\.isConfirmedRealBug)
   }
 
-  private var mutants: [ChamberFinding] {
+  private var mutants: [HealthFinding] {
     snapshot.findings.filter { $0.kind == .survivingMutant }
   }
 
-  private var otherFindings: [ChamberFinding] {
-    snapshot.findings.filter { !$0.isConfirmedRealBug && $0.kind != .survivingMutant }
+  private var debt: [HealthFinding] {
+    snapshot.findings.filter {
+      switch $0.kind {
+      case .staleDoc, .orphanedSurface, .testGap, .deadCode: return true
+      default: return false
+      }
+    }
+  }
+
+  private var otherFindings: [HealthFinding] {
+    snapshot.findings.filter { finding in
+      !finding.isConfirmedRealBug
+        && finding.kind != .survivingMutant
+        && !debt.contains(where: { $0.id == finding.id })
+    }
   }
 
   var body: some View {
@@ -68,11 +81,19 @@ private struct ChamberResultsContent: View {
       VStack(alignment: .leading, spacing: 18) {
         header
         summaryStrip
+        branchSection
         if !confirmed.isEmpty {
           findingsSection(
             title: "Confirmed Bugs",
             systemImage: "exclamationmark.triangle.fill",
             findings: confirmed
+          )
+        }
+        if !debt.isEmpty {
+          findingsSection(
+            title: "Docs / Sprawl / Test Debt",
+            systemImage: "wrench.and.screwdriver",
+            findings: debt
           )
         }
         if !otherFindings.isEmpty {
@@ -95,7 +116,7 @@ private struct ChamberResultsContent: View {
         generatedTestsSection
         reconSection
         if !snapshot.plan.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-          proseSection(title: "Hunt Plan", systemImage: "list.bullet.rectangle", text: snapshot.plan)
+          proseSection(title: "Pass Plan", systemImage: "list.bullet.rectangle", text: snapshot.plan)
         }
         if !snapshot.notes.isEmpty {
           notesSection
@@ -108,7 +129,14 @@ private struct ChamberResultsContent: View {
 
   private var header: some View {
     HStack(alignment: .firstTextBaseline, spacing: 10) {
-      SectionHeader("Chamber Results", systemImage: "flame")
+      SectionHeader("Health Results", systemImage: "heart.text.square")
+      if let focus = snapshot.focus {
+        Text(focus.displayName)
+          .font(.caption.weight(.semibold))
+          .padding(.horizontal, 8)
+          .padding(.vertical, 3)
+          .background(.indigo.opacity(0.15), in: Capsule())
+      }
       if snapshot.partial {
         Text("Partial")
           .font(.caption.weight(.semibold))
@@ -140,9 +168,10 @@ private struct ChamberResultsContent: View {
   private var summaryStrip: some View {
     HStack(spacing: 10) {
       summaryChip(title: "Confirmed", value: "\(confirmed.count)", tint: .red)
-      summaryChip(title: "Other", value: "\(otherFindings.count)", tint: .orange)
+      summaryChip(title: "Debt", value: "\(debt.count)", tint: .orange)
       summaryChip(title: "Mutants", value: "\(mutants.count)", tint: .secondary)
       summaryChip(title: "Gen tests", value: "\(snapshot.generatedTests.count)", tint: .indigo)
+      summaryChip(title: "Commits", value: "\(snapshot.commits.count)", tint: .green)
       Spacer(minLength: 0)
     }
   }
@@ -161,11 +190,52 @@ private struct ChamberResultsContent: View {
     .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
   }
 
+  @ViewBuilder
+  private var branchSection: some View {
+    if snapshot.healthBranch != nil || snapshot.baseSHA != nil || !snapshot.commits.isEmpty {
+      VStack(alignment: .leading, spacing: 10) {
+        Label("Proposed Branch", systemImage: "arrow.triangle.branch")
+          .font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 6) {
+          if let branch = snapshot.healthBranch {
+            Text(branch)
+              .font(.callout.monospaced())
+              .textSelection(.enabled)
+          }
+          if let base = snapshot.baseSHA, let tip = snapshot.tipSHA {
+            Text("\(String(base.prefix(8)))..\(String(tip.prefix(8)))")
+              .font(.caption.monospaced())
+              .foregroundStyle(.secondary)
+          }
+          if snapshot.commits.isEmpty {
+            Text("No new commits on this pass.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else {
+            ForEach(snapshot.commits) { commit in
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(String(commit.sha.prefix(8)))
+                  .font(.caption.monospaced())
+                  .foregroundStyle(.secondary)
+                Text(commit.subject)
+                  .font(.caption)
+                  .textSelection(.enabled)
+              }
+            }
+          }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+  }
+
   private var emptyFindingsNote: some View {
     Text(
-      projectKind == .chamber
-        ? "This hunt recorded no findings."
-        : "Last chamber pass recorded no findings."
+      projectKind == .health
+        ? "This pass recorded no findings."
+        : "Last health pass recorded no findings."
     )
     .font(.callout)
     .foregroundStyle(.secondary)
@@ -177,14 +247,14 @@ private struct ChamberResultsContent: View {
   private func findingsSection(
     title: String,
     systemImage: String,
-    findings: [ChamberFinding]
+    findings: [HealthFinding]
   ) -> some View {
     VStack(alignment: .leading, spacing: 10) {
       Label(title, systemImage: systemImage)
         .font(.subheadline.weight(.semibold))
       VStack(alignment: .leading, spacing: 8) {
         ForEach(findings) { finding in
-          ChamberFindingRow(finding: finding)
+          HealthFindingRow(finding: finding)
         }
       }
     }
@@ -204,7 +274,7 @@ private struct ChamberResultsContent: View {
       } else {
         VStack(alignment: .leading, spacing: 8) {
           ForEach(Array(snapshot.generatedTests.enumerated()), id: \.offset) { _, test in
-            ChamberGeneratedTestRow(test: test)
+            HealthGeneratedTestRow(test: test)
           }
         }
       }
@@ -221,6 +291,18 @@ private struct ChamberResultsContent: View {
         if !recon.packageNames.isEmpty {
           Text("Packages: \(recon.packageNames.joined(separator: ", "))")
             .font(.callout)
+        }
+        if !recon.surfaces.binaries.isEmpty || !recon.surfaces.libraries.isEmpty {
+          Text(
+            "Surfaces — bins: \(recon.surfaces.binaries.joined(separator: ", ").nilIfEmpty ?? "—"); libs: \(recon.surfaces.libraries.joined(separator: ", ").nilIfEmpty ?? "—")"
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
+        if !recon.surfaces.docPaths.isEmpty {
+          Text("Docs: \(recon.surfaces.docPaths.prefix(6).joined(separator: ", "))")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         Text(
           "Baseline tests: \(baseline.success ? "ok" : "failed") · \(baseline.passed) passed · \(baseline.failed) failed · \(baseline.ignored) ignored"
@@ -296,8 +378,8 @@ private struct ChamberResultsContent: View {
   }
 }
 
-private struct ChamberFindingRow: View {
-  var finding: ChamberFinding
+private struct HealthFindingRow: View {
+  var finding: HealthFinding
   @State private var expanded = false
 
   var body: some View {
@@ -339,6 +421,11 @@ private struct ChamberFindingRow: View {
           .foregroundStyle(.tertiary)
           .textSelection(.enabled)
       }
+      if let sha = finding.commitSHA {
+        Text(String(sha.prefix(8)))
+          .font(.caption2.monospaced())
+          .foregroundStyle(.tertiary)
+      }
 
       if expanded {
         if !finding.description.isEmpty {
@@ -373,8 +460,8 @@ private struct ChamberFindingRow: View {
   }
 }
 
-private struct ChamberGeneratedTestRow: View {
-  var test: ChamberGeneratedTest
+private struct HealthGeneratedTestRow: View {
+  var test: HealthGeneratedTest
 
   var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -433,12 +520,22 @@ private struct ChamberGeneratedTestRow: View {
   }
 }
 
-extension ChamberFinding {
+extension HealthFinding {
   fileprivate var kindLabel: String {
     switch kind {
     case .failingGeneratedTest: return "Failing test"
     case .baselineFailure: return "Baseline"
     case .survivingMutant: return "Mutant"
+    case .staleDoc: return "Stale doc"
+    case .orphanedSurface: return "Orphaned"
+    case .testGap: return "Test gap"
+    case .deadCode: return "Dead code"
     }
+  }
+}
+
+private extension String {
+  var nilIfEmpty: String? {
+    trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
   }
 }

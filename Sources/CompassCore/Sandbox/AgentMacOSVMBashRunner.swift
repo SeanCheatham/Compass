@@ -241,6 +241,13 @@ public struct AgentMacOSVMBashRunner: AgentBashRunner {
         guard let virtualMachine = vm.virtualMachine else {
           throw VMRunnerError.vmNotReady(detail: "readiness reported ready but no VM is running")
         }
+        do {
+          try await vm.ensureGuestAgentMatchesHost(destination: sshDestination)
+        } catch {
+          throw VMRunnerError.vmNotReady(
+            detail: "Guest agent update failed: \(error.localizedDescription)"
+          )
+        }
         return ReadyVM(
           client: SharedCompassVM.makeVsockClient(on: virtualMachine),
           sshDestination: sshDestination,

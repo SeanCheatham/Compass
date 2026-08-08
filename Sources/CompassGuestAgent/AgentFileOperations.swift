@@ -324,6 +324,18 @@ enum AgentFileOperations {
     let stderrPipe = Pipe()
     process.standardOutput = stdoutPipe
     process.standardError = stderrPipe
+    // LaunchDaemon context often has stdin closed (no StandardInPath).
+    // Foundation.Process inherits that fd and posix_spawn fails with
+    // EBADF ("Bad file descriptor") unless we supply a real stdin.
+    // Open /dev/null explicitly — FileHandle.nullDevice is a shared
+    // handle and has been flaky under LaunchDaemon.
+    let stdinNull = FileHandle(forReadingAtPath: "/dev/null")
+    if let stdinNull {
+      process.standardInput = stdinNull
+    } else {
+      process.standardInput = FileHandle.nullDevice
+    }
+    defer { try? stdinNull?.close() }
     do {
       try process.run()
     } catch {

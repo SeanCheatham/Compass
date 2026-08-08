@@ -296,8 +296,8 @@ extension AgentExecutor {
       else {
         return nil
       }
-      let fileName = ChamberPaths.normalizeGeneratedTestFileName(args.path)
-      let relative = "\(ChamberPaths.generatedTestsDirectory)/\(fileName)"
+      let fileName = HealthPaths.normalizeGeneratedTestFileName(args.path)
+      let relative = "\(HealthPaths.generatedTestsDirectory)/\(fileName)"
       return .writeFile(
         path: relative,
         content: Self.capHead(args.content, bytes: Self.payloadMaxEditorBytes)

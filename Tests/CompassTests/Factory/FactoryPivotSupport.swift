@@ -232,8 +232,8 @@ func testConfiguration(
         _ = try JSONDecoder().decode(CriticVerdict.self, from: data)
       case .requirementsAudit:
         _ = try JSONDecoder().decode(RequirementsAuditResult.self, from: data)
-      case .chamber:
-        _ = try JSONDecoder().decode(ChamberHuntSubmit.self, from: data)
+      case .health:
+        _ = try JSONDecoder().decode(HealthHuntSubmit.self, from: data)
       }
     },
     maxIterations: maxIterations,

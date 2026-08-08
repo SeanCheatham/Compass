@@ -1,4 +1,4 @@
-//! Minimal chamber eval fixture: one seeded bug + one control API.
+//! Minimal health eval fixture: one seeded bug + one control API.
 
 /// Returns `n + 1` — documented as identity, intentionally wrong.
 pub fn bump(n: i32) -> i32 {

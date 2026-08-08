@@ -5,7 +5,7 @@ public enum AgentPhase: String, Sendable, CaseIterable {
   case develop
   case critic
   case requirementsAudit = "requirements_audit"
-  case chamber
+  case health
 }
 
 public struct AgentRuntimeSettings: Equatable, Sendable {

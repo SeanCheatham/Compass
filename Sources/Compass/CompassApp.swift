@@ -88,8 +88,8 @@ struct CompassApp: App {
         .keyboardShortcut("o", modifiers: [.command])
         .disabled(!isOnboardingComplete)
 
-        Button("Open Chamber…") {
-          Task { await model.chooseChamberRepository() }
+        Button("Open Health…") {
+          Task { await model.chooseHealthRepository() }
         }
         .keyboardShortcut("o", modifiers: [.command, .shift])
         .disabled(!isOnboardingComplete)

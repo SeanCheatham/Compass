@@ -316,30 +316,11 @@ enum SharedCompassVMHeadlessFirstBoot {
   /// unavailability as a hard failure, so leaving a dead agent isn't
   /// acceptable.
   static func renderGuestAgentLaunchDaemonPlist(profile: Profile) -> String {
-    """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
-    <plist version="1.0">
-    <dict>
-        <key>Label</key>
-        <string>\(guestAgentLaunchDaemonLabel)</string>
-        <key>ProgramArguments</key>
-        <array>
-            <string>\(profile.guestAgentBinaryGuestPath)</string>
-        </array>
-        <key>UserName</key>
-        <string>\(SharedCompassVMBundle.State.defaultGuestUserName)</string>
-        <key>RunAtLoad</key>
-        <true/>
-        <key>KeepAlive</key>
-        <true/>
-        <key>StandardOutPath</key>
-        <string>/tmp/compass-guest-agent.log</string>
-        <key>StandardErrorPath</key>
-        <string>/tmp/compass-guest-agent.log</string>
-    </dict>
-    </plist>
-    """
+    SharedCompassVMGuestAgentInstall.launchDaemonPlistContents(
+      binaryGuestPath: profile.guestAgentBinaryGuestPath,
+      launchDaemonLabel: guestAgentLaunchDaemonLabel,
+      guestUserName: SharedCompassVMBundle.State.defaultGuestUserName
+    )
   }
 
   /// Shell snippet that XOR-encodes `$PASSWORD` into `/etc/kcpassword`.

@@ -5,7 +5,11 @@
   "properties": {
     "plan": {
       "type": "string",
-      "description": "Short hunt plan: which APIs/contracts you probed and why."
+      "description": "Short plan: what you probed or cleaned and why."
+    },
+    "focus": {
+      "type": "string",
+      "enum": ["bugHunt", "test", "cleanup", "docs"]
     },
     "generatedTests": {
       "type": "array",
@@ -32,7 +36,15 @@
           "id": { "type": "string" },
           "kind": {
             "type": "string",
-            "enum": ["failingGeneratedTest", "baselineFailure", "survivingMutant"]
+            "enum": [
+              "failingGeneratedTest",
+              "baselineFailure",
+              "survivingMutant",
+              "staleDoc",
+              "orphanedSurface",
+              "testGap",
+              "deadCode"
+            ]
           },
           "title": { "type": "string" },
           "description": { "type": "string" },
@@ -48,7 +60,12 @@
               "rationale": { "type": "string" }
             }
           },
-          "evidence": { "type": "string" }
+          "evidence": { "type": "string" },
+          "commitSHA": { "type": ["string", "null"] },
+          "focus": {
+            "type": "string",
+            "enum": ["bugHunt", "test", "cleanup", "docs"]
+          }
         }
       }
     },

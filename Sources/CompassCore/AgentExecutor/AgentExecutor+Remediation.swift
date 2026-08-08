@@ -371,11 +371,12 @@ extension AgentExecutor {
           "summary": "<overall status>"
         }
         """
-    case .chamber:
+    case .health:
       return """
-        Chamber shape:
+        Health shape:
         {
-          "plan": "<hunt plan>",
+          "plan": "<pass plan>",
+          "focus": "bugHunt",
           "generatedTests": [],
           "findings": [],
           "notes": []

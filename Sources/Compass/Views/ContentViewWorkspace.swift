@@ -631,8 +631,8 @@ struct ProjectRunControls: View {
       CopyProjectSnapshotButton(payload: snapshotPayload)
       ProjectRunDecisionBadge(badge: runGuide.decisionBadge)
 
-      if project.projectKind == .chamber {
-        ChamberBudgetControls(project: project)
+      if project.projectKind == .health {
+        HealthBudgetControls(project: project)
           .disabled(project.isRunning || project.isAutoPlaying)
       }
 
@@ -708,20 +708,20 @@ struct ProjectRunControls: View {
 
   private func run(_ kind: ProjectRunControlGuide.Kind) {
     Task {
-      if project.projectKind == .chamber {
+      if project.projectKind == .health {
         switch kind {
         case .loop:
-          await project.playChamber(
+          await project.playHealth(
             agentSettings: model.agentSettings,
             modelOverride: model.modelOverride
           )
         case .planOnly:
-          await project.runChamberReconOnly(
+          await project.runHealthReconOnly(
             agentSettings: model.agentSettings,
             modelOverride: model.modelOverride
           )
         case .developOnly:
-          await project.runChamberHuntOnly(
+          await project.runHealthHuntOnly(
             agentSettings: model.agentSettings,
             modelOverride: model.modelOverride
           )
@@ -749,20 +749,20 @@ struct ProjectRunControls: View {
   }
 }
 
-private struct ChamberBudgetControls: View {
+private struct HealthBudgetControls: View {
   @ObservedObject var project: CompassProject
 
   private var turnsBinding: Binding<Int> {
     Binding(
-      get: { project.chamberBudget.maxIterations },
-      set: { project.chamberBudget.maxIterations = max(1, $0) }
+      get: { project.healthBudget.maxIterations },
+      set: { project.healthBudget.maxIterations = max(1, $0) }
     )
   }
 
   private var minutesBinding: Binding<Int> {
     Binding(
-      get: { max(1, project.chamberBudget.wallClockSecs / 60) },
-      set: { project.chamberBudget.wallClockSecs = max(30, $0 * 60) }
+      get: { max(1, project.healthBudget.wallClockSecs / 60) },
+      set: { project.healthBudget.wallClockSecs = max(30, $0 * 60) }
     )
   }
 
@@ -778,7 +778,7 @@ private struct ChamberBudgetControls: View {
       )
       .textFieldStyle(.roundedBorder)
       .frame(width: 56)
-      .help("Max chamber agent turns for this run (in-memory; not saved to the repo).")
+      .help("Max health agent turns for this run (in-memory; not saved to the repo).")
 
       Text("Min")
         .font(.caption)
@@ -790,12 +790,12 @@ private struct ChamberBudgetControls: View {
       )
       .textFieldStyle(.roundedBorder)
       .frame(width: 44)
-      .help("Wall-clock limit in minutes for this chamber run (in-memory).")
+      .help("Wall-clock limit in minutes for this health run (in-memory).")
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("Chamber budget")
+    .accessibilityLabel("Health budget")
     .accessibilityValue(
-      "\(project.chamberBudget.maxIterations) turns, \(max(1, project.chamberBudget.wallClockSecs / 60)) minutes"
+      "\(project.healthBudget.maxIterations) turns, \(max(1, project.healthBudget.wallClockSecs / 60)) minutes"
     )
   }
 }
@@ -922,7 +922,7 @@ struct WorkspaceContent: View {
       case .activity:
         ActivityTab(project: project)
       case .results:
-        ChamberResultsTab(project: project)
+        HealthResultsTab(project: project)
       case .studio:
         StudioTab(project: project)
       }

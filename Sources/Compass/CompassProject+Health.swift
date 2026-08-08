@@ -4,8 +4,8 @@ import Foundation
 
 @MainActor
 extension CompassProject {
-  /// Post-ship chamber pass (fail-open). Feeds Plan pressure via snapshot.
-  func runChamberPassAfterShip(
+  /// Post-ship health pass (fail-open). Feeds Plan pressure via snapshot.
+  func runHealthPassAfterShip(
     workspace: CompassWorkspace,
     agentSettings: AgentRuntimeSettings,
     modelOverride: String,
@@ -13,7 +13,7 @@ extension CompassProject {
   ) async {
     guard state.projectKind == .factory else { return }
     phase = .hunting
-    log("Chamber pass after ship…", level: .info)
+    log("Health pass after ship…", level: .info)
     let sessionNumber = sessions.indices.contains(sessionIndex) ? sessions[sessionIndex].session : 0
     var settings = agentSettings
     if !modelOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -21,9 +21,9 @@ extension CompassProject {
     }
     let runtime = ModelRuntimeFactory.makeRouted(settings: settings)
     let environment = resolveAgentEnvironment(forHostURL: workspace.repoURL)
-    var options = ChamberPassOptions.factoryShip
-    options.budget = chamberBudget
-    let outcome = await ChamberPassRunner.run(
+    var options = HealthPassOptions.factoryShip
+    options.budget = healthBudget
+    let outcome = await HealthPassRunner.run(
       workspace: workspace,
       settings: settings,
       runtime: runtime,
@@ -32,7 +32,7 @@ extension CompassProject {
       options: options,
       onEvent: { [weak self] event in
         Task { @MainActor in
-          self?.logChamberStatus(event)
+          self?.logHealthStatus(event)
         }
       },
       onLive: { [weak self] live in
@@ -47,27 +47,27 @@ extension CompassProject {
       }
     )
     executor = nil
-    chamberSnapshot = outcome.snapshot
+    healthSnapshot = outcome.snapshot
     if let error = outcome.errorMessage {
-      log("Chamber pass warning: \(error)", level: .warning)
+      log("Health pass warning: \(error)", level: .warning)
     } else {
       let confirmed = outcome.snapshot.findings.filter(\.isConfirmedRealBug).count
       log(
-        "Chamber pass recorded \(outcome.snapshot.findings.count) finding(s) (\(confirmed) confirmed).",
+        "Health pass recorded \(outcome.snapshot.findings.count) finding(s) (\(confirmed) confirmed).",
         level: .success
       )
     }
   }
 
-  func playChamber(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
+  func playHealth(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
     guard !isRunning, !isAutoPlaying else { return }
     stopRequested = false
     isAutoPlaying = true
     isPaused = false
-    log("Chamber auto-play started.", level: .success)
+    log("Health auto-play started.", level: .success)
 
     while isAutoPlaying, !isPaused, !stopRequested {
-      let ok = await runChamberHuntPass(
+      let ok = await runHealthPass(
         agentSettings: agentSettings,
         modelOverride: modelOverride,
         failOpen: false
@@ -76,28 +76,27 @@ extension CompassProject {
         isAutoPlaying = false
         return
       }
-      // One full hunt per play iteration; stop unless user starts again.
       isAutoPlaying = false
       phase = .succeeded
-      log("Chamber hunt completed.", level: .success)
+      log("Health pass completed.", level: .success)
       return
     }
   }
 
-  func runChamberHuntOnly(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
+  func runHealthHuntOnly(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
     guard !isRunning else { return }
     isAutoPlaying = false
-    _ = await runChamberHuntPass(
+    _ = await runHealthPass(
       agentSettings: agentSettings,
       modelOverride: modelOverride,
       failOpen: false
     )
   }
 
-  func runChamberReconOnly(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
+  func runHealthReconOnly(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
     guard !isRunning else { return }
     isAutoPlaying = false
-    _ = await runChamberHuntPass(
+    _ = await runHealthPass(
       agentSettings: agentSettings,
       modelOverride: modelOverride,
       failOpen: false,
@@ -106,7 +105,7 @@ extension CompassProject {
   }
 
   @discardableResult
-  func runChamberHuntPass(
+  func runHealthPass(
     agentSettings: AgentRuntimeSettings,
     modelOverride: String,
     failOpen: Bool,
@@ -127,10 +126,10 @@ extension CompassProject {
       try await initializeIfNeeded(workspace)
       try await requireMacOSVMReady()
       var current = try workspace.readState()
-      current.projectKind = .chamber
+      current.projectKind = .health
       try workspace.writeState(current)
       state = current
-      projectKind = .chamber
+      projectKind = .health
 
       sessionIndex = startSession()
       let sessionNumber = sessions[sessionIndex!].session
@@ -141,12 +140,13 @@ extension CompassProject {
       }
       let runtime = ModelRuntimeFactory.makeRouted(settings: settings)
       let environment = resolveAgentEnvironment(forHostURL: workspace.repoURL)
-      var options = ChamberPassOptions.chamberLoop
+      var options = HealthPassOptions.healthLoop
       options.failOpen = failOpen
       options.skipHunt = skipHunt
-      options.budget = chamberBudget
+      options.budget = healthBudget
+      options.projectId = id.uuidString
 
-      let outcome = await ChamberPassRunner.run(
+      let outcome = await HealthPassRunner.run(
         workspace: workspace,
         settings: settings,
         runtime: runtime,
@@ -155,7 +155,7 @@ extension CompassProject {
         options: options,
         onEvent: { [weak self] event in
           Task { @MainActor in
-            self?.logChamberStatus(event)
+            self?.logHealthStatus(event)
           }
         },
         onLive: { [weak self] live in
@@ -169,14 +169,14 @@ extension CompassProject {
           }
         }
       )
-      chamberSnapshot = outcome.snapshot
+      healthSnapshot = outcome.snapshot
       if let error = outcome.errorMessage, !failOpen {
         phase = .failed
         errorMessage = error
         if let sessionIndex {
           endSession(sessionIndex, status: .failed)
         }
-        log("Chamber hunt failed: \(error)", level: .error)
+        log("Health pass failed: \(error)", level: .error)
         return false
       }
       phase = .succeeded
@@ -194,12 +194,11 @@ extension CompassProject {
     }
   }
 
-  /// High-level chamber status lines for Activity (Studio gets full LiveEvents via `onLive`).
-  private func logChamberStatus(_ event: HeadlessCompassEvent) {
+  /// High-level health status lines for Activity (Studio gets full LiveEvents via `onLive`).
+  private func logHealthStatus(_ event: HeadlessCompassEvent) {
     switch event.kind {
     case "tool_start", "tool_end", "assistant_json", "submit_accepted", "submit_rejected",
       "continuation_repair":
-      // Mirrored already through onLive → Studio / Activity LiveEvent stream.
       return
     default:
       break

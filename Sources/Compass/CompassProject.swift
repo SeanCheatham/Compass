@@ -41,9 +41,9 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var activeStorageActivationConfirmation: CompassWorkspaceStorageActivationConfirmation?
   @Published var storageMigrationState = CompassProjectStorageMigrationState.idle
   @Published var storageMigrationConfirmation: CompassWorkspaceStorageMigrationConfirmation?
-  @Published var chamberSnapshot: ChamberSnapshot?
-  /// In-memory chamber hunt budget (not persisted to `.compass/state.json`).
-  @Published var chamberBudget: ChamberBudget
+  @Published var healthSnapshot: HealthSnapshot?
+  /// In-memory health pass budget (not persisted to `.compass/state.json`).
+  @Published var healthBudget: HealthBudget
 
   var addedAt: Date
   var lastOpenedAt: Date
@@ -116,7 +116,7 @@ final class CompassProject: ObservableObject, Identifiable {
     lastOpenedAt: Date = Date(),
     nativeFeedbackMode: NativeFeedbackMode = .notifications,
     studioThinkingNarrationEnabled: Bool = false,
-    chamberBudget: ChamberBudget? = nil,
+    healthBudget: HealthBudget? = nil,
     storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots =
       KnownProjectStore.productionApplicationSupportRoots(),
     storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
@@ -126,9 +126,9 @@ final class CompassProject: ObservableObject, Identifiable {
     self.id = id
     self.repoURL = repoURL.standardizedFileURL
     self.projectKind = projectKind
-    self.chamberBudget =
-      chamberBudget
-      ?? (projectKind == .chamber ? .chamberLoopDefault : .factoryShipDefault)
+    self.healthBudget =
+      healthBudget
+      ?? (projectKind == .health ? .healthLoopDefault : .factoryShipDefault)
     self.activeStorage = activeStorage
     activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned(
       activeStorage: activeStorage)

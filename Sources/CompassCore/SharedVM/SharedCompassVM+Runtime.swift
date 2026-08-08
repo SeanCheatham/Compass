@@ -340,6 +340,11 @@ extension SharedCompassVM {
       source: "host"
     )
     if liveAgentReachable && agentCurrent {
+      if let hostSHA = try? SharedCompassVMGuestAgentInstall.hostBinarySHA256(
+        fileManager: dependencies.fileManager
+      ) {
+        verifiedGuestAgentHostSHA = hostSHA
+      }
       return true
     }
 
@@ -374,7 +379,73 @@ extension SharedCompassVM {
       return false
     }
     appendDiagnostic("Guest agent reachable over vsock after repair.", source: "host")
+    if let hostSHA = try? SharedCompassVMGuestAgentInstall.hostBinarySHA256(
+      fileManager: dependencies.fileManager
+    ) {
+      verifiedGuestAgentHostSHA = hostSHA
+    }
     return true
+  }
+
+  /// When the Shared VM is already `.ready`, boot-time agent repair never
+  /// runs again. Call this before bash so a rebuilt Compass host still
+  /// replants a mismatched guest agent (e.g. the EBADF stdin fix).
+  public func ensureGuestAgentMatchesHost(destination: String) async throws {
+    let hostSHA: String
+    do {
+      hostSHA = try SharedCompassVMGuestAgentInstall.hostBinarySHA256(
+        fileManager: dependencies.fileManager
+      )
+    } catch {
+      // No bundled agent beside this host binary — nothing to compare.
+      return
+    }
+    if verifiedGuestAgentHostSHA == hostSHA { return }
+
+    let options = SharedCompassVMGuestBridge.ConnectionOptions(
+      identityFile: bundle.privateKeyURL.path,
+      knownHostsFile: bundle.knownHostsURL.path,
+      connectTimeoutSeconds: 5
+    )
+    let matches = await SharedCompassVMGuestAgentInstall.installedAgentMatchesHost(
+      destination: destination,
+      options: options,
+      fileManager: dependencies.fileManager
+    )
+    if matches {
+      verifiedGuestAgentHostSHA = hostSHA
+      return
+    }
+
+    appendDiagnostic(
+      "Guest agent binary stale while VM ready; repairing over SSH…",
+      source: "host"
+    )
+    try await SharedCompassVMGuestAgentInstall.repairOverSSH(
+      destination: destination,
+      options: options,
+      fileManager: dependencies.fileManager
+    )
+    guard let machine = virtualMachine else {
+      throw SharedCompassVMGuestAgentInstall.InstallError.installFailed(
+        exitCode: 1,
+        stderr: "Shared VM is not running after guest agent repair."
+      )
+    }
+    guard
+      await SharedCompassVMVsock.waitUntilReachable(
+        on: machine,
+        timeout: 45,
+        probeTimeout: 5
+      )
+    else {
+      throw SharedCompassVMGuestAgentInstall.InstallError.installFailed(
+        exitCode: 1,
+        stderr: "Guest agent did not become reachable over vsock after repair."
+      )
+    }
+    verifiedGuestAgentHostSHA = hostSHA
+    appendDiagnostic("Guest agent repaired while VM was ready.", source: "host")
   }
 
   private func probeGuestAgentOnce(on machine: VZVirtualMachine, timeout: TimeInterval) async

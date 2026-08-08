@@ -90,7 +90,7 @@ extension CompassProject {
         focus: focus,
         coverageSnapshot: CoverageSnapshotStore.readCoverageSnapshot(from: workspace),
         mutationSnapshot: MutationSnapshotStore.readMutationSnapshot(from: workspace),
-        chamberSnapshot: ChamberSnapshotStore.readSnapshot(from: workspace),
+        healthSnapshot: HealthSnapshotStore.readSnapshot(from: workspace),
         promptMode: ModelRuntimeFactory.promptMode(settings: agentSettings)
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -605,7 +605,7 @@ extension CompassProject {
                 commit: commit
               )
             }
-            await runChamberPassAfterShip(
+            await runHealthPassAfterShip(
               workspace: workspace,
               agentSettings: agentSettings,
               modelOverride: modelOverride,

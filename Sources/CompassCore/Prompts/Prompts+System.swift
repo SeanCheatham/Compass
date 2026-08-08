@@ -95,11 +95,11 @@ extension Prompts {
         - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused evidence gathering
         - Assumptions: \(assumptionTools)
         """
-    case .chamber:
+    case .health:
       toolList = """
         - Codemap: \(codemapTools)
         - Files: \(fileTools)
-        - Chamber: write_generated_test (tests/compass_gen_*.rs only)
+        - Health: write_generated_test and/or scoped write_file/edit_file (focus-dependent)
         - Shell: bash for cargo test and read-only probes (no production file mutation via shell)
         - Assumptions: \(assumptionTools)
         """
@@ -158,10 +158,10 @@ extension Prompts {
 
   public static func compassOverviewSection() -> String {
     """
-    Compass is a macOS host app with two project kinds: factory and chamber.
-    Factory loop: Brief -> Plan -> Develop -> Verify -> Critic -> Chamber (Plan pressure)
-    -> Requirements Audit. Chamber projects run a pure adversarial test-generation loop
-    (recon -> hunt -> triage) without shipping product code.
+    Compass is a macOS host app with two project kinds: factory and health.
+    Factory loop: Brief -> Plan -> Develop -> Verify -> Critic -> Health (Plan pressure)
+    -> Requirements Audit. Health projects improve an imported Rust repo
+    (recon -> focused pass -> triage) with proposed patches on a Compass branch.
     Compass uses an OpenAI-compatible cloud model for agent turns when configured, with
     optional local MLX assist for cheap work, and keeps the harness responsible for state,
     verification, files, history, assumptions, and retries.
@@ -172,7 +172,8 @@ extension Prompts {
     coverage uses `cargo llvm-cov`. When `macos` is enabled, also run
     `bash scripts/verify-macos.sh` inside the embedded macOS VM. Headed launch/screenshot
     is opt-in via `COMPASS_MACOS_UI_FIDELITY=1` (see `docs/ui-runtime.md`).
-    Chamber writes only `tests/compass_gen_*.rs` and runs tests inside the same macOS VM.
+    Health focuses include bug hunt (compass_gen tests), tests, docs, and cleanup/sprawl;
+    agent bash runs inside the same macOS VM.
     """
   }
 
@@ -187,9 +188,9 @@ extension Prompts {
     case .requirementsAudit:
       return
         "Current role: Requirements Audit. Judge in-scope product requirements against the repo with evidence."
-    case .chamber:
+    case .health:
       return
-        "Current role: Chamber. Write failing compass_gen tests to surface real bugs; do not edit production sources."
+        "Current role: Health. Improve the repo along the current focus (bug hunt, tests, docs, or cleanup); propose patches without merging upstream."
     }
   }
 

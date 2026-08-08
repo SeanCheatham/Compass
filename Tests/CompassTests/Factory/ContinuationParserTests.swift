@@ -111,6 +111,8 @@ struct ContinuationParserTests {
       .critic: #"{"verdict":"approve","summary":"No blockers","feedback":""}"#,
       .requirementsAudit:
         #"{"results":[{"requirementID":"r1","verdict":"satisfied","evidence":["ok"],"proposedCriteria":[]}],"summary":"All good"}"#,
+      .health:
+        #"{"plan":"hunt","generatedTests":[],"findings":[],"notes":[]}"#,
       .delegate: #"{"findings":"No blockers found."}"#,
     ]
 

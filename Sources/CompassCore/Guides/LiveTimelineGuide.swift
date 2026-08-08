@@ -182,7 +182,7 @@ public struct LiveTimelineGuide: Equatable, Sendable {
       )
     case .hunting:
       return (
-        "Chamber Hunt",
+        "Health Pass",
         "Compass is generating failing tests to surface real bugs. Findings feed Plan pressure.",
         statusLabel,
         "flame.fill"

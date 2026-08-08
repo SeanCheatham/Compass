@@ -42,6 +42,7 @@ struct PreferredSpeechVoiceTests {
     #expect(PreferredSpeechVoice.preferredNameStem(for: .plan) == "lee")
     #expect(PreferredSpeechVoice.preferredNameStem(for: .develop) == "zoe")
     #expect(PreferredSpeechVoice.preferredNameStem(for: .critic) == "matilda")
+    #expect(PreferredSpeechVoice.preferredNameStem(for: .health) == "aaron")
   }
 
   @Test

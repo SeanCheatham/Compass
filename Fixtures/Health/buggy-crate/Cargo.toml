@@ -1,5 +1,5 @@
 [package]
-name = "chamber_buggy_crate"
+name = "health_buggy_crate"
 version = "0.1.0"
 edition = "2021"
 

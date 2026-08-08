@@ -59,12 +59,12 @@ struct SidebarView: View {
         .help("Add existing Git repo as factory project")
 
         Button {
-          Task { await model.chooseChamberRepository() }
+          Task { await model.chooseHealthRepository() }
         } label: {
-          Label("Open Chamber", systemImage: "flame")
+          Label("Open Health", systemImage: "heart.text.square")
         }
         .labelStyle(.iconOnly)
-        .help("Open existing Rust repo as chamber (test hunt)")
+        .help("Open existing Rust repo as health (bug hunt, tests, docs, cleanup)")
       }
 
       if model.projects.isEmpty {
@@ -301,8 +301,8 @@ struct ProjectListRow: View {
             .font(.callout.weight(.semibold))
             .foregroundStyle(.primary)
             .lineLimit(1)
-          if project.projectKind == .chamber {
-            Text("Chamber")
+          if project.projectKind == .health {
+            Text("Health")
               .font(.caption2.weight(.semibold))
               .padding(.horizontal, 5)
               .padding(.vertical, 1)

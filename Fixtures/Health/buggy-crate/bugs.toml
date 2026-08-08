@@ -1,4 +1,4 @@
-# Ground truth for chamber eval scoring.
+# Ground truth for health eval scoring.
 
 [[bugs]]
 id = "bump_identity"

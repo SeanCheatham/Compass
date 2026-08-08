@@ -487,6 +487,76 @@ public struct CompassWorkspace {
     }
     text += "\(marker)\n"
     try text.write(to: gitignoreURL, atomically: true, encoding: .utf8)
+    try commitGitignoreIfNeeded()
+  }
+
+  /// Stage and commit only `.gitignore` so workspace init does not leave a dirty tree.
+  private func commitGitignoreIfNeeded() throws {
+    guard CompassWorkspace.isGitRepository(repoURL) else { return }
+    let status = try runGit(["status", "--porcelain", "--", ".gitignore"])
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !status.isEmpty else { return }
+    try runGit(["add", "--", ".gitignore"])
+    let result = try runGitResult([
+      "-c", "user.name=Compass",
+      "-c", "user.email=compass@localhost",
+      "commit",
+      "-m", "Ignore Compass workspace (.compass/)",
+      "--", ".gitignore",
+    ])
+    if result.exitCode != 0 {
+      let detail = (result.stderr.isEmpty ? result.stdout : result.stderr)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      throw NSError(
+        domain: "CompassWorkspace",
+        code: 1,
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "Failed to commit .gitignore update: \(detail.isEmpty ? "git commit failed" : detail)"
+        ]
+      )
+    }
+  }
+
+  @discardableResult
+  private func runGit(_ args: [String]) throws -> String {
+    let result = try runGitResult(args)
+    if result.exitCode != 0 {
+      let detail = (result.stderr.isEmpty ? result.stdout : result.stderr)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      throw NSError(
+        domain: "CompassWorkspace",
+        code: 1,
+        userInfo: [
+          NSLocalizedDescriptionKey: detail.isEmpty
+            ? "git \(args.joined(separator: " ")) failed"
+            : detail
+        ]
+      )
+    }
+    return result.stdout
+  }
+
+  private func runGitResult(_ args: [String]) throws -> (
+    exitCode: Int32, stdout: String, stderr: String
+  ) {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    process.arguments = ["-C", repoURL.path] + args
+    process.currentDirectoryURL = repoURL
+    let stdout = Pipe()
+    let stderr = Pipe()
+    process.standardOutput = stdout
+    process.standardError = stderr
+    try process.run()
+    process.waitUntilExit()
+    let outData = stdout.fileHandleForReading.readDataToEndOfFile()
+    let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+    return (
+      process.terminationStatus,
+      String(data: outData, encoding: .utf8) ?? "",
+      String(data: errData, encoding: .utf8) ?? ""
+    )
   }
 }
 

@@ -1,46 +1,52 @@
 import Foundation
 
-/// Deterministic chamber recon: package list + baseline `cargo test` via VM bash.
-public enum ChamberRecon {
+/// Deterministic health recon: packages, surfaces, baseline `cargo test` via VM bash.
+public enum HealthRecon {
   public static func run(
     repoURL: URL,
     bashRunner: AgentBashRunner,
     timeout: TimeInterval = 600,
     onLive: (@Sendable (LiveEvent) -> Void)? = nil
-  ) async -> ChamberReconResult {
+  ) async -> HealthReconResult {
     var notes: [String] = []
     var packageNames: [String] = []
+    var surfaces = HealthSurfaceInventory()
 
     let metaCommand =
       "cargo metadata --no-deps --format-version 1 2>/dev/null | head -c 200000"
     let meta = await runMirroredBash(
       command: metaCommand,
-      label: "chamber recon metadata",
+      label: "health recon metadata",
       repoURL: repoURL,
       bashRunner: bashRunner,
       timeout: min(timeout, 120),
       onLive: onLive
     )
     if let meta, meta.exitCode == 0 {
-      packageNames = parsePackageNames(from: meta.stdout)
+      let parsed = parseMetadata(from: meta.stdout)
+      packageNames = parsed.names
+      surfaces.binaries = parsed.binaries
+      surfaces.libraries = parsed.libraries
     } else {
       notes.append("cargo metadata failed or unavailable")
     }
 
+    surfaces.docPaths = discoverDocPaths(in: repoURL)
+
     let testCommand =
-      "cargo test --workspace -- --nocapture 2>&1 | tee /tmp/compass-chamber-baseline.log | tail -c 80000"
+      "cargo test --workspace -- --nocapture 2>&1 | tee /tmp/compass-health-baseline.log | tail -c 80000"
     let testResult = await runMirroredBash(
       command: testCommand,
-      label: "chamber recon baseline",
+      label: "health recon baseline",
       repoURL: repoURL,
       bashRunner: bashRunner,
       timeout: timeout,
       onLive: onLive
     )
-    let baseline: ChamberTestRunSummary
+    let baseline: HealthTestRunSummary
     if let testResult {
       let combined = testResult.stdout + testResult.stderr
-      baseline = ChamberTestRunSummary(
+      baseline = HealthTestRunSummary(
         success: testResult.exitCode == 0,
         passed: countMatches(#"(\d+) passed"#, in: combined),
         failed: countMatches(#"(\d+) failed"#, in: combined),
@@ -49,34 +55,68 @@ public enum ChamberRecon {
         stderr: String(testResult.stderr.suffix(8_000))
       )
       if !baseline.success {
-        notes.append("baseline cargo test failed — treat as chamber signal")
+        notes.append("baseline cargo test failed — treat as health signal")
       }
     } else {
-      baseline = ChamberTestRunSummary(success: false, stderr: "baseline cargo test did not run")
+      baseline = HealthTestRunSummary(success: false, stderr: "baseline cargo test did not run")
       notes.append("baseline cargo test did not run")
     }
 
-    var targets: [ChamberRankedTarget] = []
+    var targets: [HealthRankedTarget] = []
     for name in packageNames.prefix(12) {
       targets.append(
-        ChamberRankedTarget(
+        HealthRankedTarget(
           path: "crates/\(name)/src",
           functionHint: nil,
           reason: "package \(name)",
           priority: 1
         ))
     }
+    for doc in surfaces.docPaths.prefix(6) {
+      targets.append(
+        HealthRankedTarget(path: doc, reason: "doc surface", priority: 2)
+      )
+    }
     if targets.isEmpty {
       targets.append(
-        ChamberRankedTarget(path: "src", reason: "default crate root", priority: 1))
+        HealthRankedTarget(path: "src", reason: "default crate root", priority: 1))
     }
 
-    return ChamberReconResult(
+    return HealthReconResult(
       packageNames: packageNames,
       baselineTests: baseline,
       rankedTargets: targets,
+      surfaces: surfaces,
       notes: notes
     )
+  }
+
+  private static func discoverDocPaths(in repoURL: URL) -> [String] {
+    var paths: [String] = []
+    let fm = FileManager.default
+    for name in ["README.md", "README", "README.txt", "CHANGELOG.md"] {
+      let url = repoURL.appending(path: name)
+      if fm.fileExists(atPath: url.path) {
+        paths.append(name)
+      }
+    }
+    let docs = repoURL.appending(path: "docs")
+    if let enumerator = fm.enumerator(
+      at: docs,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles]
+    ) {
+      var count = 0
+      for case let fileURL as URL in enumerator {
+        guard count < 24 else { break }
+        let rel = fileURL.path.replacingOccurrences(of: repoURL.path + "/", with: "")
+        if rel.hasSuffix(".md") {
+          paths.append(rel)
+          count += 1
+        }
+      }
+    }
+    return paths
   }
 
   private static func runMirroredBash(
@@ -101,7 +141,7 @@ public enum ChamberRecon {
           "tool": "bash",
           "command": command,
           "timeoutMs": "\(timeoutMs)",
-          "phase": AgentPhase.chamber.rawValue,
+          "phase": AgentPhase.health.rawValue,
         ],
         payload: .bash(
           command: command,
@@ -136,7 +176,7 @@ public enum ChamberRecon {
             "command": command,
             "exitCode": "\(result.exitCode)",
             "isError": failed ? "true" : "false",
-            "phase": AgentPhase.chamber.rawValue,
+            "phase": AgentPhase.health.rawValue,
           ],
           payload: .bash(
             command: command,
@@ -160,7 +200,7 @@ public enum ChamberRecon {
             "tool": "bash",
             "command": command,
             "isError": "true",
-            "phase": AgentPhase.chamber.rawValue,
+            "phase": AgentPhase.health.rawValue,
           ],
           payload: .bash(
             command: command,
@@ -174,12 +214,29 @@ public enum ChamberRecon {
     }
   }
 
-  private static func parsePackageNames(from metadataJSON: String) -> [String] {
+  private static func parseMetadata(from metadataJSON: String) -> (
+    names: [String], binaries: [String], libraries: [String]
+  ) {
     guard let data = metadataJSON.data(using: .utf8),
       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       let packages = obj["packages"] as? [[String: Any]]
-    else { return [] }
-    return packages.compactMap { $0["name"] as? String }.sorted()
+    else { return ([], [], []) }
+    var names: [String] = []
+    var binaries: [String] = []
+    var libraries: [String] = []
+    for package in packages {
+      if let name = package["name"] as? String {
+        names.append(name)
+      }
+      guard let targets = package["targets"] as? [[String: Any]] else { continue }
+      for target in targets {
+        let name = target["name"] as? String ?? ""
+        let kinds = target["kind"] as? [String] ?? []
+        if kinds.contains("bin") { binaries.append(name) }
+        if kinds.contains("lib") || kinds.contains("rlib") { libraries.append(name) }
+      }
+    }
+    return (names.sorted(), Array(Set(binaries)).sorted(), Array(Set(libraries)).sorted())
   }
 
   private static func countMatches(_ pattern: String, in text: String) -> Int {

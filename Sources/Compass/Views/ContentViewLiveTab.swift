@@ -787,7 +787,7 @@ struct ThinkingLiveRow: View {
     case .auditing:
       return "Auditing requirements"
     case .hunting:
-      return "Chamber is hunting"
+      return "Health is running"
     default:
       return "Agent is working"
     }

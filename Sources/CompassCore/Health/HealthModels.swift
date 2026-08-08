@@ -1,12 +1,16 @@
 import Foundation
 
-public enum ChamberFindingKind: String, Codable, Equatable, Sendable {
+public enum HealthFindingKind: String, Codable, Equatable, Sendable {
   case failingGeneratedTest
   case baselineFailure
   case survivingMutant
+  case staleDoc
+  case orphanedSurface
+  case testGap
+  case deadCode
 }
 
-public struct ChamberTriageResult: Codable, Equatable, Sendable {
+public struct HealthTriageResult: Codable, Equatable, Sendable {
   public var isRealBug: Bool
   public var rationale: String
 
@@ -16,31 +20,36 @@ public struct ChamberTriageResult: Codable, Equatable, Sendable {
   }
 }
 
-public struct ChamberFinding: Codable, Equatable, Sendable, Identifiable {
+public struct HealthFinding: Codable, Equatable, Sendable, Identifiable {
   public var id: String
-  public var kind: ChamberFindingKind
+  public var kind: HealthFindingKind
   public var title: String
   public var description: String
   public var file: String?
   public var testPath: String?
   public var confidence: Double
-  public var triage: ChamberTriageResult?
+  public var triage: HealthTriageResult?
   public var evidence: String
+  public var commitSHA: String?
+  public var focus: HealthFocus?
 
   public enum CodingKeys: String, CodingKey {
-    case id, kind, title, description, file, testPath, confidence, triage, evidence
+    case id, kind, title, description, file, testPath, confidence, triage, evidence, commitSHA,
+      focus
   }
 
   public init(
     id: String = UUID().uuidString,
-    kind: ChamberFindingKind,
+    kind: HealthFindingKind,
     title: String,
     description: String,
     file: String? = nil,
     testPath: String? = nil,
     confidence: Double = 0.5,
-    triage: ChamberTriageResult? = nil,
-    evidence: String = ""
+    triage: HealthTriageResult? = nil,
+    evidence: String = "",
+    commitSHA: String? = nil,
+    focus: HealthFocus? = nil
   ) {
     self.id = id
     self.kind = kind
@@ -57,12 +66,17 @@ public struct ChamberFinding: Codable, Equatable, Sendable, Identifiable {
     self.confidence = min(1, max(0, confidence))
     self.triage = triage
     self.evidence = evidence.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.commitSHA = {
+      let t = commitSHA?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      return t.isEmpty ? nil : t
+    }()
+    self.focus = focus
   }
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
-    kind = try container.decode(ChamberFindingKind.self, forKey: .kind)
+    kind = try container.decode(HealthFindingKind.self, forKey: .kind)
     title = (try container.decodeIfPresent(String.self, forKey: .title) ?? "")
       .trimmingCharacters(in: .whitespacesAndNewlines)
     description = (try container.decodeIfPresent(String.self, forKey: .description) ?? "")
@@ -74,20 +88,29 @@ public struct ChamberFinding: Codable, Equatable, Sendable, Identifiable {
       .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     testPath = rawTest.isEmpty ? nil : rawTest
     confidence = min(1, max(0, try container.decodeIfPresent(Double.self, forKey: .confidence) ?? 0.5))
-    triage = try container.decodeIfPresent(ChamberTriageResult.self, forKey: .triage)
+    triage = try container.decodeIfPresent(HealthTriageResult.self, forKey: .triage)
     evidence = (try container.decodeIfPresent(String.self, forKey: .evidence) ?? "")
       .trimmingCharacters(in: .whitespacesAndNewlines)
+    let rawSHA = try container.decodeIfPresent(String.self, forKey: .commitSHA)?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    commitSHA = rawSHA.isEmpty ? nil : rawSHA
+    focus = try container.decodeIfPresent(HealthFocus.self, forKey: .focus)
   }
 
-  /// Confirmed product bugs (triaged real), excluding mutant coverage gaps.
+  /// Confirmed product bugs (triaged real), excluding mutant coverage gaps and doc/sprawl debt.
   public var isConfirmedRealBug: Bool {
-    guard kind != .survivingMutant else { return false }
-    if kind == .baselineFailure { return true }
-    return triage?.isRealBug == true
+    switch kind {
+    case .survivingMutant, .staleDoc, .orphanedSurface, .testGap, .deadCode:
+      return false
+    case .baselineFailure:
+      return true
+    case .failingGeneratedTest:
+      return triage?.isRealBug == true
+    }
   }
 }
 
-public struct ChamberGeneratedTest: Codable, Equatable, Sendable {
+public struct HealthGeneratedTest: Codable, Equatable, Sendable {
   public var path: String
   public var targetHint: String
   public var compiled: Bool
@@ -109,7 +132,7 @@ public struct ChamberGeneratedTest: Codable, Equatable, Sendable {
   }
 }
 
-public struct ChamberTestRunSummary: Codable, Equatable, Sendable {
+public struct HealthTestRunSummary: Codable, Equatable, Sendable {
   public var success: Bool
   public var passed: Int
   public var failed: Int
@@ -134,7 +157,7 @@ public struct ChamberTestRunSummary: Codable, Equatable, Sendable {
   }
 }
 
-public struct ChamberRankedTarget: Codable, Equatable, Sendable {
+public struct HealthRankedTarget: Codable, Equatable, Sendable {
   public var path: String
   public var functionHint: String?
   public var reason: String
@@ -148,37 +171,52 @@ public struct ChamberRankedTarget: Codable, Equatable, Sendable {
   }
 }
 
-public struct ChamberReconResult: Codable, Equatable, Sendable {
+public struct HealthSurfaceInventory: Codable, Equatable, Sendable {
+  public var binaries: [String]
+  public var libraries: [String]
+  public var docPaths: [String]
+
+  public init(binaries: [String] = [], libraries: [String] = [], docPaths: [String] = []) {
+    self.binaries = binaries
+    self.libraries = libraries
+    self.docPaths = docPaths
+  }
+}
+
+public struct HealthReconResult: Codable, Equatable, Sendable {
   public var packageNames: [String]
-  public var baselineTests: ChamberTestRunSummary
-  public var rankedTargets: [ChamberRankedTarget]
+  public var baselineTests: HealthTestRunSummary
+  public var rankedTargets: [HealthRankedTarget]
+  public var surfaces: HealthSurfaceInventory
   public var notes: [String]
 
   public init(
     packageNames: [String] = [],
-    baselineTests: ChamberTestRunSummary = ChamberTestRunSummary(success: true),
-    rankedTargets: [ChamberRankedTarget] = [],
+    baselineTests: HealthTestRunSummary = HealthTestRunSummary(success: true),
+    rankedTargets: [HealthRankedTarget] = [],
+    surfaces: HealthSurfaceInventory = HealthSurfaceInventory(),
     notes: [String] = []
   ) {
     self.packageNames = packageNames
     self.baselineTests = baselineTests
     self.rankedTargets = rankedTargets
+    self.surfaces = surfaces
     self.notes = notes
   }
 }
 
-public struct ChamberBudget: Equatable, Sendable {
+public struct HealthBudget: Equatable, Sendable {
   public var maxIterations: Int
   public var wallClockSecs: Int
 
-  /// Post-ship chamber inside a factory loop (fail-open, shorter leash).
-  public static let factoryShipDefault = ChamberBudget(
+  /// Post-ship health inside a factory loop (fail-open, shorter leash).
+  public static let factoryShipDefault = HealthBudget(
     maxIterations: 48,
     wallClockSecs: 30 * 60
   )
 
-  /// Pure chamber project hunts (UI / CLI default; editable at runtime).
-  public static let chamberLoopDefault = ChamberBudget(
+  /// Pure health project passes (UI / CLI default; editable at runtime).
+  public static let healthLoopDefault = HealthBudget(
     maxIterations: 128,
     wallClockSecs: 2 * 60 * 60
   )
@@ -192,60 +230,87 @@ public struct ChamberBudget: Equatable, Sendable {
   }
 }
 
-public struct ChamberHuntSubmit: Codable, Equatable, Sendable {
+public struct HealthHuntSubmit: Codable, Equatable, Sendable {
   public var plan: String
-  public var generatedTests: [ChamberGeneratedTest]
-  public var findings: [ChamberFinding]
+  public var generatedTests: [HealthGeneratedTest]
+  public var findings: [HealthFinding]
   public var notes: [String]
+  public var focus: HealthFocus?
 
   public enum CodingKeys: String, CodingKey {
     case plan
     case generatedTests
     case findings
     case notes
+    case focus
   }
 
   public init(
     plan: String = "",
-    generatedTests: [ChamberGeneratedTest] = [],
-    findings: [ChamberFinding] = [],
-    notes: [String] = []
+    generatedTests: [HealthGeneratedTest] = [],
+    findings: [HealthFinding] = [],
+    notes: [String] = [],
+    focus: HealthFocus? = nil
   ) {
     self.plan = plan
     self.generatedTests = generatedTests
     self.findings = findings
     self.notes = notes
+    self.focus = focus
   }
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     plan = try container.decodeIfPresent(String.self, forKey: .plan) ?? ""
     generatedTests =
-      try container.decodeIfPresent([ChamberGeneratedTest].self, forKey: .generatedTests) ?? []
-    findings = try container.decodeIfPresent([ChamberFinding].self, forKey: .findings) ?? []
+      try container.decodeIfPresent([HealthGeneratedTest].self, forKey: .generatedTests) ?? []
+    findings = try container.decodeIfPresent([HealthFinding].self, forKey: .findings) ?? []
     notes = try container.decodeIfPresent([String].self, forKey: .notes) ?? []
+    focus = try container.decodeIfPresent(HealthFocus.self, forKey: .focus)
   }
 }
 
-public struct ChamberSnapshot: Codable, Equatable, Sendable {
+public struct HealthCommitSummary: Codable, Equatable, Sendable, Identifiable {
+  public var sha: String
+  public var subject: String
+
+  public var id: String { sha }
+
+  public init(sha: String, subject: String) {
+    self.sha = sha
+    self.subject = subject
+  }
+}
+
+public struct HealthSnapshot: Codable, Equatable, Sendable {
   public var collectedAt: Date
   public var sessionNumber: Int?
   public var plan: String
-  public var recon: ChamberReconResult
-  public var generatedTests: [ChamberGeneratedTest]
-  public var findings: [ChamberFinding]
+  public var recon: HealthReconResult
+  public var generatedTests: [HealthGeneratedTest]
+  public var findings: [HealthFinding]
   public var notes: [String]
   public var partial: Bool
+  public var focus: HealthFocus?
+  public var healthBranch: String?
+  public var baseSHA: String?
+  public var tipSHA: String?
+  public var commits: [HealthCommitSummary]
 
   public init(
     collectedAt: Date = Date(),
     sessionNumber: Int? = nil,
     plan: String = "",
-    recon: ChamberReconResult = ChamberReconResult(),
-    generatedTests: [ChamberGeneratedTest] = [],
-    findings: [ChamberFinding] = [],
+    recon: HealthReconResult = HealthReconResult(),
+    generatedTests: [HealthGeneratedTest] = [],
+    findings: [HealthFinding] = [],
     notes: [String] = [],
-    partial: Bool = false
+    partial: Bool = false,
+    focus: HealthFocus? = nil,
+    healthBranch: String? = nil,
+    baseSHA: String? = nil,
+    tipSHA: String? = nil,
+    commits: [HealthCommitSummary] = []
   ) {
     self.collectedAt = collectedAt
     self.sessionNumber = sessionNumber
@@ -255,19 +320,40 @@ public struct ChamberSnapshot: Codable, Equatable, Sendable {
     self.findings = findings
     self.notes = notes
     self.partial = partial
+    self.focus = focus
+    self.healthBranch = healthBranch
+    self.baseSHA = baseSHA
+    self.tipSHA = tipSHA
+    self.commits = commits
   }
 
   public func formattedForPrompt(maxFindings: Int = 8) -> String {
     var lines: [String] = []
     if partial {
-      lines.append("_(chamber pass partial / fail-open)_")
+      lines.append("_(health pass partial / fail-open)_")
+    }
+    if let focus {
+      lines.append("Focus: \(focus.displayName)")
+    }
+    if let branch = healthBranch, let base = baseSHA, let tip = tipSHA {
+      lines.append("Branch \(branch): \(base.prefix(8))..\(tip.prefix(8))")
     }
     let realBugs = findings.filter(\.isConfirmedRealBug)
     let mutants = findings.filter { $0.kind == .survivingMutant }
-    let other = findings.filter { !$0.isConfirmedRealBug && $0.kind != .survivingMutant }
+    let debt = findings.filter {
+      switch $0.kind {
+      case .staleDoc, .orphanedSurface, .testGap, .deadCode: return true
+      default: return false
+      }
+    }
+    let other = findings.filter {
+      !$0.isConfirmedRealBug && $0.kind != .survivingMutant
+        && $0.kind != .staleDoc && $0.kind != .orphanedSurface && $0.kind != .testGap
+        && $0.kind != .deadCode
+    }
 
-    if realBugs.isEmpty && mutants.isEmpty && other.isEmpty {
-      lines.append("_(no chamber findings)_")
+    if realBugs.isEmpty && mutants.isEmpty && debt.isEmpty && other.isEmpty {
+      lines.append("_(no health findings)_")
       return lines.joined(separator: "\n")
     }
 
@@ -275,6 +361,12 @@ public struct ChamberSnapshot: Codable, Equatable, Sendable {
       lines.append("Confirmed bugs (prefer fix packets):")
       for finding in realBugs.prefix(maxFindings) {
         lines.append("- \(finding.title): \(finding.description)")
+      }
+    }
+    if !debt.isEmpty {
+      lines.append("Docs / sprawl / test debt:")
+      for finding in debt.prefix(maxFindings) {
+        lines.append("- [\(finding.kind.rawValue)] \(finding.title)")
       }
     }
     if !other.isEmpty {
@@ -294,10 +386,10 @@ public struct ChamberSnapshot: Codable, Equatable, Sendable {
   }
 }
 
-public enum ChamberPaths {
+public enum HealthPaths {
   public static let generatedTestsDirectory = "tests"
   public static let generatedTestPrefix = "compass_gen_"
-  public static let snapshotFileName = "chamber-snapshot.json"
+  public static let snapshotFileName = "health-snapshot.json"
   public static let findingsFileName = "findings.json"
 
   public static func isGeneratedTestFileName(_ name: String) -> Bool {

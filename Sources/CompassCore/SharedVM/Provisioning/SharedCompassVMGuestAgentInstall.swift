@@ -46,26 +46,64 @@ enum SharedCompassVMGuestAgentInstall {
     throw InstallError.missingBundledBinary(candidates.map(\.path))
   }
 
+  /// LaunchDaemon plist planted/repaired into the guest. Kept in sync with
+  /// `SharedCompassVMHeadlessFirstBoot.renderGuestAgentLaunchDaemonPlist`.
+  static func launchDaemonPlistContents(
+    binaryGuestPath: String = SharedCompassVMGuestAgentInstall.binaryGuestPath,
+    launchDaemonLabel: String = SharedCompassVMGuestAgentInstall.launchDaemonLabel,
+    guestUserName: String = SharedCompassVMBundle.State.defaultGuestUserName
+  ) -> String {
+    """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>\(launchDaemonLabel)</string>
+        <key>ProgramArguments</key>
+        <array>
+            <string>\(binaryGuestPath)</string>
+        </array>
+        <key>UserName</key>
+        <string>\(guestUserName)</string>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>KeepAlive</key>
+        <true/>
+        <key>StandardInPath</key>
+        <string>/dev/null</string>
+        <key>StandardOutPath</key>
+        <string>/tmp/compass-guest-agent.log</string>
+        <key>StandardErrorPath</key>
+        <string>/tmp/compass-guest-agent.log</string>
+    </dict>
+    </plist>
+    """
+  }
+
   static func sshRepairCommand(
-    temporaryGuestPath: String,
+    temporaryGuestBinaryPath: String,
+    temporaryGuestPlistPath: String,
     guestAgentBinaryPath: String = SharedCompassVMGuestAgentInstall.binaryGuestPath,
     launchDaemonGuestPath: String = SharedCompassVMGuestAgentInstall.launchDaemonGuestPath,
     launchDaemonLabel: String = SharedCompassVMGuestAgentInstall.launchDaemonLabel
   ) -> String {
-    let quotedTemporaryPath = SharedCompassVMGuestBridge.posixQuote(temporaryGuestPath)
+    let quotedTemporaryBinary = SharedCompassVMGuestBridge.posixQuote(temporaryGuestBinaryPath)
+    let quotedTemporaryPlist = SharedCompassVMGuestBridge.posixQuote(temporaryGuestPlistPath)
     let quotedBinaryPath = SharedCompassVMGuestBridge.posixQuote(guestAgentBinaryPath)
     let quotedLaunchDaemonPath = SharedCompassVMGuestBridge.posixQuote(launchDaemonGuestPath)
     let quotedLaunchDaemonLabel = SharedCompassVMGuestBridge.posixQuote(launchDaemonLabel)
     return """
       set -euo pipefail
       sudo /bin/mkdir -p \(SharedCompassVMGuestBridge.posixQuote(guestAgentBinaryPath.directoryComponent))
-      sudo /usr/bin/install -m 0755 -o root -g wheel \(quotedTemporaryPath) \(quotedBinaryPath)
-      /bin/rm -f \(quotedTemporaryPath)
-      if [ -f \(quotedLaunchDaemonPath) ]; then
-        sudo /bin/launchctl bootout system \(quotedLaunchDaemonPath) 2>/dev/null || true
-        sudo /bin/launchctl bootstrap system \(quotedLaunchDaemonPath) 2>/dev/null || true
-        sudo /bin/launchctl kickstart -k system/\(quotedLaunchDaemonLabel) 2>/dev/null || true
-      fi
+      sudo /usr/bin/install -m 0755 -o root -g wheel \(quotedTemporaryBinary) \(quotedBinaryPath)
+      /bin/rm -f \(quotedTemporaryBinary)
+      sudo /bin/mkdir -p \(SharedCompassVMGuestBridge.posixQuote(launchDaemonGuestPath.directoryComponent))
+      sudo /usr/bin/install -m 0644 -o root -g wheel \(quotedTemporaryPlist) \(quotedLaunchDaemonPath)
+      /bin/rm -f \(quotedTemporaryPlist)
+      sudo /bin/launchctl bootout system \(quotedLaunchDaemonPath) 2>/dev/null || true
+      sudo /bin/launchctl bootstrap system \(quotedLaunchDaemonPath) 2>/dev/null || true
+      sudo /bin/launchctl kickstart -k system/\(quotedLaunchDaemonLabel) 2>/dev/null || true
       """
   }
 
@@ -75,21 +113,46 @@ enum SharedCompassVMGuestAgentInstall {
     fileManager: FileManager = .default
   ) async throws {
     let binaryURL = try locateBundledBinary(fileManager: fileManager)
-    let temporaryGuestPath = "/tmp/compass-guest-agent-\(UUID().uuidString)"
-    let copy = try await ProcessRunner.run(
+    let temporaryGuestBinaryPath = "/tmp/compass-guest-agent-\(UUID().uuidString)"
+    let temporaryGuestPlistPath = "/tmp/compass-guest-agent-plist-\(UUID().uuidString)"
+    let copyBinary = try await ProcessRunner.run(
       executable: "/usr/bin/scp",
       arguments: SharedCompassVMGuestBridge.scpUploadArguments(
         sourcePath: binaryURL.path,
         destination: destination,
-        remotePath: temporaryGuestPath,
+        remotePath: temporaryGuestBinaryPath,
         options: options
       ),
       timeout: 20
     )
-    guard copy.exitCode == 0 else {
+    guard copyBinary.exitCode == 0 else {
       throw InstallError.copyFailed(
-        exitCode: copy.exitCode,
-        stderr: (copy.stderr + copy.stdout).trimmingCharacters(in: .whitespacesAndNewlines)
+        exitCode: copyBinary.exitCode,
+        stderr: (copyBinary.stderr + copyBinary.stdout).trimmingCharacters(
+          in: .whitespacesAndNewlines)
+      )
+    }
+
+    let plistURL = fileManager.temporaryDirectory
+      .appendingPathComponent("compass-guest-agent-\(UUID().uuidString).plist")
+    try launchDaemonPlistContents().write(to: plistURL, atomically: true, encoding: .utf8)
+    defer { try? fileManager.removeItem(at: plistURL) }
+
+    let copyPlist = try await ProcessRunner.run(
+      executable: "/usr/bin/scp",
+      arguments: SharedCompassVMGuestBridge.scpUploadArguments(
+        sourcePath: plistURL.path,
+        destination: destination,
+        remotePath: temporaryGuestPlistPath,
+        options: options
+      ),
+      timeout: 20
+    )
+    guard copyPlist.exitCode == 0 else {
+      throw InstallError.copyFailed(
+        exitCode: copyPlist.exitCode,
+        stderr: (copyPlist.stderr + copyPlist.stdout).trimmingCharacters(
+          in: .whitespacesAndNewlines)
       )
     }
 
@@ -97,7 +160,10 @@ enum SharedCompassVMGuestAgentInstall {
       executable: options.executablePath,
       arguments: SharedCompassVMGuestBridge.sshArguments(
         destination: destination,
-        remoteCommand: sshRepairCommand(temporaryGuestPath: temporaryGuestPath),
+        remoteCommand: sshRepairCommand(
+          temporaryGuestBinaryPath: temporaryGuestBinaryPath,
+          temporaryGuestPlistPath: temporaryGuestPlistPath
+        ),
         options: options
       ),
       timeout: 30

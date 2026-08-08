@@ -1,7 +1,7 @@
 import Foundation
 
 /// Eval scoring against a fixture `bugs.toml` (icle-compatible subset).
-public struct ChamberBugSpec: Equatable, Sendable {
+public struct HealthBugSpec: Equatable, Sendable {
   public var id: String
   public var function: String
   public var control: Bool
@@ -15,7 +15,7 @@ public struct ChamberBugSpec: Equatable, Sendable {
   }
 }
 
-public struct ChamberEvalScore: Codable, Equatable, Sendable {
+public struct HealthEvalScore: Codable, Equatable, Sendable {
   public var recall: Double
   public var controlFalsePositives: Int
   public var unmatchedRealFindings: Int
@@ -40,9 +40,9 @@ public struct ChamberEvalScore: Codable, Equatable, Sendable {
   }
 }
 
-public enum ChamberEval {
-  public static func parseBugsTOML(_ text: String) -> [ChamberBugSpec] {
-    var bugs: [ChamberBugSpec] = []
+public enum HealthEval {
+  public static func parseBugsTOML(_ text: String) -> [HealthBugSpec] {
+    var bugs: [HealthBugSpec] = []
     var currentID: String?
     var currentFunction: String?
     var currentControl = false
@@ -51,7 +51,7 @@ public enum ChamberEval {
     func flush() {
       guard let id = currentID, let function = currentFunction else { return }
       bugs.append(
-        ChamberBugSpec(
+        HealthBugSpec(
           id: id, function: function, control: currentControl, matchTokens: currentMatch))
       currentID = nil
       currentFunction = nil
@@ -80,7 +80,7 @@ public enum ChamberEval {
     return bugs
   }
 
-  public static func score(bugs: [ChamberBugSpec], snapshot: ChamberSnapshot) -> ChamberEvalScore {
+  public static func score(bugs: [HealthBugSpec], snapshot: HealthSnapshot) -> HealthEvalScore {
     let seeded = bugs.filter { !$0.control }
     let controls = bugs.filter(\.control)
     var hits: [String] = []
@@ -109,7 +109,7 @@ public enum ChamberEval {
       }
     }
 
-    return ChamberEvalScore(
+    return HealthEvalScore(
       recall: recall,
       controlFalsePositives: controlFPIds.count,
       unmatchedRealFindings: unmatched.count,
@@ -120,7 +120,7 @@ public enum ChamberEval {
   }
 
   /// Oracle evidence: failing generated test / baseline (not mutant-only).
-  private static func snapshotHasOracleHit(_ snapshot: ChamberSnapshot, tokens: [String]) -> Bool {
+  private static func snapshotHasOracleHit(_ snapshot: HealthSnapshot, tokens: [String]) -> Bool {
     for finding in snapshot.findings
     where finding.kind == .failingGeneratedTest || finding.kind == .baselineFailure {
       let hay = findingHaystack(finding)
@@ -137,7 +137,7 @@ public enum ChamberEval {
     return false
   }
 
-  private static func snapshotHasConfirmedRealHit(_ snapshot: ChamberSnapshot, tokens: [String])
+  private static func snapshotHasConfirmedRealHit(_ snapshot: HealthSnapshot, tokens: [String])
     -> Bool
   {
     for finding in snapshot.findings where finding.isConfirmedRealBug {
@@ -149,7 +149,7 @@ public enum ChamberEval {
     return false
   }
 
-  private static func findingHaystack(_ finding: ChamberFinding) -> String {
+  private static func findingHaystack(_ finding: HealthFinding) -> String {
     [
       finding.title, finding.description, finding.file, finding.testPath, finding.evidence,
       finding.triage?.rationale,

@@ -1,23 +1,23 @@
 import Foundation
 
-public enum ChamberSnapshotStore {
+public enum HealthSnapshotStore {
   public static func snapshotURL(in workspace: CompassWorkspace) -> URL {
-    workspace.compassURL.appending(path: ChamberPaths.snapshotFileName)
+    workspace.compassURL.appending(path: HealthPaths.snapshotFileName)
   }
 
   public static func findingsURL(in workspace: CompassWorkspace) -> URL {
-    workspace.compassURL.appending(path: ChamberPaths.findingsFileName)
+    workspace.compassURL.appending(path: HealthPaths.findingsFileName)
   }
 
-  public static func readSnapshot(from workspace: CompassWorkspace) -> ChamberSnapshot? {
+  public static func readSnapshot(from workspace: CompassWorkspace) -> HealthSnapshot? {
     let url = snapshotURL(in: workspace)
     guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
-    return try? decoder.decode(ChamberSnapshot.self, from: data)
+    return try? decoder.decode(HealthSnapshot.self, from: data)
   }
 
-  public static func writeSnapshot(_ snapshot: ChamberSnapshot, workspace: CompassWorkspace) throws {
+  public static func writeSnapshot(_ snapshot: HealthSnapshot, workspace: CompassWorkspace) throws {
     let url = snapshotURL(in: workspace)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -26,7 +26,7 @@ public enum ChamberSnapshotStore {
   }
 
   public static func writeFindingsReport(
-    _ snapshot: ChamberSnapshot, workspace: CompassWorkspace
+    _ snapshot: HealthSnapshot, workspace: CompassWorkspace
   ) throws {
     let url = findingsURL(in: workspace)
     let encoder = JSONEncoder()
@@ -37,15 +37,15 @@ public enum ChamberSnapshotStore {
 }
 
 /// Deterministic demotion of invented-literal false positives.
-public enum ChamberFPGuards {
-  public static func apply(to findings: [ChamberFinding]) -> [ChamberFinding] {
+public enum HealthFPGuards {
+  public static func apply(to findings: [HealthFinding]) -> [HealthFinding] {
     findings.map { finding in
       var updated = finding
       guard finding.kind == .failingGeneratedTest,
         let triage = finding.triage, triage.isRealBug
       else { return finding }
       if inventedLiteralExpectation(in: finding.evidence + "\n" + finding.description) {
-        updated.triage = ChamberTriageResult(
+        updated.triage = HealthTriageResult(
           isRealBug: false,
           rationale: triage.rationale
             + " [demoted: invented numeric literal expectation without documented contract]"

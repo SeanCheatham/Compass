@@ -137,12 +137,12 @@ final class AppModel: ObservableObject {
     }
   }
 
-  func chooseChamberRepository() async {
+  func chooseHealthRepository() async {
     let panel = NSOpenPanel()
     panel.canChooseDirectories = true
     panel.canChooseFiles = false
     panel.allowsMultipleSelection = false
-    panel.message = "Choose a Rust Git repository to open as a Compass chamber"
+    panel.message = "Choose a Rust Git repository to open as Compass Health"
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
 
@@ -151,10 +151,10 @@ final class AppModel: ObservableObject {
       let workspace = CompassWorkspace(repoURL: repoURL)
       try workspace.initialize()
       var state = try workspace.readState()
-      state.projectKind = .chamber
+      state.projectKind = .health
       try workspace.writeState(state)
-      let project = upsertProject(repoURL: repoURL, projectKind: .chamber)
-      project.chamberBudget = .chamberLoopDefault
+      let project = upsertProject(repoURL: repoURL, projectKind: .health)
+      project.healthBudget = .healthLoopDefault
       selectProject(project)
       project.logProjectSelected()
       await project.refresh()
@@ -230,8 +230,8 @@ final class AppModel: ObservableObject {
       existing.lastOpenedAt = Date()
       if existing.projectKind != projectKind {
         existing.projectKind = projectKind
-        existing.chamberBudget =
-          projectKind == .chamber ? .chamberLoopDefault : .factoryShipDefault
+        existing.healthBudget =
+          projectKind == .health ? .healthLoopDefault : .factoryShipDefault
       }
       saveProjects()
       return existing

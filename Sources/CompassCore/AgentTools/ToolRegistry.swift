@@ -32,16 +32,29 @@ public enum ToolRegistry {
     readOnlyTools() + [AgentBashTool()]
   }
 
-  public static func chamberTools() -> [AgentTool] {
-    readOnlyTools() + [
-      AgentWriteGeneratedTestTool(),
-      AgentBashTool(),
-    ]
+  public static func healthTools(
+    focus: HealthFocus = .bugHunt,
+    promptMode: AgentPromptMode = .envelope
+  ) -> [AgentTool] {
+    switch focus {
+    case .bugHunt:
+      return readOnlyTools() + [
+        AgentWriteGeneratedTestTool(),
+        AgentBashTool(),
+      ]
+    case .test, .docs, .cleanup:
+      return readOnlyTools() + [
+        AgentHealthScopedWriteFileTool(focus: focus),
+        AgentHealthScopedEditFileTool(focus: focus, promptMode: promptMode),
+        AgentBashTool(),
+      ]
+    }
   }
 
   public static func tools(
     for phase: AgentPhase,
-    promptMode: AgentPromptMode = .envelope
+    promptMode: AgentPromptMode = .envelope,
+    healthFocus: HealthFocus = .bugHunt
   ) -> [AgentTool] {
     switch phase {
     case .plan:
@@ -50,8 +63,8 @@ public enum ToolRegistry {
       return inspectionTools()
     case .develop:
       return developTools(promptMode: promptMode)
-    case .chamber:
-      return chamberTools()
+    case .health:
+      return healthTools(focus: healthFocus, promptMode: promptMode)
     }
   }
 }
