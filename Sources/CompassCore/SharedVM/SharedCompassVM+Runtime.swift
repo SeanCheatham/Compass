@@ -660,7 +660,7 @@ extension SharedCompassVM {
   }
 
   /// Drives default toolchain provisioning against the live VM using a
-  /// vsock-backed bash runner: CLT, Homebrew, ripgrep, then Rust (rustup).
+  /// vsock-backed bash runner: CLT, Homebrew, ripgrep, OpenSSL+pkgconf, then Rust.
   private func runDevToolsProvisioner(destination: String) async {
     guard let machine = virtualMachine else {
       transition(to: .error(detail: "Shared VM is not running; cannot install developer tools."))
@@ -712,12 +712,27 @@ extension SharedCompassVM {
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            host.transition(to: .provisioningDevTools(fractionCompleted: 0.8 + fraction * 0.1))
+            host.transition(to: .provisioningDevTools(fractionCompleted: 0.8 + fraction * 0.05))
           }
         }
       )
     } catch {
       transition(to: .error(detail: "Ripgrep install failed: \(error)"))
+      return
+    }
+
+    do {
+      _ = try await SharedCompassVMToolchainProvisioner.provision(
+        definition: SharedVMToolchainCatalog.definition(for: .openssl),
+        runner: client,
+        progress: { fraction in
+          await MainActor.run {
+            host.transition(to: .provisioningDevTools(fractionCompleted: 0.85 + fraction * 0.05))
+          }
+        }
+      )
+    } catch {
+      transition(to: .error(detail: "OpenSSL + pkgconf install failed: \(error)"))
       return
     }
 
@@ -763,7 +778,7 @@ extension SharedCompassVM {
   }
 
   /// Backfills default toolchains on guests provisioned before Homebrew,
-  /// ripgrep, or Rust became default. This runs after readiness, so it
+  /// ripgrep, OpenSSL, or Rust became default. This runs after readiness, so it
   /// deliberately avoids driving the readiness state machine; failures are
   /// non-fatal and the next launch can retry.
   private func ensureDefaultToolchainsIfNeeded() async {
@@ -773,7 +788,7 @@ extension SharedCompassVM {
     let manager = makeToolchainService()
 
     let defaultIDs: [SharedVMToolchainID] = [
-      .homebrew, .ripgrep, .rust, .cargoLlvmCov, .cargoMutants,
+      .homebrew, .ripgrep, .openssl, .rust, .cargoLlvmCov, .cargoMutants,
     ]
     for id in defaultIDs {
       let definition = SharedVMToolchainCatalog.definition(for: id)

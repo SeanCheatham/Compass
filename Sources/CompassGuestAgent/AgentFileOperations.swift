@@ -308,6 +308,17 @@ enum AgentFileOperations {
     }
     environment["PATH"] =
       "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    // Homebrew OpenSSL is keg-only; point openssl-sys (and similar) at it when present.
+    let opensslDir = "/opt/homebrew/opt/openssl"
+    if FileManager.default.fileExists(atPath: opensslDir) {
+      environment["OPENSSL_DIR"] = opensslDir
+      let pkgConfigPath = "\(opensslDir)/lib/pkgconfig"
+      if let existing = environment["PKG_CONFIG_PATH"], !existing.isEmpty {
+        environment["PKG_CONFIG_PATH"] = "\(pkgConfigPath):\(existing)"
+      } else {
+        environment["PKG_CONFIG_PATH"] = pkgConfigPath
+      }
+    }
     process.environment = environment
     let stdoutPipe = Pipe()
     let stderrPipe = Pipe()

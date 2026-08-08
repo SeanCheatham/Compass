@@ -5,6 +5,7 @@ public enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
   case commandLineTools = "command_line_tools"
   case homebrew
   case ripgrep
+  case openssl
   case rust
   case cargoLlvmCov = "cargo_llvm_cov"
   case cargoMutants = "cargo_mutants"
@@ -16,6 +17,10 @@ enum SharedVMToolchainPaths {
   static let brewInstallPath = "/opt/homebrew/bin/brew"
   static let ripgrepInstallPath = "/usr/local/bin/rg"
   static let brewRipgrepPath = "/opt/homebrew/bin/rg"
+  /// Homebrew's keg-only OpenSSL prefix (stable symlink across formula versions).
+  static let brewOpenSSLPrefix = "/opt/homebrew/opt/openssl"
+  static let brewPkgConfigPath = "/opt/homebrew/bin/pkg-config"
+  static let pkgConfigInstallPath = "/usr/local/bin/pkg-config"
 
   static func scriptGuestPath(id: String) -> String {
     "/usr/local/libexec/compass-install-\(id).sh"
@@ -68,6 +73,8 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
       return Self.renderHomebrewInstallScript()
     case .ripgrep:
       return Self.renderRipgrepInstallScript()
+    case .openssl:
+      return Self.renderOpenSSLInstallScript()
     case .rust:
       return Self.renderRustInstallScript()
     case .cargoLlvmCov:
@@ -100,6 +107,12 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
       return """
         test -x \(SharedVMToolchainPaths.ripgrepInstallPath)
         \(SharedVMToolchainPaths.ripgrepInstallPath) --version >/dev/null 2>&1
+        """
+    case .openssl:
+      return """
+        test -x \(SharedVMToolchainPaths.pkgConfigInstallPath)
+        test -d \(SharedVMToolchainPaths.brewOpenSSLPrefix)
+        \(SharedVMToolchainPaths.pkgConfigInstallPath) --exists openssl
         """
     case .rust:
       return """
@@ -231,6 +244,51 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
           ln -sf "$BREW_RG" "$RG_BIN"
           [ -x "$RG_BIN" ] || fail 5 "ripgrep symlink verification failed at $RG_BIN"
           echo "\(SharedVMToolchainPaths.logTag(id: id)) installed $RG_BIN"
+        fi
+        """)
+  }
+
+  private static func renderOpenSSLInstallScript() -> String {
+    let id = SharedVMToolchainID.openssl.rawValue
+    let brewBin = SharedVMToolchainPaths.brewInstallPath
+    let brewPkgConfig = SharedVMToolchainPaths.brewPkgConfigPath
+    let pkgConfigBin = SharedVMToolchainPaths.pkgConfigInstallPath
+    let opensslPrefix = SharedVMToolchainPaths.brewOpenSSLPrefix
+    let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
+    return renderScriptShell(
+      id: id,
+      body: """
+        BREW_BIN="\(brewBin)"
+        BREW_PKG_CONFIG="\(brewPkgConfig)"
+        PKG_CONFIG_BIN="\(pkgConfigBin)"
+        OPENSSL_PREFIX="\(opensslPrefix)"
+        GUEST_USER="\(guestUser)"
+        if [ -x "$PKG_CONFIG_BIN" ] && [ -d "$OPENSSL_PREFIX" ] \\
+          && "$PKG_CONFIG_BIN" --exists openssl 2>/dev/null; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install pkgconf openssl"
+          su - "$GUEST_USER" -c "'$BREW_BIN' install pkgconf openssl" \\
+            || fail 3 "brew install pkgconf openssl failed"
+          [ -x "$BREW_PKG_CONFIG" ] || fail 4 "pkg-config missing at $BREW_PKG_CONFIG after brew install"
+          [ -d "$OPENSSL_PREFIX" ] || fail 5 "OpenSSL prefix missing at $OPENSSL_PREFIX after brew install"
+          # Expose pkg-config on the guest-agent PATH via /usr/local/bin.
+          install -d -o root -g wheel -m 0755 "$(dirname "$PKG_CONFIG_BIN")"
+          ln -sf "$BREW_PKG_CONFIG" "$PKG_CONFIG_BIN"
+          # OpenSSL is keg-only; plant .pc files on Homebrew's default search path
+          # and /usr/local so openssl-sys / pkg-config resolve without OPENSSL_DIR.
+          install -d -o root -g wheel -m 0755 /opt/homebrew/lib/pkgconfig
+          install -d -o root -g wheel -m 0755 /usr/local/lib/pkgconfig
+          for pc in openssl.pc libssl.pc libcrypto.pc; do
+            if [ -f "$OPENSSL_PREFIX/lib/pkgconfig/$pc" ]; then
+              ln -sf "$OPENSSL_PREFIX/lib/pkgconfig/$pc" "/opt/homebrew/lib/pkgconfig/$pc"
+              ln -sf "$OPENSSL_PREFIX/lib/pkgconfig/$pc" "/usr/local/lib/pkgconfig/$pc"
+            fi
+          done
+          "$PKG_CONFIG_BIN" --exists openssl \\
+            || fail 6 "pkg-config cannot resolve openssl after install"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed pkgconf + openssl ($OPENSSL_PREFIX)"
         fi
         """)
   }
@@ -382,6 +440,18 @@ public enum SharedVMToolchainCatalog {
       probeCommand:
         "[ -x \(SharedVMToolchainPaths.ripgrepInstallPath) ] && echo PRESENT || echo MISSING",
       installTimeout: 15 * 60,
+      installableViaGenericProvisioner: true
+    ),
+    SharedVMToolchainDefinition(
+      id: .openssl,
+      displayName: "OpenSSL + pkgconf",
+      description:
+        "Homebrew OpenSSL and pkg-config for Rust `-sys` crates (e.g. openssl-sys) in imported repos.",
+      defaultProvisioned: true,
+      dependencies: [.homebrew],
+      probeCommand:
+        "[ -x \(SharedVMToolchainPaths.pkgConfigInstallPath) ] && [ -d \(SharedVMToolchainPaths.brewOpenSSLPrefix) ] && \(SharedVMToolchainPaths.pkgConfigInstallPath) --exists openssl && echo PRESENT || echo MISSING",
+      installTimeout: 30 * 60,
       installableViaGenericProvisioner: true
     ),
     SharedVMToolchainDefinition(
