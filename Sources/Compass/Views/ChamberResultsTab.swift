@@ -267,9 +267,7 @@ private struct ChamberResultsContent: View {
     VStack(alignment: .leading, spacing: 10) {
       Label(title, systemImage: systemImage)
         .font(.subheadline.weight(.semibold))
-      Text(text)
-        .font(.callout)
-        .textSelection(.enabled)
+      MarkdownContent(text, compact: true)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
@@ -280,17 +278,21 @@ private struct ChamberResultsContent: View {
     VStack(alignment: .leading, spacing: 10) {
       Label("Notes", systemImage: "note.text")
         .font(.subheadline.weight(.semibold))
-      VStack(alignment: .leading, spacing: 6) {
-        ForEach(snapshot.notes, id: \.self) { note in
-          Text("• \(note)")
-            .font(.callout)
-            .textSelection(.enabled)
-        }
-      }
-      .padding(12)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+      MarkdownContent(notesMarkdown, compact: true)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
     }
+  }
+
+  private var notesMarkdown: String {
+    snapshot.notes.map { note in
+      let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("#") {
+        return trimmed
+      }
+      return "- \(trimmed)"
+    }.joined(separator: "\n")
   }
 }
 
@@ -340,19 +342,15 @@ private struct ChamberFindingRow: View {
 
       if expanded {
         if !finding.description.isEmpty {
-          Text(finding.description)
-            .font(.callout)
-            .textSelection(.enabled)
+          MarkdownContent(finding.description, compact: true)
         }
         if let triage = finding.triage {
           Text(triage.isRealBug ? "Triage: real bug" : "Triage: likely false positive")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(triage.isRealBug ? .red : .secondary)
+            .foregroundStyle(triage.isRealBug ? Color.red : Color.secondary)
           if !triage.rationale.isEmpty {
-            Text(triage.rationale)
-              .font(.caption)
+            MarkdownContent(triage.rationale, compact: true)
               .foregroundStyle(.secondary)
-              .textSelection(.enabled)
           }
         }
         if !finding.evidence.isEmpty {
