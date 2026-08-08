@@ -31,7 +31,7 @@ User product intent lives in `.compass/brief.json` (audience, problem, product r
 
 Factory-owned requirement verification lives in `.compass/requirements.json` (criteria, Given/When/Then scenarios, owned paths, ship traces, audit verdicts). Each product requirement has a `kind` and `proofLevel`. Plan must link slices via `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves a slice, Compass records a ship trace, may mark other requirements stale when owned paths changed, and runs an incremental audit. When Plan returns no immediate work, a full audit must find every requirement satisfied before the loop declares done; otherwise findings are fed back into Plan. Auto-play continues after a successful Develop (which retires Immediate Work) so the next Plan can address still-open requirements — Develop success alone is not “all requirements verified.”
 
-After every successful Critic/ship, Compass runs a **chamber pass** (fail-open). Findings persist to `.compass/chamber-snapshot.json` / `.compass/findings.json` and feed the next Plan prompt as pressure (same idea as coverage/mutation snapshots). Chamber does not auto-open requirements ledger entries.
+After every successful Critic/ship, Compass runs a **chamber pass** (fail-open). Findings persist to `.compass/chamber-snapshot.json` / `.compass/findings.json`, show in the **Results** tab, and feed the next Plan prompt as pressure (same idea as coverage/mutation snapshots). Chamber does not auto-open requirements ledger entries.
 
 The v1 factory loop is:
 
@@ -48,7 +48,7 @@ The v1 factory loop is:
 
 **Open Chamber** (sidebar / menu) or `compass-cli chamber run --repo <path>` imports a Rust Git root as `projectKind: chamber`. The agent may only write `tests/compass_gen_*.rs` and runs tests in the macOS VM. Chamber turn/time budgets are in-memory (Activity **Turns** / **Min** controls) or CLI `--max-iterations` / `--wall-clock-secs` — not stored in `.compass/state.json`. Defaults are 128 turns / 2 hours for pure chamber hunts. Eval scoring against a fixture `bugs.toml` is available via `compass-cli chamber eval --repo <path> --bugs <bugs.toml>` (see `Fixtures/Chamber/`).
 
-Activity/Live is the primary project surface.
+Activity/Live is the primary run surface; **Results** shows the latest chamber snapshot (placeholder until one exists).
 
 ## Generated Projects
 

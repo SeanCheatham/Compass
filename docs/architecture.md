@@ -6,7 +6,7 @@ Compass is a native macOS host around a local software factory loop and an adver
 
 | Target | Role |
 |--------|------|
-| `Compass` | SwiftUI app / Activity / Studio / workspace UX |
+| `Compass` | SwiftUI app / Activity / Results / Studio / workspace UX |
 | `CompassCore` | Shared headless logic (agent loop, VM, tools, prompts, models) |
 | `CompassCLI` | Thin CLI entry that calls Core |
 | `CompassAgentRPC` / `CompassGuestAgent` | Host↔guest vsock JSON RPC |
@@ -24,7 +24,7 @@ The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt ass
 - **Factory** — Plan → Develop → Verify → Critic → Chamber (fail-open Plan pressure) → Requirements Audit.
 - **Chamber** — pure hunt: recon + confined `write_generated_test` + VM `cargo test` + triage. No brief/requirements completion gates.
 
-Chamber writes only `tests/compass_gen_*.rs`. Snapshots: `.compass/chamber-snapshot.json`, `.compass/findings.json`. CLI: `compass-cli chamber run|eval`.
+Chamber writes only `tests/compass_gen_*.rs`. Snapshots: `.compass/chamber-snapshot.json`, `.compass/findings.json` (also shown in the Results tab). CLI: `compass-cli chamber run|eval`.
 
 ## Model Backends
 

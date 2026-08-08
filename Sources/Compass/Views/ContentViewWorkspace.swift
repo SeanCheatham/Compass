@@ -921,6 +921,8 @@ struct WorkspaceContent: View {
         VisionTab(project: project)
       case .activity:
         ActivityTab(project: project)
+      case .results:
+        ChamberResultsTab(project: project)
       case .studio:
         StudioTab(project: project)
       }
@@ -931,6 +933,7 @@ struct WorkspaceContent: View {
 
 enum WorkspaceTab: String, CaseIterable, Identifiable {
   case activity
+  case results
   case studio
   case vision
 
@@ -940,6 +943,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "Brief"
     case .activity: return "Activity"
+    case .results: return "Results"
     case .studio: return "Studio"
     }
   }
@@ -948,6 +952,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "scope"
     case .activity: return "waveform.path.ecg"
+    case .results: return "flame"
     case .studio: return "rectangle.split3x1"
     }
   }
