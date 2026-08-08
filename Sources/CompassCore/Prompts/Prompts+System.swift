@@ -56,10 +56,12 @@ extension Prompts {
     executionEnvironment: ExecutionEnvironmentDescriptor = .macOSVM,
     promptMode: AgentPromptMode = .envelope
   ) -> String {
-    let fileTools = "read_file, ls, grep, glob"
+    let fileTools = "read_file, ls, grep, glob, file_history, annotate"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
     let assumptionTools = "record_assumption, remove_assumption"
     let delegateTool = "delegate"
+    let vcsHistoryNote =
+      "file_history / annotate are host version history (guest bash has no VCS metadata)"
     let toolList: String
     switch phase {
     case .plan:
@@ -67,7 +69,7 @@ extension Prompts {
         - Codemap: \(codemapTools)
         - Files: \(fileTools)
         - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
-        - History: plan_history
+        - History: plan_history (Compass iterations); \(vcsHistoryNote)
         - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused codebase questions
         - Assumptions: \(assumptionTools)
         """
@@ -76,6 +78,7 @@ extension Prompts {
         - Codemap: \(codemapTools)
         - Files: \(fileTools)
         - Mutation: write_file, edit_file, bash
+        - History: \(vcsHistoryNote)
         - Sub-agent: \(delegateTool) — `explore` for investigation, `verify` for check commands, `repair` for a tight fix pass
         - Assumptions: \(assumptionTools)
         """
@@ -84,6 +87,7 @@ extension Prompts {
         - Codemap: \(codemapTools)
         - Files: \(fileTools)
         - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
+        - History: \(vcsHistoryNote)
         - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused review questions
         - Assumptions: \(assumptionTools)
         """
@@ -92,6 +96,7 @@ extension Prompts {
         - Codemap: \(codemapTools)
         - Files: \(fileTools)
         - Shell: bash for read-only probes (hard-enforced; no writes/git mutations)
+        - History: \(vcsHistoryNote)
         - Sub-agent: \(delegateTool) — prefer `profile: explore` for focused evidence gathering
         - Assumptions: \(assumptionTools)
         """
@@ -101,6 +106,7 @@ extension Prompts {
         - Files: \(fileTools)
         - Health: write_generated_test and/or scoped write_file/edit_file (focus-dependent)
         - Shell: bash for cargo test and read-only probes (no production file mutation via shell)
+        - History: \(vcsHistoryNote)
         - Assumptions: \(assumptionTools)
         """
     }
@@ -237,12 +243,19 @@ extension Prompts {
         the guest worktree automatically — use relative paths or `/workspace/...` for every
         tool. Project Git (status, commit, push) is host-only; do not use `git` in factory
         bash. Dirty host files after Develop are expected — the harness lands a commit after
-        Critic approves.         The guest has the Rust toolchain (cargo, rustc, rustfmt, clippy) and
-        Swift via Xcode Command Line Tools (`swift`, `swift build`, `swift run`, clang).
+        Critic approves. The guest has the Rust toolchain (cargo, rustc, rustfmt, clippy) and
+        Swift via Xcode Command Line Tools (`swift`, `swift build`, `swift run`, clang; `/usr/bin/git`
+        is present via CLT but guest worktrees are still gitless).
         The guest does **not** ship XCTest or swift-testing — macOS adapter verify uses the
         `FFIChecks` executable (`swift run FFIChecks`), not `swift test`.
         Outbound internet is available via NAT — do not treat failing network tests as
         "sandbox has no network" without verifying connectivity first.
+        Use host tools `file_history` and `annotate` for change provenance; the guest worktree
+        has no project `.git` (CLT may still provide `/usr/bin/git`).
+        When a failing test clearly depends on repository metadata or on absolute paths baked
+        into fixtures that only work at the generator's worktree root, triage it as environment
+        noise (`isRealBug=false`) — do not patch product code to paper over the sandbox layout.
+        Prefer citing that evidence over inventing "sandbox has no network."
         """
     }
   }

@@ -12,6 +12,8 @@ public enum ToolRegistry {
       AgentSummaryTool(),
       AgentListFilesTool(),
       AgentImportersOfTool(),
+      AgentFileHistoryTool(),
+      AgentAnnotateTool(),
       AgentDelegateTool(),
       AgentRecordAssumptionTool(),
       AgentRemoveAssumptionTool(),

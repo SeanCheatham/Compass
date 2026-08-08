@@ -71,6 +71,10 @@ extension Prompts {
       - Surviving mutants are coverage gaps (`survivingMutant`, isRealBug=false).
       - Docs/sprawl findings use kinds `staleDoc`, `orphanedSurface`, `testGap`, `deadCode`.
       - Triage for bugs must cite a documented contract. Invented expectations are false positives.
+      - Use `file_history` / `annotate` (host version history) for provenance; guest bash has no project `.git`
+        (CLT may provide `/usr/bin/git`, but the synced tree is gitless).
+      - Baseline failures that only reflect sandbox layout (no project `.git`, or fixtures tied to another
+        absolute worktree root) are environment noise (`isRealBug=false`) — do not patch product code for them.
       - Proposed patches stay on the Compass health branch; do not merge upstream yourself.
 
       ## Recon
