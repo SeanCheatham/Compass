@@ -485,7 +485,6 @@ public enum HealthPassRunner {
   ) -> HealthPassOutcome {
     do {
       try HealthSnapshotStore.writeSnapshot(snapshot, workspace: workspace)
-      try HealthSnapshotStore.writeFindingsReport(snapshot, workspace: workspace)
     } catch {
       onEvent(
         HeadlessCompassEvent(

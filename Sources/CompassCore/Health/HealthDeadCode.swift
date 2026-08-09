@@ -44,7 +44,6 @@ public enum DeadCodeCandidateParser {
     "dead_code",
     "unused_imports",
     "unused_macros",
-    "unused",
   ]
 
   /// Parse `cargo check --message-format=json` stdout (NDJSON) into dead-code candidates.

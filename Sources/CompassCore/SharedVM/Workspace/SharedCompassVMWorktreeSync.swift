@@ -154,7 +154,7 @@ enum SharedCompassVMWorktreeSync {
   /// last successful sync. The deletion step is intersected with this
   /// set so that user-added files between sessions — which the agent
   /// has never been asked to track — survive the cleanup. When the
-  /// scope is nil (no sync recorded yet) the legacy behaviour applies:
+  /// scope is nil (no sync recorded yet) the broader behaviour applies:
   /// delete any host-tracked file missing from the guest. Callers that
   /// have a recorded scope (i.e. went through
   /// `SharedCompassVMRepoWorkspaceSync`) should always pass it.
@@ -295,7 +295,7 @@ enum SharedCompassVMWorktreeSync {
   /// to delete) AND are no longer in the guest (the agent did remove
   /// them). When `scope` is nil — i.e. no recorded sync yet, typically
   /// a catalog written by a pre-fingerprint build — fall back to
-  /// `host − guest` so legacy state still pulls correctly.
+  /// `host − guest` so first pulls without a recorded fileset still work.
   ///
   /// Internal-visible for unit-testing the deletion arithmetic
   /// directly. The real `pull` path computes both `host` and `guest`

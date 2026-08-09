@@ -5,10 +5,6 @@ public enum HealthSnapshotStore {
     workspace.compassURL.appending(path: HealthPaths.snapshotFileName)
   }
 
-  public static func findingsURL(in workspace: CompassWorkspace) -> URL {
-    workspace.compassURL.appending(path: HealthPaths.findingsFileName)
-  }
-
   public static func readSnapshot(from workspace: CompassWorkspace) -> HealthSnapshot? {
     let url = snapshotURL(in: workspace)
     guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
@@ -19,16 +15,6 @@ public enum HealthSnapshotStore {
 
   public static func writeSnapshot(_ snapshot: HealthSnapshot, workspace: CompassWorkspace) throws {
     let url = snapshotURL(in: workspace)
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    encoder.dateEncodingStrategy = .iso8601
-    try encoder.encode(snapshot).write(to: url, options: .atomic)
-  }
-
-  public static func writeFindingsReport(
-    _ snapshot: HealthSnapshot, workspace: CompassWorkspace
-  ) throws {
-    let url = findingsURL(in: workspace)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     encoder.dateEncodingStrategy = .iso8601

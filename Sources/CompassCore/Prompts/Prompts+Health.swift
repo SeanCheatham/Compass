@@ -69,7 +69,6 @@ extension Prompts {
 
       Ground truth:
       - Product-bug candidates need a generated test that compiles and fails, or a baseline failure.
-      - Surviving mutants are coverage gaps (`survivingMutant`, isRealBug=false).
       - Docs/sprawl findings use kinds `staleDoc`, `orphanedSurface`, `testGap`, `deadCode`.
       - Triage for bugs must cite a documented contract. Invented expectations are false positives.
       - Use `file_history` / `annotate` (host version history) for provenance; guest bash has no project `.git`

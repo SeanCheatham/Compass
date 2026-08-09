@@ -33,7 +33,7 @@ struct StudioStateTests {
   @Test
   func parsesNumberedReadOutput() {
     let content = """
-      Lines are 1-indexed. Use these numbers with edit_file startLine/endLine.
+      Lines are 1-indexed for orientation. Edit with edit_file old_string/new_string replacements.
            1\tfn main() {
            2\t    println!("hi");
            3\t}

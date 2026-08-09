@@ -9,7 +9,6 @@ public struct DraftReadinessGuide: Equatable, Sendable {
   public var detail: String
   public var scoreLabel: String
   public var cues: [Cue]
-  public var coachingPrompts: [CoachingPrompt]
   public var draftPreview: String
 
   public var missingSignalTitles: [String] {
@@ -57,7 +56,6 @@ public struct DraftReadinessGuide: Equatable, Sendable {
             : "Say how done should look."
       ),
     ]
-    coachingPrompts = cues.filter { !$0.isSatisfied }.map { CoachingPrompt(kind: $0.kind) }
 
     let satisfiedCount = cues.filter(\.isSatisfied).count
     scoreLabel = "\(satisfiedCount) of \(cues.count)"
@@ -98,38 +96,6 @@ public struct DraftReadinessGuide: Equatable, Sendable {
 
     public var systemImage: String {
       isSatisfied ? "checkmark.circle.fill" : kind.systemImage
-    }
-  }
-
-  public struct CoachingPrompt: Identifiable, Equatable, Sendable {
-    public var kind: Kind
-
-    public var id: Kind { kind }
-
-    public var question: String {
-      switch kind {
-      case .outcome:
-        return "What should change?"
-      case .why:
-        return "Who is stuck, and why?"
-      case .success:
-        return "How will you know it worked?"
-      }
-    }
-
-    public var detail: String {
-      switch kind {
-      case .outcome:
-        return "Name the screen, workflow, behavior, or problem Compass should improve."
-      case .why:
-        return "Mention the person, workflow pain, or risk this should relieve."
-      case .success:
-        return "Name a visible result, error, test, or check Compass can verify."
-      }
-    }
-
-    public var systemImage: String {
-      kind.systemImage
     }
   }
 

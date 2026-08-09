@@ -104,7 +104,7 @@ public struct AgentReadFileTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Read a UTF-8 text file from the working directory. Returns 1-indexed line-numbered content (`NNNNNN\\tline text`). Use those line numbers with edit_file startLine/endLine. Optional offset and limit narrow the slice. Refuses binary files.",
+        "Read a UTF-8 text file from the working directory. Returns 1-indexed line-numbered content (`NNNNNN\\tline text`) for orientation. Edit existing files with edit_file using exact string replacements (old_string/new_string). Optional offset and limit narrow the slice. Refuses binary files.",
       parameters: schema
     )
   }
@@ -180,7 +180,8 @@ public struct AgentReadFileTool: AgentTool {
       return String(format: "%6d\t", lineNumber) + truncatedLine
     }.joined(separator: "\n")
 
-    var output = "Lines are 1-indexed. Use these numbers with edit_file startLine/endLine.\n"
+    var output =
+      "Lines are 1-indexed for orientation. Edit with edit_file old_string/new_string replacements.\n"
     output += rendered
     if endIndex < totalLines {
       output += "\n... \(totalLines - endIndex) more lines"
@@ -260,8 +261,13 @@ public struct AgentReadFileTool: AgentTool {
 
   private static func packageRootPrefix(for path: String) -> String? {
     let components = path.split(separator: "/").map(String.init)
-    guard components.count >= 2, components[0] == "packages" else { return nil }
-    return "packages/\(components[1])"
+    guard components.count >= 2 else { return nil }
+    switch components[0] {
+    case "crates", "apps":
+      return "\(components[0])/\(components[1])"
+    default:
+      return nil
+    }
   }
 
   private static func isUsefulDirectoryEntry(_ entry: String) -> Bool {

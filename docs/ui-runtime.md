@@ -56,7 +56,7 @@ Failures fail `cargo test` like any other assertion.
 | Mode | Trigger | Role |
 |------|---------|------|
 | **Simulation (required)** | `cargo test --workspace` (standard Rust verify) | Primary UI acceptance |
-| **macOS adapter verify** | `bash scripts/verify-macos.sh` | UniFFI bindings + `swift build` / `swift test` |
+| **macOS adapter verify** | `bash scripts/verify-macos.sh` | UniFFI bindings + `swift build` / `swift run FFIChecks` |
 | **Headed fidelity (opt-in)** | `COMPASS_MACOS_UI_FIDELITY=1` | Bundle, Aqua launch, AX assert, screenshot → `apps/macos/dist/ui-smoke.png` |
 
 Unset / `0` / `false` means fidelity is **off**. Default verify does **not** require an Aqua session.

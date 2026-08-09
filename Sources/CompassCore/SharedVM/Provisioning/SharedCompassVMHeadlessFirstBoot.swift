@@ -762,16 +762,10 @@ enum SharedCompassVMHeadlessFirstBoot {
       echo "  --- end sshd snapshot ---"
 
       echo "[compass-firstboot] [4/6] Creating guest-local repo roots"
-      # macOS guests TCC-block AppleVirtIOFS reads from every process —
-      # including LaunchAgents inside the GUI session and even root via
-      # LaunchDaemon — so Compass abandoned the VirtioFS share and now
-      # keeps CAS/tar-synced repo worktrees under the compass user's home.
-      # Repos holds the per-repo guest trees; Worktrees is kept for legacy
-      # tar-sync fallback state.
+      # CAS/tar-synced per-repo worktrees live under the compass user's home
+      # (VirtioFS was abandoned — AppleVirtIOFS is TCC-blocked in guests).
       REPOS_ROOT="$GUEST_HOME/Compass/Repos"
-      WORKTREES_ROOT="$GUEST_HOME/Compass/Worktrees"
       mkdir -p "$REPOS_ROOT"
-      mkdir -p "$WORKTREES_ROOT"
       chown -R "$GUEST_USER":staff "$GUEST_HOME/Compass"
       /bin/mkdir -p /usr/local/bin
       /bin/rm -f /usr/local/bin/git-remote-compass

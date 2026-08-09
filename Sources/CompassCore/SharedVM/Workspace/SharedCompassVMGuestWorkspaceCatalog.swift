@@ -7,9 +7,7 @@ import Foundation
 /// (rather than one per Develop iteration) so:
 ///
 ///   * Plan / Develop / Verify / Critic all share the same guest
-///     working directory — no phase ever falls back to host execution
-///     just because it lives outside a `Worktrees/dev-<UUID>/worktree`
-///     subtree.
+///     working directory — no phase ever falls back to host execution.
 ///   * CAS/tar sync can refresh the guest in place, preserving
 ///     gitignored build caches (`target/`, `.build/`) between runs while
 ///     the host Git worktree remains the source of truth for VCS.
@@ -45,7 +43,6 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   /// sync. Kept out of the JSON catalog to avoid blowing the per-call
   /// decode cost on large repos.
   static let filesetFilename = "guest-workspace-fileset.dat"
-  static let experimentCatalogDirectory = "product-tournament/guest-workspaces"
 
   // MARK: - Catalog entry
 
@@ -57,8 +54,6 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     /// the first time Compass needs a guest workspace and never
     /// rotated unless the caller explicitly resets the entry.
     var id: String
-    var experimentID: String?
-    var branchName: String?
     /// Lowercase-hex SHA-256 of the host worktree's content as of the
     /// last successful push or pull. Used by `SharedCompassVMRepoWorkspaceSync`
     /// to detect out-of-band host edits made while Compass wasn't
@@ -70,13 +65,9 @@ enum SharedCompassVMGuestWorkspaceCatalog {
 
     init(
       id: String,
-      experimentID: String? = nil,
-      branchName: String? = nil,
       lastSyncedHostFingerprint: String? = nil
     ) {
       self.id = id
-      self.experimentID = experimentID
-      self.branchName = branchName
       self.lastSyncedHostFingerprint = lastSyncedHostFingerprint
     }
   }
@@ -108,52 +99,6 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     return entry
   }
 
-  static func ensureEntry(
-    forRepoURL repoURL: URL,
-    experimentID: String,
-    branchName: String,
-    fileManager: FileManager = .default
-  ) throws -> CatalogEntry {
-    let url = experimentCatalogURL(
-      forRepoURL: repoURL,
-      experimentID: experimentID,
-      branchName: branchName
-    )
-    if let existing = try loadEntry(from: url, fileManager: fileManager) {
-      return existing
-    }
-    let entry = CatalogEntry(
-      id: UUID().uuidString.lowercased(),
-      experimentID: sanitizedIdentifier(experimentID, fallback: "workspace"),
-      branchName: StringUtils.boundedText(branchName, limit: 240),
-      lastSyncedHostFingerprint: nil
-    )
-    try save(entry, to: url, fileManager: fileManager)
-    if let observed = try loadEntry(from: url, fileManager: fileManager) {
-      return observed
-    }
-    return entry
-  }
-
-  private static func sanitizedIdentifier(_ raw: String, fallback: String) -> String {
-    let lowered = raw.lowercased()
-    var output = ""
-    var previousWasSeparator = false
-    for scalar in lowered.unicodeScalars {
-      let isAllowed =
-        CharacterSet.alphanumerics.contains(scalar) || scalar == "-" || scalar == "_"
-      if isAllowed {
-        output.unicodeScalars.append(scalar)
-        previousWasSeparator = false
-      } else if !previousWasSeparator {
-        output.append("-")
-        previousWasSeparator = true
-      }
-    }
-    let trimmed = output.trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
-    return StringUtils.boundedText(trimmed.isEmpty ? fallback : trimmed, limit: 120)
-  }
-
   /// Returns the catalog entry for `repoURL` if one has been allocated,
   /// or nil. Useful for diagnostics paths that should not implicitly
   /// allocate.
@@ -163,22 +108,6 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   ) throws -> CatalogEntry? {
     try loadEntry(
       from: catalogURL(forRepoURL: repoURL),
-      fileManager: fileManager
-    )
-  }
-
-  static func loadEntry(
-    forRepoURL repoURL: URL,
-    experimentID: String,
-    branchName: String,
-    fileManager: FileManager = .default
-  ) throws -> CatalogEntry? {
-    try loadEntry(
-      from: experimentCatalogURL(
-        forRepoURL: repoURL,
-        experimentID: experimentID,
-        branchName: branchName
-      ),
       fileManager: fileManager
     )
   }
@@ -242,8 +171,7 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   }
 
   /// Absolute guest path of the worktree directory for `entry`. This is
-  /// the path Compass hands to the agent as its working directory under
-  /// the `.sharedVM` route.
+  /// the path Compass hands to the agent as its working directory.
   static func guestWorktreePath(forEntry entry: CatalogEntry) -> String {
     guestLayout.worktreePath(
       workspaceID: entry.id,
@@ -262,21 +190,6 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     return guestWorktreePath(forEntry: entry)
   }
 
-  static func ensureGuestWorktreePath(
-    forRepoURL repoURL: URL,
-    experimentID: String,
-    branchName: String,
-    fileManager: FileManager = .default
-  ) throws -> String {
-    let entry = try ensureEntry(
-      forRepoURL: repoURL,
-      experimentID: experimentID,
-      branchName: branchName,
-      fileManager: fileManager
-    )
-    return guestWorktreePath(forEntry: entry)
-  }
-
   // MARK: - Path helpers
 
   static func catalogURL(forRepoURL repoURL: URL) -> URL {
@@ -287,19 +200,6 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   static func filesetURL(forRepoURL repoURL: URL) -> URL {
     CompassWorkspace.repoLocalStorageRootURL(for: repoURL)
       .appending(path: filesetFilename)
-  }
-
-  static func experimentCatalogURL(
-    forRepoURL repoURL: URL,
-    experimentID: String,
-    branchName: String
-  ) -> URL {
-    CompassWorkspace.repoLocalStorageRootURL(for: repoURL)
-      .appending(path: experimentCatalogDirectory, directoryHint: .isDirectory)
-      .appending(
-        path:
-          "\(experimentCatalogComponent(experimentID))-\(experimentCatalogComponent(branchName)).json"
-      )
   }
 
   // MARK: - Internals
@@ -339,16 +239,6 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(entry)
     try data.write(to: url, options: .atomic)
-  }
-
-  private static func experimentCatalogComponent(_ value: String) -> String {
-    let normalized =
-      value
-      .lowercased()
-      .replacingOccurrences(of: #"[^a-z0-9_.-]+"#, with: "-", options: .regularExpression)
-      .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-    let bounded = String(normalized.prefix(80))
-    return bounded.isEmpty ? "experiment" : bounded
   }
 
   private static func writeFileSet(

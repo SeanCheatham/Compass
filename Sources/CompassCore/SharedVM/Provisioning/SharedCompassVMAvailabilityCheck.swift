@@ -52,9 +52,8 @@ enum SharedCompassVMAvailabilityCheck {
   }
 
   /// Maps an arbitrary error surfaced by `VZVirtualMachine.start` (or the
-  /// installer) into a user-readable availability reason. The agent
-  /// runtime uses this to translate VZ errors into the
-  /// `.unavailable(reason:)` readiness case before falling back to host.
+  /// installer) into a user-readable availability reason for the
+  /// `.unavailable(reason:)` readiness case.
   static func describe(error: Error) -> String {
     let nsError = error as NSError
     if nsError.domain == VZErrorDomain {

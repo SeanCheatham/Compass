@@ -5,19 +5,6 @@ public enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
 
   public var id: Self { self }
 
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    // All legacy identifiers (including the removed container runtime)
-    // migrate to the macOS VM route.
-    _ = try container.decode(String.self)
-    self = .macOSVM
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(rawValue)
-  }
-
   public var title: String { "macOS VM" }
   public var systemImage: String { "desktopcomputer" }
 }

@@ -63,13 +63,12 @@ public enum FactoryPassRunner {
     )
     let result = outcome.result
     let combined = result.stdout + "\n" + result.stderr
-    let fallbackNote = outcome.fallbackReason.map { " (VM unavailable: \($0))" } ?? ""
     _ = try? workspace.writeSessionAuditArtifact(
       session: sessionNumber,
       name: "macos-verify.log",
       kind: "log",
       contents: "$ \(GeneratedProjectQuality.macosVerifyCommand)\n\n" + combined,
-      note: "macOS verify output (\(outcome.runtimeDescription)\(fallbackNote))"
+      note: "macOS verify output (\(outcome.runtimeDescription))"
         + (enableFidelity ? "; headed fidelity enabled." : ".")
     )
     let screenshotSaved = await MacOSUISmokeSupport.writeScreenshotAuditArtifact(
@@ -81,7 +80,7 @@ public enum FactoryPassRunner {
     guard result.exitCode == 0 else {
       let tail = String(combined.suffix(4000))
       let issue = """
-        [macos-verify] macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` on \(outcome.runtimeDescription)\(fallbackNote) exited with code \(result.exitCode). Output (tail):
+        [macos-verify] macOS verify `\(GeneratedProjectQuality.macosVerifyCommand)` on \(outcome.runtimeDescription) exited with code \(result.exitCode). Output (tail):
         ```
         \(tail)
         ```

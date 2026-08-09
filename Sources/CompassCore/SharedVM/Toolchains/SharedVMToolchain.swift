@@ -9,7 +9,6 @@ public enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
   case rust
   case cargoLlvmCov = "cargo_llvm_cov"
   case cargoMutants = "cargo_mutants"
-  case node
 }
 
 /// Guest paths and LaunchDaemon labels derived from a toolchain id.
@@ -91,10 +90,8 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
         installedBinaries: ["cargo-mutants"],
         verificationCommand: "/usr/local/bin/cargo mutants --version"
       )
-    case .node:
-      return Self.renderNodeInstallScript()
-    }
   }
+}
 
   func finaliseVerificationCommand() -> String {
     switch id {
@@ -122,12 +119,8 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
       return "/usr/local/bin/cargo llvm-cov --version >/dev/null 2>&1"
     case .cargoMutants:
       return "/usr/local/bin/cargo mutants --version >/dev/null 2>&1"
-    case .node:
-      return """
-        \(Self.nodeVerificationCommand) >/dev/null 2>&1
-        """
-    }
   }
+}
 
   /// PATH-independent check that the rustup toolchain is usable. The
   /// guest agent runs bash non-interactively, so rustup's proxies are
@@ -137,14 +130,6 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
 
   static let rustProbeCommand = """
     test -x /usr/local/bin/cargo && test -x /usr/local/bin/rustc && echo PRESENT || echo MISSING
-    """
-
-  /// Login-shell check that the generated TypeScript toolchain is on PATH.
-  static let nodeVerificationCommand =
-    "command -v node && command -v npm && command -v npx && command -v corepack && command -v pnpm && command -v tsc && node --version && pnpm --version && tsc --version"
-
-  static let nodeProbeCommand = """
-    command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && command -v corepack >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1 && command -v tsc >/dev/null 2>&1 && echo PRESENT || echo MISSING
     """
 
   func parseProgressFraction(fromLogTail tail: String) -> Double {
@@ -370,40 +355,6 @@ public struct SharedVMToolchainDefinition: Sendable, Equatable {
         """)
   }
 
-  private static func renderNodeInstallScript() -> String {
-    let id = SharedVMToolchainID.node.rawValue
-    let brewBin = SharedVMToolchainPaths.brewInstallPath
-    let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(
-      id: id,
-      body: """
-        BREW_BIN="\(brewBin)"
-        GUEST_USER="\(guestUser)"
-        if su - "$GUEST_USER" -c '\(nodeVerificationCommand)' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-        else
-          [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
-          if ! su - "$GUEST_USER" -c 'command -v node' >/dev/null 2>&1; then
-            echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install node"
-            su - "$GUEST_USER" -c "'$BREW_BIN' install node" \\
-              || fail 3 "brew install node failed"
-          fi
-          su - "$GUEST_USER" -c 'command -v node && command -v npm && command -v npx && command -v corepack && node --version && npm --version' \\
-            || fail 4 "node/npm/npx verification failed"
-          su - "$GUEST_USER" -c 'corepack enable && corepack prepare pnpm@9.15.4 --activate' \\
-            || fail 5 "corepack pnpm activation failed"
-          if ! su - "$GUEST_USER" -c 'command -v tsc' >/dev/null 2>&1; then
-            echo "\(SharedVMToolchainPaths.logTag(id: id)) npm install -g typescript"
-            su - "$GUEST_USER" -c 'npm install -g typescript' \\
-              || fail 6 "npm install -g typescript failed"
-          fi
-          su - "$GUEST_USER" -c '\(nodeVerificationCommand)' \\
-            || fail 7 "node/pnpm/typescript verification failed"
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed node, npm, corepack, pnpm, and typescript"
-        fi
-        """)
-  }
-
 }
 
 /// Static registry of Shared VM toolchains.
@@ -485,17 +436,6 @@ public enum SharedVMToolchainCatalog {
       probeCommand:
         "/usr/local/bin/cargo mutants --version >/dev/null 2>&1 && echo PRESENT || echo MISSING",
       installTimeout: 60 * 60,
-      installableViaGenericProvisioner: true
-    ),
-    SharedVMToolchainDefinition(
-      id: .node,
-      displayName: "Node.js + pnpm (TypeScript)",
-      description:
-        "Optional Node.js toolchain with npm, Corepack/pnpm, and global TypeScript (`tsc`).",
-      defaultProvisioned: false,
-      dependencies: [.homebrew],
-      probeCommand: SharedVMToolchainDefinition.nodeProbeCommand,
-      installTimeout: 15 * 60,
       installableViaGenericProvisioner: true
     ),
   ]

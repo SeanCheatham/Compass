@@ -31,7 +31,7 @@ User product intent lives in `.compass/brief.json` (audience, problem, product r
 
 Factory-owned requirement verification lives in `.compass/requirements.json` (criteria, Given/When/Then scenarios, owned paths, ship traces, audit verdicts). Each product requirement has a `kind` and `proofLevel`. Plan must link slices via `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves a slice, Compass records a ship trace, may mark other requirements stale when owned paths changed, and runs an incremental audit. When Plan returns no immediate work, a full audit must find every requirement satisfied before the loop declares done; otherwise findings are fed back into Plan. Auto-play continues after a successful Develop (which retires Immediate Work) so the next Plan can address still-open requirements — Develop success alone is not “all requirements verified.”
 
-After every successful Critic/ship, Compass runs a **health pass** (fail-open, bug-hunt focus, in-tree). Findings persist to `.compass/health-snapshot.json` / `.compass/findings.json`, show in the **Results** tab, and feed the next Plan prompt as pressure (same idea as coverage/mutation snapshots). Health does not auto-open requirements ledger entries.
+After every successful Critic/ship, Compass runs a **health pass** (fail-open, bug-hunt focus, in-tree). Findings persist to `.compass/health-snapshot.json`, show in the **Results** tab, and feed the next Plan prompt as pressure (same idea as coverage/mutation snapshots). Health does not auto-open requirements ledger entries.
 
 The v1 factory loop is:
 
@@ -106,7 +106,7 @@ MLX can run `mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit` after user-approved
 
 Factory bash/verify run inside an embedded macOS VM (Apple Virtualization.framework):
 
-- Guest toolchain: Xcode CLT (swift, clang, XCTest via `swift test`), Rust via rustup (cargo, rustc, rustfmt, clippy), cargo-llvm-cov, cargo-mutants, ripgrep, OpenSSL + pkgconf. Project Git stays on the host; the guest worktree has no `.git`.
+- Guest toolchain: Xcode CLT (swift, clang), Rust via rustup (cargo, rustc, rustfmt, clippy), cargo-llvm-cov, cargo-mutants, ripgrep, OpenSSL + pkgconf. Project Git stays on the host; the guest worktree has no `.git`.
 - Repo sync: host worktree → guest worktree over a CAS (content-addressed store) channel on vsock (tar fallback); `/workspace` paths in commands map to the guest worktree
 - Workspace reset: `compass-cli vm reset-workspace --repo <path> [--dirt|--full]` discards per-repo guest dirt without reprovisioning
 
@@ -131,4 +131,3 @@ Each `compass-cli run` executes one factory session (Plan → Develop → Verify
 - `--max-develop-attempts <n>` / `--max-verify-repairs <n>` — retry budgets when Develop post-checks or verify fail.
 - `--commit` — after each successful session, commit the iteration's changes to Git (`Compass iteration <n>: <summary>`), giving you per-iteration history and easy rollback.
 
-Legacy project files in existing user workspaces are ignored rather than deleted.

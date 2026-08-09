@@ -137,29 +137,8 @@ public struct HeadlessCompassRunner: Sendable {
     "verify", "coverage", "mutation", "doctor", "macos-verify",
   ]
 
-  /// Factory bash/verify always use the embedded macOS VM. Legacy
-  /// `COMPASS_BASH_RUNTIME` values are ignored (including `host`).
-  public enum BashRuntimeSelection: String, Sendable {
-    case macOSVM = "macos_vm"
-  }
-
-  public static func bashRuntimeSelection(
-    environment: [String: String] = ProcessInfo.processInfo.environment
-  ) -> BashRuntimeSelection {
-    _ = environment
-    return .macOSVM
-  }
-
-  public static func bashRuntimePrefersHost(
-    environment: [String: String] = ProcessInfo.processInfo.environment
-  ) -> Bool {
-    _ = environment
-    return false
-  }
-
-  public static var bashRuntimeName: String {
-    BashRuntimeSelection.macOSVM.rawValue
-  }
+  /// Factory bash/verify always use the embedded macOS VM.
+  public static var bashRuntimeName: String { "macos_vm" }
 
   public static var bashRuntimeDescription: String {
     "embedded macOS VM"

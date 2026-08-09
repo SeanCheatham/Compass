@@ -2,8 +2,7 @@ import Foundation
 
 /// Guest filesystem layout for the Shared VM route.
 ///
-/// The current implementation still provisions a macOS guest, but generated
-/// TypeScript workflows should depend on this layout contract rather than scattering
+/// Callers should use this layout contract rather than scattering
 /// macOS home-directory assumptions through sync and verification code.
 public struct SharedCompassVMGuestLayout: Equatable, Sendable {
   public var id: String

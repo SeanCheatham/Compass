@@ -399,16 +399,6 @@ struct CompassCLITests {
   }
 
   @Test
-  func legacySharedVMSessionPreferenceDecodesAsMacOSVM() throws {
-    let decoded = try JSONDecoder().decode(
-      AgentExecutionEnvironmentPreference.self,
-      from: Data(#""shared_vm""#.utf8)
-    )
-    #expect(decoded == .macOSVM)
-    #expect(decoded.rawValue == "macos_vm")
-  }
-
-  @Test
   func editFileAcceptsInsertAliases() throws {
     let plain = try JSONDecoder().decode(
       AgentEditFileTool.Arguments.self,

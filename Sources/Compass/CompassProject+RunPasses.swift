@@ -1108,9 +1108,8 @@ extension CompassProject {
     }
   }
 
-  /// macOS product gate. Runs inside the embedded macOS VM when that
-  /// runtime is available, falling back to the host shell otherwise
-  /// (see `MacOSVerifyGate`).
+  /// macOS product gate. Always runs inside the embedded macOS VM
+  /// (`MacOSVerifyGate`); there is no host-shell fallback.
   func runMacOSVerifyIfNeeded(
     workingDirectory: URL,
     sessionIndex: Int,

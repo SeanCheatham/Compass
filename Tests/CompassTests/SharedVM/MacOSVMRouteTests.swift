@@ -37,15 +37,6 @@ struct MacOSVMRouteTests {
   // MARK: - Preference decoding
 
   @Test
-  func legacySharedVMIdentifierMigratesToMacOSVM() throws {
-    let decoded = try JSONDecoder().decode(
-      AgentExecutionEnvironmentPreference.self,
-      from: Data(#""shared_vm""#.utf8)
-    )
-    #expect(decoded == .macOSVM)
-  }
-
-  @Test
   func macOSVMIdentifierRoundTrips() throws {
     let encoded = try JSONEncoder().encode(AgentExecutionEnvironmentPreference.macOSVM)
     let decoded = try JSONDecoder().decode(
@@ -54,43 +45,21 @@ struct MacOSVMRouteTests {
   }
 
   @Test
-  func legacyContainerIdentifierMigratesToMacOSVM() throws {
-    let decoded = try JSONDecoder().decode(
-      AgentExecutionEnvironmentPreference.self,
-      from: Data(#""containerized_linux""#.utf8)
-    )
-    #expect(decoded == .macOSVM)
+  func unknownPreferenceIdentifierFailsDecode() {
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(
+        AgentExecutionEnvironmentPreference.self,
+        from: Data(#""shared_vm""#.utf8)
+      )
+    }
   }
 
-  @Test
-  func unknownIdentifierFallsBackToMacOSVM() throws {
-    let decoded = try JSONDecoder().decode(
-      AgentExecutionEnvironmentPreference.self,
-      from: Data(#""something_else""#.utf8)
-    )
-    #expect(decoded == .macOSVM)
-  }
-
-  // MARK: - Bash runtime selection
+  // MARK: - Bash runtime
 
   @Test
-  func bashRuntimeAlwaysSelectsMacOSVM() {
-    #expect(
-      HeadlessCompassRunner.bashRuntimeSelection(environment: ["COMPASS_BASH_RUNTIME": "macos_vm"])
-        == .macOSVM)
-    #expect(
-      HeadlessCompassRunner.bashRuntimeSelection(environment: ["COMPASS_BASH_RUNTIME": "shared_vm"])
-        == .macOSVM)
-    // Host escape hatch removed — even explicit `host` selects the VM.
-    #expect(
-      HeadlessCompassRunner.bashRuntimeSelection(environment: ["COMPASS_BASH_RUNTIME": "host"])
-        == .macOSVM)
-    #expect(HeadlessCompassRunner.bashRuntimeSelection(environment: [:]) == .macOSVM)
-    #expect(
-      HeadlessCompassRunner.bashRuntimeSelection(
-        environment: ["COMPASS_BASH_RUNTIME": "containerized_linux"]) == .macOSVM)
-    #expect(
-      !HeadlessCompassRunner.bashRuntimePrefersHost(environment: ["COMPASS_BASH_RUNTIME": "host"]))
+  func bashRuntimeIsAlwaysMacOSVM() {
+    #expect(HeadlessCompassRunner.bashRuntimeName == "macos_vm")
+    #expect(HeadlessCompassRunner.bashRuntimeDescription == "embedded macOS VM")
   }
 
   // MARK: - Guest working directory mapping

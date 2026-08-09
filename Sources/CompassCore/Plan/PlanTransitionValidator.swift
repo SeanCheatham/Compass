@@ -50,8 +50,8 @@ public enum PlanTransitionValidator {
   )
     throws
   {
-    if !current.actionableCandidates.isEmpty
-      && next.actionableCandidates.isEmpty
+    if !current.actionableQueue.isEmpty
+      && next.actionableQueue.isEmpty
       && next.completed.count == current.completed.count
     {
       throw PlanTransitionValidationError(
@@ -203,7 +203,7 @@ public enum PlanTransitionValidator {
 
   private static func remainingPlanFields(in state: PlanState, label: String) -> [String] {
     var fields: [String] = []
-    if !state.actionableCandidates.isEmpty {
+    if !state.actionableQueue.isEmpty {
       fields.append("\(label) candidates")
     }
     return fields

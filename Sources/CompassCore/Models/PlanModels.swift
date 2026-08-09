@@ -489,41 +489,12 @@ public struct PlanStrategicContext: Codable, Equatable {
   public var constraints: [String]
   public var acceptanceSignals: [String]
 
-  public var thesis: String {
-    get { summary }
-    set { summary = newValue.trimmingCharacters(in: .whitespacesAndNewlines) }
-  }
-
-  public var principles: [String] {
-    get { desiredOutcomes }
-    set { desiredOutcomes = Self.cleaned(newValue) }
-  }
-
-  public var nonGoals: [String] {
-    get { [] }
-    set { _ = newValue }
-  }
-
-  public var risks: [String] {
-    get { acceptanceSignals }
-    set { acceptanceSignals = Self.cleaned(newValue) }
-  }
-
   public enum CodingKeys: String, CodingKey {
     case summary
     case targetUsers
-    case targetUsersSnake = "target_users"
     case desiredOutcomes
-    case desiredOutcomesSnake = "desired_outcomes"
     case acceptanceSignals
-    case acceptanceSignalsSnake = "acceptance_signals"
-    case thesis
-    case principles
     case constraints
-    case nonGoals
-    case nonGoalsSnake = "non_goals"
-    case nonGoalsKebab = "non-goals"
-    case risks
   }
 
   public static let empty = PlanStrategicContext(
@@ -539,68 +510,13 @@ public struct PlanStrategicContext: Codable, Equatable {
     targetUsers: [String] = [],
     desiredOutcomes: [String] = [],
     constraints: [String] = [],
-    acceptanceSignals: [String] = [],
-    thesis: String = "",
-    principles: [String] = [],
-    nonGoals: [String] = [],
-    risks: [String] = []
+    acceptanceSignals: [String] = []
   ) {
-    self.summary =
-      (summary.nilIfEmpty ?? thesis).trimmingCharacters(in: .whitespacesAndNewlines)
+    self.summary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
     self.targetUsers = Self.cleaned(targetUsers)
-    self.desiredOutcomes = Self.cleaned(desiredOutcomes.isEmpty ? principles : desiredOutcomes)
+    self.desiredOutcomes = Self.cleaned(desiredOutcomes)
     self.constraints = Self.cleaned(constraints)
-    self.acceptanceSignals = Self.cleaned(acceptanceSignals.isEmpty ? risks : acceptanceSignals)
-    _ = nonGoals
-  }
-
-  public init(from decoder: Decoder) throws {
-    if let container = try? decoder.container(keyedBy: CodingKeys.self) {
-      let summary =
-        try FlexibleModelDecoder.decodeStringIfPresent(
-          from: container,
-          preferredKey: .summary,
-          aliases: [.thesis]
-        ) ?? ""
-      let targetUsers =
-        try Self.decodeStringArrayIfPresent(
-          from: container,
-          preferredKey: .targetUsers,
-          aliases: [.targetUsersSnake]
-        ) ?? []
-      let desiredOutcomes =
-        try Self.decodeStringArrayIfPresent(
-          from: container,
-          preferredKey: .desiredOutcomes,
-          aliases: [.desiredOutcomesSnake, .principles]
-        ) ?? []
-      let constraints =
-        try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .constraints)
-        ?? []
-      let acceptanceSignals =
-        try Self.decodeStringArrayIfPresent(
-          from: container,
-          preferredKey: .acceptanceSignals,
-          aliases: [.acceptanceSignalsSnake, .risks]
-        ) ?? []
-
-      self.init(
-        summary: summary,
-        targetUsers: targetUsers,
-        desiredOutcomes: desiredOutcomes,
-        constraints: constraints,
-        acceptanceSignals: acceptanceSignals
-      )
-      return
-    }
-
-    let container = try decoder.singleValueContainer()
-    if container.decodeNil() {
-      self = .empty
-      return
-    }
-    let thesis = try container.decode(String.self)
-    self.init(thesis: thesis)
+    self.acceptanceSignals = Self.cleaned(acceptanceSignals)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -640,27 +556,6 @@ public struct PlanStrategicContext: Codable, Equatable {
   private static func cleaned(_ values: [String]) -> [String] {
     values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
-  }
-
-  private static func decodeStringArrayIfPresent(
-    from container: KeyedDecodingContainer<CodingKeys>,
-    preferredKey: CodingKeys,
-    aliases: [CodingKeys]
-  ) throws -> [String]? {
-    var firstTypeError: Error?
-
-    for key in [preferredKey] + aliases where container.contains(key) {
-      do {
-        return try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: key)
-      } catch {
-        firstTypeError = firstTypeError ?? error
-      }
-    }
-
-    if let firstTypeError {
-      throw firstTypeError
-    }
-    return nil
   }
 }
 
@@ -718,8 +613,6 @@ public struct PlanState: Codable, Equatable {
     case queue
     case completed
     case immediate
-    case candidates
-    case strategicContext
     case openQuestions
     case acceptanceGates
     case products
@@ -732,10 +625,8 @@ public struct PlanState: Codable, Equatable {
     projectKind: ProjectKind = .factory,
     completed: [String],
     immediate: PlanNext?,
-    queue: [PlanCandidate]? = nil,
-    brief: PlanStrategicContext? = nil,
-    candidates: [PlanCandidate] = [],
-    strategicContext: PlanStrategicContext = .empty,
+    queue: [PlanCandidate] = [],
+    brief: PlanStrategicContext = .empty,
     openQuestions: [PlanQuestion] = [],
     acceptanceGates: AcceptanceGates? = nil,
     products: [GeneratedProduct] = GeneratedProducts.default,
@@ -746,8 +637,8 @@ public struct PlanState: Codable, Equatable {
     self.projectKind = projectKind
     self.completed = completed
     self.immediate = immediate
-    self.queue = queue ?? candidates
-    self.brief = brief ?? strategicContext
+    self.queue = queue
+    self.brief = brief
     self.openQuestions = openQuestions
     self.acceptanceGates = acceptanceGates
     self.products = GeneratedProducts.normalize(products)
@@ -763,12 +654,8 @@ public struct PlanState: Codable, Equatable {
       try container.decodeIfPresent([LossyString].self, forKey: .completed) ?? []
     completed = completedValues.compactMap(\.value)
     immediate = try container.decodeIfPresent(PlanNext.self, forKey: .immediate)
-    queue =
-      try container.decodeIfPresent([PlanCandidate].self, forKey: .queue)
-      ?? container.decodeIfPresent([PlanCandidate].self, forKey: .candidates) ?? []
-    brief =
-      try container.decodeIfPresent(PlanStrategicContext.self, forKey: .brief)
-      ?? container.decodeIfPresent(PlanStrategicContext.self, forKey: .strategicContext) ?? .empty
+    queue = try container.decodeIfPresent([PlanCandidate].self, forKey: .queue) ?? []
+    brief = try container.decodeIfPresent(PlanStrategicContext.self, forKey: .brief) ?? .empty
     openQuestions = try container.decodeIfPresent([PlanQuestion].self, forKey: .openQuestions) ?? []
     acceptanceGates = try container.decodeIfPresent(AcceptanceGates.self, forKey: .acceptanceGates)
     let decodedProducts =
@@ -799,18 +686,8 @@ public struct PlanState: Codable, Equatable {
     try container.encodeIfPresent(macosFidelityCadence, forKey: .macosFidelityCadence)
   }
 
-  public var candidates: [PlanCandidate] {
-    get { queue }
-    set { queue = newValue }
-  }
-
-  public var strategicContext: PlanStrategicContext {
-    get { brief }
-    set { brief = newValue }
-  }
-
-  public var candidatesMarkdown: String {
-    candidates.map { candidate in
+  public var queueMarkdown: String {
+    queue.map { candidate in
       let statusPrefix = candidate.status == .available ? "" : "[\(candidate.status.rawValue)] "
       let title = candidate.title.isEmpty ? candidate.outcome : candidate.title
       let outcome =
@@ -821,12 +698,8 @@ public struct PlanState: Codable, Equatable {
     }.joined(separator: "\n")
   }
 
-  public var strategicContextMarkdown: String {
-    strategicContext.markdownSummary
-  }
-
-  public var actionableCandidates: [PlanCandidate] {
-    candidates.filter { $0.status.isActionable }
+  public var actionableQueue: [PlanCandidate] {
+    queue.filter { $0.status.isActionable }
   }
 
   public var proposal: PlanProposal {
@@ -1018,15 +891,7 @@ public struct PlanRunResult: Codable, Equatable {
 
   public enum CodingKeys: String, CodingKey {
     case state
-    case planState
-    // swift-format-ignore: AlwaysUseLowerCamelCase
-    case plan_state
-    case planningState
-    // swift-format-ignore: AlwaysUseLowerCamelCase
-    case planning_state
-    case proposal
     case lessonEdits
-    case lessonEditsSnake = "lesson_edits"
   }
 
   public init(
@@ -1039,17 +904,12 @@ public struct PlanRunResult: Codable, Equatable {
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    state = try Self.decodeRequiredPlanProposal(
-      from: container,
-      preferredKey: .state,
-      aliases: [.planState, .plan_state, .planningState, .planning_state, .proposal],
-      fieldName: "state"
-    )
+    state = try container.decode(PlanProposal.self, forKey: .state)
     lessonEdits =
       try FlexibleModelDecoder.decodeLessonEditsIfPresent(
         from: container,
         preferredKey: .lessonEdits,
-        aliases: [.lessonEditsSnake]
+        aliases: []
       ) ?? []
   }
 
@@ -1058,45 +918,6 @@ public struct PlanRunResult: Codable, Equatable {
     try container.encode(state, forKey: .state)
     try container.encode(lessonEdits, forKey: .lessonEdits)
   }
-
-  private static func decodeRequiredPlanProposal(
-    from container: KeyedDecodingContainer<CodingKeys>,
-    preferredKey: CodingKeys,
-    aliases: [CodingKeys],
-    fieldName: String
-  ) throws -> PlanProposal {
-    var sawPresentKey = false
-    var firstTypeError: Error?
-
-    for key in [preferredKey] + aliases where container.contains(key) {
-      sawPresentKey = true
-      do {
-        return try container.decode(PlanProposal.self, forKey: key)
-      } catch {
-        firstTypeError = firstTypeError ?? error
-      }
-    }
-
-    if !sawPresentKey {
-      throw DecodingError.keyNotFound(
-        preferredKey,
-        .init(
-          codingPath: container.codingPath,
-          debugDescription: "PlanRunResult requires \(fieldName)."
-        )
-      )
-    }
-    if let firstTypeError {
-      throw firstTypeError
-    }
-    throw DecodingError.dataCorrupted(
-      .init(
-        codingPath: container.codingPath,
-        debugDescription: "PlanRunResult requires a planning state object."
-      )
-    )
-  }
-
 }
 
 private struct LossyString: Decodable {

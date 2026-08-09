@@ -34,10 +34,6 @@ public enum HealthBranch {
     }
   }
 
-  public static func branchName(projectId: UUID) -> String {
-    "compass/health/\(projectId.uuidString.lowercased())"
-  }
-
   public static func branchName(projectId: String) -> String {
     let trimmed = projectId.trimmingCharacters(in: .whitespacesAndNewlines)
     let safe = trimmed.isEmpty ? UUID().uuidString.lowercased() : trimmed.lowercased()

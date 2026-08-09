@@ -230,11 +230,11 @@ struct AcceptanceGatesTests {
   }
 
   @Test
-  func planStateDecodesLegacyFilesWithoutGates() throws {
-    let legacy = """
+  func planStateDecodesWithoutGates() throws {
+    let payload = """
       {"schemaVersion":1,"completed":[],"queue":[],"brief":{"summary":"x","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]}
       """
-    let decoded = try JSONDecoder().decode(PlanState.self, from: Data(legacy.utf8))
+    let decoded = try JSONDecoder().decode(PlanState.self, from: Data(payload.utf8))
     #expect(decoded.acceptanceGates == nil)
   }
 
@@ -244,7 +244,7 @@ struct AcceptanceGatesTests {
     state.acceptanceGates = AcceptanceGates(maxMissedMutants: 2)
 
     let proposal = PlanProposal(
-      immediate: nil, candidates: [], strategicContext: .empty, openQuestions: [])
+      immediate: nil, queue: [], brief: .empty, openQuestions: [])
     let applied = proposal.applying(to: state)
 
     #expect(applied.acceptanceGates == state.acceptanceGates)

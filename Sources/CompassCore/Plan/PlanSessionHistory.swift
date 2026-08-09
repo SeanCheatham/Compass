@@ -345,8 +345,7 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
 
     private static func preferenceTitle(identifier: String, fallback: String) -> String {
       switch identifier {
-      case AgentExecutionEnvironmentPreference.macOSVM.rawValue, "shared_vm",
-        "containerized_linux":
+      case AgentExecutionEnvironmentPreference.macOSVM.rawValue:
         return "macOS VM"
       default:
         return sanitizedTitle(fallback, fallback: "Unknown")
@@ -355,7 +354,7 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
 
     private static func routeTitle(identifier: String, fallback: String) -> String {
       switch identifier {
-      case "macos-vm", "shared-vm", "containerized-linux":
+      case "macos-vm":
         return "macOS VM"
       case "native-macos":
         return "This Mac"
@@ -369,8 +368,6 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
       switch identifier {
       case AgentExecutionEnvironmentPreference.macOSVM.rawValue:
         return identifier
-      case "native_macos", "devcontainer_preferred", "containerized_linux", "shared_vm":
-        return AgentExecutionEnvironmentPreference.macOSVM.rawValue
       default:
         return "unknown"
       }
@@ -381,8 +378,6 @@ public struct PlanSessionHistoryItem: Identifiable, Equatable {
       switch identifier {
       case "native-macos", "macos-vm":
         return identifier
-      case "shared-vm", "containerized-linux":
-        return "macos-vm"
       default:
         return "unknown"
       }

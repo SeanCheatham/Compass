@@ -297,13 +297,7 @@ struct SharedCompassVMConfiguration {
     return console
   }
 
-  // Note: directory sharing (VirtioFS) was removed in phase 10.
-  // macOS guests TCC-block `AppleVirtIOFS` reads from every process —
-  // including LaunchAgents inside the GUI session and even root via
-  // LaunchDaemon. The in-guest Compass agent therefore can't read the
-  // share regardless of which TCC profile we put it in. Repo contents
-  // move through vsock instead (CAS primary, wipe-style tar fallback).
-  // The `SharedCompassVMFileShare` helpers stay in the tree to validate
-  // share tags should we ever reattach a share for an unrelated
-  // purpose, but no VirtioFS device is configured on the running VM.
+  // VirtioFS directory sharing was removed: macOS guests TCC-block
+  // AppleVirtIOFS from every process. Repo contents move over vsock
+  // (CAS primary, wipe-style tar fallback).
 }

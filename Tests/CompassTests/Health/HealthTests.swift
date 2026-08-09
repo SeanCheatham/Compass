@@ -96,12 +96,6 @@ struct HealthTests {
           evidence: "fail"
         ),
         HealthFinding(
-          kind: .survivingMutant,
-          title: "mutant X",
-          description: "unkilled",
-          triage: HealthTriageResult(isRealBug: false, rationale: "coverage gap")
-        ),
-        HealthFinding(
           kind: .staleDoc,
           title: "README lag",
           description: "mentions removed CLI"
@@ -111,7 +105,6 @@ struct HealthTests {
     let text = snap.formattedForPrompt()
     #expect(text.contains("Confirmed bugs"))
     #expect(text.contains("real bug"))
-    #expect(text.contains("Surviving mutants"))
     #expect(text.contains("Docs / sprawl"))
   }
 

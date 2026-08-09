@@ -129,7 +129,6 @@ public enum HealthRecon {
         targets.append(
           HealthRankedTarget(
             path: entry.path,
-            functionHint: nil,
             reason: "cold coverage \(pct) — inspect first (lead, not proof)",
             priority: 1
           )
@@ -140,7 +139,6 @@ public enum HealthRecon {
       targets.append(
         HealthRankedTarget(
           path: "crates/\(name)/src",
-          functionHint: nil,
           reason: "package \(name)",
           priority: cleanupFocus ? 2 : 1
         ))

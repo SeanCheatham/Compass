@@ -4,50 +4,40 @@ import Foundation
 /// by Compass and is not part of the Plan submit payload contract.
 public struct PlanProposal: Codable, Equatable {
   public var immediate: PlanNext?
-  public var candidates: [PlanCandidate]
-  public var strategicContext: PlanStrategicContext
+  public var queue: [PlanCandidate]
+  public var brief: PlanStrategicContext
   public var openQuestions: [PlanQuestion]
-
-  public var candidatesMarkdown: String {
-    candidates.map { "- \($0.title)" }.joined(separator: "\n")
-  }
-
-  public var strategicContextMarkdown: String {
-    strategicContext.markdownSummary
-  }
 
   public enum CodingKeys: String, CodingKey {
     case immediate
     case queue
-    case candidates
     case brief
-    case strategicContext
     case openQuestions
   }
 
   public init(
     immediate: PlanNext?,
-    candidates: [PlanCandidate],
-    strategicContext: PlanStrategicContext,
+    queue: [PlanCandidate],
+    brief: PlanStrategicContext,
     openQuestions: [PlanQuestion] = []
   ) {
     self.immediate = immediate
-    self.candidates = candidates
-    self.strategicContext = strategicContext
+    self.queue = queue
+    self.brief = brief
     self.openQuestions = openQuestions
   }
 
   public init(from state: PlanState) {
     immediate = state.immediate
-    candidates = state.candidates
-    strategicContext = state.strategicContext
+    queue = state.queue
+    brief = state.brief
     openQuestions = state.openQuestions
   }
 
   public static let empty = PlanProposal(
     immediate: nil,
-    candidates: [],
-    strategicContext: .empty,
+    queue: [],
+    brief: .empty,
     openQuestions: []
   )
 
@@ -58,12 +48,8 @@ public struct PlanProposal: Codable, Equatable {
       preferredKey: .immediate,
       fieldName: "immediate"
     )
-    candidates =
-      try container.decodeIfPresent([PlanCandidate].self, forKey: .queue)
-      ?? container.decode([PlanCandidate].self, forKey: .candidates)
-    strategicContext =
-      try container.decodeIfPresent(PlanStrategicContext.self, forKey: .brief)
-      ?? container.decode(PlanStrategicContext.self, forKey: .strategicContext)
+    queue = try container.decode([PlanCandidate].self, forKey: .queue)
+    brief = try container.decode(PlanStrategicContext.self, forKey: .brief)
     openQuestions = try container.decode([PlanQuestion].self, forKey: .openQuestions)
   }
 
@@ -73,18 +59,18 @@ public struct PlanProposal: Codable, Equatable {
     if immediate == nil {
       try container.encodeNil(forKey: .immediate)
     }
-    try container.encode(candidates, forKey: .queue)
-    try container.encode(strategicContext, forKey: .brief)
+    try container.encode(queue, forKey: .queue)
+    try container.encode(brief, forKey: .brief)
     try container.encode(openQuestions, forKey: .openQuestions)
   }
 
   public func applying(to state: PlanState) -> PlanState {
-    let mergedContext = strategicContext.preservingMissingFields(from: state.strategicContext)
+    let mergedContext = brief.preservingMissingFields(from: state.brief)
     return PlanState(
       completed: state.completed,
       immediate: immediate,
-      candidates: candidates,
-      strategicContext: mergedContext,
+      queue: queue,
+      brief: mergedContext,
       openQuestions: openQuestions,
       acceptanceGates: state.acceptanceGates,
       products: state.products,
@@ -98,8 +84,8 @@ public struct PlanProposal: Codable, Equatable {
     maxStrategicBullets: Int = 5,
     maxOpenQuestions: Int = 4
   ) -> PlanProposal {
-    let compactCandidates =
-      candidates
+    let compactQueue =
+      queue
       .filter { $0.status != .done && $0.status != .stale }
       .prefix(max(0, maxCandidates))
       .map { candidate in
@@ -118,17 +104,17 @@ public struct PlanProposal: Codable, Equatable {
         )
       }
     let compactContext = PlanStrategicContext(
-      summary: Self.bounded(strategicContext.summary, limit: 500),
-      targetUsers: strategicContext.targetUsers.prefix(maxStrategicBullets).map {
+      summary: Self.bounded(brief.summary, limit: 500),
+      targetUsers: brief.targetUsers.prefix(maxStrategicBullets).map {
         Self.bounded($0, limit: 180)
       },
-      desiredOutcomes: strategicContext.desiredOutcomes.prefix(maxStrategicBullets).map {
+      desiredOutcomes: brief.desiredOutcomes.prefix(maxStrategicBullets).map {
         Self.bounded($0, limit: 180)
       },
-      constraints: strategicContext.constraints.prefix(maxStrategicBullets).map {
+      constraints: brief.constraints.prefix(maxStrategicBullets).map {
         Self.bounded($0, limit: 180)
       },
-      acceptanceSignals: strategicContext.acceptanceSignals.prefix(maxStrategicBullets).map {
+      acceptanceSignals: brief.acceptanceSignals.prefix(maxStrategicBullets).map {
         Self.bounded($0, limit: 180)
       }
     )
@@ -141,8 +127,8 @@ public struct PlanProposal: Codable, Equatable {
     }
     return PlanProposal(
       immediate: immediate,
-      candidates: Array(compactCandidates),
-      strategicContext: compactContext,
+      queue: Array(compactQueue),
+      brief: compactContext,
       openQuestions: Array(compactQuestions)
     )
   }
@@ -184,7 +170,13 @@ public struct PlanProposal: Codable, Equatable {
     if let firstTypeError {
       throw firstTypeError
     }
-    return nil
+    throw DecodingError.keyNotFound(
+      preferredKey,
+      .init(
+        codingPath: container.codingPath,
+        debugDescription: "Missing required field `\(fieldName)`."
+      )
+    )
   }
 }
 

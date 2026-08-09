@@ -13,20 +13,15 @@ public enum MacOSVerifyGate {
     public var result: ProcessResult
     /// Surfaced in logs/audit artifacts.
     public var runtimeDescription: String
-    /// Retained for call-site compatibility; always `nil` now that host
-    /// fallback is removed.
-    public var fallbackReason: String?
 
-    public init(result: ProcessResult, runtimeDescription: String, fallbackReason: String?) {
+    public init(result: ProcessResult, runtimeDescription: String) {
       self.result = result
       self.runtimeDescription = runtimeDescription
-      self.fallbackReason = fallbackReason
     }
   }
 
   /// Runs the macOS verify command inside the embedded macOS VM.
-  /// VM failures surface as a non-zero `Outcome` rather than falling
-  /// back to the host shell.
+  /// VM failures surface as a non-zero `Outcome` (no host-shell fallback).
   public static func run(
     command: String = GeneratedProjectQuality.macosVerifyCommand,
     workingDirectory: URL,
@@ -50,7 +45,7 @@ public enum MacOSVerifyGate {
         workingDirectory: workingDirectory,
         timeout: timeout
       )
-      return Outcome(result: result, runtimeDescription: "macOS VM", fallbackReason: nil)
+      return Outcome(result: result, runtimeDescription: "macOS VM")
     } catch {
       return Outcome(
         result: ProcessResult(
@@ -58,8 +53,7 @@ public enum MacOSVerifyGate {
           stdout: "",
           stderr: "macOS VM verify failed: \(error.localizedDescription)"
         ),
-        runtimeDescription: "macOS VM",
-        fallbackReason: nil
+        runtimeDescription: "macOS VM"
       )
     }
   }

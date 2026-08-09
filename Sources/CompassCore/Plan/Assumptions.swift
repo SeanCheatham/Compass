@@ -352,12 +352,7 @@ public struct AssumptionLedgerStore: Sendable {
     }
     let data = try Data(contentsOf: url)
     guard !data.isEmpty else { return .empty }
-    let decoder = JSONDecoder()
-    if let ledger = try? decoder.decode(AssumptionLedger.self, from: data) {
-      return ledger
-    }
-    let legacyRecords = try decoder.decode([AssumptionRecord].self, from: data)
-    return AssumptionLedger(assumptions: legacyRecords)
+    return try JSONDecoder().decode(AssumptionLedger.self, from: data)
   }
 
   public func write(_ ledger: AssumptionLedger) throws {

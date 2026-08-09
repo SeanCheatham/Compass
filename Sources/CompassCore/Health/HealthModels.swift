@@ -3,7 +3,6 @@ import Foundation
 public enum HealthFindingKind: String, Codable, Equatable, Sendable {
   case failingGeneratedTest
   case baselineFailure
-  case survivingMutant
   case staleDoc
   case orphanedSurface
   case testGap
@@ -97,10 +96,10 @@ public struct HealthFinding: Codable, Equatable, Sendable, Identifiable {
     focus = try container.decodeIfPresent(HealthFocus.self, forKey: .focus)
   }
 
-  /// Confirmed product bugs (triaged real), excluding mutant coverage gaps and doc/sprawl debt.
+  /// Confirmed product bugs (triaged real), excluding docs/sprawl/test/dead-code debt.
   public var isConfirmedRealBug: Bool {
     switch kind {
-    case .survivingMutant, .staleDoc, .orphanedSurface, .testGap, .deadCode:
+    case .staleDoc, .orphanedSurface, .testGap, .deadCode:
       return false
     case .baselineFailure:
       return true
@@ -190,13 +189,11 @@ public struct HealthTestRunSummary: Codable, Equatable, Sendable {
 
 public struct HealthRankedTarget: Codable, Equatable, Sendable {
   public var path: String
-  public var functionHint: String?
   public var reason: String
   public var priority: Int
 
-  public init(path: String, functionHint: String? = nil, reason: String, priority: Int = 0) {
+  public init(path: String, reason: String, priority: Int = 0) {
     self.path = path
-    self.functionHint = functionHint
     self.reason = reason
     self.priority = priority
   }
@@ -406,7 +403,6 @@ public struct HealthSnapshot: Codable, Equatable, Sendable {
       lines.append("Branch \(branch): \(base.prefix(8))..\(tip.prefix(8))")
     }
     let realBugs = findings.filter(\.isConfirmedRealBug)
-    let mutants = findings.filter { $0.kind == .survivingMutant }
     let debt = findings.filter {
       switch $0.kind {
       case .staleDoc, .orphanedSurface, .testGap, .deadCode: return true
@@ -414,12 +410,12 @@ public struct HealthSnapshot: Codable, Equatable, Sendable {
       }
     }
     let other = findings.filter {
-      !$0.isConfirmedRealBug && $0.kind != .survivingMutant
+      !$0.isConfirmedRealBug
         && $0.kind != .staleDoc && $0.kind != .orphanedSurface && $0.kind != .testGap
         && $0.kind != .deadCode
     }
 
-    if realBugs.isEmpty && mutants.isEmpty && debt.isEmpty && other.isEmpty {
+    if realBugs.isEmpty && debt.isEmpty && other.isEmpty {
       lines.append("_(no health findings)_")
       return lines.joined(separator: "\n")
     }
@@ -443,12 +439,6 @@ public struct HealthSnapshot: Codable, Equatable, Sendable {
         lines.append("- [\(tag)] \(finding.title)")
       }
     }
-    if !mutants.isEmpty {
-      lines.append("Surviving mutants (coverage gaps, not product bugs):")
-      for finding in mutants.prefix(maxFindings) {
-        lines.append("- \(finding.title)")
-      }
-    }
     return lines.joined(separator: "\n")
   }
 }
@@ -457,7 +447,6 @@ public enum HealthPaths {
   public static let generatedTestsDirectory = "tests"
   public static let generatedTestPrefix = "compass_gen_"
   public static let snapshotFileName = "health-snapshot.json"
-  public static let findingsFileName = "findings.json"
 
   public static func isGeneratedTestFileName(_ name: String) -> Bool {
     let base = (name as NSString).lastPathComponent

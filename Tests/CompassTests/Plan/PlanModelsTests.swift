@@ -28,42 +28,6 @@ struct PlanModelsTests {
     #expect(!json.contains("\"candidates\""))
   }
   @Test
-  func factoryStateDecodesLegacyPlanningShape() throws {
-    let legacy = """
-      {
-        "completed": ["first"],
-        "strategicContext": {
-          "thesis": "Ship a tiny app",
-          "principles": ["Be useful"],
-          "risks": ["Verify with tests"]
-        },
-        "candidates": [
-          {
-            "id": "slice-one",
-            "title": "Add the first slice",
-            "outcome": "The workspace has a runnable check",
-            "why": "It gives Develop a finish line",
-            "category": "test",
-            "origin": "plan",
-            "priority": "high",
-            "status": "available",
-            "evidence": [],
-            "blockedBy": []
-          }
-        ]
-      }
-      """.data(using: .utf8)!
-
-    let decoded = try JSONDecoder().decode(PlanState.self, from: legacy)
-
-    #expect(decoded.schemaVersion == 1)
-    #expect(decoded.completed == ["first"])
-    #expect(decoded.brief.summary == "Ship a tiny app")
-    #expect(decoded.brief.desiredOutcomes == ["Be useful"])
-    #expect(decoded.brief.acceptanceSignals == ["Verify with tests"])
-    #expect(decoded.queue.map(\.id) == ["slice-one"])
-  }
-  @Test
   func planQueueDecodesHumanEnumAliases() throws {
     let payload = """
       {
@@ -118,10 +82,10 @@ struct PlanModelsTests {
 
     let decoded = try JSONDecoder().decode(PlanRunResult.self, from: payload)
 
-    #expect(decoded.state.candidates.map(\.category) == [PlanCandidate.Category.feature, .test])
-    #expect(decoded.state.candidates.map(\.origin) == [PlanCandidate.Origin.user, .repository])
-    #expect(decoded.state.candidates.map(\.priority) == [PlanCandidate.Priority.high, .medium])
-    #expect(decoded.state.candidates.map(\.status) == [PlanCandidate.Status.available, .active])
+    #expect(decoded.state.queue.map(\.category) == [PlanCandidate.Category.feature, .test])
+    #expect(decoded.state.queue.map(\.origin) == [PlanCandidate.Origin.user, .repository])
+    #expect(decoded.state.queue.map(\.priority) == [PlanCandidate.Priority.high, .medium])
+    #expect(decoded.state.queue.map(\.status) == [PlanCandidate.Status.available, .active])
   }
   @Test
   func applyingPlanProposalPreservesOmittedBriefFields() {
@@ -145,8 +109,8 @@ struct PlanModelsTests {
         verify:
           "cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"
       ),
-      candidates: [],
-      strategicContext: PlanStrategicContext(summary: "Build decision notes."),
+      queue: [],
+      brief: PlanStrategicContext(summary: "Build decision notes."),
       openQuestions: []
     )
 

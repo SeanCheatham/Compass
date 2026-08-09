@@ -55,10 +55,6 @@ private struct HealthResultsContent: View {
     snapshot.findings.filter(\.isConfirmedRealBug)
   }
 
-  private var mutants: [HealthFinding] {
-    snapshot.findings.filter { $0.kind == .survivingMutant }
-  }
-
   private var debt: [HealthFinding] {
     snapshot.findings.filter {
       switch $0.kind {
@@ -71,7 +67,6 @@ private struct HealthResultsContent: View {
   private var otherFindings: [HealthFinding] {
     snapshot.findings.filter { finding in
       !finding.isConfirmedRealBug
-        && finding.kind != .survivingMutant
         && !debt.contains(where: { $0.id == finding.id })
     }
   }
@@ -101,13 +96,6 @@ private struct HealthResultsContent: View {
             title: "Other Findings",
             systemImage: "questionmark.circle",
             findings: otherFindings
-          )
-        }
-        if !mutants.isEmpty {
-          findingsSection(
-            title: "Surviving Mutants",
-            systemImage: "circle.dotted",
-            findings: mutants
           )
         }
         if snapshot.findings.isEmpty {
@@ -169,7 +157,7 @@ private struct HealthResultsContent: View {
     HStack(spacing: 10) {
       summaryChip(title: "Confirmed", value: "\(confirmed.count)", tint: .red)
       summaryChip(title: "Debt", value: "\(debt.count)", tint: .orange)
-      summaryChip(title: "Mutants", value: "\(mutants.count)", tint: .secondary)
+      summaryChip(title: "Other", value: "\(otherFindings.count)", tint: .secondary)
       summaryChip(title: "Gen tests", value: "\(snapshot.generatedTests.count)", tint: .indigo)
       summaryChip(title: "Commits", value: "\(snapshot.commits.count)", tint: .green)
       Spacer(minLength: 0)
@@ -318,11 +306,6 @@ private struct HealthResultsContent: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
               Text(target.path)
                 .font(.caption.monospaced())
-              if let hint = target.functionHint, !hint.isEmpty {
-                Text(hint)
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
               Spacer(minLength: 0)
               Text(target.reason)
                 .font(.caption2)
@@ -525,7 +508,6 @@ extension HealthFinding {
     switch kind {
     case .failingGeneratedTest: return "Failing test"
     case .baselineFailure: return "Baseline"
-    case .survivingMutant: return "Mutant"
     case .staleDoc: return "Stale doc"
     case .orphanedSurface: return "Orphaned"
     case .testGap: return "Test gap"

@@ -24,7 +24,7 @@ The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt ass
 - **Factory** — Plan → Develop → Verify → Critic → Health (fail-open Plan pressure) → Requirements Audit.
 - **Health** — recon + focused pass (`bugHunt` / `test` / `docs` / `cleanup`) with focus-scoped writes + VM `cargo test` + triage. Proposed patches commit on `compass/health/<id>`; the user’s prior branch is restored. Run Loop holds one health branch across passes (weighted-random focus) and stops after N consecutive passes with no new findings (default 3; Activity **Idle**). No brief/requirements completion gates. Cleanup focus is deterministic-first: llvm-cov cold-file ranking → rustc dead-code candidates → deletion probe (cut / compile-expand / test / revert) → LLM apply/judge → post-submit `cargo test` gate.
 
-Snapshots: `.compass/health-snapshot.json`, `.compass/findings.json` (Results tab). CLI: `compass-cli health run|eval`. Health policy: `HealthPassRunner` / `HealthRecon` / `DeletionTester` / `HealthDeadCode`.
+Snapshots: `.compass/health-snapshot.json` (Results tab). CLI: `compass-cli health run|eval`. Health policy: `HealthPassRunner` / `HealthRecon` / `DeletionTester` / `HealthDeadCode`.
 
 ## Model Backends
 
@@ -58,8 +58,6 @@ Health pass budgets (`maxIterations` / `wallClockSecs` / `idleStopPasses`) are r
 User product intent is stored separately in `.compass/brief.json` (`audience`, `problem`, `productRequirements` with `kind` / `proofLevel`) and injected into agent prompts as project context. The Brief tab **Random idea** action fills fields from `ProjectBriefIdeaGenerator` (curated starters; Save persists).
 
 Requirement verification is factory-owned in `.compass/requirements.json` (`RequirementLedger`: criteria, scenarios, owned paths, ship traces, status, satisfied-at / last-revalidated). Statuses are `unverified` / `satisfied` / `unsatisfied` / `stale`. Plan must set `immediate.targetedRequirementIDs` while requirements remain incomplete. After Critic approves, Compass records a ship trace, marks other satisfied requirements stale when owned paths changed, and runs an incremental audit. A full audit gates loop completion when Plan returns no immediate work. Auto-play uses `PlanPassOutcome` so a successful Develop (which clears Immediate Work) continues into the next Plan instead of treating Develop success as requirements-complete. Proof levels (`deterministic` / `hybrid` / `judgment`) control how host-run criteria interact with auditor judgment. Health findings feed Plan prompts only (not the requirements ledger).
-
-Legacy state files from older projects are ignored in-place.
 
 ## Generated Output
 
@@ -98,4 +96,4 @@ The macOS VM (`Sources/CompassCore/SharedVM`) is a Virtualization.framework macO
 - `glob` — filesystem pattern search across the tree
 - `list_files` — codemap source inventory with language tags
 
-Native Develop uses string-replace `edit_file` (`AgentEditFileTextTool`). Line-range `AgentEditFileTool` remains envelope/local-model quarantine only.
+Native Develop uses string-replace `edit_file` (`AgentEditFileTextTool`). Line-range `AgentEditFileTool` remains for envelope / text-only fixture runtimes.

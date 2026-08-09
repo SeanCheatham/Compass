@@ -45,9 +45,13 @@ public struct AgentWriteFileTool: AgentTool {
   }
 
   private struct EditFileRepairEdit: Encodable {
-    public let startLine: Int
-    public let endLine: Int
-    public let content: String
+    public let oldString: String
+    public let newString: String
+
+    enum CodingKeys: String, CodingKey {
+      case oldString = "old_string"
+      case newString = "new_string"
+    }
   }
 
   public let spec: AgentToolSpec
@@ -108,19 +112,12 @@ public struct AgentWriteFileTool: AgentTool {
     if let existing, existing.isRegularFile {
       let relative = context.relativize(url)
       let wasRead = await context.readTracker.wasRead(url)
-      let wholeFileRange: String
-      if let lineCount = await context.readTracker.lineCount(for: url) {
-        wholeFileRange = "startLine=1, endLine=\(lineCount)"
-      } else {
-        wholeFileRange = "startLine=1, endLine=<last line from read_file>"
-      }
       let repairHint = Self.editFileRepairHint(
         relativePath: relative,
-        lineCount: await context.readTracker.lineCount(for: url),
         content: args.content
       )
       let guidance =
-        "write_file refused to overwrite \(relative) because it already exists. Use edit_file for existing files. \(wasRead ? "Use the line numbers from the prior read_file" : "Call read_file on \(relative) first"), then call edit_file with startLine/endLine and replacement lines. For a whole-file replacement, use edit_file with \(wholeFileRange).\(repairHint)"
+        "write_file refused to overwrite \(relative) because it already exists. Use edit_file for existing files. \(wasRead ? "Reuse text from the prior read_file" : "Call read_file on \(relative) first"), then call edit_file with exact old_string/new_string replacements (old_string must match the current file uniquely).\(repairHint)"
       if wasRead {
         return .failure(.invalidArguments(guidance))
       }
@@ -309,21 +306,17 @@ public struct AgentWriteFileTool: AgentTool {
 
   private static func editFileRepairHint(
     relativePath: String,
-    lineCount: Int?,
     content: String
   ) -> String {
-    guard let lineCount,
-      !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    else {
+    guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       return ""
     }
     let payload = EditFileRepairPayload(
       path: relativePath,
       edits: [
         EditFileRepairEdit(
-          startLine: 1,
-          endLine: lineCount,
-          content: content
+          oldString: "<paste the full current file contents from read_file here>",
+          newString: content
         )
       ]
     )
@@ -336,7 +329,7 @@ public struct AgentWriteFileTool: AgentTool {
     }
     return """
 
-      To replace the existing file with the attempted content, return `edit_file` with these arguments:
+      To replace the existing file with the attempted content, return `edit_file` with these arguments (set old_string to the exact current file text):
       ```json
       \(json)
       ```
