@@ -48,6 +48,8 @@ The v1 factory loop is:
 
 **Open Health** (sidebar / menu) or `compass-cli health run --repo <path>` imports a Rust Git root as `projectKind: health`. Each pass samples a focus (`bugHunt`, `test`, `docs`, `cleanup`) with focus-scoped writes; proposed patches commit on `compass/health/<projectId>` then the user’s previous branch is restored. **Run Loop** keeps iterating on one health branch (weighted-random focus each pass) until **Idle** consecutive passes add no new findings (default 3), or you pause/stop. Health turn/time/idle budgets are in-memory (Activity **Turns** / **Min** / **Idle** controls) or CLI `--max-iterations` / `--wall-clock-secs` — not stored in `.compass/state.json`. Defaults are 128 turns / 2 hours / 3 idle. Optional `--focus` pins the dimension. Eval scoring against a fixture `bugs.toml` is available via `compass-cli health eval --repo <path> --bugs <bugs.toml>` (see `Fixtures/Health/`).
 
+**Cleanup focus** uses a deterministic ladder before the LLM hunt: `cargo llvm-cov` for cold-file prioritization, rustc `dead_code` / `unused_imports` / `unused_macros` diagnostics as exact-span seeds, then a deletion-testing probe (cut → compile-driven expansion → `cargo test` → always revert) that hands proven / live / tangled results to the agent. The agent decides what to apply; after submit, cleanup edits must pass `cargo test` or the tree is restored.
+
 Activity/Live is the primary run surface; **Results** shows the latest health snapshot (findings, focus, branch commits).
 
 ## Generated Projects

@@ -1,16 +1,21 @@
 import Foundation
 
-/// Deterministic health recon: packages, surfaces, baseline `cargo test` via VM bash.
+/// Deterministic health recon: packages, surfaces, baseline tests (or llvm-cov for cleanup),
+/// and optional dead-code candidates via rustc diagnostics.
 public enum HealthRecon {
   public static func run(
     repoURL: URL,
     bashRunner: AgentBashRunner,
     timeout: TimeInterval = 600,
+    focus: HealthFocus? = nil,
     onLive: (@Sendable (LiveEvent) -> Void)? = nil
   ) async -> HealthReconResult {
     var notes: [String] = []
     var packageNames: [String] = []
     var surfaces = HealthSurfaceInventory()
+    var coverage: CoverageSnapshot?
+    var deadCodeCandidates: [DeadCodeCandidate] = []
+    let cleanupFocus = focus == .cleanup
 
     let metaCommand =
       "cargo metadata --no-deps --format-version 1 2>/dev/null | head -c 200000"
@@ -33,48 +38,116 @@ public enum HealthRecon {
 
     surfaces.docPaths = discoverDocPaths(in: repoURL)
 
-    let testCommand =
-      "cargo test --workspace -- --nocapture 2>&1 | tee /tmp/compass-health-baseline.log | tail -c 80000"
-    let testResult = await runMirroredBash(
-      command: testCommand,
-      label: "health recon baseline",
-      repoURL: repoURL,
-      bashRunner: bashRunner,
-      timeout: timeout,
-      onLive: onLive
-    )
     let baseline: HealthTestRunSummary
-    if let testResult {
-      let combined = testResult.stdout + testResult.stderr
-      baseline = HealthTestRunSummary(
-        success: testResult.exitCode == 0,
-        passed: countMatches(#"(\d+) passed"#, in: combined),
-        failed: countMatches(#"(\d+) failed"#, in: combined),
-        ignored: countMatches(#"(\d+) ignored"#, in: combined),
-        stdout: String(testResult.stdout.suffix(20_000)),
-        stderr: String(testResult.stderr.suffix(8_000))
+    if cleanupFocus {
+      let covCommand =
+        "\(GeneratedProjectQuality.coverageCollectCommand) 2>&1 | tee /tmp/compass-health-coverage.log | tail -c 120000"
+      let covResult = await runMirroredBash(
+        command: covCommand,
+        label: "health recon coverage baseline",
+        repoURL: repoURL,
+        bashRunner: bashRunner,
+        timeout: timeout,
+        onLive: onLive
       )
-      if !baseline.success {
-        notes.append("baseline cargo test failed — treat as health signal")
+      if let covResult {
+        let combined = covResult.stdout + "\n" + covResult.stderr
+        let parsed = GeneratedProjectQuality.parseCoverageReport(output: combined)
+        if parsed.overallLineCoveragePercent != nil || !parsed.files.isEmpty {
+          coverage = parsed
+          baseline = HealthTestRunSummary(
+            success: covResult.exitCode == 0,
+            passed: countMatches(#"(\d+) passed"#, in: combined),
+            failed: countMatches(#"(\d+) failed"#, in: combined),
+            ignored: countMatches(#"(\d+) ignored"#, in: combined),
+            stdout: String(covResult.stdout.suffix(20_000)),
+            stderr: String(covResult.stderr.suffix(8_000))
+          )
+          if !baseline.success {
+            notes.append("baseline cargo llvm-cov failed — treat as health signal")
+          }
+        } else {
+          notes.append(
+            "cargo llvm-cov produced no coverage data; falling back to cargo test baseline"
+          )
+          baseline = await runPlainBaseline(
+            repoURL: repoURL,
+            bashRunner: bashRunner,
+            timeout: timeout,
+            onLive: onLive,
+            notes: &notes
+          )
+        }
+      } else {
+        notes.append("cargo llvm-cov did not run; falling back to cargo test baseline")
+        baseline = await runPlainBaseline(
+          repoURL: repoURL,
+          bashRunner: bashRunner,
+          timeout: timeout,
+          onLive: onLive,
+          notes: &notes
+        )
       }
     } else {
-      baseline = HealthTestRunSummary(success: false, stderr: "baseline cargo test did not run")
-      notes.append("baseline cargo test did not run")
+      baseline = await runPlainBaseline(
+        repoURL: repoURL,
+        bashRunner: bashRunner,
+        timeout: timeout,
+        onLive: onLive,
+        notes: &notes
+      )
+    }
+
+    if cleanupFocus {
+      let checkResult = await runMirroredBash(
+        command: DeadCodeCandidateParser.checkCommand,
+        label: "health recon dead-code diagnostics",
+        repoURL: repoURL,
+        bashRunner: bashRunner,
+        timeout: min(timeout, 180),
+        onLive: onLive
+      )
+      if let checkResult {
+        deadCodeCandidates = DeadCodeCandidateParser.parse(
+          cargoJSONLines: checkResult.stdout + "\n" + checkResult.stderr
+        )
+        if deadCodeCandidates.isEmpty {
+          notes.append("no rustc dead_code / unused_imports / unused_macros diagnostics")
+        } else {
+          notes.append("found \(deadCodeCandidates.count) dead-code candidate span(s)")
+        }
+      } else {
+        notes.append("cargo check dead-code diagnostics did not run")
+      }
     }
 
     var targets: [HealthRankedTarget] = []
+    if cleanupFocus, let coverage {
+      let cold = coldSourceFiles(from: coverage).prefix(16)
+      for entry in cold {
+        let pct = entry.lineCoveragePercent.map { String(format: "%.0f%%", $0) } ?? "?"
+        targets.append(
+          HealthRankedTarget(
+            path: entry.path,
+            functionHint: nil,
+            reason: "cold coverage \(pct) — inspect first (lead, not proof)",
+            priority: 1
+          )
+        )
+      }
+    }
     for name in packageNames.prefix(12) {
       targets.append(
         HealthRankedTarget(
           path: "crates/\(name)/src",
           functionHint: nil,
           reason: "package \(name)",
-          priority: 1
+          priority: cleanupFocus ? 2 : 1
         ))
     }
     for doc in surfaces.docPaths.prefix(6) {
       targets.append(
-        HealthRankedTarget(path: doc, reason: "doc surface", priority: 2)
+        HealthRankedTarget(path: doc, reason: "doc surface", priority: cleanupFocus ? 3 : 2)
       )
     }
     if targets.isEmpty {
@@ -87,8 +160,64 @@ public enum HealthRecon {
       baselineTests: baseline,
       rankedTargets: targets,
       surfaces: surfaces,
+      coverage: coverage,
+      deadCodeCandidates: deadCodeCandidates,
       notes: notes
     )
+  }
+
+  /// Source files with lowest line coverage, excluding test paths.
+  public static func coldSourceFiles(from coverage: CoverageSnapshot) -> [CoverageFileEntry] {
+    coverage.files
+      .filter { entry in
+        let path = entry.path.lowercased()
+        if path.contains("/tests/") || path.hasPrefix("tests/") || path.contains("/test/")
+          || path.hasSuffix("_test.rs") || path.hasSuffix("_tests.rs")
+        {
+          return false
+        }
+        if path.contains("/target/") { return false }
+        return path.hasSuffix(".rs")
+      }
+      .sorted {
+        ($0.lineCoveragePercent ?? 100) < ($1.lineCoveragePercent ?? 100)
+      }
+  }
+
+  private static func runPlainBaseline(
+    repoURL: URL,
+    bashRunner: AgentBashRunner,
+    timeout: TimeInterval,
+    onLive: (@Sendable (LiveEvent) -> Void)?,
+    notes: inout [String]
+  ) async -> HealthTestRunSummary {
+    let testCommand =
+      "cargo test --workspace -- --nocapture 2>&1 | tee /tmp/compass-health-baseline.log | tail -c 80000"
+    let testResult = await runMirroredBash(
+      command: testCommand,
+      label: "health recon baseline",
+      repoURL: repoURL,
+      bashRunner: bashRunner,
+      timeout: timeout,
+      onLive: onLive
+    )
+    if let testResult {
+      let combined = testResult.stdout + testResult.stderr
+      let baseline = HealthTestRunSummary(
+        success: testResult.exitCode == 0,
+        passed: countMatches(#"(\d+) passed"#, in: combined),
+        failed: countMatches(#"(\d+) failed"#, in: combined),
+        ignored: countMatches(#"(\d+) ignored"#, in: combined),
+        stdout: String(testResult.stdout.suffix(20_000)),
+        stderr: String(testResult.stderr.suffix(8_000))
+      )
+      if !baseline.success {
+        notes.append("baseline cargo test failed — treat as health signal")
+      }
+      return baseline
+    }
+    notes.append("baseline cargo test did not run")
+    return HealthTestRunSummary(success: false, stderr: "baseline cargo test did not run")
   }
 
   private static func discoverDocPaths(in repoURL: URL) -> [String] {

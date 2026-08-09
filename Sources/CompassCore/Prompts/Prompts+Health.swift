@@ -5,13 +5,14 @@ extension Prompts {
     recon: HealthReconResult,
     priorSnapshot: HealthSnapshot? = nil,
     focus: HealthFocus,
+    deletionProbe: DeletionProbeResult? = nil,
     promptMode: AgentPromptMode = .envelope
   ) throws -> String {
     let reconJSON = try JSONEncoder().encode(recon)
     let reconText = String(decoding: reconJSON, as: UTF8.self)
     let prior =
       priorSnapshot?.formattedForPrompt() ?? "_(no prior health snapshot)_"
-    let focusGuidance = focusDetail(focus)
+    let focusGuidance = focusDetail(focus, recon: recon, deletionProbe: deletionProbe)
     let submitExample = """
       {
         "plan": "<what you did>",
@@ -91,7 +92,11 @@ extension Prompts {
       """
   }
 
-  private static func focusDetail(_ focus: HealthFocus) -> String {
+  private static func focusDetail(
+    _ focus: HealthFocus,
+    recon: HealthReconResult,
+    deletionProbe: DeletionProbeResult?
+  ) -> String {
     switch focus {
     case .bugHunt:
       return """
@@ -115,12 +120,45 @@ extension Prompts {
         - Verify with a cheap check (grep/content or build) when possible.
         """
     case .cleanup:
-      return """
-        Focus rules — cleanup / sprawl:
-        - Remove dead code, consolidate duplication, delete orphaned surfaces when evidence is clear.
-        - Leave behavior unchanged; run verify (`cargo test` / fmt / clippy) before submit.
-        - Prefer surgical slices over speculative refactors.
-        """
+      return cleanupFocusDetail(recon: recon, deletionProbe: deletionProbe)
     }
+  }
+
+  private static func cleanupFocusDetail(
+    recon: HealthReconResult,
+    deletionProbe: DeletionProbeResult?
+  ) -> String {
+    var sections: [String] = [
+      """
+      Focus rules — cleanup / sprawl:
+      - Remove dead code, consolidate duplication, delete orphaned surfaces when evidence is clear.
+      - Leave behavior unchanged; run verify (`cargo test` / fmt / clippy) before submit.
+      - Prefer surgical slices over speculative refactors.
+      - Uncovered / cold paths are prioritization leads, not proof of dead code.
+      - For proven deletion-tested cuts below: apply them and report `deadCode` findings with
+        high confidence and evidence stamped `deletion-tested`.
+      - For tangled candidates: use compile-error context; expand or abandon surgically.
+      """
+    ]
+
+    let cold = HealthRecon.coldSourceFiles(from: recon.coverage ?? CoverageSnapshot()).prefix(12)
+    if !cold.isEmpty {
+      sections.append("Cold files — inspect first (coverage lead, not proof):")
+      for entry in cold {
+        let pct = entry.lineCoveragePercent.map { String(format: "%.1f%%", $0) } ?? "?"
+        sections.append("- `\(entry.path)`: \(pct)")
+      }
+    }
+
+    if let probe = deletionProbe, !probe.items.isEmpty {
+      sections.append(probe.formattedForPrompt())
+    } else if !recon.deadCodeCandidates.isEmpty {
+      sections.append("Rustc dead-code candidates (not yet deletion-tested):")
+      for candidate in recon.deadCodeCandidates.prefix(20) {
+        sections.append("- \(candidate.shortLabel): \(candidate.message)")
+      }
+    }
+
+    return sections.joined(separator: "\n")
   }
 }

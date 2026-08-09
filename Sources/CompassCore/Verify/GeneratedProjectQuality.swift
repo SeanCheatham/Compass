@@ -116,6 +116,20 @@ public struct CoverageSnapshot: Codable, Equatable, Sendable {
   public var files: [CoverageFileEntry]
   public var rawSummary: String?
 
+  public init(
+    collectedAt: Date = Date(),
+    sessionNumber: Int? = nil,
+    overallLineCoveragePercent: Double? = nil,
+    files: [CoverageFileEntry] = [],
+    rawSummary: String? = nil
+  ) {
+    self.collectedAt = collectedAt
+    self.sessionNumber = sessionNumber
+    self.overallLineCoveragePercent = overallLineCoveragePercent
+    self.files = files
+    self.rawSummary = rawSummary
+  }
+
   public func formattedForPrompt(maxFiles: Int = 12) -> String {
     guard !files.isEmpty || overallLineCoveragePercent != nil else {
       return "_(no coverage data collected yet - ensure verify enables coverage)_"
@@ -144,6 +158,11 @@ public struct CoverageSnapshot: Codable, Equatable, Sendable {
 public struct CoverageFileEntry: Codable, Equatable, Sendable {
   public var path: String
   public var lineCoveragePercent: Double?
+
+  public init(path: String, lineCoveragePercent: Double? = nil) {
+    self.path = path
+    self.lineCoveragePercent = lineCoveragePercent
+  }
 }
 
 public enum CoverageSnapshotStore {

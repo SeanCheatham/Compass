@@ -11,7 +11,7 @@ Compass is a native macOS host around a local software factory loop and a repo h
 | `CompassCLI` | Thin CLI entry that calls Core |
 | `CompassAgentRPC` / `CompassGuestAgent` | Host↔guest vsock JSON RPC |
 
-`CompassCore` domains live in folders: `AgentTools/`, `AgentExecutor/`, `SharedVM/`, `Plan/`, `Live/`, `Verify/`, `Health/`, `Guides/`, `Runtime/`, `Factory/`, `Studio/`, `Prompts/`, `RepoMap/`, `Sandbox/`, `Scaffold/`, `Session/`, `Models/`, `Util/`, plus `Resources/` (prompt schemas, tree-sitter queries) and the root-level `Workspace.swift` (`.compass` storage). Wire models are split under `Models/` (`PlanModels`, `SessionModels`, `LiveModels`, `FlexibleModelDecoder`). Post-verify quality gates and snapshot collection are shared (`SuccessfulVerifyGates`, `QualitySnapshotCollector`, `AcceptanceGateEvaluator`, `FactoryPostChecks`). Shared pass policy lives in `FactoryPassRunner` / `FactoryPassOptions` (Critic defaults on for UI and headless; headed macOS fidelity cadence; macOS gate helper). Health policy lives in `HealthPassRunner` (recon → focus → agent → optional branch commit → snapshot). UI (`CompassProject`) and headless (`HeadlessCompassRunner`) adapters own agent execution, sessions, and progress mapping.
+`CompassCore` domains live in folders: `AgentTools/`, `AgentExecutor/`, `SharedVM/`, `Plan/`, `Live/`, `Verify/`, `Health/`, `Guides/`, `Runtime/`, `Factory/`, `Studio/`, `Prompts/`, `RepoMap/`, `Sandbox/`, `Scaffold/`, `Session/`, `Models/`, `Util/`, plus `Resources/` (prompt schemas, tree-sitter queries) and the root-level `Workspace.swift` (`.compass` storage). Wire models are split under `Models/` (`PlanModels`, `SessionModels`, `LiveModels`, `FlexibleModelDecoder`). Post-verify quality gates and snapshot collection are shared (`SuccessfulVerifyGates`, `QualitySnapshotCollector`, `AcceptanceGateEvaluator`, `FactoryPostChecks`). Shared pass policy lives in `FactoryPassRunner` / `FactoryPassOptions` (Critic defaults on for UI and headless; headed macOS fidelity cadence; macOS gate helper). Health policy lives in `HealthPassRunner` (recon → optional deletion probe on cleanup → focus hunt → cleanup verify gate → optional branch commit → snapshot). UI (`CompassProject`) and headless (`HeadlessCompassRunner`) adapters own agent execution, sessions, and progress mapping.
 
 ## Host
 
@@ -22,9 +22,9 @@ The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt ass
 `PlanState.projectKind` is `factory` (default) or `health` (also on `KnownProjectRecord`):
 
 - **Factory** — Plan → Develop → Verify → Critic → Health (fail-open Plan pressure) → Requirements Audit.
-- **Health** — recon + focused pass (`bugHunt` / `test` / `docs` / `cleanup`) with focus-scoped writes + VM `cargo test` + triage. Proposed patches commit on `compass/health/<id>`; the user’s prior branch is restored. Run Loop holds one health branch across passes (weighted-random focus) and stops after N consecutive passes with no new findings (default 3; Activity **Idle**). No brief/requirements completion gates.
+- **Health** — recon + focused pass (`bugHunt` / `test` / `docs` / `cleanup`) with focus-scoped writes + VM `cargo test` + triage. Proposed patches commit on `compass/health/<id>`; the user’s prior branch is restored. Run Loop holds one health branch across passes (weighted-random focus) and stops after N consecutive passes with no new findings (default 3; Activity **Idle**). No brief/requirements completion gates. Cleanup focus is deterministic-first: llvm-cov cold-file ranking → rustc dead-code candidates → deletion probe (cut / compile-expand / test / revert) → LLM apply/judge → post-submit `cargo test` gate.
 
-Snapshots: `.compass/health-snapshot.json`, `.compass/findings.json` (Results tab). CLI: `compass-cli health run|eval`.
+Snapshots: `.compass/health-snapshot.json`, `.compass/findings.json` (Results tab). CLI: `compass-cli health run|eval`. Health policy: `HealthPassRunner` / `HealthRecon` / `DeletionTester` / `HealthDeadCode`.
 
 ## Model Backends
 

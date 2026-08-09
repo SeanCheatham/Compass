@@ -146,8 +146,14 @@ public enum HealthPassRunner {
       repoURL: workspace.repoURL,
       bashRunner: bashRunner,
       timeout: TimeInterval(options.budget.wallClockSecs),
+      focus: focus,
       onLive: onLive
     )
+
+    if var coverage = recon.coverage {
+      coverage.sessionNumber = sessionNumber
+      try? CoverageSnapshotStore.writeCoverageSnapshot(coverage, workspace: workspace)
+    }
 
     var snapshot = HealthSnapshot(
       collectedAt: Date(),
@@ -177,10 +183,41 @@ public enum HealthPassRunner {
       )
     }
 
+    if focus == .cleanup, !recon.deadCodeCandidates.isEmpty, !options.skipHunt {
+      let probeTimeout = min(
+        TimeInterval(options.budget.wallClockSecs) / 4,
+        600
+      )
+      let probe = await DeletionTester.probe(
+        repoURL: workspace.repoURL,
+        candidates: recon.deadCodeCandidates,
+        bashRunner: bashRunner,
+        timeout: max(60, probeTimeout),
+        onLive: onLive
+      )
+      snapshot.deletionProbe = probe
+      snapshot.notes.append(contentsOf: probe.notes)
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "health_deletion_probe",
+          status: "completed",
+          phase: AgentPhase.health.rawValue,
+          message:
+            "Deletion probe: \(probe.proven.count) proven, \(probe.live.count) live, \(probe.tangled.count) tangled.",
+          metadata: [
+            "proven": "\(probe.proven.count)",
+            "live": "\(probe.live.count)",
+            "tangled": "\(probe.tangled.count)",
+          ]
+        )
+      )
+    }
+
     if options.skipHunt {
-      return finalize(
+      return await finalize(
         snapshot: snapshot,
         workspace: workspace,
+        bashRunner: bashRunner,
         branchSession: branchSession,
         focus: focus,
         onEvent: onEvent,
@@ -196,6 +233,7 @@ public enum HealthPassRunner {
         bashRunner: bashRunner,
         recon: recon,
         prior: prior,
+        deletionProbe: snapshot.deletionProbe,
         focus: focus,
         sessionNumber: sessionNumber,
         budget: options.budget,
@@ -250,9 +288,10 @@ public enum HealthPassRunner {
     }
 
     bindExecutor?(nil)
-    return finalize(
+    return await finalize(
       snapshot: snapshot,
       workspace: workspace,
+      bashRunner: bashRunner,
       branchSession: branchSession,
       focus: focus,
       onEvent: onEvent,
@@ -263,12 +302,24 @@ public enum HealthPassRunner {
   private static func finalize(
     snapshot: HealthSnapshot,
     workspace: CompassWorkspace,
+    bashRunner: AgentBashRunner,
     branchSession: HealthBranch.Session?,
     focus: HealthFocus,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void,
     onLive: (@Sendable (LiveEvent) -> Void)?
-  ) -> HealthPassOutcome {
+  ) async -> HealthPassOutcome {
     var snapshot = snapshot
+
+    if focus == .cleanup {
+      snapshot = await verifyCleanupEdits(
+        snapshot: snapshot,
+        workspace: workspace,
+        bashRunner: bashRunner,
+        onEvent: onEvent,
+        onLive: onLive
+      )
+    }
+
     if branchSession != nil {
       do {
         if let tip = try HealthBranch.commitIfDirty(
@@ -297,6 +348,133 @@ public enum HealthPassRunner {
     }
 
     return persist(snapshot: snapshot, workspace: workspace, onEvent: onEvent, onLive: onLive)
+  }
+
+  /// Cleanup evidence gate: dirty tree must still pass `cargo test`, else restore and demote.
+  private static func verifyCleanupEdits(
+    snapshot: HealthSnapshot,
+    workspace: CompassWorkspace,
+    bashRunner: AgentBashRunner,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void,
+    onLive: (@Sendable (LiveEvent) -> Void)?
+  ) async -> HealthSnapshot {
+    var snapshot = snapshot
+    let dirty: Bool
+    do {
+      dirty = try HealthBranch.isDirty(repoURL: workspace.repoURL)
+    } catch {
+      // Not a git repo (factory in-tree) — still try cargo test if there are cleanup findings.
+      dirty = !snapshot.findings.filter({
+        $0.kind == .deadCode || $0.kind == .orphanedSurface
+      }).isEmpty
+    }
+    guard dirty else { return snapshot }
+
+    let command =
+      "cargo test --workspace -- --nocapture 2>&1 | tee /tmp/compass-health-cleanup-verify.log | tail -c 80000"
+    let correlationID = UUID().uuidString
+    onLive?(
+      LiveEvent(
+        level: .raw,
+        text: "health cleanup verify",
+        detail: command,
+        kind: .command,
+        status: .running,
+        correlationID: correlationID,
+        metadata: [
+          "tool": "bash",
+          "command": command,
+          "phase": AgentPhase.health.rawValue,
+        ],
+        payload: .bash(command: command, cwd: "/workspace", output: nil, isError: nil)
+      )
+    )
+
+    do {
+      let result = try await bashRunner.run(
+        command: command,
+        workingDirectory: workspace.repoURL,
+        timeout: 600
+      )
+      let failed = result.exitCode != 0
+      let combined = result.stdout + result.stderr
+      onLive?(
+        LiveEvent(
+          level: failed ? .error : .success,
+          text: "health cleanup verify",
+          detail: failed
+            ? "exit \(result.exitCode)\n\(String(combined.suffix(2000)))"
+            : "exit 0",
+          kind: .command,
+          status: failed ? .failed : .completed,
+          correlationID: correlationID,
+          metadata: [
+            "tool": "bash",
+            "exitCode": "\(result.exitCode)",
+            "phase": AgentPhase.health.rawValue,
+          ],
+          payload: .bash(
+            command: command,
+            cwd: "/workspace",
+            output: String(combined.suffix(2000)),
+            isError: failed
+          )
+        )
+      )
+      if failed {
+        snapshot.notes.append(
+          "cleanup verify failed — restoring dirty tree and demoting deadCode confidence"
+        )
+        try? HealthBranch.restoreDirty(repoURL: workspace.repoURL)
+        snapshot.findings = snapshot.findings.map { finding in
+          var updated = finding
+          switch updated.kind {
+          case .deadCode, .orphanedSurface:
+            updated.confidence = min(updated.confidence, 0.2)
+            if !updated.evidence.contains("verify-failed") {
+              updated.evidence =
+                (updated.evidence.isEmpty ? "" : updated.evidence + "\n")
+                + "verify-failed: suite red after cleanup edits"
+            }
+          default:
+            break
+          }
+          return updated
+        }
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "health_cleanup_verify",
+            level: "warning",
+            status: "failed",
+            phase: AgentPhase.health.rawValue,
+            message: "Cleanup edits failed cargo test; tree restored.",
+            detail: String(combined.suffix(2000))
+          )
+        )
+      } else {
+        onEvent(
+          HeadlessCompassEvent(
+            kind: "health_cleanup_verify",
+            status: "completed",
+            phase: AgentPhase.health.rawValue,
+            message: "Cleanup edits passed cargo test."
+          )
+        )
+      }
+    } catch {
+      snapshot.notes.append("cleanup verify did not run: \(error.localizedDescription)")
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "health_cleanup_verify",
+          level: "warning",
+          status: "failed",
+          phase: AgentPhase.health.rawValue,
+          message: "Cleanup verify failed to run.",
+          detail: error.localizedDescription
+        )
+      )
+    }
+    return snapshot
   }
 
   private static func persist(
@@ -357,6 +535,7 @@ public enum HealthPassRunner {
     bashRunner: AgentBashRunner,
     recon: HealthReconResult,
     prior: HealthSnapshot?,
+    deletionProbe: DeletionProbeResult?,
     focus: HealthFocus,
     sessionNumber: Int,
     budget: HealthBudget,
@@ -369,6 +548,7 @@ public enum HealthPassRunner {
       recon: recon,
       priorSnapshot: prior,
       focus: focus,
+      deletionProbe: deletionProbe,
       promptMode: promptMode
     )
     let executor = AgentExecutor { live in

@@ -219,20 +219,47 @@ public struct HealthReconResult: Codable, Equatable, Sendable {
   public var baselineTests: HealthTestRunSummary
   public var rankedTargets: [HealthRankedTarget]
   public var surfaces: HealthSurfaceInventory
+  public var coverage: CoverageSnapshot?
+  public var deadCodeCandidates: [DeadCodeCandidate]
   public var notes: [String]
+
+  public enum CodingKeys: String, CodingKey {
+    case packageNames, baselineTests, rankedTargets, surfaces, coverage, deadCodeCandidates, notes
+  }
 
   public init(
     packageNames: [String] = [],
     baselineTests: HealthTestRunSummary = HealthTestRunSummary(success: true),
     rankedTargets: [HealthRankedTarget] = [],
     surfaces: HealthSurfaceInventory = HealthSurfaceInventory(),
+    coverage: CoverageSnapshot? = nil,
+    deadCodeCandidates: [DeadCodeCandidate] = [],
     notes: [String] = []
   ) {
     self.packageNames = packageNames
     self.baselineTests = baselineTests
     self.rankedTargets = rankedTargets
     self.surfaces = surfaces
+    self.coverage = coverage
+    self.deadCodeCandidates = deadCodeCandidates
     self.notes = notes
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    packageNames = try container.decodeIfPresent([String].self, forKey: .packageNames) ?? []
+    baselineTests =
+      try container.decodeIfPresent(HealthTestRunSummary.self, forKey: .baselineTests)
+      ?? HealthTestRunSummary(success: true)
+    rankedTargets =
+      try container.decodeIfPresent([HealthRankedTarget].self, forKey: .rankedTargets) ?? []
+    surfaces =
+      try container.decodeIfPresent(HealthSurfaceInventory.self, forKey: .surfaces)
+      ?? HealthSurfaceInventory()
+    coverage = try container.decodeIfPresent(CoverageSnapshot.self, forKey: .coverage)
+    deadCodeCandidates =
+      try container.decodeIfPresent([DeadCodeCandidate].self, forKey: .deadCodeCandidates) ?? []
+    notes = try container.decodeIfPresent([String].self, forKey: .notes) ?? []
   }
 }
 
@@ -333,6 +360,7 @@ public struct HealthSnapshot: Codable, Equatable, Sendable {
   public var baseSHA: String?
   public var tipSHA: String?
   public var commits: [HealthCommitSummary]
+  public var deletionProbe: DeletionProbeResult?
 
   public init(
     collectedAt: Date = Date(),
@@ -347,7 +375,8 @@ public struct HealthSnapshot: Codable, Equatable, Sendable {
     healthBranch: String? = nil,
     baseSHA: String? = nil,
     tipSHA: String? = nil,
-    commits: [HealthCommitSummary] = []
+    commits: [HealthCommitSummary] = [],
+    deletionProbe: DeletionProbeResult? = nil
   ) {
     self.collectedAt = collectedAt
     self.sessionNumber = sessionNumber
@@ -362,6 +391,7 @@ public struct HealthSnapshot: Codable, Equatable, Sendable {
     self.baseSHA = baseSHA
     self.tipSHA = tipSHA
     self.commits = commits
+    self.deletionProbe = deletionProbe
   }
 
   public func formattedForPrompt(maxFindings: Int = 8) -> String {

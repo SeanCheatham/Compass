@@ -84,6 +84,17 @@ public enum HealthBranch {
     return try revParse(repoURL, rev: "HEAD")
   }
 
+  /// Discard uncommitted edits (tracked + untracked). Ignored paths like `.compass/` are kept.
+  public static func restoreDirty(repoURL: URL) throws {
+    try runGit(repoURL, args: ["checkout", "--", "."])
+    try runGit(repoURL, args: ["clean", "-fd"])
+  }
+
+  public static func isDirty(repoURL: URL) throws -> Bool {
+    let status = try runGitOutput(repoURL, args: ["status", "--porcelain"])
+    return !status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   public static func end(repoURL: URL, session: Session) throws {
     let current = (try? currentRef(repoURL)) ?? ""
     if current == session.previousRef { return }
