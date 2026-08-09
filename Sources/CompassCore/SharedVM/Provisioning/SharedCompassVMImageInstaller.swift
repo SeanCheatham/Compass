@@ -43,10 +43,13 @@ struct SharedCompassVMImageInstaller {
   /// Progress is split into two phases:
   ///   * `downloadProgress` — IPSW download (0…1).
   ///   * `installProgress` — installer fractional progress (0…1).
+  /// Default sparse guest disk capacity for new installs (64 GiB).
+  static let defaultDiskSizeInBytes: UInt64 = 64 * 1024 * 1024 * 1024
+
   func install(
     into bundle: SharedCompassVMBundle,
     localIPSWURL: URL? = nil,
-    diskSizeInBytes: UInt64 = 64 * 1024 * 1024 * 1024,
+    diskSizeInBytes: UInt64 = SharedCompassVMImageInstaller.defaultDiskSizeInBytes,
     downloadProgress: ProgressSink? = nil,
     installProgress: ProgressSink? = nil,
     fileManager: FileManager = .default
@@ -101,6 +104,8 @@ struct SharedCompassVMImageInstaller {
 
   /// Allocates an empty sparse disk image at `url` if absent. Existing files
   /// are left alone — callers that want a clean slate must delete first.
+  /// Callers that need to enlarge an existing image should use
+  /// `extendDiskImage(at:toSizeInBytes:)`.
   static func allocateDiskImageIfNeeded(
     at url: URL,
     sizeInBytes: UInt64,
@@ -119,6 +124,56 @@ struct SharedCompassVMImageInstaller {
     let handle = try FileHandle(forWritingTo: url)
     defer { try? handle.close() }
     try handle.truncate(atOffset: sizeInBytes)
+  }
+
+  /// Logical (sparse) byte length of an on-disk image, or `nil` if missing.
+  static func diskImageSizeInBytes(
+    at url: URL,
+    fileManager: FileManager = .default
+  ) throws -> UInt64? {
+    guard fileManager.fileExists(atPath: url.path) else { return nil }
+    let attrs = try fileManager.attributesOfItem(atPath: url.path)
+    return (attrs[.size] as? NSNumber)?.uint64Value
+  }
+
+  /// Extends an existing sparse disk image to `sizeInBytes`. Grow-only —
+  /// rejects missing files and any request smaller than the current size.
+  /// No-op when `sizeInBytes` equals the current logical size.
+  static func extendDiskImage(
+    at url: URL,
+    toSizeInBytes sizeInBytes: UInt64,
+    fileManager: FileManager = .default
+  ) throws {
+    guard fileManager.fileExists(atPath: url.path) else {
+      throw DiskCapacityError.diskImageMissing(path: url.path)
+    }
+    let current =
+      try diskImageSizeInBytes(at: url, fileManager: fileManager)
+      ?? 0
+    if sizeInBytes < current {
+      throw DiskCapacityError.shrinkNotSupported(current: current, requested: sizeInBytes)
+    }
+    if sizeInBytes == current {
+      return
+    }
+    let handle = try FileHandle(forWritingTo: url)
+    defer { try? handle.close() }
+    try handle.truncate(atOffset: sizeInBytes)
+  }
+
+  enum DiskCapacityError: Error, LocalizedError, Equatable {
+    case diskImageMissing(path: String)
+    case shrinkNotSupported(current: UInt64, requested: UInt64)
+
+    var errorDescription: String? {
+      switch self {
+      case .diskImageMissing(let path):
+        return "Guest disk image is missing at \(path). Provision the VM before growing the disk."
+      case .shrinkNotSupported(let current, let requested):
+        return
+          "Guest disk shrink is not supported (current \(current) bytes, requested \(requested) bytes)."
+      }
+    }
   }
 
   /// Derives a stable version label from the IPSW URL's filename so that

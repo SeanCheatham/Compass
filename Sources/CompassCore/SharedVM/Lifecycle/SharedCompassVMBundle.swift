@@ -174,9 +174,12 @@ public struct SharedCompassVMBundle: Equatable, Sendable {
       try fileManager.removeItem(at: url)
     }
 
+    // Preserve preferred disk capacity so Reset + re-provision reuses the
+    // last grown (or user-chosen) size instead of falling back to 64 GiB.
     let resetState = State(
       provisionStep: .notProvisioned,
       guestUserName: existingState.guestUserName,
+      lastBundleSize: existingState.lastBundleSize,
       guestMACAddress: existingState.guestMACAddress
     )
     try saveState(resetState, fileManager: fileManager)

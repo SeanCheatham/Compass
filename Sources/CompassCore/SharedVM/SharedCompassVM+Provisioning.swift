@@ -93,13 +93,18 @@ extension SharedCompassVM {
 
     let installReport: SharedCompassVMImageInstaller.InstallReport
     do {
+      let diskSize = preferredDiskCapacityBytes
       installReport = try await dependencies.imageInstaller.install(
         into: bundle,
         localIPSWURL: localIPSWURL,
+        diskSizeInBytes: diskSize,
         downloadProgress: downloadSink,
         installProgress: installSink,
         fileManager: dependencies.fileManager
       )
+      try bundle.mutateState(fileManager: dependencies.fileManager) {
+        $0.lastBundleSize = diskSize
+      }
     } catch {
       transition(to: .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error)))
       throw error

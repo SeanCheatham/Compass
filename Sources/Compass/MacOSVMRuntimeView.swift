@@ -6,10 +6,13 @@ struct MacOSVMRuntimeView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var vm = SharedCompassVM.shared
   @State private var isWorking = false
+  @State private var isGrowingDisk = false
   @State private var lastError: String?
   @State private var smokeTestMessage: String?
   @State private var showingDesktop = false
   @State private var showingConsole = false
+  /// Desired capacity in GiB for the slider (integer steps).
+  @State private var desiredDiskGiB: Double = 64
 
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
@@ -32,6 +35,8 @@ struct MacOSVMRuntimeView: View {
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+
+        diskCapacityControls
       }
       .textSelection(.enabled)
 
@@ -132,6 +137,62 @@ struct MacOSVMRuntimeView: View {
     }
     .task {
       try? await vm.warmup()
+      syncDesiredDiskFromVM()
+    }
+  }
+
+  private var diskCapacityControls: some View {
+    let currentBytes = vm.currentDiskCapacityBytes
+    let currentGiB = Double(currentBytes) / Double(1024 * 1024 * 1024)
+    let minGiB = max(64, currentGiB)
+    let maxGiB = Double(SharedCompassVM.maximumDiskCapacityBytes) / Double(1024 * 1024 * 1024)
+    let stepGiB = Double(SharedCompassVM.diskCapacityStepBytes) / Double(1024 * 1024 * 1024)
+    let diskLocked = vm.isDiskCapacityLockedByRunningVM
+    let hasDiskImage = vm.hasGuestDiskImage
+    let canApplyGrow =
+      !isWorking && !diskLocked && hasDiskImage && desiredDiskGiB + 0.5 >= currentGiB
+    let canSlide = minGiB < maxGiB
+
+    return VStack(alignment: .leading, spacing: 8) {
+      LabeledContent("Disk capacity", value: SharedCompassVM.formatGiB(currentBytes))
+      if canSlide {
+        HStack(spacing: 12) {
+          Slider(
+            value: $desiredDiskGiB,
+            in: minGiB...maxGiB,
+            step: stepGiB
+          )
+          .disabled(isWorking || diskLocked)
+          Text("\(Int(desiredDiskGiB.rounded())) GiB")
+            .font(.callout.monospacedDigit())
+            .frame(minWidth: 64, alignment: .trailing)
+        }
+        .help(
+          diskLocked
+            ? "Stop the VM before changing disk size."
+            : "Grow-only. Apply extends the sparse Disk.img and boots the guest to expand APFS."
+        )
+      } else {
+        Text("Already at maximum capacity (\(Int(maxGiB)) GiB).")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+      }
+
+      Button {
+        Task { await applyDiskSize() }
+      } label: {
+        Label("Apply Disk Size", systemImage: "externaldrive.badge.plus")
+      }
+      .disabled(!canApplyGrow)
+      .help(
+        diskLocked
+          ? "Stop the VM before changing disk size."
+          : hasDiskImage
+            ? (desiredDiskGiB > currentGiB + 0.5
+              ? "Extend Disk.img and start the VM to finish the APFS resize."
+              : "Re-run guest APFS resize if a previous grow left unused space.")
+            : "Provision the VM before growing the disk."
+      )
     }
   }
 
@@ -173,6 +234,7 @@ struct MacOSVMRuntimeView: View {
   }
 
   private var statusSubtitle: String {
+    if isGrowingDisk { return "Growing disk…" }
     if isWorking { return "Working..." }
     if vm.readiness.isReady { return "Ready to build generated apps inside the guest." }
     return "Embedded macOS VM (Apple Virtualization.framework)."
@@ -196,6 +258,32 @@ struct MacOSVMRuntimeView: View {
     }
   }
 
+  private func syncDesiredDiskFromVM() {
+    let currentGiB = Double(vm.currentDiskCapacityBytes) / Double(1024 * 1024 * 1024)
+    let preferredGiB = Double(vm.preferredDiskCapacityBytes) / Double(1024 * 1024 * 1024)
+    desiredDiskGiB = max(currentGiB, preferredGiB, 64)
+  }
+
+  @MainActor
+  private func applyDiskSize() async {
+    isWorking = true
+    isGrowingDisk = true
+    lastError = nil
+    smokeTestMessage = nil
+    defer {
+      isWorking = false
+      isGrowingDisk = false
+    }
+    let bytes = UInt64(desiredDiskGiB.rounded()) * 1024 * 1024 * 1024
+    do {
+      try await vm.growDisk(toBytes: bytes)
+      smokeTestMessage = "Disk grown to \(SharedCompassVM.formatGiB(bytes))."
+      syncDesiredDiskFromVM()
+    } catch {
+      lastError = error.localizedDescription
+    }
+  }
+
   @MainActor
   private func provisionAndStart() async {
     isWorking = true
@@ -216,6 +304,7 @@ struct MacOSVMRuntimeView: View {
     defer { isWorking = false }
     do {
       try await vm.resetProvisioningArtifacts()
+      syncDesiredDiskFromVM()
     } catch {
       lastError = error.localizedDescription
     }
