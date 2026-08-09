@@ -51,7 +51,7 @@ public struct AgentListFilesTool: AgentTool {
         "filter": [
           "type": "string",
           "description":
-            "Optional case-insensitive substring or glob-like filter on the relative path. Supports common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)`. Omit to list every known source file.",
+            "Optional case-insensitive substring or glob-like filter on the relative path. Supports common extension groups like `**/*.{rs,swift}` and `**/*.(rs|swift)`. Omit to list every known source file.",
         ]
       ],
     ])

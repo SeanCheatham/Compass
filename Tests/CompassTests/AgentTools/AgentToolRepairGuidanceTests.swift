@@ -12,18 +12,18 @@ struct AgentToolRepairGuidanceTests {
 
     let cliSrc =
       tempURL
-      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "crates", directoryHint: .isDirectory)
       .appending(path: "cli", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
     let coreSrc =
       tempURL
-      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "crates", directoryHint: .isDirectory)
       .appending(path: "core", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: coreSrc, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(
-      at: cliSrc.deletingLastPathComponent().appending(path: "node_modules"),
+      at: cliSrc.deletingLastPathComponent().appending(path: "target"),
       withIntermediateDirectories: true
     )
     try FileManager.default.createDirectory(
@@ -31,70 +31,70 @@ struct AgentToolRepairGuidanceTests {
       withIntermediateDirectories: true
     )
     try "export const main = true;\n".write(
-      to: cliSrc.appending(path: "main.ts"),
+      to: cliSrc.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
     try "import './main';\n".write(
-      to: cliSrc.appending(path: "main.test.ts"),
+      to: cliSrc.appending(path: "main.test.rs"),
       atomically: true,
       encoding: .utf8
     )
     try "export const core = true;\n".write(
-      to: coreSrc.appending(path: "index.ts"),
+      to: coreSrc.appending(path: "index.rs"),
       atomically: true,
       encoding: .utf8
     )
     let vendoredSrc =
       tempURL
-      .appending(path: "node_modules", directoryHint: .isDirectory)
+      .appending(path: "target", directoryHint: .isDirectory)
       .appending(path: "vendored", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: vendoredSrc, withIntermediateDirectories: true)
     try "export const noise = true;\n".write(
-      to: vendoredSrc.appending(path: "main.test.ts"),
+      to: vendoredSrc.appending(path: "main.test.rs"),
       atomically: true,
       encoding: .utf8
     )
 
     let result = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/cli.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/cli.rs"}"#.utf8),
       context: AgentToolContext(workingDirectory: tempURL)
     )
 
     #expect(result.isError)
     #expect(result.errorKind == .fileNotFound)
-    #expect(result.content.contains("Nearest existing directory: packages/cli/src"))
-    #expect(result.content.contains("- main.ts"))
+    #expect(result.content.contains("Nearest existing directory: crates/cli/src"))
+    #expect(result.content.contains("- main.rs"))
     #expect(result.content.contains("Use read_file with one of these paths"))
 
     let emptyDirectoryResult = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/empty/generated.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/empty/generated.rs"}"#.utf8),
       context: AgentToolContext(workingDirectory: tempURL)
     )
     #expect(emptyDirectoryResult.isError)
-    #expect(emptyDirectoryResult.content.contains("Nearest existing directory: packages/cli/src"))
-    #expect(emptyDirectoryResult.content.contains("- main.ts"))
+    #expect(emptyDirectoryResult.content.contains("Nearest existing directory: crates/cli/src"))
+    #expect(emptyDirectoryResult.content.contains("- main.rs"))
 
     let wrongEntrypointResult = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/index.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/index.rs"}"#.utf8),
       context: AgentToolContext(workingDirectory: tempURL)
     )
     #expect(wrongEntrypointResult.isError)
-    #expect(wrongEntrypointResult.content.contains("Nearest existing directory: packages/cli/src"))
-    #expect(wrongEntrypointResult.content.contains("- main.ts"))
-    #expect(!wrongEntrypointResult.content.contains("packages/core/src/index.ts"))
+    #expect(wrongEntrypointResult.content.contains("Nearest existing directory: crates/cli/src"))
+    #expect(wrongEntrypointResult.content.contains("- main.rs"))
+    #expect(!wrongEntrypointResult.content.contains("crates/core/src/index.rs"))
 
     let wrongDirectoryResult = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/test/main.test.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/test/main.test.rs"}"#.utf8),
       context: AgentToolContext(workingDirectory: tempURL)
     )
     #expect(wrongDirectoryResult.isError)
-    #expect(wrongDirectoryResult.content.contains("Nearest existing directory: packages/cli"))
-    #expect(!wrongDirectoryResult.content.contains("- node_modules/"))
+    #expect(wrongDirectoryResult.content.contains("Nearest existing directory: crates/cli"))
+    #expect(!wrongDirectoryResult.content.contains("- target/"))
     #expect(wrongDirectoryResult.content.contains("Same filename exists at:"))
-    #expect(wrongDirectoryResult.content.contains("- packages/cli/src/main.test.ts"))
-    #expect(!wrongDirectoryResult.content.contains("node_modules"))
+    #expect(wrongDirectoryResult.content.contains("- crates/cli/src/main.test.rs"))
+    #expect(!wrongDirectoryResult.content.contains("target"))
   }
 
   @Test
@@ -185,7 +185,7 @@ struct AgentToolRepairGuidanceTests {
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/core/src/utils/activity.ts","startLine":1,"endLine":1,"content":"export {};"}"#
+        #"{"path":"crates/core/src/utils/activity.rs","startLine":1,"endLine":1,"content":"export {};"}"#
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -196,7 +196,7 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("file does not exist"))
     #expect(
       result.content.contains(
-        "Use write_file for packages/core/src/utils/activity.ts only when the plan explicitly requires creating that exact new file"
+        "Use write_file for crates/core/src/utils/activity.rs only when the plan explicitly requires creating that exact new file"
       ))
   }
 
@@ -205,17 +205,17 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
     try "export const main = true;\n".write(
-      to: srcURL.appending(path: "main.ts"),
+      to: srcURL.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/summarize.ts","startLine":1,"endLine":1,"content":"export function summarizeCLI(): string {\n  return '1 open / 1 total';\n}\n"}"#
+        #"{"path":"crates/cli/src/summarize.rs","startLine":1,"endLine":1,"content":"export function summarizeCLI(): string {\n  return '1 open / 1 total';\n}\n"}"#
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -225,7 +225,7 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.errorKind == .readNotTracked)
     #expect(result.content.contains("file does not exist"))
     #expect(result.content.contains("return `write_file` with these arguments"))
-    #expect(result.content.contains(#""path":"packages/cli/src/summarize.ts""#))
+    #expect(result.content.contains(#""path":"crates/cli/src/summarize.rs""#))
     #expect(result.content.contains(#""content":"export function summarizeCLI()"#))
   }
 
@@ -234,11 +234,11 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let mainURL = srcURL.appending(path: "main.ts")
+    let mainURL = srcURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(): string {
@@ -247,19 +247,19 @@ struct AgentToolRepairGuidanceTests {
       """
     try original.write(to: mainURL, atomically: true, encoding: .utf8)
     try "export function summarizeCLI() { return ''; }\n".write(
-      to: srcURL.appending(path: "summarize.ts"),
+      to: srcURL.appending(path: "summarize.rs"),
       atomically: true,
       encoding: .utf8
     )
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"insert":"import { summarizeCLI } from './summarize';\n"}"#
+        #"{"path":"crates/cli/src/main.rs","startLine":1,"endLine":1,"insert":"import { summarizeCLI } from './summarize';\n"}"#
           .utf8
       ),
       context: context
@@ -281,33 +281,33 @@ struct AgentToolRepairGuidanceTests {
 
     let cliSrc =
       tempURL
-      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "crates", directoryHint: .isDirectory)
       .appending(path: "cli", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
     try "export function main() {}\n".write(
-      to: cliSrc.appending(path: "main.ts"),
+      to: cliSrc.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
     try "import { main } from './main';\n".write(
-      to: cliSrc.appending(path: "main.test.ts"),
+      to: cliSrc.appending(path: "main.test.rs"),
       atomically: true,
       encoding: .utf8
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/cli.ts","startLine":1,"endLine":1,"content":"export {};"}"#.utf8
+        #"{"path":"crates/cli/src/cli.rs","startLine":1,"endLine":1,"content":"export {};"}"#.utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
     )
 
     #expect(result.isError)
     #expect(result.errorKind == .readNotTracked)
-    #expect(result.content.contains("Nearest existing directory: packages/cli/src"))
-    #expect(result.content.contains("- main.ts"))
-    #expect(result.content.contains("- main.test.ts"))
+    #expect(result.content.contains("Nearest existing directory: crates/cli/src"))
+    #expect(result.content.contains("- main.rs"))
+    #expect(result.content.contains("- main.test.rs"))
     #expect(result.content.contains("read_file on one of these paths"))
     #expect(result.content.contains("only when the plan explicitly requires creating"))
   }
@@ -319,30 +319,30 @@ struct AgentToolRepairGuidanceTests {
 
     let cliSrc =
       tempURL
-      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "crates", directoryHint: .isDirectory)
       .appending(path: "cli", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
     try "export function main() {}\n".write(
-      to: cliSrc.appending(path: "main.ts"),
+      to: cliSrc.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
     try "import { main } from './main';\n".write(
-      to: cliSrc.appending(path: "main.test.ts"),
+      to: cliSrc.appending(path: "main.test.rs"),
       atomically: true,
       encoding: .utf8
     )
 
     let result = try await AgentWriteFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/cli.ts","content":"export {};"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/cli.rs","content":"export {};"}"#.utf8),
       context: AgentToolContext(workingDirectory: tempURL)
     )
 
     #expect(!result.isError)
-    #expect(result.content.contains("Created a new file in existing directory packages/cli/src"))
-    #expect(result.content.contains("- main.ts"))
-    #expect(result.content.contains("- main.test.ts"))
+    #expect(result.content.contains("Created a new file in existing directory crates/cli/src"))
+    #expect(result.content.contains("- main.rs"))
+    #expect(result.content.contains("- main.test.rs"))
     #expect(result.content.contains("use read_file/edit_file on the existing path"))
     #expect(result.content.contains("write_file only creates new files"))
   }
@@ -354,11 +354,11 @@ struct AgentToolRepairGuidanceTests {
 
     let cliSrc =
       tempURL
-      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "crates", directoryHint: .isDirectory)
       .appending(path: "cli", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
-    let mainURL = cliSrc.appending(path: "main.ts")
+    let mainURL = cliSrc.appending(path: "main.rs")
     try "export function main() {}\nconsole.log(main());".write(
       to: mainURL,
       atomically: true,
@@ -366,71 +366,67 @@ struct AgentToolRepairGuidanceTests {
     )
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentWriteFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/main.ts","content":"export {};"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/main.rs","content":"export {};"}"#.utf8),
       context: context
     )
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("write_file refused to overwrite packages/cli/src/main.ts"))
+    #expect(result.content.contains("write_file refused to overwrite crates/cli/src/main.rs"))
     #expect(result.content.contains("Use edit_file for existing files"))
-    #expect(result.content.contains("startLine=1, endLine=2"))
+    #expect(result.content.contains("old_string/new_string"))
     #expect(result.content.contains("return `edit_file` with these arguments"))
-    #expect(result.content.contains(#""path":"packages/cli/src/main.ts""#))
-    #expect(result.content.contains(#""startLine":1"#))
-    #expect(result.content.contains(#""endLine":2"#))
-    #expect(result.content.contains(#""content":"export {};""#))
+    #expect(result.content.contains(#""path":"crates/cli/src/main.rs""#))
+    #expect(result.content.contains(#""old_string":"<paste the full current file contents from read_file here>""#))
+    #expect(result.content.contains(#""new_string":"export {};""#))
     let current = try String(contentsOf: mainURL, encoding: .utf8)
     #expect(current == "export function main() {}\nconsole.log(main());")
   }
 
   @Test
-  func writeFileRejectsDuplicatePackageEntrypoint() async throws {
+  func writeFileRejectsDuplicateCrateEntrypoint() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let cliDirectory =
       tempURL
-      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "crates", directoryHint: .isDirectory)
       .appending(path: "cli", directoryHint: .isDirectory)
     let cliSrc = cliDirectory.appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
-    try "export function main() {}\n".write(
-      to: cliSrc.appending(path: "main.ts"),
+    try "fn main() {}\n".write(
+      to: cliSrc.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
     try """
-    {
-      "name": "@compass-test/cli",
-      "type": "module",
-      "bin": {
-        "compass-test": "./src/main.ts"
-      }
-    }
+    [package]
+    name = "cli"
+    version = "0.1.0"
+    edition = "2021"
     """.write(
-      to: cliDirectory.appending(path: "package.json"),
+      to: cliDirectory.appending(path: "Cargo.toml"),
       atomically: true,
       encoding: .utf8
     )
 
     let result = try await AgentWriteFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/cli.ts","content":"export {};"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/cli.rs","content":"fn main() {}\n"}"#.utf8),
       context: AgentToolContext(workingDirectory: tempURL)
     )
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("write_file refused to create packages/cli/src/cli.ts"))
-    #expect(result.content.contains("packages/cli/package.json"))
-    #expect(result.content.contains("bin.compass-test"))
-    #expect(result.content.contains("packages/cli/src/main.ts"))
-    #expect(result.content.contains("Edit packages/cli/src/main.ts instead"))
+    #expect(result.content.contains("write_file refused to create crates/cli/src/cli.rs"))
+    #expect(result.content.contains("crates/cli/Cargo.toml"))
+    #expect(result.content.contains("bin"))
+    #expect(result.content.contains("crates/cli/src/main.rs"))
+    #expect(result.content.contains("Edit crates/cli/src/main.rs instead"))
   }
 
   @Test
@@ -438,12 +434,12 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "summarize.ts")
+    let fileURL = srcURL.appending(path: "summarize.rs")
     let result = try await AgentWriteFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/summarize.ts","content":"import { summarizeCLI } from './summarize';\n\nexport { summarizeCLI };\n"}"#
+        #"{"path":"crates/cli/src/summarize.rs","content":"mod summarize;\n\npub fn summarize_cli() -> String { String::new() }\n"}"#
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -451,9 +447,9 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("write_file refused to create packages/cli/src/summarize.ts"))
-    #expect(result.content.contains("self-referential relative module `./summarize`"))
-    #expect(result.content.contains("define the symbol directly in packages/cli/src/summarize.ts"))
+    #expect(result.content.contains("write_file refused to create crates/cli/src/summarize.rs"))
+    #expect(result.content.contains("self-referential relative module `summarize`"))
+    #expect(result.content.contains("define the symbol directly in crates/cli/src/summarize.rs"))
     #expect(!FileManager.default.fileExists(atPath: fileURL.path))
   }
 
@@ -462,12 +458,12 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "summarize.ts")
+    let fileURL = srcURL.appending(path: "summarize.rs")
     let result = try await AgentWriteFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/summarize.ts","content":"import { CLIEntry } from '../types';\n\nexport function summarizeCLI(entries: CLIEntry[]): string {\n  return String(entries.length);\n}\n"}"#
+        #"{"path":"crates/cli/src/summarize.rs","content":"use super::types::CliEntry;\n\npub fn summarize_cli(entries: &[CliEntry]) -> String {\n  entries.len().to_string()\n}\n"}"#
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -475,8 +471,8 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("unresolved relative module `../types`"))
-    #expect(result.content.contains("packages/cli/types.ts"))
+    #expect(result.content.contains("unresolved relative module `types`"))
+    #expect(result.content.contains("types.rs"))
     #expect(result.content.contains("define the implementation directly"))
     #expect(!FileManager.default.fileExists(atPath: fileURL.path))
   }
@@ -486,12 +482,12 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "summarize.ts")
+    let fileURL = srcURL.appending(path: "summarize.rs")
     let result = try await AgentWriteFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/summarize.ts","content":"export function summarizeCLI(entries: any[]): string {\n  // TODO: Implement logic to summarize entries\n  return 'Summary: ' + entries.length + ' entries';\n}\n"}"#
+        #"{"path":"crates/cli/src/summarize.rs","content":"export function summarizeCLI(entries: any[]): string {\n  // TODO: Implement logic to summarize entries\n  return 'Summary: ' + entries.length + ' entries';\n}\n"}"#
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -509,12 +505,12 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "summarize.ts")
+    let fileURL = srcURL.appending(path: "summarize.rs")
     let result = try await AgentWriteFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/summarize.ts","content":"export function summarizeCLI(entries: unknown[]): string {\n  // Implement the logic to summarize CLI entries here\n  return 'Summary of CLI entries';\n}\n"}"#
+        #"{"path":"crates/cli/src/summarize.rs","content":"export function summarizeCLI(entries: unknown[]): string {\n  // Implement the logic to summarize CLI entries here\n  return 'Summary of CLI entries';\n}\n"}"#
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -532,12 +528,12 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "summarize.ts")
+    let fileURL = srcURL.appending(path: "summarize.rs")
     let result = try await AgentWriteFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/summarize.ts","content":"export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {\n  // Placeholder implementation\n  return `Summary: ${entries.length} entries`;\n}\n"}"#
+        #"{"path":"crates/cli/src/summarize.rs","content":"export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {\n  // Placeholder implementation\n  return `Summary: ${entries.length} entries`;\n}\n"}"#
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -555,12 +551,12 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "summarize.ts")
+    let fileURL = srcURL.appending(path: "summarize.rs")
     let result = try await AgentWriteFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/summarize.ts","content":"// This file holds the summarizeCLI function\n"}"#
+        #"{"path":"crates/cli/src/summarize.rs","content":"// This file holds the summarizeCLI function\n"}"#
           .utf8
       ),
       context: AgentToolContext(workingDirectory: tempURL)
@@ -601,7 +597,7 @@ struct AgentToolRepairGuidanceTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let result = try await AgentEditFileTool().invoke(
-      arguments: Data(#"{"path":"packages/core/src/index.ts","content":"new text"}"#.utf8),
+      arguments: Data(#"{"path":"crates/core/src/index.rs","content":"new text"}"#.utf8),
       context: AgentToolContext(workingDirectory: tempURL)
     )
 
@@ -704,7 +700,7 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     try """
     import { current } from "./current";
     export function one() { return 1; }
@@ -715,13 +711,13 @@ struct AgentToolRepairGuidanceTests {
     """.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":1,"endLine":1,"content":"import { next } from './next';\n\nexport function replacement() {\n  return next();\n}\n\nexport function extra() {\n  return 42;\n}"}"#
+        #"{"path":"main.rs","startLine":1,"endLine":1,"content":"import { next } from './next';\n\nexport function replacement() {\n  return next();\n}\n\nexport function extra() {\n  return 42;\n}"}"#
           .utf8
       ),
       context: context
@@ -737,7 +733,7 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("Do not submit failed/blocked until you have tried"))
     #expect(result.content.contains("with only the new lines to insert, not the whole file"))
     #expect(result.content.contains("return `edit_file` with these arguments"))
-    #expect(result.content.contains(#""path":"main.ts""#))
+    #expect(result.content.contains(#""path":"main.rs""#))
     #expect(result.content.contains(#""startLine":1"#))
     #expect(result.content.contains(#""endLine":6"#))
     #expect(result.content.contains("export function replacement"))
@@ -750,11 +746,11 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let mainURL = srcURL.appending(path: "main.ts")
+    let mainURL = srcURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(argv = process.argv.slice(2)): string {
@@ -768,19 +764,19 @@ struct AgentToolRepairGuidanceTests {
       """
     try original.write(to: mainURL, atomically: true, encoding: .utf8)
     try "export function summarizeCLI() { return ''; }\n".write(
-      to: srcURL.appending(path: "summarize.ts"),
+      to: srcURL.appending(path: "summarize.rs"),
       atomically: true,
       encoding: .utf8
     )
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './summarize';\n\nexport function main(): void {\n  const entries = [];\n  console.log(summarizeCLI(entries));\n}\n"}"#
+        #"{"path":"crates/cli/src/main.rs","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './summarize';\n\nexport function main(): void {\n  const entries = [];\n  console.log(summarizeCLI(entries));\n}\n"}"#
           .utf8
       ),
       context: context
@@ -792,7 +788,7 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("use startLine=1, endLine=11"))
     #expect(result.content.contains("with only the new lines to insert, not the whole file"))
     #expect(result.content.contains("return `edit_file` with these arguments"))
-    #expect(result.content.contains(#""path":"packages/cli/src/main.ts""#))
+    #expect(result.content.contains(#""path":"crates/cli/src/main.rs""#))
     #expect(result.content.contains(#""startLine":1"#))
     #expect(result.content.contains(#""endLine":11"#))
     #expect(result.content.contains("summarizeCLI(entries)"))
@@ -805,9 +801,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(argv = process.argv.slice(2)): string {
@@ -822,13 +818,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":4,"endLine":6,"content":"  const entries: { id: string; title: string; done: boolean }[] = [{ id: \"task-1\", title, done: false }];\n  return summarizeCLI(entries);\n"}"#
+        #"{"path":"main.rs","startLine":4,"endLine":6,"content":"  const entries: { id: string; title: string; done: boolean }[] = [{ id: \"task-1\", title, done: false }];\n  return summarizeCLI(entries);\n"}"#
           .utf8
       ),
       context: context
@@ -841,10 +837,10 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("use startLine=4, endLine=7"))
     #expect(result.content.contains("include the complete `main` function declaration"))
     #expect(result.content.contains("edit only the function body with startLine=5, endLine=6"))
-    #expect(result.content.contains("do not call read_file again for main.ts"))
+    #expect(result.content.contains("do not call read_file again for main.rs"))
     #expect(result.content.contains("Do not retry startLine=4, endLine=6"))
     #expect(result.content.contains("return `edit_file` with these arguments next"))
-    #expect(result.content.contains(#""path":"main.ts""#))
+    #expect(result.content.contains(#""path":"main.rs""#))
     #expect(result.content.contains(#""startLine":4"#))
     #expect(result.content.contains(#""endLine":7"#))
     #expect(result.content.contains("export function main(argv = process.argv.slice(2)): string {"))
@@ -858,9 +854,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(argv = process.argv.slice(2)): string {
@@ -875,7 +871,7 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
@@ -892,7 +888,7 @@ struct AgentToolRepairGuidanceTests {
       """
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":4,"endLine":7,"content":\#(toolGuidanceJSONStringLiteral(replacement))}"#
+        #"{"path":"main.rs","startLine":4,"endLine":7,"content":\#(toolGuidanceJSONStringLiteral(replacement))}"#
           .utf8
       ),
       context: context
@@ -916,26 +912,26 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
-      import { summarizeQueue } from "@compass-test/core";
+      //!
+      use compass_test_core::summarize_queue;
 
-      export function main(argv = process.argv.slice(2)): string {
-        const title = argv.join(" ").trim() || "First Compass task";
-        return summarizeQueue([{ id: "task-1", title, done: false }]);
+      pub fn main(argv: &[String]) -> String {
+        let title = argv.join(" ");
+        summarize_queue(&[title])
       }
       """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":5,"endLine":6,"content":"  it(\"handles the --limit argument\", () => {\n    expect(main([\"--limit\", \"4\", \"Ship\", \"it\"])).toBe(\"4 open / 4 total\");\n  });"}"#
+        ##"{"path":"main.rs","startLine":5,"endLine":6,"content":"#[test]\nfn handles_limit() {\n  assert_eq!(main(&[\"--limit\".into(), \"4\".into()]), \"4 open / 4 total\");\n}\n"}"##
           .utf8
       ),
       context: context
@@ -943,9 +939,8 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("test code into non-test source file main.ts"))
+    #expect(result.content.contains("test code into non-test source file main.rs"))
     #expect(result.content.contains("#[cfg(test)]") || result.content.contains("tests/"))
-    #expect(result.content.contains("implementation code only"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == original)
   }
@@ -955,27 +950,25 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.test.ts")
+    let fileURL = tempURL.appending(path: "main.test.rs")
     let original = """
-      import { describe, expect, it } from "vitest";
-      import { main } from "./main";
+      use crate::main;
 
-      describe("cli", () => {
-        it("prints the queue summary", () => {
-          expect(main(["Ship", "it"])).toBe("1 open / 1 total");
-        });
-      });
+      #[test]
+      fn prints_queue_summary() {
+        assert_eq!(main(&["Ship".into(), "it".into()]), "1 open / 1 total");
+      }
       """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.test.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.test.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.test.ts","startLine":6,"endLine":6,"content":"    const [action, countStr] = argv;\n    const count = parseInt(countStr, 10);\n    const title = argv.slice(2).join(\" \").trim() || \"First Compass task\";\n    return summarizeQueue([{ id: \"task-1\", title, done: action === \"--done\" && count === 1 }]);\n  });\n  it(\"handles --done with count\", () => {\n    expect(main([\"--done\", \"1\", \"Ship\", \"it\"])).toBe(\"0 open / 1 total\");\n  });"}"#
+        #"{"path":"main.test.rs","startLine":4,"endLine":5,"content":"  let argv = std::env::args().collect::<Vec<_>>();\n  let title = argv.join(\" \");\n  return summarize_queue(&title);\n}\n#[test]\nfn handles_done() {\n  assert_eq!(main(&[\"--done\".into()]), \"0 open / 1 total\");\n}"}"#
           .utf8
       ),
       context: context
@@ -984,9 +977,9 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
     #expect(
-      result.content.contains("argument-parsing implementation code into test file main.test.ts"))
+      result.content.contains("argument-parsing implementation code into test file main.test.rs"))
     #expect(result.content.contains("Do not repair production behavior"))
-    #expect(result.content.contains("Edit main.ts with the implementation"))
+    #expect(result.content.contains("Edit main.rs with the implementation"))
     #expect(result.content.contains("keep test edits focused"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == original)
@@ -997,27 +990,25 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.test.ts")
+    let fileURL = tempURL.appending(path: "main.test.rs")
     let original = """
-      import { describe, expect, it } from "vitest";
-      import { main } from "./main";
+      use crate::main;
 
-      describe("cli", () => {
-        it("prints the queue summary", () => {
-          expect(main(["Ship", "it"])).toBe("1 open / 1 total");
-        });
-      });
+      #[test]
+      fn prints_queue_summary() {
+        assert_eq!(main(&["Ship".into(), "it".into()]), "1 open / 1 total");
+      }
       """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.test.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.test.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.test.ts","startLine":8,"endLine":7,"insert":"\n  it(\"handles --done with count\", () => {\n    expect(main([\"--done\", \"1\", \"Ship\", \"it\"])).toBe(\"0 open / 1 total\");\n  });"}"#
+        ##"{"path":"main.test.rs","startLine":6,"endLine":5,"insert":"\n#[test]\nfn handles_done() {\n  assert_eq!(main(&[\"--done\".into()]), \"0 open / 1 total\");\n}\n"}"##
           .utf8
       ),
       context: context
@@ -1025,10 +1016,8 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(!result.isError)
     let edited = try String(contentsOf: fileURL, encoding: .utf8)
-    #expect(edited.contains("handles --done with count"))
-    #expect(
-      edited.contains(
-        "expect(main([\"--done\", \"1\", \"Ship\", \"it\"])).toBe(\"0 open / 1 total\")"))
+    #expect(edited.contains("handles_done"))
+    #expect(edited.contains("assert_eq!(main(&[\"--done\".into()]), \"0 open / 1 total\")"))
   }
 
   @Test
@@ -1036,7 +1025,7 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "summarize.ts")
+    let fileURL = tempURL.appending(path: "summarize.rs")
     let original = """
       import { summarizeQueue } from "@compass-test/core";
 
@@ -1047,20 +1036,20 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"summarize.ts"}"#.utf8),
+      arguments: Data(#"{"path":"summarize.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"summarize.ts","startLine":1,"endLine":5,"replacement":"import { summarizeQueue } from \"@compass-test/core\";\n\nexport function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {\n  return summarizeQueue(entries);\n}"}"#
+        #"{"path":"summarize.rs","startLine":1,"endLine":5,"replacement":"import { summarizeQueue } from \"@compass-test/core\";\n\nexport function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {\n  return summarizeQueue(entries);\n}"}"#
           .utf8
       ),
       context: context
     )
 
     #expect(!result.isError)
-    #expect(result.content.contains("no changes needed for summarize.ts"))
+    #expect(result.content.contains("no changes needed for summarize.rs"))
     #expect(result.content.contains("Do not retry the identical edit"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == original)
@@ -1071,9 +1060,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
         const limit = parseInt(argv.shift(), 10);
@@ -1090,13 +1079,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":4,"endLine":3,"insert":"\n  const limit = parseInt(argv.shift(), 10);\n  if (!isNaN(limit)) {\n    argv.unshift(title);\n    title = `Open ${limit} / ${limit} total`;\n  }\n"}"#
+        #"{"path":"main.rs","startLine":4,"endLine":3,"insert":"\n  const limit = parseInt(argv.shift(), 10);\n  if (!isNaN(limit)) {\n    argv.unshift(title);\n    title = `Open ${limit} / ${limit} total`;\n  }\n"}"#
           .utf8
       ),
       context: context
@@ -1117,29 +1106,31 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.test.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      import { describe, expect, it } from "vitest";
-      import { main } from "./main";
+      //!
+      use compass_test_core::summarize_queue;
 
-      describe("@split-argv-fixture/cli", () => {
-        it("prints the queue summary", () => {
-          it("prints the queue summary with limit", () => {
-            expect(main(["--limit", "4", "Ship", "it"])).toBe("4 open / 4 total");
-          });
-        });
-      });
+      let limit = argv.first().and_then(|v| v.parse::<u32>().ok());
+      if let Some(limit) = limit {
+        title = format!("Open {limit} / {limit} total");
+      }
+
+      pub fn main(argv: &[String]) -> String {
+        let title = argv.join(" ");
+        summarize_queue(&[title])
+      }
       """
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.test.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.test.ts","startLine":5,"endLine":5,"replacement":"    it(\"prints the queue summary with limit\", () => {\n      expect(main([\"--limit\", \"4\", \"Ship\", \"it\"])).toBe(\"4 open / 4 total\");\n    });"}"#
+        #"{"path":"main.rs","startLine":9,"endLine":9,"replacement":"let limit = argv.first().and_then(|v| v.parse::<u32>().ok());\nif let Some(limit) = limit {\n  title = format!(\"Open {limit} / {limit} total\");\n}"}"#
           .utf8
       ),
       context: context
@@ -1150,7 +1141,6 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("same nonblank source block already exists"))
     #expect(result.content.contains("Do not duplicate this block by replacing another line/range"))
     #expect(result.content.contains("replace or remove lines"))
-    #expect(result.content.contains("exact broken test structure"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == original)
   }
@@ -1160,7 +1150,7 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "summarize.ts")
+    let fileURL = tempURL.appending(path: "summarize.rs")
     let original = """
       export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
         const doneCount = entries.filter(entry => entry.done).length;
@@ -1171,13 +1161,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"summarize.ts"}"#.utf8),
+      arguments: Data(#"{"path":"summarize.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"summarize.ts","startLine":1,"endLine":1,"replacement":"export function summarizeCLI(entries: any[]): string {\n  // TODO: Implement logic to summarize entries\n  return 'Summary: ' + entries.length + ' entries';\n}"}"#
+        #"{"path":"summarize.rs","startLine":1,"endLine":1,"replacement":"export function summarizeCLI(entries: any[]): string {\n  // TODO: Implement logic to summarize entries\n  return 'Summary: ' + entries.length + ' entries';\n}"}"#
           .utf8
       ),
       context: context
@@ -1196,7 +1186,7 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "summarize.ts")
+    let fileURL = tempURL.appending(path: "summarize.rs")
     let original = """
       export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
         const doneCount = entries.filter(entry => entry.done).length;
@@ -1207,13 +1197,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"summarize.ts"}"#.utf8),
+      arguments: Data(#"{"path":"summarize.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"summarize.ts","startLine":2,"endLine":3,"replacementLines":["  // Replace this with the actual implementation","  return `Summary: ${entries.length} entries`;"]}"#
+        #"{"path":"summarize.rs","startLine":2,"endLine":3,"replacementLines":["  // Replace this with the actual implementation","  return `Summary: ${entries.length} entries`;"]}"#
           .utf8
       ),
       context: context
@@ -1232,9 +1222,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(argv = process.argv.slice(2)): string {
@@ -1249,13 +1239,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":4,"endLine":8,"content":"// TODO: Move logic to summarize.ts\n// export function main(argv = process.argv.slice(2)): string {\n//   const title = argv.join(\" \").trim() || \"First Compass task\";\n//   return summarizeQueue([{ id: \"task-1\", title, done: false }]);\n// }\n"}"#
+        #"{"path":"main.rs","startLine":4,"endLine":8,"content":"// TODO: Move logic to summarize.rs\n// export function main(argv = process.argv.slice(2)): string {\n//   const title = argv.join(\" \").trim() || \"First Compass task\";\n//   return summarizeQueue([{ id: \"task-1\", title, done: false }]);\n// }\n"}"#
           .utf8
       ),
       context: context
@@ -1274,9 +1264,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(argv = process.argv.slice(2)): string {
@@ -1287,13 +1277,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":1,"endLine":0,"content":"import { summarizeCLI } from \"./summarize\";\n\nexport function main(argv = process.argv.slice(2)): string {\n  const title = argv.join(\" \").trim() || \"First Compass task\";\n  return summarizeCLI([{ id: \"task-1\", title, done: false }]);\n}\n\nif (import.meta.url === `file://${process.argv[1]}`) {\n  console.log(main());\n}"}"#
+        #"{"path":"main.rs","startLine":1,"endLine":0,"content":"import { summarizeCLI } from \"./summarize\";\n\nexport function main(argv = process.argv.slice(2)): string {\n  const title = argv.join(\" \").trim() || \"First Compass task\";\n  return summarizeCLI([{ id: \"task-1\", title, done: false }]);\n}\n\nif (import.meta.url === `file://${process.argv[1]}`) {\n  console.log(main());\n}"}"#
           .utf8
       ),
       context: context
@@ -1313,7 +1303,7 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     try "export function main() { return true; }\n".write(
       to: fileURL,
       atomically: true,
@@ -1321,13 +1311,13 @@ struct AgentToolRepairGuidanceTests {
     )
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":1,"endLine":0,"content":"import { readFileSync } from \"node:fs\";"}"#
+        #"{"path":"main.rs","startLine":1,"endLine":0,"content":"import { readFileSync } from \"node:fs\";"}"#
           .utf8
       ),
       context: context
@@ -1343,9 +1333,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(argv = process.argv.slice(2)): string {
@@ -1360,13 +1350,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":5,"endLine":11,"content":"import { summarizeCLI } from './summarize';\n\nexport function main(argv = process.argv.slice(2)): string {\n  const title = argv.join(' ').trim() || 'First Compass task';\n  return summarizeCLI([{ id: 'task-1', title, done: false }]);\n}\n\nif (import.meta.url === `file://${process.argv[1]}`) {\n  console.log(main());\n}"}"#
+        #"{"path":"main.rs","startLine":5,"endLine":11,"content":"import { summarizeCLI } from './summarize';\n\nexport function main(argv = process.argv.slice(2)): string {\n  const title = argv.join(' ').trim() || 'First Compass task';\n  return summarizeCLI([{ id: 'task-1', title, done: false }]);\n}\n\nif (import.meta.url === `file://${process.argv[1]}`) {\n  console.log(main());\n}"}"#
           .utf8
       ),
       context: context
@@ -1386,9 +1376,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(argv = process.argv.slice(2)): string {
@@ -1403,13 +1393,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":4,"endLine":10,"content":["import { summarizeQueue } from \"@compass-test/core\";","","export function main(argv = process.argv.slice(2)): string {","  const doneIndex = argv.findIndex(arg => arg === \"--done\");","  const title = argv.join(\" \").trim() || \"First Compass task\";","  return summarizeQueue([{ id: \"task-1\", title, done: doneIndex !== -1 }]);","}"]}"#
+        #"{"path":"main.rs","startLine":4,"endLine":10,"content":["import { summarizeQueue } from \"@compass-test/core\";","","export function main(argv = process.argv.slice(2)): string {","  const doneIndex = argv.findIndex(arg => arg === \"--done\");","  const title = argv.join(\" \").trim() || \"First Compass task\";","  return summarizeQueue([{ id: \"task-1\", title, done: doneIndex !== -1 }]);","}"]}"#
           .utf8
       ),
       context: context
@@ -1417,7 +1407,7 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("starts at line 4 in main.ts, after the file header"))
+    #expect(result.content.contains("starts at line 4 in main.rs, after the file header"))
     #expect(result.content.contains("replacement contains top-level import"))
     #expect(result.content.contains("Do not paste imports into a function/body replacement"))
     #expect(result.content.contains("insert imports near the top of the file"))
@@ -1430,9 +1420,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "main.ts")
+    let fileURL = tempURL.appending(path: "main.rs")
     let original = """
-      #!/usr/bin/env tsx
+      //!
       import { summarizeQueue } from "@compass-test/core";
 
       export function main(): string {
@@ -1442,13 +1432,13 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"main.ts","startLine":3,"endLine":2,"content":"import { readFileSync } from \"node:fs\";"}"#
+        #"{"path":"main.rs","startLine":2,"endLine":1,"content":"use std::fs;\n"}"#
           .utf8
       ),
       context: context
@@ -1456,7 +1446,8 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(!result.isError)
     let changed = try String(contentsOf: fileURL, encoding: .utf8)
-    #expect(changed.contains("import { readFileSync } from \"node:fs\";\n\nexport function main"))
+    #expect(changed.contains("use std::fs;"))
+    #expect(changed.contains("import { summarizeQueue }"))
   }
 
   @Test
@@ -1464,7 +1455,7 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let fileURL = tempURL.appending(path: "summarize.ts")
+    let fileURL = tempURL.appending(path: "summarize.rs")
     let original = """
       export function summarizeCLI(entries: string[]): string {
         return `${entries.length} total`;
@@ -1473,18 +1464,18 @@ struct AgentToolRepairGuidanceTests {
     try original.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"summarize.ts"}"#.utf8),
+      arguments: Data(#"{"path":"summarize.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
-      arguments: Data(#"{"path":"summarize.ts","startLine":1,"endLine":3,"replacement":""}"#.utf8),
+      arguments: Data(#"{"path":"summarize.rs","startLine":1,"endLine":3,"replacement":""}"#.utf8),
       context: context
     )
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("would leave summarize.ts empty"))
+    #expect(result.content.contains("would leave summarize.rs empty"))
     #expect(result.content.contains("provide complete replacementLines"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == original)
@@ -1495,9 +1486,9 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "main.ts")
+    let fileURL = srcURL.appending(path: "main.rs")
     try """
     import { summarizeQueue } from "@compass-test/core";
 
@@ -1507,13 +1498,13 @@ struct AgentToolRepairGuidanceTests {
     """.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './utils';\n\nimport { summarizeQueue } from \"@compass-test/core\";"}"#
+        #"{"path":"crates/cli/src/main.rs","startLine":1,"endLine":1,"content":"use super::utils::summarize_cli;\nfn main() {}\n"}"#
           .utf8
       ),
       context: context
@@ -1521,11 +1512,11 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("unresolved relative module `./utils`"))
-    #expect(result.content.contains("packages/cli/src/utils.ts"))
-    #expect(result.content.contains("keep the implementation inside packages/cli/src/main.ts"))
+    #expect(result.content.contains("unresolved relative module `utils`"))
+    #expect(result.content.contains("utils.rs"))
+    #expect(result.content.contains("keep the implementation inside crates/cli/src/main.rs"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
-    #expect(!unchanged.contains("./utils"))
+    #expect(!unchanged.contains("utils::"))
   }
 
   @Test
@@ -1533,24 +1524,24 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "main.ts")
+    let fileURL = srcURL.appending(path: "main.rs")
     try "export const main = true;\n".write(to: fileURL, atomically: true, encoding: .utf8)
     try "export const summarizeCLI = true;\n".write(
-      to: srcURL.appending(path: "utils.ts"),
+      to: srcURL.appending(path: "utils.rs"),
       atomically: true,
       encoding: .utf8
     )
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './utils';\nexport const main = summarizeCLI;"}"#
+        #"{"path":"crates/cli/src/main.rs","startLine":1,"endLine":1,"content":"mod utils;\nfn main() { let _ = utils::summarize_cli(); }\n"}"#
           .utf8
       ),
       context: context
@@ -1558,7 +1549,7 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(!result.isError)
     let changed = try String(contentsOf: fileURL, encoding: .utf8)
-    #expect(changed.contains("./utils"))
+    #expect(changed.contains("mod utils"))
   }
 
   @Test
@@ -1566,23 +1557,23 @@ struct AgentToolRepairGuidanceTests {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let srcURL = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
-    let fileURL = srcURL.appending(path: "main.ts")
+    let fileURL = srcURL.appending(path: "main.rs")
     try """
-    export function main(): string {
-      return "ok";
+    fn main() -> &'static str {
+      "ok"
     }
     """.write(to: fileURL, atomically: true, encoding: .utf8)
     let context = AgentToolContext(workingDirectory: tempURL)
     _ = try await AgentReadFileTool().invoke(
-      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      arguments: Data(#"{"path":"crates/cli/src/main.rs"}"#.utf8),
       context: context
     )
 
     let result = try await AgentEditFileTool().invoke(
       arguments: Data(
-        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './main';\nexport function main(): string {"}"#
+        #"{"path":"crates/cli/src/main.rs","startLine":1,"endLine":1,"content":"mod main;\nfn entry() {}\n"}"#
           .utf8
       ),
       context: context
@@ -1590,11 +1581,11 @@ struct AgentToolRepairGuidanceTests {
 
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
-    #expect(result.content.contains("self-referential relative module `./main`"))
+    #expect(result.content.contains("self-referential relative module `main`"))
     #expect(result.content.contains("A file cannot import or export from itself"))
-    #expect(result.content.contains("define the symbol directly in packages/cli/src/main.ts"))
+    #expect(result.content.contains("define the symbol directly in crates/cli/src/main.rs"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
-    #expect(!unchanged.contains("./main"))
+    #expect(!unchanged.contains("mod main"))
   }
 
   @Test

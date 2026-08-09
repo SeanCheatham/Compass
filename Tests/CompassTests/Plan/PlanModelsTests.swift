@@ -155,7 +155,7 @@ struct PlanModelsTests {
     let error = PlanTransitionValidationError(
       message: """
         Plan named file paths that do not exist in the repo:
-        - crates/cli/test/cli.rs (nearest existing directory: packages/cli; entries: package.json, src/, tsconfig.json; same filename exists at: crates/cli/tests/cli.rs)
+        - crates/cli/test/cli.rs (nearest existing directory: crates/cli; entries: Cargo.toml, src/, Cargo.toml; same filename exists at: crates/cli/tests/cli.rs)
 
         Repair the handoff without calling another tool.
         """,

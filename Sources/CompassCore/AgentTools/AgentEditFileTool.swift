@@ -1018,11 +1018,6 @@ public struct AgentEditFileTool: AgentTool {
         || trimmed.range(of: #"^mod tests\b"#, options: .regularExpression) != nil
         || trimmed.range(of: #"^assert_eq!\("#, options: .regularExpression) != nil
         || trimmed.range(of: #"^assert!\("#, options: .regularExpression) != nil
-        || trimmed.range(
-          of: #"^(describe|it|test)\s*\("#,
-          options: .regularExpression
-        ) != nil
-        || trimmed.range(of: #"^expect\s*\("#, options: .regularExpression) != nil
       {
         return TestCodeMarker(lineNumber: index + 1, preview: linePreview(trimmed))
       }
@@ -1037,7 +1032,7 @@ public struct AgentEditFileTool: AgentTool {
     guard
       trimmedLines.contains(where: { line in
         line.range(
-          of: #"\b(argv|process\.argv|std::env::args|env::args)\b"#, options: .regularExpression)
+          of: #"\b(argv|std::env::args|env::args)\b"#, options: .regularExpression)
           != nil
       }),
       trimmedLines.contains(where: { line in
@@ -1049,7 +1044,7 @@ public struct AgentEditFileTool: AgentTool {
 
     for (index, line) in trimmedLines.enumerated() where !line.isEmpty {
       if line.range(
-        of: #"\b(argv|process\.argv|std::env::args|env::args)\b"#, options: .regularExpression)
+        of: #"\b(argv|std::env::args|env::args)\b"#, options: .regularExpression)
         != nil
         || line.range(of: #"^return\b"#, options: .regularExpression) != nil
       {
@@ -1417,7 +1412,7 @@ public struct AgentEditFileTool: AgentTool {
       guard line.first?.isWhitespace != true else { continue }
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else { continue }
-      if trimmed.hasPrefix("import ") {
+      if trimmed.hasPrefix("import ") || trimmed.hasPrefix("use ") {
         return "import `\(String(trimmed.prefix(120)))`"
       }
       if trimmed.hasPrefix("export ")
@@ -1425,6 +1420,12 @@ public struct AgentEditFileTool: AgentTool {
         || trimmed.hasPrefix("class ")
         || trimmed.hasPrefix("interface ")
         || trimmed.hasPrefix("type ")
+        || trimmed.hasPrefix("fn ")
+        || trimmed.hasPrefix("pub fn ")
+        || trimmed.hasPrefix("struct ")
+        || trimmed.hasPrefix("pub struct ")
+        || trimmed.hasPrefix("mod ")
+        || trimmed.hasPrefix("pub mod ")
       {
         return "declaration `\(String(trimmed.prefix(120)))`"
       }
@@ -1436,7 +1437,7 @@ public struct AgentEditFileTool: AgentTool {
     for line in lines {
       guard line.first?.isWhitespace != true else { continue }
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-      if trimmed.hasPrefix("import ") {
+      if trimmed.hasPrefix("import ") || trimmed.hasPrefix("use ") {
         return "`\(String(trimmed.prefix(120)))`"
       }
     }
@@ -1448,7 +1449,9 @@ public struct AgentEditFileTool: AgentTool {
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else { continue }
       guard !trimmed.hasPrefix("#!"),
-        !trimmed.hasPrefix("import ")
+        !trimmed.hasPrefix("//!"),
+        !trimmed.hasPrefix("import "),
+        !trimmed.hasPrefix("use ")
       else {
         continue
       }
@@ -1538,10 +1541,14 @@ public struct AgentEditFileTool: AgentTool {
     guard !trimmed.isEmpty else { return false }
     return !trimmed.hasPrefix("export ")
       && !trimmed.hasPrefix("import ")
+      && !trimmed.hasPrefix("use ")
       && !trimmed.hasPrefix("function ")
+      && !trimmed.hasPrefix("fn ")
       && !trimmed.hasPrefix("class ")
+      && !trimmed.hasPrefix("struct ")
       && !trimmed.hasPrefix("interface ")
       && !trimmed.hasPrefix("type ")
+      && !trimmed.hasPrefix("mod ")
   }
 
   private static func looksLikeFunctionBodyReplacement(_ lines: [String]) -> Bool {
@@ -1549,7 +1556,9 @@ public struct AgentEditFileTool: AgentTool {
     if looksLikeIndentedBodyLine(firstLine) { return true }
 
     let trimmed = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
-    if firstTopLevelDeclaration(in: [firstLine]) != nil || trimmed.hasPrefix("import ") {
+    if firstTopLevelDeclaration(in: [firstLine]) != nil || trimmed.hasPrefix("import ")
+      || trimmed.hasPrefix("use ")
+    {
       return false
     }
     if lines.contains(where: { line in
@@ -1639,16 +1648,11 @@ public struct AgentEditFileTool: AgentTool {
   private static func relativeModuleReferences(in text: String) -> Set<String> {
     var references: Set<String> = []
     for line in text.components(separatedBy: "\n") {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      guard trimmed.hasPrefix("import ") || trimmed.hasPrefix("export ") else { continue }
-      for pattern in [
-        #"from\s+["'](\.{1,2}/[^"']+)["']"#,
-        #"^\s*import\s+["'](\.{1,2}/[^"']+)["']"#,
-        #"^\s*export\s+["'](\.{1,2}/[^"']+)["']"#,
-      ] {
-        if let specifier = firstCapture(in: line, pattern: pattern) {
-          references.insert(specifier)
-        }
+      if let name = firstCapture(in: line, pattern: #"^\s*(?:pub\s+)?mod\s+(\w+)\s*;"#) {
+        references.insert(name)
+      }
+      if let name = firstCapture(in: line, pattern: #"^\s*use\s+super::(\w+)"#) {
+        references.insert(name)
       }
     }
     return references
@@ -1691,18 +1695,14 @@ public struct AgentEditFileTool: AgentTool {
   }
 
   private static func moduleResolutionCandidates(for baseURL: URL) -> [URL] {
-    let fileExtensions = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json"]
     if !baseURL.pathExtension.isEmpty {
       return [baseURL]
     }
-    var candidates = [baseURL]
-    candidates += fileExtensions.map { baseURL.appendingPathExtension($0) }
-    candidates += fileExtensions.map {
-      baseURL
-        .appending(path: "index")
-        .appendingPathExtension($0)
-    }
-    return candidates
+    return [
+      baseURL.appendingPathExtension("rs"),
+      baseURL.appending(path: "mod.rs"),
+      baseURL,
+    ]
   }
 
   private static func fileLines(from text: String) -> [String] {

@@ -104,7 +104,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithFutureWorkPhrase() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Read package.json to understand current scripts.",
+      summary: "Read Cargo.toml to understand current scripts.",
       feedback: "Now I will create the `summarize.ts` file and move the existing logic there.",
       bypassVerify: false
     )
@@ -136,7 +136,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithProceedWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Moved the existing logic from main.ts to summarize.ts.",
+      summary: "Moved the existing logic from main.rs to summarize.ts.",
       feedback: "Proceed to create the test file next.",
       bypassVerify: false
     )
@@ -173,8 +173,8 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackWithNextDiscoveryWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Requested the current package.json to determine the next verification command.",
-      feedback: "Next action: Choose the relevant verify command from the scripts in package.json.",
+      summary: "Requested the current Cargo.toml to determine the next verification command.",
+      feedback: "Next action: Choose the relevant verify command from the scripts in Cargo.toml.",
       bypassVerify: false
     )
 
@@ -191,7 +191,7 @@ struct FeedbackHandoffValidatorTests {
   func rejectsSucceededDevelopFeedbackThatOnlyReadsForNextSteps() throws {
     let summary = DevelopSummary(
       status: .succeeded,
-      summary: "Read the current scripts from package.json to determine the next steps.",
+      summary: "Read the current scripts from Cargo.toml to determine the next steps.",
       feedback: "Read the current scripts to determine the next steps.",
       bypassVerify: false
     )

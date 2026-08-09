@@ -62,5 +62,5 @@ the same transport; tar fallback logs under the `WorkspaceSync` OSLog category.
 ## Non-goals
 
 - Replacing git as project / GitHub VCS
-- VirtioFS resurrection
+- Bringing back VirtioFS (removed; CAS/tar sync is the path)
 - AI-native semantic version control

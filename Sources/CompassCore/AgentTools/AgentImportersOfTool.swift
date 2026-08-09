@@ -125,9 +125,8 @@ public struct AgentImportersOfTool: AgentTool {
     // Python-style dotted module: src/foo/bar.py → src.foo.bar / foo.bar.
     let dotted = stem.replacingOccurrences(of: "/", with: ".")
     if dotted != stem { values.append(dotted) }
-    // Trailing "/index" for TS/JS packages: src/foo/index.ts is imported
-    // as "src/foo" or "./foo".
-    if basename == "index" {
+    // Trailing "/mod" for Rust modules: src/foo/mod.rs is imported as "src/foo".
+    if basename == "mod" {
       let parent = (stem as NSString).deletingLastPathComponent
       if !parent.isEmpty {
         values.append(parent)

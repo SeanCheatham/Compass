@@ -127,11 +127,11 @@ public struct AgentWriteFileTool: AgentTool {
         ))
     }
     if existing == nil,
-      let conflict = await packageEntryPointConflict(forNewURL: url, context: context)
+      let conflict = await crateEntryPointConflict(forNewURL: url, context: context)
     {
       return .failure(
         .invalidArguments(
-          "write_file refused to create \(context.relativize(url)) because \(conflict.manifestPath) \(conflict.field) already points at existing entry point \(conflict.declaredPath). Edit \(conflict.declaredPath) instead, or update the manifest to point at \(context.relativize(url)) before creating a replacement entry point."
+          "write_file refused to create \(context.relativize(url)) because \(conflict.manifestPath) \(conflict.field) already points at existing entry point \(conflict.declaredPath). Edit \(conflict.declaredPath) instead, or update the crate manifest before creating a replacement binary entry point."
         ))
     }
     if existing == nil,
@@ -228,14 +228,14 @@ public struct AgentWriteFileTool: AgentTool {
     return .ok(message)
   }
 
-  private struct PackageEntryPointConflict {
+  private struct CrateEntryPointConflict {
     public let manifestPath: String
     public let declaredPath: String
     public let field: String
   }
 
-  private func packageEntryPointConflict(forNewURL url: URL, context: AgentToolContext) async
-    -> PackageEntryPointConflict?
+  private func crateEntryPointConflict(forNewURL url: URL, context: AgentToolContext) async
+    -> CrateEntryPointConflict?
   {
     guard isEntryPointAlias(url) else { return nil }
     let workingDirectory = context.workingDirectory.standardizedFileURL
@@ -243,19 +243,19 @@ public struct AgentWriteFileTool: AgentTool {
     var candidate = url.deletingLastPathComponent().standardizedFileURL
 
     while candidate.path.hasPrefix(workingPath) {
-      let manifestURL = candidate.appending(path: "package.json")
-      if let data = try? await context.filesystem.readFile(at: manifestURL),
-        let entryPoints = packageEntryPoints(from: data)
+      let manifestURL = candidate.appending(path: "Cargo.toml")
+      if let metadata = try? await context.filesystem.metadata(of: manifestURL),
+        metadata.isRegularFile
       {
-        for entryPoint in entryPoints {
+        for entryPoint in Self.defaultCrateEntryPoints {
           let entryURL = candidate.appending(path: entryPoint.path).standardizedFileURL
           guard entryURL.path != url.standardizedFileURL.path,
-            let metadata = try? await context.filesystem.metadata(of: entryURL),
-            metadata.isRegularFile
+            let entryMeta = try? await context.filesystem.metadata(of: entryURL),
+            entryMeta.isRegularFile
           else {
             continue
           }
-          return PackageEntryPointConflict(
+          return CrateEntryPointConflict(
             manifestPath: context.relativize(manifestURL),
             declaredPath: context.relativize(entryURL),
             field: entryPoint.field
@@ -275,34 +275,10 @@ public struct AgentWriteFileTool: AgentTool {
     return ["app", "cli", "index", "main", "server"].contains(stem)
   }
 
-  private func packageEntryPoints(from data: Data) -> [(field: String, path: String)]? {
-    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-      return nil
-    }
-
-    var entryPoints: [(field: String, path: String)] = []
-    for field in ["main", "module", "browser", "types", "typings"] {
-      if let raw = object[field] as? String,
-        let normalized = normalizedPackageEntryPoint(raw)
-      {
-        entryPoints.append((field, normalized))
-      }
-    }
-    if let raw = object["bin"] as? String,
-      let normalized = normalizedPackageEntryPoint(raw)
-    {
-      entryPoints.append(("bin", normalized))
-    } else if let bin = object["bin"] as? [String: Any] {
-      for key in bin.keys.sorted() {
-        if let raw = bin[key] as? String,
-          let normalized = normalizedPackageEntryPoint(raw)
-        {
-          entryPoints.append(("bin.\(key)", normalized))
-        }
-      }
-    }
-    return entryPoints
-  }
+  private static let defaultCrateEntryPoints: [(field: String, path: String)] = [
+    ("bin", "src/main.rs"),
+    ("lib", "src/lib.rs"),
+  ]
 
   private static func editFileRepairHint(
     relativePath: String,
@@ -334,17 +310,6 @@ public struct AgentWriteFileTool: AgentTool {
       \(json)
       ```
       """
-  }
-
-  private func normalizedPackageEntryPoint(_ raw: String) -> String? {
-    var path = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !path.isEmpty, !path.hasPrefix("#"), !path.contains("://") else { return nil }
-    while path.hasPrefix("./") {
-      path.removeFirst(2)
-    }
-    path = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    guard !path.isEmpty, !path.hasPrefix("../") else { return nil }
-    return path
   }
 
   private struct SelfRelativeModuleReference {
@@ -400,16 +365,11 @@ public struct AgentWriteFileTool: AgentTool {
   private static func relativeModuleReferences(in text: String) -> Set<String> {
     var references: Set<String> = []
     for line in text.components(separatedBy: "\n") {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      guard trimmed.hasPrefix("import ") || trimmed.hasPrefix("export ") else { continue }
-      for pattern in [
-        #"from\s+["'](\.{1,2}/[^"']+)["']"#,
-        #"^\s*import\s+["'](\.{1,2}/[^"']+)["']"#,
-        #"^\s*export\s+["'](\.{1,2}/[^"']+)["']"#,
-      ] {
-        if let specifier = firstCapture(in: line, pattern: pattern) {
-          references.insert(specifier)
-        }
+      if let name = firstCapture(in: line, pattern: #"^\s*(?:pub\s+)?mod\s+(\w+)\s*;"#) {
+        references.insert(name)
+      }
+      if let name = firstCapture(in: line, pattern: #"^\s*use\s+super::(\w+)"#) {
+        references.insert(name)
       }
     }
     return references
@@ -452,18 +412,14 @@ public struct AgentWriteFileTool: AgentTool {
   }
 
   private static func moduleResolutionCandidates(for baseURL: URL) -> [URL] {
-    let fileExtensions = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json"]
     if !baseURL.pathExtension.isEmpty {
       return [baseURL]
     }
-    var candidates = [baseURL]
-    candidates += fileExtensions.map { baseURL.appendingPathExtension($0) }
-    candidates += fileExtensions.map {
-      baseURL
-        .appending(path: "index")
-        .appendingPathExtension($0)
-    }
-    return candidates
+    return [
+      baseURL.appendingPathExtension("rs"),
+      baseURL.appending(path: "mod.rs"),
+      baseURL,
+    ]
   }
 
   private struct EmptyOrCommentOnlySourceContent {

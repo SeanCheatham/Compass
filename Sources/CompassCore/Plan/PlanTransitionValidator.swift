@@ -296,13 +296,13 @@ public enum PlanTransitionValidator {
       }.prefix(4).joined(separator: "\n")
       throw PlanTransitionValidationError(
         message: """
-          Plan marked new file paths that look like duplicate package entry points:
+          Plan marked new file paths that look like duplicate crate entry points:
           \(details)
 
           Repair the handoff by targeting the existing entry point:
           \(repairs)
 
-          Do not resubmit the same new-file path. Do not add a second package.json entry for the same CLI. If the new file truly must replace the existing entry point, explicitly say to change the listed package.json field from the existing path to the new path and explain why.
+          Do not resubmit the same new-file path. Do not add a second binary for the same CLI. If the new file truly must replace the existing entry point, explicitly say to change the listed Cargo.toml field from the existing path to the new path and explain why.
           """,
         reason: .ungroundedPaths
       )
@@ -526,37 +526,36 @@ public enum PlanTransitionValidator {
     return matches.sorted()
   }
 
-  private struct PackageEntryPointConflict {
+  private struct CrateEntryPointConflict {
     public let manifestPath: String
     public let declaredPath: String
     public let field: String
   }
 
   private static func packageEntryPointConflict(forNewPath path: String, repoURL: URL)
-    -> PackageEntryPointConflict?
+    -> CrateEntryPointConflict?
   {
     guard isEntryPointAlias(path) else { return nil }
     let targetURL = repoURL.appending(path: path).standardizedFileURL
     guard
-      let packageDirectory = nearestPackageDirectory(
+      let crateDirectory = nearestCrateDirectory(
         from: targetURL.deletingLastPathComponent(),
         repoURL: repoURL
-      ),
-      let entryPoints = packageEntryPoints(in: packageDirectory)
+      )
     else {
       return nil
     }
 
-    for entryPoint in entryPoints {
-      let entryURL = packageDirectory.appending(path: entryPoint.path).standardizedFileURL
+    for entryPoint in defaultCrateEntryPoints {
+      let entryURL = crateDirectory.appending(path: entryPoint.path).standardizedFileURL
       guard entryURL.path != targetURL.path,
         FileManager.default.fileExists(atPath: entryURL.path)
       else {
         continue
       }
-      return PackageEntryPointConflict(
+      return CrateEntryPointConflict(
         manifestPath: relativePath(
-          packageDirectory.appending(path: "package.json"), repoURL: repoURL),
+          crateDirectory.appending(path: "Cargo.toml"), repoURL: repoURL),
         declaredPath: relativePath(entryURL, repoURL: repoURL),
         field: entryPoint.field
       )
@@ -566,14 +565,14 @@ public enum PlanTransitionValidator {
 
   private static func suspiciousNewFileDetail(
     _ path: String,
-    conflict: PackageEntryPointConflict
+    conflict: CrateEntryPointConflict
   ) -> String {
     "- \(path) (\(conflict.manifestPath) \(conflict.field) already points at \(conflict.declaredPath))"
   }
 
   private static func planExplicitlyMovesEntryPoint(
     to path: String,
-    conflict: PackageEntryPointConflict,
+    conflict: CrateEntryPointConflict,
     in plan: String
   ) -> Bool {
     let loweredPlan = plan.lowercased()
@@ -601,11 +600,16 @@ public enum PlanTransitionValidator {
     return ["app", "cli", "index", "main", "server"].contains(stem)
   }
 
-  private static func nearestPackageDirectory(from url: URL, repoURL: URL) -> URL? {
+  private static let defaultCrateEntryPoints: [(field: String, path: String)] = [
+    ("bin", "src/main.rs"),
+    ("lib", "src/lib.rs"),
+  ]
+
+  private static func nearestCrateDirectory(from url: URL, repoURL: URL) -> URL? {
     let repoPath = repoURL.standardizedFileURL.path
     var candidate = url.standardizedFileURL
     while candidate.path.hasPrefix(repoPath) {
-      let manifestURL = candidate.appending(path: "package.json")
+      let manifestURL = candidate.appending(path: "Cargo.toml")
       if FileManager.default.fileExists(atPath: manifestURL.path) {
         return candidate
       }
@@ -614,51 +618,6 @@ public enum PlanTransitionValidator {
       candidate = parent
     }
     return nil
-  }
-
-  private static func packageEntryPoints(in packageDirectory: URL) -> [(
-    field: String, path: String
-  )]? {
-    let manifestURL = packageDirectory.appending(path: "package.json")
-    guard let data = try? Data(contentsOf: manifestURL),
-      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else {
-      return nil
-    }
-
-    var entryPoints: [(field: String, path: String)] = []
-    for field in ["main", "module", "browser", "types", "typings"] {
-      if let raw = object[field] as? String,
-        let normalized = normalizedPackageEntryPoint(raw)
-      {
-        entryPoints.append((field, normalized))
-      }
-    }
-    if let raw = object["bin"] as? String,
-      let normalized = normalizedPackageEntryPoint(raw)
-    {
-      entryPoints.append(("bin", normalized))
-    } else if let bin = object["bin"] as? [String: Any] {
-      for key in bin.keys.sorted() {
-        if let raw = bin[key] as? String,
-          let normalized = normalizedPackageEntryPoint(raw)
-        {
-          entryPoints.append(("bin.\(key)", normalized))
-        }
-      }
-    }
-    return entryPoints
-  }
-
-  private static func normalizedPackageEntryPoint(_ raw: String) -> String? {
-    var path = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !path.isEmpty, !path.hasPrefix("#"), !path.contains("://") else { return nil }
-    while path.hasPrefix("./") {
-      path.removeFirst(2)
-    }
-    path = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    guard !path.isEmpty, !path.hasPrefix("../") else { return nil }
-    return path
   }
 
   private static func nearestExistingDirectory(from url: URL, repoURL: URL) -> URL? {

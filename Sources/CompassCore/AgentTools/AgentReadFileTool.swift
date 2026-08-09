@@ -263,7 +263,7 @@ public struct AgentReadFileTool: AgentTool {
     let components = path.split(separator: "/").map(String.init)
     guard components.count >= 2 else { return nil }
     switch components[0] {
-    case "crates", "apps":
+    case "crates", "apps", "packages":
       return "\(components[0])/\(components[1])"
     default:
       return nil
@@ -285,6 +285,7 @@ public struct AgentReadFileTool: AgentTool {
       "coverage",
       "dist",
       "node_modules",
+      "target",
     ]
     return !path.split(separator: "/").contains { skippedComponents.contains(String($0)) }
   }

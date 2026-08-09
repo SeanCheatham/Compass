@@ -7,24 +7,24 @@ import Testing
 struct AgentImportersOfToolTests {
   @Test
   func candidatesIncludePathStemAndBasename() {
-    let values = AgentImportersOfTool.candidates(for: "src/util/helpers.ts")
-    #expect(values.contains("src/util/helpers.ts"))
-    #expect(values.contains("src/util/helpers"))
+    let values = AgentImportersOfTool.candidates(for: "crates/core/src/helpers.rs")
+    #expect(values.contains("crates/core/src/helpers.rs"))
+    #expect(values.contains("crates/core/src/helpers"))
     #expect(values.contains("helpers"))
-    #expect(values.contains("src.util.helpers"))
+    #expect(values.contains("crates.core.src.helpers"))
   }
 
   @Test
-  func indexModuleAddsParentPackageKeys() {
-    let values = AgentImportersOfTool.candidates(for: "packages/cli/index.ts")
-    #expect(values.contains("packages/cli"))
-    #expect(values.contains("cli"))
-    #expect(values.contains("index"))
+  func modRsAddsParentModuleKeys() {
+    let values = AgentImportersOfTool.candidates(for: "crates/cli/src/utils/mod.rs")
+    #expect(values.contains("crates/cli/src/utils"))
+    #expect(values.contains("utils"))
+    #expect(values.contains("mod"))
   }
 
   @Test
   func normalizeImportSourceStripsRelativePrefixesAndExtensions() {
-    #expect(AgentCodemapPath.normalizeImportSource("./foo/bar.ts") == "foo/bar")
+    #expect(AgentCodemapPath.normalizeImportSource("./foo/bar.rs") == "foo/bar")
     #expect(AgentCodemapPath.normalizeImportSource("../pkg/mod.py") == "pkg/mod")
     #expect(AgentCodemapPath.normalizeImportSource("\"helpers\"") == "helpers")
   }

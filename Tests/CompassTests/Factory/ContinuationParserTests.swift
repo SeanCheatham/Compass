@@ -14,9 +14,9 @@ struct ContinuationParserTests {
         {
           "kind": "\(phase.continueKind)",
           "tool": "read-file",
-          "arguments": { "path": "package.json" },
+          "arguments": { "path": "Cargo.toml" },
           "reason": "Need scripts.",
-          "note": "  If scripts exist, choose the matching verify command.  "
+          "note": "  If workspace scripts exist, choose the matching verify command.  "
         }
         """
       let parsed = try AgentContinuationParser.parse(
@@ -30,9 +30,9 @@ struct ContinuationParserTests {
         return
       }
       #expect(toolName == "read_file")
-      #expect(String(decoding: arguments, as: UTF8.self).contains("package.json"))
+      #expect(String(decoding: arguments, as: UTF8.self).contains("Cargo.toml"))
       #expect(reason == "Need scripts.")
-      #expect(note == "If scripts exist, choose the matching verify command.")
+      #expect(note == "If workspace scripts exist, choose the matching verify command.")
     }
   }
   @Test
@@ -43,9 +43,9 @@ struct ContinuationParserTests {
         "kind": "plan_continue",
         "tool": "read_file",
         "arguments": {
-          "path": "package.json"
+          "path": "Cargo.toml"
         },
-        "reason": "Need current package scripts."
+        "reason": "Need current crate scripts."
       }
       ```
       """
@@ -61,14 +61,14 @@ struct ContinuationParserTests {
       return
     }
     #expect(toolName == "read_file")
-    #expect(String(decoding: arguments, as: UTF8.self).contains("package.json"))
-    #expect(reason == "Need current package scripts.")
+    #expect(String(decoding: arguments, as: UTF8.self).contains("Cargo.toml"))
+    #expect(reason == "Need current crate scripts.")
     #expect(note == nil)
   }
   @Test
   func continuationParserSanitizesAndRejectsNotes() throws {
     let emptyNote = try AgentContinuationParser.parse(
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":"   "}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"lib.rs"},"note":"   "}"#,
       phase: .develop,
       availableToolNames: ["read_file"]
     )
@@ -80,7 +80,7 @@ struct ContinuationParserTests {
 
     let longNote = String(repeating: "x", count: AgentContinuationParser.noteCharacterLimit + 20)
     let longJSON = """
-      {"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":"\(longNote)"}
+      {"kind":"develop_continue","tool":"read_file","arguments":{"path":"lib.rs"},"note":"\(longNote)"}
       """
     let truncated = try AgentContinuationParser.parse(
       longJSON,
@@ -95,7 +95,7 @@ struct ContinuationParserTests {
 
     #expect(throws: AgentContinuationParseError.noteNotString) {
       try AgentContinuationParser.parse(
-        #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":{"next":"edit"}}"#,
+        #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"lib.rs"},"note":{"next":"edit"}}"#,
         phase: .develop,
         availableToolNames: ["read_file"]
       )

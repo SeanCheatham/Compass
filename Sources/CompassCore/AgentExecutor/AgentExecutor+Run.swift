@@ -1155,7 +1155,7 @@ extension AgentExecutor {
     \(error)
 
     Required shape:
-    {"kind":"\(phase.continueKind)","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts.","note":"If package scripts exist, run the relevant verify command next."}
+    {"kind":"\(phase.continueKind)","tool":"read_file","arguments":{"path":"Cargo.toml"},"reason":"Need current crate scripts.","note":"If crate scripts exist, run the relevant verify command next."}
     or
     {"kind":"\(phase.submitKind)","payload":{...}}
 
@@ -1385,7 +1385,7 @@ extension AgentExecutor {
       Compass rejected `\(pendingRepair.submitKind)`. Compass will keep rejecting tools
       until you repair the submit envelope.
 
-      The continuation-contract `read_file package.json` shape is only an example. It is
+      The continuation-contract `read_file Cargo.toml` shape is only an example. It is
       lower authority than this Compass Repair. Do not copy that example here.
 
       Your next response must be `\(phase.submitKind)`, not `\(phase.continueKind)`.
@@ -1424,7 +1424,7 @@ extension AgentExecutor {
       ? """
 
       For Plan, read-only tools cannot repair a rejected handoff. Return `\(phase.submitKind)` now.
-      Do not call `read_file`, `list_files`, `bash`, or reread `package.json` just to repair
+      Do not call `read_file`, `list_files`, `bash`, or reread `Cargo.toml` just to repair
       Plan payload text.
       """
       : ""
@@ -1451,7 +1451,7 @@ extension AgentExecutor {
       - Apply the latest Compass Repair instruction exactly.
       - If the rejected payload said a verify command still needs to run, call `bash`
         with that command now. Do not call `read_file`, `list_files`, or reread
-        `package.json` merely to rediscover scripts.
+        `Cargo.toml` merely to rediscover scripts.
       - Return `\(phase.submitKind)` with a corrected `payload`.
       - Only call a different tool if the repair instruction explicitly requires new evidence.
       \(planInstruction)\(latestRepair)
@@ -1483,7 +1483,7 @@ extension AgentExecutor {
       Use the latest observations and repair the rejected continuation now:
       - If the rejected response was an `edit_file` with multiline content, return
         `\(phase.continueKind)` using `edit_file` and `replacementLines` as an array of strings.
-      - Do not reread `package.json`, list files, or inspect other files merely to repair JSON syntax.
+      - Do not reread `Cargo.toml`, list files, or inspect other files merely to repair JSON syntax.
       - Call `bash` only after the needed file edits/tests have been accepted.
       - Return `\(phase.submitKind)` with status=failed or status=blocked only if no concrete
         edit or verify call remains.

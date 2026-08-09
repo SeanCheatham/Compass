@@ -147,23 +147,20 @@ struct PlanTransitionValidatorTests {
       repoURL: tempURL
     )
 
-    let legacyCliSrc = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    let legacyCliSrc = tempURL.appending(path: "crates/cli/src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: legacyCliSrc, withIntermediateDirectories: true)
-    try "export const main = true;\n".write(
-      to: legacyCliSrc.appending(path: "main.ts"),
+    try "fn main() {}\n".write(
+      to: legacyCliSrc.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
     try """
-    {
-      "name": "@compass-test/cli",
-      "type": "module",
-      "bin": {
-        "compass-test": "./src/main.ts"
-      }
-    }
+    [package]
+    name = "cli"
+    version = "0.1.0"
+    edition = "2021"
     """.write(
-      to: tempURL.appending(path: "packages/cli/package.json"),
+      to: tempURL.appending(path: "crates/cli/Cargo.toml"),
       atomically: true,
       encoding: .utf8
     )
@@ -171,7 +168,7 @@ struct PlanTransitionValidatorTests {
     let duplicateEntryPoint = planState(
       """
       ## Outcome
-      Create new file `packages/cli/src/cli.ts` as a tiny wrapper around main.
+      Create new file `crates/cli/src/cli.rs` as a tiny wrapper around main.
 
       ## Acceptance checks
       - The new wrapper file exists.
@@ -183,13 +180,13 @@ struct PlanTransitionValidatorTests {
       Issue.record("Expected duplicate entry point rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .ungroundedPaths)
-      #expect(error.message.contains("duplicate package entry points"))
-      #expect(error.message.contains("packages/cli/package.json"))
-      #expect(error.message.contains("bin.compass-test"))
-      #expect(error.message.contains("packages/cli/src/main.ts"))
+      #expect(error.message.contains("duplicate crate entry points"))
+      #expect(error.message.contains("crates/cli/Cargo.toml"))
+      #expect(error.message.contains("bin"))
+      #expect(error.message.contains("crates/cli/src/main.rs"))
       #expect(
         error.message.contains(
-          "Replace `packages/cli/src/cli.ts` with `packages/cli/src/main.ts`"
+          "Replace `crates/cli/src/cli.rs` with `crates/cli/src/main.rs`"
         ))
       #expect(error.message.contains("Do not resubmit the same new-file path"))
     }

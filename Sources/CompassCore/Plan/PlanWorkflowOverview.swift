@@ -478,10 +478,6 @@ public struct PlanHandoffDigest: Equatable, Sendable {
   }
 
   private static let commandOnlyVerifyPhrases: Set<String> = [
-    "bun test",
-    "npm run build",
-    "npm run test",
-    "npm test",
     "cargo build",
     "cargo check",
     "cargo clippy",
@@ -496,10 +492,6 @@ public struct PlanHandoffDigest: Equatable, Sendable {
     "swift build",
     "swift test",
     "xcodebuild",
-    "yarn build",
-    "yarn run build",
-    "yarn run test",
-    "yarn test",
   ]
 
   private static let vagueAcceptanceCheckKeys: Set<String> = [

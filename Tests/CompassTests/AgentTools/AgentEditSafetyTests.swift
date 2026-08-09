@@ -9,7 +9,6 @@ struct AgentEditSafetyTests {
   func recognizesCommonSourceExtensions() {
     #expect(AgentEditSafety.isSourceFile(URL(fileURLWithPath: "src/main.rs")))
     #expect(AgentEditSafety.isSourceFile(URL(fileURLWithPath: "App.swift")))
-    #expect(AgentEditSafety.isSourceFile(URL(fileURLWithPath: "index.tsx")))
     #expect(!AgentEditSafety.isSourceFile(URL(fileURLWithPath: "README.md")))
     #expect(!AgentEditSafety.isSourceFile(URL(fileURLWithPath: "Cargo.toml")))
   }
@@ -18,8 +17,7 @@ struct AgentEditSafetyTests {
   func recognizesTestPaths() {
     #expect(AgentEditSafety.isTestFile(URL(fileURLWithPath: "crates/core/tests/cli.rs")))
     #expect(AgentEditSafety.isTestFile(URL(fileURLWithPath: "src/foo_test.rs")))
-    #expect(AgentEditSafety.isTestFile(URL(fileURLWithPath: "src/foo.test.ts")))
-    #expect(AgentEditSafety.isTestFile(URL(fileURLWithPath: "src/__tests__/foo.js")))
+    #expect(AgentEditSafety.isTestFile(URL(fileURLWithPath: "src/foo.test.rs")))
     #expect(!AgentEditSafety.isTestFile(URL(fileURLWithPath: "crates/core/src/lib.rs")))
   }
 

@@ -11,13 +11,13 @@ struct ExecutorBehaviorTests {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
     try "export const answer = 42\n".write(
-      to: tempURL.appending(path: "index.ts"),
+      to: tempURL.appending(path: "lib.rs"),
       atomically: true,
       encoding: .utf8
     )
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports.","note":"after-read-note: edit this file if it exports answer."}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"lib.rs"},"reason":"Need current exports.","note":"after-read-note: edit this file if it exports answer."}"#,
       #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Read the file.","feedback":"Verified with cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
     let result = try await AgentExecutor().run(
@@ -82,15 +82,15 @@ struct ExecutorBehaviorTests {
     export function two() { return 2; }
     export function three() { return 3; }
     """.write(
-      to: tempURL.appending(path: "index.ts"),
+      to: tempURL.appending(path: "lib.rs"),
       atomically: true,
       encoding: .utf8
     )
     let invalidEdit =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":1,"endLine":1,"content":"import { next } from './next';\n\nexport function replacement() {\n  return next();\n}\n\nexport function extra() {\n  return 42;\n}"},"reason":"Replace the module."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"lib.rs","startLine":1,"endLine":1,"content":"import { next } from './next';\n\nexport function replacement() {\n  return next();\n}\n\nexport function extra() {\n  return 42;\n}"},"reason":"Replace the module."}"#
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports."}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"lib.rs"},"reason":"Need current exports."}"#,
       invalidEdit,
       invalidEdit,
       #"{"kind":"develop_submit","payload":{"status":"blocked","summary":"The edit range needs correction.","feedback":"Use a different edit_file range based on read_file output.","bypassVerify":true,"lessonEdits":[]}}"#,
@@ -116,7 +116,7 @@ struct ExecutorBehaviorTests {
     #expect(prompts[3].contains("Do not submit"))
     #expect(prompts[3].contains("failed/blocked"))
     #expect(prompts[3].contains("previous edit range was wrong"))
-    #expect(prompts[3].contains(#""path":"index.ts""#))
+    #expect(prompts[3].contains(#""path":"lib.rs""#))
   }
   @Test
   func executorEscalatesRepeatedPartialRewriteFailureFamily() async throws {
@@ -130,7 +130,7 @@ struct ExecutorBehaviorTests {
     export function four() { return 4; }
     export function five() { return 5; }
     """.write(
-      to: tempURL.appending(path: "index.ts"),
+      to: tempURL.appending(path: "lib.rs"),
       atomically: true,
       encoding: .utf8
     )
@@ -146,12 +146,12 @@ struct ExecutorBehaviorTests {
       }
       """
     let partialRewriteAtTop =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(replacement))},"reason":"Rewrite the module."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"lib.rs","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(replacement))},"reason":"Rewrite the module."}"#
     let partialRewriteShifted =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":2,"endLine":2,"content":\#(jsonStringLiteral(replacement))},"reason":"Try a nearby range."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"lib.rs","startLine":2,"endLine":2,"content":\#(jsonStringLiteral(replacement))},"reason":"Try a nearby range."}"#
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports."}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"lib.rs"},"reason":"Need current exports."}"#,
       partialRewriteAtTop,
       partialRewriteShifted,
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not repair the edit shape.","feedback":"The edit kept moving the same partial rewrite to nearby ranges.","bypassVerify":false,"lessonEdits":[]}}"#,
@@ -176,7 +176,7 @@ struct ExecutorBehaviorTests {
     #expect(prompts[3].contains("use the full file range"))
     #expect(prompts[3].contains("Do not move the same multi-line replacement"))
     #expect(prompts[3].contains("Latest failure"))
-    #expect(prompts[3].contains(#""path":"index.ts""#))
+    #expect(prompts[3].contains(#""path":"lib.rs""#))
   }
   @Test
   func executorEscalatesRepeatedBodyOnlyFunctionReplacementFamily() async throws {
@@ -190,7 +190,7 @@ struct ExecutorBehaviorTests {
 
     console.log(main());
     """.write(
-      to: tempURL.appending(path: "main.ts"),
+      to: tempURL.appending(path: "main.rs"),
       atomically: true,
       encoding: .utf8
     )
@@ -200,12 +200,12 @@ struct ExecutorBehaviorTests {
         return `${count}: ${title}`;
       """
     let replaceDeclarationOnly =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"main.ts","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Replace main logic."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"main.rs","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Replace main logic."}"#
     let replaceDeclarationAndBody =
-      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"main.ts","startLine":1,"endLine":3,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Try a wider range."}"#
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"main.rs","startLine":1,"endLine":3,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Try a wider range."}"#
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"main.ts"},"reason":"Need current main function."}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"main.rs"},"reason":"Need current main function."}"#,
       replaceDeclarationOnly,
       replaceDeclarationAndBody,
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not repair the function edit.","feedback":"The edit kept replacing a declaration with body-only lines.","bypassVerify":false,"lessonEdits":[]}}"#,
@@ -231,7 +231,7 @@ struct ExecutorBehaviorTests {
     #expect(prompts[3].contains("Do not replace a function declaration line"))
     #expect(prompts[3].contains("Concrete repair arguments from the latest Compass Observation"))
     #expect(prompts[3].contains("Use these as the `arguments` for the next `edit_file` call"))
-    #expect(prompts[3].contains(#""path":"main.ts""#))
+    #expect(prompts[3].contains(#""path":"main.rs""#))
     #expect(prompts[3].contains(#""startLine":1"#))
     #expect(prompts[3].contains(#""endLine":4"#))
     #expect(prompts[3].contains("export function main(argv = process.argv.slice(2)): string {"))
@@ -245,13 +245,13 @@ struct ExecutorBehaviorTests {
       return argv.join(" ");
     }
     """.write(
-      to: tempURL.appending(path: "index.ts"),
+      to: tempURL.appending(path: "lib.rs"),
       atomically: true,
       encoding: .utf8
     )
 
     let readIndex =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current line numbers before editing."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"lib.rs"},"reason":"Need current line numbers before editing."}"#
     let runtime = FakeLocalModelRuntime(outputs: [
       readIndex,
       readIndex,
@@ -277,7 +277,7 @@ struct ExecutorBehaviorTests {
     #expect(prompts[2].contains("Choose exactly one next action"))
     #expect(prompts[2].contains("Call `edit_file` or `write_file`"))
     #expect(prompts[2].contains("status=failed or status=blocked"))
-    #expect(prompts[2].contains(#""path":"index.ts""#))
+    #expect(prompts[2].contains(#""path":"lib.rs""#))
   }
   @Test
   func executorEscalatesAlternatingReadOnlyDevelopLoop() async throws {
@@ -328,7 +328,7 @@ struct ExecutorBehaviorTests {
     let planSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"Cargo.toml"},"reason":"Need current workspace scripts."}"#
     let validator = RejectFirstPlanSubmitValidator()
     let runtime = FakeLocalModelRuntime(outputs: [
       planSubmit,
@@ -375,22 +375,26 @@ struct ExecutorBehaviorTests {
       prompts[2].contains("Your previous Plan payload claimed new CLI behavior without proof"))
     #expect(prompts[2].contains("Do not call another tool to repair this"))
     #expect(prompts[2].contains(#"["--format", "json", "Ship", "it"]"#))
-    #expect(prompts[2].contains(#""path":"package.json""#))
+    #expect(prompts[2].contains(#""path":"Cargo.toml""#))
   }
   @Test
   func executorEscalatesRepeatedToolCallsAfterMalformedContinuationRejection() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
     try
-      #"{"scripts":{"verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"}}"#
+      """
+    [package]
+    name = "demo"
+    version = "0.1.0"
+    """
       .write(
-        to: tempURL.appending(path: "package.json"),
+        to: tempURL.appending(path: "Cargo.toml"),
         atomically: true,
         encoding: .utf8
       )
 
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"Cargo.toml"},"reason":"Need current workspace scripts."}"#
     let planSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -424,7 +428,7 @@ struct ExecutorBehaviorTests {
     #expect(prompts[3].contains("Return `plan_submit` with a corrected `payload`"))
     #expect(prompts[3].contains("Latest continuation repair to apply now"))
     #expect(prompts[3].contains("Invalid response"))
-    #expect(prompts[3].contains(#""path":"package.json""#))
+    #expect(prompts[3].contains(#""path":"Cargo.toml""#))
   }
   @Test
   func executorEscalatesRepeatedSubmitRejections() async throws {
@@ -475,17 +479,21 @@ struct ExecutorBehaviorTests {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
     try
-      #"{"scripts":{"verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"}}"#
+      """
+    [package]
+    name = "demo"
+    version = "0.1.0"
+    """
       .write(
-        to: tempURL.appending(path: "package.json"),
+        to: tempURL.appending(path: "Cargo.toml"),
         atomically: true,
         encoding: .utf8
       )
 
     let unfinishedSubmit =
-      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Edited main.ts.","feedback":"Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes meet the acceptance criteria.","bypassVerify":false,"lessonEdits":[]}}"#
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Edited main.rs.","feedback":"Run `cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace` to check if the changes meet the acceptance criteria.","bypassVerify":false,"lessonEdits":[]}}"#
     let readPackage =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"Cargo.toml"},"reason":"Need current crate scripts."}"#
     let runVerify =
       #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"},"reason":"Run the missing verification command before submitting success."}"#
     let finishedSubmit =
@@ -833,9 +841,13 @@ struct ExecutorBehaviorTests {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
     try
-      #"{"scripts":{"verify":"cargo fmt --all --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace"}}"#
+      """
+    [package]
+    name = "demo"
+    version = "0.1.0"
+    """
       .write(
-        to: tempURL.appending(path: "package.json"),
+        to: tempURL.appending(path: "Cargo.toml"),
         atomically: true,
         encoding: .utf8
       )
@@ -866,7 +878,7 @@ struct ExecutorBehaviorTests {
       ```
       """
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"Cargo.toml"},"reason":"Need current workspace scripts."}"#
     let validPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -907,7 +919,7 @@ struct ExecutorBehaviorTests {
     let malformedPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"main(["--done", "1", "Ship", "it"]) returns 0 open / 1 total."}}}}"#
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need scripts after the rejected submit."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"Cargo.toml"},"reason":"Need scripts after the rejected submit."}"#
     let validPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Add separate --done argv support.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -947,7 +959,7 @@ struct ExecutorBehaviorTests {
     let malformedPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"main(["--done", "1", "Ship", "it"]) returns 0 open / 1 total."}}}}"#
     let readPackage =
-      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need scripts after the rejected submit."}"#
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"Cargo.toml"},"reason":"Need scripts after the rejected submit."}"#
     let validPlanSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Add separate --done argv support.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -977,10 +989,10 @@ struct ExecutorBehaviorTests {
     #expect(prompts[3].contains("Compass will keep rejecting tools"))
     #expect(
       prompts[3].contains(
-        "The continuation-contract `read_file package.json` shape is only an example"))
+        "The continuation-contract `read_file Cargo.toml` shape is only an example"))
     #expect(prompts[3].contains("Your next response must be `plan_submit`, not `plan_continue`"))
     #expect(prompts[3].contains("For Plan, repair `state.immediate.plan` directly"))
-    #expect(prompts[3].contains(#""path":"package.json""#))
+    #expect(prompts[3].contains(#""path":"Cargo.toml""#))
   }
   @Test
   func executorRejectsProceduralFailedDevelopSubmitAfterMalformedContinuation() async throws {
@@ -1059,7 +1071,7 @@ struct ExecutorBehaviorTests {
       ```
       """
     let readPackage =
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts after the malformed edit."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"Cargo.toml"},"reason":"Need current workspace scripts after the malformed edit."}"#
     let terminalFailure =
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not complete the requested CLI change within the iteration budget.","feedback":"The implementation was not completed before the Develop iteration budget ended.","bypassVerify":false,"lessonEdits":[]}}"#
     let runtime = FakeLocalModelRuntime(outputs: [
@@ -1088,9 +1100,9 @@ struct ExecutorBehaviorTests {
     #expect(prompts[2].contains("reading more files does not repair malformed JSON"))
     #expect(prompts[2].contains("repair the rejected continuation now"))
     #expect(prompts[2].contains("using `edit_file` and `replacementLines` as an array of strings"))
-    #expect(prompts[2].contains("Do not reread `package.json`"))
+    #expect(prompts[2].contains("Do not reread `Cargo.toml`"))
     #expect(prompts[2].contains("Latest malformed-continuation repair to apply now"))
-    #expect(prompts[2].contains(#""path":"package.json""#))
+    #expect(prompts[2].contains(#""path":"Cargo.toml""#))
   }
   @Test
   func executorStopsAtMaxIterationsAndWallClock() async throws {
