@@ -370,7 +370,10 @@ enum SharedCompassVMWorktreeSync {
   /// single in-memory `Data`. Filters out paths that don't currently
   /// exist on disk (e.g. deleted-but-still-staged entries) so tar
   /// doesn't bail with `No such file or directory`.
-  private static func buildHostTar(at worktree: URL) throws -> Data {
+  ///
+  /// Internal (not `private`) so tests can exercise the pipe plumbing
+  /// without standing up a guest.
+  static func buildHostTar(at worktree: URL) throws -> Data {
     let existing = try syncableRelativePaths(in: worktree)
 
     let tar = Process()
@@ -386,30 +389,57 @@ enum SharedCompassVMWorktreeSync {
 
     try tar.run()
 
-    // Feed the NUL-separated relative paths to tar's --null -T -.
-    // Writing on a background thread isn't necessary here because
-    // tar buffers in libarchive's internal queue and the path list
-    // is small even for huge worktrees.
-    let listData =
-      existing
-      .map { Data(($0).utf8) + Data([0]) }
-      .reduce(Data(), +)
+    // Drop the parent's copies of the child's write ends so EOF reaches
+    // the drain threads when tar exits (same pattern as ProcessRunner /
+    // AgentFileOperations).
+    try? stdout.fileHandleForWriting.close()
+    try? stderr.fileHandleForWriting.close()
+
+    // Drain stdout/stderr concurrently while we feed stdin. Writing the
+    // full path list *then* reading stdout deadlocks once tar fills the
+    // ~64 KiB pipe buffer mid-archive (it stops reading more paths).
+    final class DrainSink: @unchecked Sendable {
+      var data = Data()
+    }
+    let stdoutSink = DrainSink()
+    let stderrSink = DrainSink()
+    let drainGroup = DispatchGroup()
+    let stdoutHandle = stdout.fileHandleForReading
+    let stderrHandle = stderr.fileHandleForReading
+    drainGroup.enter()
+    DispatchQueue.global(qos: .utility).async {
+      stdoutSink.data = (try? stdoutHandle.readToEnd()) ?? Data()
+      drainGroup.leave()
+    }
+    drainGroup.enter()
+    DispatchQueue.global(qos: .utility).async {
+      stderrSink.data = (try? stderrHandle.readToEnd()) ?? Data()
+      drainGroup.leave()
+    }
+
+    var listData = Data()
+    listData.reserveCapacity(existing.reduce(0) { $0 + $1.utf8.count + 1 })
+    for path in existing {
+      listData.append(contentsOf: path.utf8)
+      listData.append(0)
+    }
     do {
       try stdin.fileHandleForWriting.write(contentsOf: listData)
       try stdin.fileHandleForWriting.close()
     } catch {
       tar.terminate()
+      drainGroup.wait()
       tar.waitUntilExit()
       throw SyncError.hostTarFailed(stderr: error.localizedDescription)
     }
 
-    let tarData = (try? stdout.fileHandleForReading.readToEnd()) ?? Data()
-    let errData = (try? stderr.fileHandleForReading.readToEnd()) ?? Data()
+    drainGroup.wait()
     tar.waitUntilExit()
     if tar.terminationStatus != 0 {
-      throw SyncError.hostTarFailed(stderr: String(decoding: errData, as: UTF8.self))
+      throw SyncError.hostTarFailed(
+        stderr: String(decoding: stderrSink.data, as: UTF8.self))
     }
-    return tarData
+    return stdoutSink.data
   }
 
   /// Runs `git ls-files --cached --others --exclude-standard -z`

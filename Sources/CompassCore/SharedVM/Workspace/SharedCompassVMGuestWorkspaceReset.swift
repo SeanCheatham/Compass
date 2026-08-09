@@ -10,7 +10,8 @@ public enum SharedCompassVMGuestWorkspaceReset {
     /// Catalog ID is unchanged.
     case dirt
     /// Delete the guest `Repos/<id>` tree, rotate the host catalog entry, and
-    /// optionally force-sync a fresh worktree.
+    /// optionally tar force-sync a fresh worktree (same transport as agent
+    /// `forceRefresh`).
     case full
   }
 
@@ -58,7 +59,7 @@ public enum SharedCompassVMGuestWorkspaceReset {
   ///
   /// - Parameters:
   ///   - mode: `.dirt` or `.full`.
-  ///   - resyncAfterFull: When `mode == .full`, force-sync the host repo into a
+  ///   - resyncAfterFull: When `mode == .full`, tar-push the host repo into a
   ///     freshly allocated guest worktree (default `true`).
   @discardableResult
   public static func reset(
@@ -179,23 +180,15 @@ public enum SharedCompassVMGuestWorkspaceReset {
       )
     }
 
+    // Cold CAS would re-upload every blob one vsock round-trip at a time
+    // into an empty Repos/<id>/objects/. Mirror agent forceRefresh: one
+    // wipe-style tar push. (~1 GiB syncable-tree cap; chunked transfer TBD.)
     let ready = try await AgentMacOSVMBashRunner.ensureReady()
-    let guestPath: String
-    do {
-      guestPath = try await SharedCompassVMCASSync.syncToGuest(
-        hostRepoURL: repoURL,
-        client: ready.client,
-        forceRefresh: true
-      )
-    } catch {
-      SharedCompassVMWorkspaceSyncLog.logCASFallback(reason: error.localizedDescription)
-      let sync = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
-        hostRepoURL: repoURL,
-        client: ready.client,
-        forceRefresh: true
-      )
-      guestPath = sync.guestPath
-    }
+    let sync = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
+      hostRepoURL: repoURL,
+      client: ready.client,
+      forceRefresh: true
+    )
     let entry = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(
       forRepoURL: repoURL,
       fileManager: fileManager
@@ -204,8 +197,8 @@ public enum SharedCompassVMGuestWorkspaceReset {
       mode: .full,
       previousWorkspaceID: previous?.id,
       workspaceID: entry.id,
-      guestWorktreePath: guestPath,
-      detail: "Rotated guest workspace to \(entry.id) and force-synced \(guestPath)."
+      guestWorktreePath: sync.guestPath,
+      detail: "Rotated guest workspace to \(entry.id) and tar force-synced \(sync.guestPath)."
     )
   }
 

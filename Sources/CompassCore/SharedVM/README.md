@@ -24,6 +24,6 @@ When a project includes the `macos` product, `scripts/verify-macos.sh` runs bind
 One shared guest OS/toolchain serves every project. Per-repo isolation lives under `/Users/compass/Compass/Repos/<uuid>/`. Use `compass-cli vm reset-workspace --repo <path> [--dirt|--full]` (default `--full`) or Settings → Reset Guest Workspace to discard Develop mess without reprovisioning:
 
 - `--dirt` — remove `target/`, `.build/`, `apps/macos/dist`, `mutants.out*`, etc. inside the existing worktree
-- `--full` — delete `Repos/<id>`, rotate `.compass/guest-workspace.json`, force-sync a fresh tree
+- `--full` — delete `Repos/<id>`, rotate `.compass/guest-workspace.json`, tar force-sync a fresh tree (same as agent `forceRefresh`; avoids cold CAS per-file upload)
 
 Mutation collection automatically runs a `--dirt` cleanup afterward so mutant trees do not accumulate across iterations.

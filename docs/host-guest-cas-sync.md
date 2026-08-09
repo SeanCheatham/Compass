@@ -8,8 +8,9 @@ It is not required as the host↔guest transport.
 
 ## Status
 
-**Implemented** as the agent bash / workspace-reset primary path. Wipe-style
-tar remains a logged fallback when CAS fails or `forceRefresh` is set.
+**Implemented** as the agent bash primary path. Wipe-style tar is used for
+agent `forceRefresh` and `vm reset-workspace --full` resync, and as a logged
+fallback when incremental CAS fails.
 
 ## Motivation
 

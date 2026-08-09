@@ -94,7 +94,7 @@ struct MacOSVMRuntimeView: View {
         .help(
           model.selectedProject == nil
             ? "Select a project first to reset its guest workspace."
-            : "Delete the selected project's guest Repos/<id> tree and force-sync a fresh worktree."
+            : "Delete the selected project's guest Repos/<id> tree and tar force-sync a fresh worktree."
         )
 
         Button(role: .destructive) {
