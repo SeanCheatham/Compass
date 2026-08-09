@@ -286,12 +286,28 @@ enum AgentFileOperations {
 
   // MARK: - Process runner
 
+  /// Guest agent accepts vsock connections concurrently. Serializing
+  /// `Process` lifetime avoids EBADF from fd-number reuse: one RPC
+  /// closes a `/dev/null` or pipe handle while another still holds the
+  /// same numeric fd for `posix_spawn`.
+  private static let processLock = NSLock()
+
+  /// Opened once, never closed. Per-call `FileHandle(forReadingAtPath:)`
+  /// + `close()` races with concurrent spawns under LaunchDaemon and
+  /// resurfaces as `failed to launch /bin/zsh: Bad file descriptor`.
+  private static let stdinNull: FileHandle = {
+    FileHandle(forReadingAtPath: "/dev/null") ?? .nullDevice
+  }()
+
   private static func runProcess(
     executable: String,
     arguments: [String],
     workingDirectory: String? = nil,
     timeoutSeconds: Double
   ) -> AgentRPCResponse.ProcessResult {
+    processLock.lock()
+    defer { processLock.unlock() }
+
     let process = Process()
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = arguments
@@ -324,18 +340,9 @@ enum AgentFileOperations {
     let stderrPipe = Pipe()
     process.standardOutput = stdoutPipe
     process.standardError = stderrPipe
-    // LaunchDaemon context often has stdin closed (no StandardInPath).
-    // Foundation.Process inherits that fd and posix_spawn fails with
-    // EBADF ("Bad file descriptor") unless we supply a real stdin.
-    // Open /dev/null explicitly — FileHandle.nullDevice is a shared
-    // handle and has been flaky under LaunchDaemon.
-    let stdinNull = FileHandle(forReadingAtPath: "/dev/null")
-    if let stdinNull {
-      process.standardInput = stdinNull
-    } else {
-      process.standardInput = FileHandle.nullDevice
-    }
-    defer { try? stdinNull?.close() }
+    // LaunchDaemon may have had stdin closed historically; always give
+    // Process a live fd. Reuse a process-wide handle — never close it.
+    process.standardInput = stdinNull
     do {
       try process.run()
     } catch {
