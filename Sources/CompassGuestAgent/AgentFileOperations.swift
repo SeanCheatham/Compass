@@ -1,4 +1,5 @@
 import CompassAgentRPC
+import Darwin
 import Foundation
 
 /// Pure Foundation file operations for the guest agent. These are the same
@@ -286,37 +287,14 @@ enum AgentFileOperations {
 
   // MARK: - Process runner
 
-  /// Guest agent accepts vsock connections concurrently. Serializing
-  /// `Process` lifetime avoids EBADF from fd-number reuse: one RPC
-  /// closes a `/dev/null` or pipe handle while another still holds the
-  /// same numeric fd for `posix_spawn`.
-  private static let processLock = NSLock()
-
-  /// Opened once, never closed. Per-call `FileHandle(forReadingAtPath:)`
-  /// + `close()` races with concurrent spawns under LaunchDaemon and
-  /// resurfaces as `failed to launch /bin/zsh: Bad file descriptor`.
-  private static let stdinNull: FileHandle = {
-    FileHandle(forReadingAtPath: "/dev/null") ?? .nullDevice
-  }()
-
   private static func runProcess(
     executable: String,
     arguments: [String],
     workingDirectory: String? = nil,
     timeoutSeconds: Double
   ) -> AgentRPCResponse.ProcessResult {
-    processLock.lock()
-    defer { processLock.unlock() }
-
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: executable)
-    process.arguments = arguments
-    if let workingDirectory {
-      process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
-    }
-    // The LaunchDaemon context supplies HOME=/var/empty and a bare
-    // PATH (/usr/bin:/bin:/usr/sbin:/sbin). Fix both from the account
-    // database so rustup proxies (which resolve $HOME/.rustup) and
+    // LaunchDaemon supplies HOME=/var/empty and a bare PATH. Fix both
+    // from the account database so rustup proxies ($HOME/.rustup) and
     // /usr/local/bin symlinks (cargo, rg) work in spawned commands.
     var environment = ProcessInfo.processInfo.environment
     if let pwent = getpwuid(getuid()) {
@@ -335,101 +313,12 @@ enum AgentFileOperations {
         environment["PKG_CONFIG_PATH"] = pkgConfigPath
       }
     }
-    process.environment = environment
-    let stdoutPipe = Pipe()
-    let stderrPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = stderrPipe
-    // LaunchDaemon may have had stdin closed historically; always give
-    // Process a live fd. Reuse a process-wide handle — never close it.
-    process.standardInput = stdinNull
-    do {
-      try process.run()
-    } catch {
-      return AgentRPCResponse.ProcessResult(
-        exitCode: 127,
-        stdout: "",
-        stderr: "failed to launch \(executable): \(error.localizedDescription)"
-      )
-    }
-
-    let pid = process.processIdentifier
-
-    // Put the direct child into its own process group so any
-    // grandchildren it spawns — including `cmd &` backgrounded jobs
-    // and tools that fork helpers (swift build → swiftc/clang/ld) —
-    // inherit the same pgid and can be reaped as a unit below. There
-    // is a tiny window between fork and this setpgid where the child
-    // could have already forked into the parent's group; in that case
-    // the escapee leaks past this RPC and only a VM restart will
-    // reclaim it. Acceptable in practice for the workloads agents run.
-    _ = setpgid(pid, pid)
-
-    // Drop the parent's copies of the pipe write ends so EOF arrives
-    // on the read ends when the *direct* child closes them — not
-    // after every grandchild that inherited the fds also closes them.
-    // Without this, `./.build/debug/App 2>&1 &` returns from zsh
-    // within milliseconds but the readToEnd() below never completes,
-    // because the backgrounded App is still holding the write side
-    // open.
-    try? stdoutPipe.fileHandleForWriting.close()
-    try? stderrPipe.fileHandleForWriting.close()
-
-    // Drain stdout/stderr concurrently so a chatty child can't
-    // deadlock against the ~64 KiB pipe buffer while we sit polling
-    // `isRunning`. Each thread writes its captured Data into its own
-    // sink; DispatchGroup.wait() below provides the happens-before
-    // edge that lets us read them safely on this thread.
-    final class DrainSink: @unchecked Sendable {
-      var data = Data()
-    }
-    let stdoutSink = DrainSink()
-    let stderrSink = DrainSink()
-    let drainGroup = DispatchGroup()
-    let stdoutHandle = stdoutPipe.fileHandleForReading
-    let stderrHandle = stderrPipe.fileHandleForReading
-    drainGroup.enter()
-    DispatchQueue.global(qos: .utility).async {
-      stdoutSink.data = (try? stdoutHandle.readToEnd()) ?? Data()
-      drainGroup.leave()
-    }
-    drainGroup.enter()
-    DispatchQueue.global(qos: .utility).async {
-      stderrSink.data = (try? stderrHandle.readToEnd()) ?? Data()
-      drainGroup.leave()
-    }
-
-    let deadline = Date().addingTimeInterval(timeoutSeconds)
-    while process.isRunning && Date() < deadline {
-      Thread.sleep(forTimeInterval: 0.05)
-    }
-    let timedOut = process.isRunning
-
-    // SIGKILL the entire process group on both timeout AND clean
-    // exit. The clean-exit case is the load-bearing one: it reaps
-    // backgrounded grandchildren whose parent (zsh) already exited
-    // successfully — without it those grandchildren would survive
-    // the RPC, keep burning guest CPU between iterations, and (if
-    // they inherited stdio) leave the drain threads above blocked
-    // on EOF forever. ESRCH from an empty group is harmless.
-    _ = kill(-pid, SIGKILL)
-    if process.isRunning {
-      let graceDeadline = Date().addingTimeInterval(1.0)
-      while process.isRunning && Date() < graceDeadline {
-        Thread.sleep(forTimeInterval: 0.05)
-      }
-    }
-
-    drainGroup.wait()
-    var stderrText = String(decoding: stderrSink.data, as: UTF8.self)
-    if timedOut {
-      if !stderrText.isEmpty && !stderrText.hasSuffix("\n") { stderrText += "\n" }
-      stderrText += "[timed out after \(Int(timeoutSeconds * 1000)) ms]"
-    }
-    return AgentRPCResponse.ProcessResult(
-      exitCode: process.terminationStatus,
-      stdout: String(decoding: stdoutSink.data, as: UTF8.self),
-      stderr: stderrText
+    return GuestProcess.run(
+      executable: executable,
+      arguments: arguments,
+      workingDirectory: workingDirectory,
+      environment: environment,
+      timeoutSeconds: timeoutSeconds
     )
   }
 }

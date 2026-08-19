@@ -53,6 +53,7 @@ final class VsockListener {
     if fd < 0 {
       throw ListenerError.socketFailed(errno: errno)
     }
+    _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
 
     // Build sockaddr_vm with C struct layout — Darwin doesn't expose a
     // Swift binding for this struct.
@@ -92,6 +93,7 @@ final class VsockListener {
         if errno == EINTR { continue }
         throw ListenerError.acceptFailed(errno: errno)
       }
+      _ = fcntl(client, F_SETFD, FD_CLOEXEC)
       handle(client)
     }
   }

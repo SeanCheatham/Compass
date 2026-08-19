@@ -389,7 +389,7 @@ extension SharedCompassVM {
 
   /// When the Shared VM is already `.ready`, boot-time agent repair never
   /// runs again. Call this before bash so a rebuilt Compass host still
-  /// replants a mismatched guest agent (e.g. the EBADF stdin fix).
+  /// replants a mismatched guest agent (e.g. posix_spawn EBADF fixes).
   public func ensureGuestAgentMatchesHost(destination: String) async throws {
     let hostSHA: String
     do {

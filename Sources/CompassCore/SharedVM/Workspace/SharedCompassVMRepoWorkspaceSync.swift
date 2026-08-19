@@ -245,29 +245,17 @@ enum SharedCompassVMRepoWorkspaceSync {
     }
   }
 
-  /// Returns true when the guest path exists as a directory. Used to
-  /// short-circuit the push step on subsequent sessions so the agent's
-  /// prior work is preserved.
+  /// Returns true when the guest path exists as a directory. Uses the
+  /// stat RPC so a guest-shell spawn failure cannot fail the existence check.
   private static func guestPathExists(
     _ guestPath: String,
     client: AgentVsockClient
   ) async throws -> Bool {
-    // Use a single bash RPC rather than the filesystem stat RPC so
-    // we get a definite yes/no plus the exit code, without having to
-    // distinguish "missing" from "permission denied" in two places.
-    let result: ProcessResult
     do {
-      result = try await client.run(
-        command: "if [ -d '\(guestPath)' ]; then echo PRESENT; else echo ABSENT; fi",
-        workingDirectory: URL(fileURLWithPath: "/tmp"),
-        timeout: 15
-      )
+      let meta = try await client.metadata(of: URL(fileURLWithPath: guestPath))
+      return meta?.isDirectory == true
     } catch {
       throw SyncError.probeFailure(stderr: "\(error)")
     }
-    if result.exitCode != 0 {
-      throw SyncError.probeFailure(stderr: result.stderr)
-    }
-    return result.stdout.contains("PRESENT")
   }
 }
